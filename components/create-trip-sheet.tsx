@@ -70,8 +70,9 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
     if (destinations.find((d) => d.placeId === prediction.placeId)) return;
 
     const remainingDays = Math.max(1, totalDays - distributedDays);
+    const tempId = generateId();
     const newDest: Destination = {
-      id: generateId(),
+      id: tempId,
       name: prediction.name,
       country: prediction.country,
       days: remainingDays,
@@ -82,11 +83,21 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
     // Fetch details in background for lat/lng/imageUrl
     try {
       const res = await fetch(
-        `/api/trpc/places.details?input=${encodeURIComponent(JSON.stringify({ placeId: prediction.placeId }))}`
+        `/api/trpc/places.details?input=${encodeURIComponent(JSON.stringify({ json: { placeId: prediction.placeId } }))}`
       );
-      // We'll update via store after trip creation — no blocking here
+      const json = await res.json();
+      const details = json?.result?.data?.json;
+      if (details?.imageUrl || details?.lat) {
+        setDestinations((prev) =>
+          prev.map((d) =>
+            d.id === tempId
+              ? { ...d, lat: details.lat, lng: details.lng, imageUrl: details.imageUrl, country: details.country || d.country }
+              : d
+          )
+        );
+      }
     } catch {
-      // Non-critical
+      // Non-critical — hero image will use Unsplash fallback
     }
   };
 

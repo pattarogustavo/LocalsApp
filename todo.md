@@ -24,6 +24,10 @@
 - [x] Add AI itinerary generation (OpenAI integration)
 - [x] Add Google Places autocomplete for destination input
 - [x] Add accommodation management UI
+- [x] Fix Home Screen safe area spacing (background extends behind iPhone status bar)
+- [x] Restore hero image on trip detail screen (real photo from destination)
+- [x] Expand destination image map (40+ cities worldwide)
+- [x] Save Google Places imageUrl to destination for hero image
 - [ ] Add trip cover image picker
 - [ ] Add currency selector in trip settings
 - [ ] Add push notifications for flight alerts

@@ -32,29 +32,77 @@ const { height } = Dimensions.get('window');
 const HERO_HEIGHT = height * 0.38;
 
 const DESTINATION_IMAGES: Record<string, string> = {
+  // Europe
   paris: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=1200',
   roma: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=1200',
   rome: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=1200',
   london: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=1200',
   londres: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=1200',
-  tokyo: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200',
-  tóquio: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200',
-  'new york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=1200',
-  'nova york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=1200',
   barcelona: 'https://images.unsplash.com/photo-1583422409516-2895a77efded?w=1200',
   amsterdam: 'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?w=1200',
   lisbon: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=1200',
   lisboa: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=1200',
+  madrid: 'https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=1200',
+  berlin: 'https://images.unsplash.com/photo-1560969184-10fe8719e047?w=1200',
+  berlim: 'https://images.unsplash.com/photo-1560969184-10fe8719e047?w=1200',
+  vienna: 'https://images.unsplash.com/photo-1516550893923-42d28e5677af?w=1200',
+  viena: 'https://images.unsplash.com/photo-1516550893923-42d28e5677af?w=1200',
+  prague: 'https://images.unsplash.com/photo-1541849546-216549ae216d?w=1200',
+  praga: 'https://images.unsplash.com/photo-1541849546-216549ae216d?w=1200',
+  florence: 'https://images.unsplash.com/photo-1541370976299-4d24be63b9e3?w=1200',
+  florença: 'https://images.unsplash.com/photo-1541370976299-4d24be63b9e3?w=1200',
+  venice: 'https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?w=1200',
+  veneza: 'https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?w=1200',
+  athens: 'https://images.unsplash.com/photo-1555993539-1732b0258235?w=1200',
+  atenas: 'https://images.unsplash.com/photo-1555993539-1732b0258235?w=1200',
+  santorini: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=1200',
+  zurich: 'https://images.unsplash.com/photo-1515488764276-beab7607c1e6?w=1200',
+  zurique: 'https://images.unsplash.com/photo-1515488764276-beab7607c1e6?w=1200',
+  // Asia
+  tokyo: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200',
+  tóquio: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200',
   dubai: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1200',
   bali: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=1200',
   bangkok: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=1200',
-  sydney: 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=1200',
+  singapore: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=1200',
+  cingapura: 'https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=1200',
+  kyoto: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1200',
+  osaka: 'https://images.unsplash.com/photo-1590559899731-a382839e5549?w=1200',
+  seoul: 'https://images.unsplash.com/photo-1538485399081-7191377e8241?w=1200',
+  seul: 'https://images.unsplash.com/photo-1538485399081-7191377e8241?w=1200',
+  istanbul: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=1200',
+  istambul: 'https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=1200',
+  maldives: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=1200',
+  maldivas: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?w=1200',
+  // Americas
+  'new york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=1200',
+  'nova york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=1200',
   miami: 'https://images.unsplash.com/photo-1506966953602-c20cc11f75e3?w=1200',
+  'los angeles': 'https://images.unsplash.com/photo-1534190760961-74e8c1c5c3da?w=1200',
+  chicago: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1200',
+  cancun: 'https://images.unsplash.com/photo-1552074284-5e88ef1aef18?w=1200',
+  'buenos aires': 'https://images.unsplash.com/photo-1589909202802-8f4aadce1849?w=1200',
+  'rio de janeiro': 'https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=1200',
+  rio: 'https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=1200',
+  'são paulo': 'https://images.unsplash.com/photo-1578002171197-b8f0f2e1b5e2?w=1200',
+  'sao paulo': 'https://images.unsplash.com/photo-1578002171197-b8f0f2e1b5e2?w=1200',
+  lima: 'https://images.unsplash.com/photo-1531968455001-5c5272a41129?w=1200',
+  bogota: 'https://images.unsplash.com/photo-1597476173484-e8e6c1e4e1e5?w=1200',
+  // Africa & Oceania
+  sydney: 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=1200',
+  'cape town': 'https://images.unsplash.com/photo-1580060839134-75a5edca2e99?w=1200',
+  'cidade do cabo': 'https://images.unsplash.com/photo-1580060839134-75a5edca2e99?w=1200',
+  marrakech: 'https://images.unsplash.com/photo-1539020140153-e479b8c22e70?w=1200',
+  marrakesh: 'https://images.unsplash.com/photo-1539020140153-e479b8c22e70?w=1200',
   default: 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1200',
 };
 
 function getHeroImage(trip: any): string {
+  // 1. Use explicit cover image if set
   if (trip?.coverImageUrl) return trip.coverImageUrl;
+  // 2. Use Google Places photo from first destination if available
+  if (trip?.destinations?.[0]?.imageUrl) return trip.destinations[0].imageUrl;
+  // 3. Fall back to curated Unsplash map by destination name
   const destName = trip?.destinations?.[0]?.name?.toLowerCase() || '';
   for (const [key, url] of Object.entries(DESTINATION_IMAGES)) {
     if (destName.includes(key)) return url;

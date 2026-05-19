@@ -89,7 +89,9 @@ export default function HomeScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={{ flex: 1, backgroundColor: '#F5F0E8' }}>
+      {/* Status bar background - extends bg color behind iPhone status bar */}
+      <View style={{ height: insets.top, backgroundColor: '#F5F0E8' }} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -100,7 +102,7 @@ export default function HomeScreen() {
         {/* Header */}
         <View
           className="flex-row items-center justify-between px-6"
-          style={{ paddingTop: insets.top + 12, paddingBottom: 16 }}
+          style={{ paddingTop: 12, paddingBottom: 16 }}
         >
           <View>
             <Text style={{ fontSize: 32, fontFamily: 'serif', fontStyle: 'italic', color: '#1C3D2E', fontWeight: '400' }}>
