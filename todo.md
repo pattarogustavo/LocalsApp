@@ -1,0 +1,30 @@
+# Voyage App TODO
+
+- [x] Initialize Expo project with mobile scaffold
+- [x] Generate app icon (compass rose on deep green)
+- [x] Configure design system (Voyage colors, typography)
+- [x] Update app.config.ts with Voyage branding
+- [x] Create Trip types (TypeScript)
+- [x] Create Zustand store for trips management with AsyncStorage persistence
+- [x] Create utility functions (date formatting, trip helpers)
+- [x] Create Home Screen with Por Vir / Já Aconteceram sections
+- [x] Create TripCard and TripCardStacked components
+- [x] Create CreateTripSheet bottom sheet modal
+- [x] Create Trip Detail screen with hero image and tabs
+- [x] Create TransportBlock component (flights, car, train)
+- [x] Create DocumentsBlock component
+- [x] Create ExpensesBlock component
+- [x] Create TravelersBlock component
+- [x] Create PlacesScreen component with categories and suggested places
+- [x] Create PlaceDetailModal with maps/website links
+- [x] Add design.md with full design documentation
+- [x] Fix any TypeScript/build errors
+- [x] Test navigation flow (Home → Trip Detail → back)
+- [x] Add Guias Curados section on Home Screen
+- [ ] Add AI itinerary generation (OpenAI integration)
+- [ ] Add Google Places autocomplete for destination input
+- [ ] Add accommodation management UI
+- [ ] Add trip cover image picker
+- [ ] Add currency selector in trip settings
+- [ ] Add push notifications for flight alerts
+- [ ] Final UI polish and animations

@@ -1,0 +1,193 @@
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTripsStore } from '@/store/trips';
+import { generateId } from '@/utils/trip-helpers';
+import type { Document } from '@/types/voyage';
+
+interface DocumentsBlockProps {
+  tripId: string;
+  documents: Document[];
+}
+
+const DOC_TYPES = [
+  { key: 'passport', label: 'Passaporte', icon: 'document-text' },
+  { key: 'visa', label: 'Visto', icon: 'card' },
+  { key: 'ticket', label: 'Passagem', icon: 'airplane' },
+  { key: 'reservation', label: 'Reserva', icon: 'bed' },
+  { key: 'insurance', label: 'Seguro', icon: 'shield-checkmark' },
+  { key: 'other', label: 'Outro', icon: 'folder' },
+];
+
+export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
+  const addDocument = useTripsStore((s) => s.addDocument);
+  const removeDocument = useTripsStore((s) => s.removeDocument);
+  const [showModal, setShowModal] = useState(false);
+  const [docName, setDocName] = useState('');
+  const [docType, setDocType] = useState<Document['type']>('other');
+  const insets = useSafeAreaInsets();
+
+  const handleAdd = async () => {
+    if (!docName.trim()) return;
+    const doc: Document = {
+      id: generateId(),
+      name: docName.trim(),
+      type: docType,
+    };
+    await addDocument(tripId, doc);
+    setShowModal(false);
+    setDocName('');
+    setDocType('other');
+  };
+
+  return (
+    <View
+      style={{
+        backgroundColor: 'rgba(28,61,46,0.85)',
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 12,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: documents.length > 0 ? 12 : 0 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name="document-text-outline" size={16} color="#52B788" />
+          <Text style={{ color: '#F5F0E8', fontSize: 12, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+            Documentos
+          </Text>
+        </View>
+        <TouchableOpacity onPress={() => setShowModal(true)}>
+          <Text style={{ color: '#52B788', fontSize: 13 }}>Ver todos</Text>
+        </TouchableOpacity>
+      </View>
+
+      {documents.length === 0 ? (
+        <TouchableOpacity onPress={() => setShowModal(true)}>
+          <Text style={{ color: 'rgba(245,240,232,0.5)', fontSize: 13, marginTop: 4 }}>
+            Nenhum documento adicionado
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        documents.slice(0, 3).map((doc) => {
+          const typeInfo = DOC_TYPES.find((t) => t.key === doc.type) || DOC_TYPES[5];
+          return (
+            <View
+              key={doc.id}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}
+            >
+              <Ionicons name={typeInfo.icon as any} size={16} color="rgba(245,240,232,0.6)" />
+              <Text style={{ color: '#F5F0E8', fontSize: 14, flex: 1 }}>{doc.name}</Text>
+              <TouchableOpacity onPress={() => removeDocument(tripId, doc.id)}>
+                <Ionicons name="trash-outline" size={14} color="rgba(245,240,232,0.4)" />
+              </TouchableOpacity>
+            </View>
+          );
+        })
+      )}
+
+      {/* Add Document Modal */}
+      <Modal visible={showModal} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View
+              style={{
+                backgroundColor: '#F5F0E8',
+                borderTopLeftRadius: 28,
+                borderTopRightRadius: 28,
+                padding: 24,
+                paddingBottom: insets.bottom + 24,
+              }}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: '#1C3D2E' }}>
+                  Documentos
+                </Text>
+                <TouchableOpacity onPress={() => setShowModal(false)}>
+                  <Ionicons name="close-circle" size={26} color="#1C3D2E" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Existing docs */}
+              {documents.map((doc) => {
+                const typeInfo = DOC_TYPES.find((t) => t.key === doc.type) || DOC_TYPES[5];
+                return (
+                  <View
+                    key={doc.id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10,
+                      backgroundColor: '#EDE8DC',
+                      borderRadius: 12,
+                      padding: 12,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Ionicons name={typeInfo.icon as any} size={18} color="#3D5A47" />
+                    <Text style={{ color: '#1C3D2E', flex: 1, fontWeight: '500' }}>{doc.name}</Text>
+                    <TouchableOpacity onPress={() => removeDocument(tripId, doc.id)}>
+                      <Ionicons name="trash-outline" size={16} color="#C0392B" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+
+              <Text style={{ color: '#6B7C72', fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 8 }}>
+                Tipo
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                {DOC_TYPES.map((t) => (
+                  <TouchableOpacity
+                    key={t.key}
+                    onPress={() => setDocType(t.key as any)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 20,
+                      backgroundColor: docType === t.key ? '#1C3D2E' : '#EDE8DC',
+                    }}
+                  >
+                    <Ionicons name={t.icon as any} size={14} color={docType === t.key ? '#F5F0E8' : '#1C3D2E'} />
+                    <Text style={{ fontSize: 12, color: docType === t.key ? '#F5F0E8' : '#1C3D2E' }}>{t.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TextInput
+                value={docName}
+                onChangeText={setDocName}
+                placeholder="Nome do documento"
+                placeholderTextColor="#9BA1A6"
+                style={{
+                  backgroundColor: '#EDE8DC',
+                  borderRadius: 12,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  color: '#1C3D2E',
+                  fontSize: 15,
+                  marginBottom: 12,
+                }}
+              />
+
+              <TouchableOpacity
+                onPress={handleAdd}
+                style={{
+                  backgroundColor: '#1C3D2E',
+                  borderRadius: 16,
+                  paddingVertical: 16,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: '#F5F0E8', fontWeight: '600', fontSize: 16 }}>Adicionar Arquivo</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+    </View>
+  );
+}
