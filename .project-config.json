@@ -1,0 +1,51 @@
+{
+  "build_command": "pnpm run build",
+  "capabilities": [
+    "server",
+    "db",
+    "user"
+  ],
+  "dev_command": "pnpm run dev",
+  "env_vars": {
+    "DATABASE_URL": "mysql://49HuCptxgz3Nger.root:w3DrJzgXEp9YpB3m5M30@gateway06.us-east-1.prod.aws.tidbcloud.com:4000/W4ReyjxDyzrfQdpLmkcvHo?ssl={\"rejectUnauthorized\":true}"
+  },
+  "experiments": [
+    "no_db_push"
+  ],
+  "git_remote": {
+    "repo_url": "s3://vida-prod-gitrepo/webdev-git/310419663029664606/W4ReyjxDyzrfQdpLmkcvHo",
+    "access_key_id": "ASIAZV3A2ECZDZ5EENM6",
+    "secret_access_key": "DhH6TWroXagC8wYp+/3GDR7PnLwCdsNennTtTlRJ",
+    "session_token": "IQoJb3JpZ2luX2VjEBIaCXVzLWVhc3QtMSJHMEUCID8q76e9qtEim5J7u7uu5OHatjbWgd649RC49Ostnz8lAiEAokbZIMWCZ0AWILxseHHUpBhG3L+71wqYBhT1OoXROXEq/gMI2///////////ARAEGgw2NjUzODYwOTg4NjYiDNlVMD2AgcS/md/CMCrSA8u4qkHU1q5WkvJQxAPr6FzH12Txjj7pJhY6uF6dGorAuuK+gjXaB/cFdDsPyQnKi7UMEaqV20WgQYWOSMDOSdSp5OjSwVeo2DPDXsqEGk0Aux5l9CmuusipFkEQIMd2XJBrNhFVI36Ydk2DAptx1XXpQGu5NXApyNgLIWdHpWfny54fFQ9mtM+SG0DGXLjl4Ph++0rjFV7y8zrSMRpY/cK/a1yjlrkSsz/o8ox6ApnJdp2lxTxPmKNDWbXvm16bDsTRtjsycDLzmh6eVntcSuOKGCNW6lAfXKXLI+lRqhC2e//IO5URLeeEtYLy9yJ3fLhZvKshY1zuCHZhaQWLmwN4oO/D+uudBQBlAupFkX7h9LjWMj22VPPqWuKavbeRdlin2FC6a0XVlGEMpwqOsr1PCfJsVtkKlrjCIVhzlSPoDK2oE9V0HQCR2vUAd0sIXFgPfZskF8F5R4cDKQ4WqaYhjgBELE1hELkW1n9EyKq2WNCUP7bzNRV0ebSQivnMvLXH/1Fx3PvUdT1pF/0+icJPz876EJo4epWIsZJb74uJ+lXmBa6RV+fxT5+SKp7cQqInheENArL80Eh4/qAfJI5mUYFZt3XpoTjYaj1+1E1nEKQw8cKy0AY6nQEnaa0ZMXnhZIeFIkhFo55Lci46GNkwdnfrzaDTGJkUtzXJSRFkeYcWqkA9yoVT61TBsJsfQNmrg+J7bAWJuiOWzLUAYl7koYTgquzIileRLlVpJ90JNp+Mi0YS7rwXRN5EAx1gdwykISn4kBelbQ8sOKlfNSjgE6Ivaf1uAv9dAzS5TMjsgcMnV/1crXXhjK91eUNfVlUHoEkH+H1m",
+    "expiration": "2026-05-20T05:44:17.000Z"
+  },
+  "name": "voyage-app",
+  "path": "/home/ubuntu/voyage-app",
+  "port": 3000,
+  "secrets": {
+    "BUILT_IN_FORGE_API_KEY": "Zr8sD3i87ZvRjorEMGBxCn",
+    "BUILT_IN_FORGE_API_URL": "https://forge.manus.ai",
+    "EXPO_APP_QR_URL": "exps://8081-ixu79jg0lbv7d36xs9jw1-87adcf90.us2.manus.computer",
+    "EXPO_PACKAGER_PROXY_URL": "https://8081-ixu79jg0lbv7d36xs9jw1-87adcf90.us2.manus.computer",
+    "EXPO_PUBLIC_API_BASE_URL": "https://3000-ixu79jg0lbv7d36xs9jw1-87adcf90.us2.manus.computer",
+    "EXPO_PUBLIC_OAUTH_PORTAL_URL": "https://manus.im",
+    "EXPO_PUBLIC_OAUTH_SERVER_URL": "https://api.manus.im",
+    "EXPO_PUBLIC_OWNER_NAME": "Gustavo Pattaro",
+    "EXPO_PUBLIC_OWNER_OPEN_ID": "3wS655SqUDXWqFd5ky9AbF",
+    "JWT_SECRET": "JJr9X7jjvMA2SYEBpHCftm",
+    "OAUTH_SERVER_URL": "https://api.manus.im",
+    "OWNER_NAME": "Gustavo Pattaro",
+    "OWNER_OPEN_ID": "3wS655SqUDXWqFd5ky9AbF",
+    "REACT_NATIVE_PACKAGER_HOSTNAME": "8081-ixu79jg0lbv7d36xs9jw1-87adcf90.us2.manus.computer",
+    "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",
+    "VITE_ANALYTICS_WEBSITE_ID": "f0a84261-fd78-4a9b-bf33-250959f4b8da",
+    "VITE_APP_ID": "W4ReyjxDyzrfQdpLmkcvHo",
+    "VITE_APP_LOGO": "",
+    "VITE_APP_TITLE": "Voyage - Curated Routes",
+    "VITE_FRONTEND_FORGE_API_KEY": "hqHPaKHvXLV6vrJjWATcgx",
+    "VITE_FRONTEND_FORGE_API_URL": "https://forge.manus.ai",
+    "VITE_OAUTH_PORTAL_URL": "https://manus.im"
+  },
+  "template_id": "app",
+  "test_command": "pnpm test"
+}
