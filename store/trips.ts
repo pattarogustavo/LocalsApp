@@ -1,29 +1,59 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Trip, Place, Document, Expense, Traveler, Transport, Accommodation } from '@/types/voyage';
+import type {
+  Trip,
+  Place,
+  Document,
+  Expense,
+  Traveler,
+  Transport,
+  Accommodation,
+  DayItinerary,
+  Destination,
+  UserPlan,
+} from '@/types/voyage';
 
 interface TripsState {
   trips: Trip[];
   isLoading: boolean;
-  // Actions
+  userPlan: UserPlan;
+  // Core trip actions
   addTrip: (trip: Trip) => Promise<void>;
   updateTrip: (id: string, updates: Partial<Trip>) => Promise<void>;
   deleteTrip: (id: string) => Promise<void>;
-  addPlace: (tripId: string, place: Place) => Promise<void>;
-  removePlace: (tripId: string, placeId: string) => Promise<void>;
-  addDocument: (tripId: string, doc: Document) => Promise<void>;
-  removeDocument: (tripId: string, docId: string) => Promise<void>;
-  addExpense: (tripId: string, expense: Expense) => Promise<void>;
-  removeExpense: (tripId: string, expenseId: string) => Promise<void>;
-  addTraveler: (tripId: string, traveler: Traveler) => Promise<void>;
-  removeTraveler: (tripId: string, travelerId: string) => Promise<void>;
-  addTransport: (tripId: string, transport: Transport) => Promise<void>;
-  addAccommodation: (tripId: string, accommodation: Accommodation) => Promise<void>;
   loadTrips: () => Promise<void>;
   getTripById: (id: string) => Trip | undefined;
+  // Places
+  addPlace: (tripId: string, place: Place) => Promise<void>;
+  removePlace: (tripId: string, placeId: string) => Promise<void>;
+  setPlaces: (tripId: string, places: Place[]) => Promise<void>;
+  // Documents
+  addDocument: (tripId: string, doc: Document) => Promise<void>;
+  removeDocument: (tripId: string, docId: string) => Promise<void>;
+  // Expenses
+  addExpense: (tripId: string, expense: Expense) => Promise<void>;
+  removeExpense: (tripId: string, expenseId: string) => Promise<void>;
+  // Travelers
+  addTraveler: (tripId: string, traveler: Traveler) => Promise<void>;
+  removeTraveler: (tripId: string, travelerId: string) => Promise<void>;
+  // Transport
+  addTransport: (tripId: string, transport: Transport) => Promise<void>;
+  removeTransport: (tripId: string, transportId: string) => Promise<void>;
+  // Accommodations
+  addAccommodation: (tripId: string, accommodation: Accommodation) => Promise<void>;
+  removeAccommodation: (tripId: string, accommodationId: string) => Promise<void>;
+  updateAccommodation: (tripId: string, accommodationId: string, updates: Partial<Accommodation>) => Promise<void>;
+  // Itinerary (AI-generated)
+  setItinerary: (tripId: string, days: DayItinerary[]) => Promise<void>;
+  // Edit trip dates/destinations
+  updateDestinations: (tripId: string, destinations: Destination[]) => Promise<void>;
+  updateStartDate: (tripId: string, startDate: string) => Promise<void>;
+  // Plan
+  updateUserPlan: (plan: Partial<UserPlan>) => void;
 }
 
 const STORAGE_KEY = 'voyage_trips';
+const PLAN_KEY = 'voyage_user_plan';
 
 const saveToStorage = async (trips: Trip[]) => {
   try {
@@ -33,9 +63,16 @@ const saveToStorage = async (trips: Trip[]) => {
   }
 };
 
+const DEFAULT_PLAN: UserPlan = {
+  tier: 'free',
+  aiCreditsUsed: 0,
+  aiCreditsLimit: 3, // Free tier gets 3 AI uses
+};
+
 export const useTripsStore = create<TripsState>((set, get) => ({
   trips: [],
   isLoading: false,
+  userPlan: DEFAULT_PLAN,
 
   loadTrips: async () => {
     set({ isLoading: true });
@@ -44,6 +81,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
       if (stored) {
         set({ trips: JSON.parse(stored) });
       }
+      const planStored = await AsyncStorage.getItem(PLAN_KEY);
+      if (planStored) {
+        set({ userPlan: JSON.parse(planStored) });
+      }
     } catch (e) {
       console.error('Failed to load trips:', e);
     } finally {
@@ -51,9 +92,7 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     }
   },
 
-  getTripById: (id: string) => {
-    return get().trips.find((t) => t.id === id);
-  },
+  getTripById: (id: string) => get().trips.find((t) => t.id === id),
 
   addTrip: async (trip: Trip) => {
     const trips = [...get().trips, trip];
@@ -75,6 +114,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     await saveToStorage(trips);
   },
 
+  // ─── Places ────────────────────────────────────────────────────────────────
+
   addPlace: async (tripId: string, place: Place) => {
     const trips = get().trips.map((t) =>
       t.id === tripId ? { ...t, places: [...t.places, place], updatedAt: new Date().toISOString() } : t
@@ -92,6 +133,16 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     set({ trips });
     await saveToStorage(trips);
   },
+
+  setPlaces: async (tripId: string, places: Place[]) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId ? { ...t, places, updatedAt: new Date().toISOString() } : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  // ─── Documents ─────────────────────────────────────────────────────────────
 
   addDocument: async (tripId: string, doc: Document) => {
     const trips = get().trips.map((t) =>
@@ -113,6 +164,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     await saveToStorage(trips);
   },
 
+  // ─── Expenses ──────────────────────────────────────────────────────────────
+
   addExpense: async (tripId: string, expense: Expense) => {
     const trips = get().trips.map((t) =>
       t.id === tripId
@@ -132,6 +185,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     set({ trips });
     await saveToStorage(trips);
   },
+
+  // ─── Travelers ─────────────────────────────────────────────────────────────
 
   addTraveler: async (tripId: string, traveler: Traveler) => {
     const trips = get().trips.map((t) =>
@@ -153,6 +208,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     await saveToStorage(trips);
   },
 
+  // ─── Transport ─────────────────────────────────────────────────────────────
+
   addTransport: async (tripId: string, transport: Transport) => {
     const trips = get().trips.map((t) =>
       t.id === tripId
@@ -163,6 +220,18 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     await saveToStorage(trips);
   },
 
+  removeTransport: async (tripId: string, transportId: string) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId
+        ? { ...t, transport: t.transport.filter((tr) => tr.id !== transportId), updatedAt: new Date().toISOString() }
+        : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  // ─── Accommodations ────────────────────────────────────────────────────────
+
   addAccommodation: async (tripId: string, accommodation: Accommodation) => {
     const trips = get().trips.map((t) =>
       t.id === tripId
@@ -171,5 +240,78 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+  },
+
+  removeAccommodation: async (tripId: string, accommodationId: string) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId
+        ? { ...t, accommodations: t.accommodations.filter((a) => a.id !== accommodationId), updatedAt: new Date().toISOString() }
+        : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  updateAccommodation: async (tripId: string, accommodationId: string, updates: Partial<Accommodation>) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId
+        ? {
+            ...t,
+            accommodations: t.accommodations.map((a) =>
+              a.id === accommodationId ? { ...a, ...updates } : a
+            ),
+            updatedAt: new Date().toISOString(),
+          }
+        : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  // ─── Itinerary ─────────────────────────────────────────────────────────────
+
+  setItinerary: async (tripId: string, days: DayItinerary[]) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId
+        ? { ...t, itinerary: days, aiGeneratedItinerary: true, updatedAt: new Date().toISOString() }
+        : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  // ─── Edit Trip ─────────────────────────────────────────────────────────────
+
+  updateDestinations: async (tripId: string, destinations: Destination[]) => {
+    const trip = get().trips.find((t) => t.id === tripId);
+    if (!trip) return;
+    const totalDays = destinations.reduce((sum, d) => sum + d.days, 0);
+    const endDate = new Date(trip.startDate);
+    endDate.setDate(endDate.getDate() + totalDays - 1);
+    const trips = get().trips.map((t) =>
+      t.id === tripId
+        ? { ...t, destinations, totalDays, endDate: endDate.toISOString(), updatedAt: new Date().toISOString() }
+        : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  updateStartDate: async (tripId: string, startDate: string) => {
+    const trip = get().trips.find((t) => t.id === tripId);
+    const endDate = trip ? (() => { const d = new Date(startDate); d.setDate(d.getDate() + trip.totalDays - 1); return d.toISOString(); })() : startDate;
+    const trips = get().trips.map((t) =>
+      t.id === tripId ? { ...t, startDate, endDate, updatedAt: new Date().toISOString() } : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  // ─── User Plan ─────────────────────────────────────────────────────────────
+
+  updateUserPlan: (plan: Partial<UserPlan>) => {
+    const updated = { ...get().userPlan, ...plan };
+    set({ userPlan: updated });
+    AsyncStorage.setItem(PLAN_KEY, JSON.stringify(updated)).catch(console.error);
   },
 }));

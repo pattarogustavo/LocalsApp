@@ -7,17 +7,18 @@
   ],
   "dev_command": "pnpm run dev",
   "env_vars": {
-    "DATABASE_URL": "mysql://49HuCptxgz3Nger.root:w3DrJzgXEp9YpB3m5M30@gateway06.us-east-1.prod.aws.tidbcloud.com:4000/W4ReyjxDyzrfQdpLmkcvHo?ssl={\"rejectUnauthorized\":true}"
+    "DATABASE_URL": "mysql://49HuCptxgz3Nger.root:w3DrJzgXEp9YpB3m5M30@gateway06.us-east-1.prod.aws.tidbcloud.com:4000/W4ReyjxDyzrfQdpLmkcvHo?ssl={\"rejectUnauthorized\":true}",
+    "DRIZZLE_DATABASE_URL": "mysql://49HuCptxgz3Nger.root:w3DrJzgXEp9YpB3m5M30@gateway06.us-east-1.prod.aws.tidbcloud.com:4000/W4ReyjxDyzrfQdpLmkcvHo?ssl={\"rejectUnauthorized\":true}"
   },
   "experiments": [
     "no_db_push"
   ],
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/310419663029664606/W4ReyjxDyzrfQdpLmkcvHo",
-    "access_key_id": "ASIAZV3A2ECZDZ5EENM6",
-    "secret_access_key": "DhH6TWroXagC8wYp+/3GDR7PnLwCdsNennTtTlRJ",
-    "session_token": "IQoJb3JpZ2luX2VjEBIaCXVzLWVhc3QtMSJHMEUCID8q76e9qtEim5J7u7uu5OHatjbWgd649RC49Ostnz8lAiEAokbZIMWCZ0AWILxseHHUpBhG3L+71wqYBhT1OoXROXEq/gMI2///////////ARAEGgw2NjUzODYwOTg4NjYiDNlVMD2AgcS/md/CMCrSA8u4qkHU1q5WkvJQxAPr6FzH12Txjj7pJhY6uF6dGorAuuK+gjXaB/cFdDsPyQnKi7UMEaqV20WgQYWOSMDOSdSp5OjSwVeo2DPDXsqEGk0Aux5l9CmuusipFkEQIMd2XJBrNhFVI36Ydk2DAptx1XXpQGu5NXApyNgLIWdHpWfny54fFQ9mtM+SG0DGXLjl4Ph++0rjFV7y8zrSMRpY/cK/a1yjlrkSsz/o8ox6ApnJdp2lxTxPmKNDWbXvm16bDsTRtjsycDLzmh6eVntcSuOKGCNW6lAfXKXLI+lRqhC2e//IO5URLeeEtYLy9yJ3fLhZvKshY1zuCHZhaQWLmwN4oO/D+uudBQBlAupFkX7h9LjWMj22VPPqWuKavbeRdlin2FC6a0XVlGEMpwqOsr1PCfJsVtkKlrjCIVhzlSPoDK2oE9V0HQCR2vUAd0sIXFgPfZskF8F5R4cDKQ4WqaYhjgBELE1hELkW1n9EyKq2WNCUP7bzNRV0ebSQivnMvLXH/1Fx3PvUdT1pF/0+icJPz876EJo4epWIsZJb74uJ+lXmBa6RV+fxT5+SKp7cQqInheENArL80Eh4/qAfJI5mUYFZt3XpoTjYaj1+1E1nEKQw8cKy0AY6nQEnaa0ZMXnhZIeFIkhFo55Lci46GNkwdnfrzaDTGJkUtzXJSRFkeYcWqkA9yoVT61TBsJsfQNmrg+J7bAWJuiOWzLUAYl7koYTgquzIileRLlVpJ90JNp+Mi0YS7rwXRN5EAx1gdwykISn4kBelbQ8sOKlfNSjgE6Ivaf1uAv9dAzS5TMjsgcMnV/1crXXhjK91eUNfVlUHoEkH+H1m",
-    "expiration": "2026-05-20T05:44:17.000Z"
+    "access_key_id": "ASIAZV3A2ECZELMIN4SL",
+    "secret_access_key": "vuNo7AClhn4cRFl4GnBdhJ4t4X23GrBntnuo04IS",
+    "session_token": "IQoJb3JpZ2luX2VjEBUaCXVzLWVhc3QtMSJIMEYCIQDKZRn5SOhkjS/A6YydGrLVn7Y6v04mnB5BaT0Ruh21lAIhALSLmGoT5hsJ5JjSVrr6XhoheaMXZ0uCQVZ4XO2mAYQZKv4DCN7//////////wEQBBoMNjY1Mzg2MDk4ODY2IgxA+HXM64fFKOXCGlgq0gPLIatmllzvF1I31D5A1NwBwsIMp1rHF5jUHFMEL86etwrFf79n/yOQuwX7yLHwFgMttPeSRwoa90RShjRKftww78KtskS3MNf1QIujEEmBhPmxsxnymR51jSFfPtlD7J5U/V00UEpQR5j1HCBvZJ6Uud6x34KbNGqLfz+QyUe2bsoJ9AtGlOLxmJrT95W+BDNcd4/c9hVsj3NcThAG4ho6VHg5u5YAD/qh6Fw0icBqZgjoruuLzc5KtSxyVq25qFeMLd4oqbdJWSshJ3vdKpWdTOqh/bWvYNtylkTg8DLpkbCrTFl9rgjTu3ihPQpV3cv90UikYD6Gxqrlq5G1pIDs3kvE66izw8KnYEJ01v2gy1wwoiME2PgRZUjilpyeoYwjMlK8pT/Uq0+KvbGiPNWYQ4RSw3lZsljKakikZVFreZeNw2ihlm5L9uXpEjvYuVsh6ByWVSYw7w+7wP4Nz23y5sQ4dHAxwvUwerN+KvawZCBOsi24eAqLU+X/TV6g8P2TfKkis7brf+zUtq9NfbX8+Tv0vCpMGYFnxBU0PRYRR0kjXSDDbOyhApVv2KayVddZDkyLBxf95ed6Ue0rjSJPgPCwlsF9ygL+q50RWpE+cGnJMOyPs9AGOpwB+3yah7fhM9h7n8HuZKD0pubV0gca96wgQlZVmXJLDHTB8H7xf51jxDdJWhyFIS8C16e5WhCxx3f6UyC+DkyyjZMG0OL5PrbrkMmNgok+nyRzROmlIiAzFJaNM2YyR8K3FcCfiiavECNg8I1IPENtjNRKVA18btZDc1NS0p6BB9dicAtHL2n+zoJ1NkK4Y5DA1YgLlRxmbAfJH1ti",
+    "expiration": "2026-05-20T08:28:28.000Z"
   },
   "name": "voyage-app",
   "path": "/home/ubuntu/voyage-app",
@@ -32,6 +33,7 @@
     "EXPO_PUBLIC_OAUTH_SERVER_URL": "https://api.manus.im",
     "EXPO_PUBLIC_OWNER_NAME": "Gustavo Pattaro",
     "EXPO_PUBLIC_OWNER_OPEN_ID": "3wS655SqUDXWqFd5ky9AbF",
+    "GOOGLE_PLACES_API_KEY": "AIzaSyDAX8R2ZAx9dSJPRYfaAEW1v8soiEMbaHw",
     "JWT_SECRET": "JJr9X7jjvMA2SYEBpHCftm",
     "OAUTH_SERVER_URL": "https://api.manus.im",
     "OWNER_NAME": "Gustavo Pattaro",
@@ -40,8 +42,8 @@
     "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",
     "VITE_ANALYTICS_WEBSITE_ID": "f0a84261-fd78-4a9b-bf33-250959f4b8da",
     "VITE_APP_ID": "W4ReyjxDyzrfQdpLmkcvHo",
-    "VITE_APP_LOGO": "",
-    "VITE_APP_TITLE": "Voyage - Curated Routes",
+    "VITE_APP_LOGO": "https://d2xsxph8kpxj0f.cloudfront.net/310419663029664606/W4ReyjxDyzrfQdpLmkcvHo/icon-PJnDAzUD7mKE2GDk5Qvtbe.png",
+    "VITE_APP_TITLE": "Voyage",
     "VITE_FRONTEND_FORGE_API_KEY": "hqHPaKHvXLV6vrJjWATcgx",
     "VITE_FRONTEND_FORGE_API_URL": "https://forge.manus.ai",
     "VITE_OAUTH_PORTAL_URL": "https://manus.im"

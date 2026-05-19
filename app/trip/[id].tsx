@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,8 +6,10 @@ import {
   TouchableOpacity,
   ImageBackground,
   Dimensions,
-  Animated,
   Alert,
+  Modal,
+  StyleSheet,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -20,19 +22,34 @@ import { DocumentsBlock } from '@/components/trip/documents-block';
 import { ExpensesBlock } from '@/components/trip/expenses-block';
 import { TravelersBlock } from '@/components/trip/travelers-block';
 import { PlacesScreen } from '@/components/trip/places-screen';
+import { ItineraryBlock } from '@/components/trip/itinerary-block';
+import { AccommodationBlock } from '@/components/trip/accommodation-block';
+import { useColors } from '@/hooks/use-colors';
+import { generateId } from '@/utils/trip-helpers';
+import type { Destination } from '@/types/voyage';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 const HERO_HEIGHT = height * 0.38;
 
 const DESTINATION_IMAGES: Record<string, string> = {
   paris: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=1200',
+  roma: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=1200',
   rome: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=1200',
   london: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=1200',
+  londres: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=1200',
   tokyo: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200',
+  tóquio: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1200',
   'new york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=1200',
+  'nova york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=1200',
   barcelona: 'https://images.unsplash.com/photo-1583422409516-2895a77efded?w=1200',
   amsterdam: 'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?w=1200',
   lisbon: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=1200',
+  lisboa: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=1200',
+  dubai: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1200',
+  bali: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=1200',
+  bangkok: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=1200',
+  sydney: 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=1200',
+  miami: 'https://images.unsplash.com/photo-1506966953602-c20cc11f75e3?w=1200',
   default: 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1200',
 };
 
@@ -45,32 +62,189 @@ function getHeroImage(trip: any): string {
   return DESTINATION_IMAGES.default;
 }
 
-type TabKey = 'destinos' | 'transporte' | 'hospedagem' | 'lugares' | 'historia';
+type TabKey = 'geral' | 'transporte' | 'hospedagem' | 'lugares' | 'historia';
 
 const TABS: { key: TabKey; label: string; icon: string }[] = [
-  { key: 'destinos', label: 'Destinos', icon: 'location' },
+  { key: 'geral', label: 'Geral', icon: 'location' },
   { key: 'transporte', label: 'Transporte', icon: 'airplane' },
   { key: 'hospedagem', label: 'Hospedagem', icon: 'bed' },
   { key: 'lugares', label: 'Lugares', icon: 'camera' },
   { key: 'historia', label: 'História', icon: 'book' },
 ];
 
+const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function formatDateDisplay(iso: string) {
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// ─── Edit Date Modal ────────────────────────────────────────────────────────
+
+function EditDateModal({
+  visible,
+  currentDate,
+  onClose,
+  onConfirm,
+}: {
+  visible: boolean;
+  currentDate: string;
+  onClose: () => void;
+  onConfirm: (newDate: string) => void;
+}) {
+  const colors = useColors();
+  const today = new Date();
+  const [pickerDate, setPickerDate] = useState(new Date(currentDate));
+
+  const adjust = (delta: number) => {
+    const d = new Date(pickerDate);
+    d.setDate(d.getDate() + delta);
+    if (d >= today) setPickerDate(d);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.modalOverlay}>
+        <View style={[styles.editCard, { backgroundColor: colors.background }]}>
+          <Text style={[styles.editCardTitle, { color: '#1C3D2E' }]}>Alterar Data de Início</Text>
+          <View style={styles.datePickerRow}>
+            <TouchableOpacity onPress={() => adjust(-1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
+              <Ionicons name="chevron-back" size={20} color="#1C3D2E" />
+            </TouchableOpacity>
+            <View style={styles.dateCenter}>
+              <Text style={[styles.dateDayNum, { color: colors.foreground }]}>{pickerDate.getDate()}</Text>
+              <Text style={[styles.dateMonthText, { color: colors.muted }]}>
+                {MONTHS[pickerDate.getMonth()]} {pickerDate.getFullYear()}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => adjust(1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
+              <Ionicons name="chevron-forward" size={20} color="#1C3D2E" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.editCardActions}>
+            <TouchableOpacity onPress={onClose} style={[styles.cancelBtn, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.cancelBtnText, { color: colors.foreground }]}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { onConfirm(pickerDate.toISOString()); onClose(); }}
+              style={[styles.confirmBtn, { backgroundColor: '#1C3D2E' }]}
+            >
+              <Text style={styles.confirmBtnText}>Confirmar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Edit Destinations Modal ─────────────────────────────────────────────────
+
+function EditDestinationsModal({
+  visible,
+  trip,
+  onClose,
+}: {
+  visible: boolean;
+  trip: any;
+  onClose: () => void;
+}) {
+  const colors = useColors();
+  const { updateDestinations } = useTripsStore();
+  const [destinations, setDestinations] = useState<Destination[]>(trip.destinations);
+
+  const handleUpdateDays = (id: string, delta: number) => {
+    setDestinations((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, days: Math.max(1, d.days + delta) } : d))
+    );
+  };
+
+  const handleRemove = (id: string) => {
+    setDestinations((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const handleSave = async () => {
+    await updateDestinations(trip.id, destinations);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={[styles.editSheet, { backgroundColor: colors.background }]}>
+          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          <View style={styles.editSheetHeader}>
+            <Text style={[styles.editSheetTitle, { color: '#1C3D2E' }]}>Editar Destinos</Text>
+            <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
+              <Ionicons name="close" size={16} color="#1C3D2E" />
+            </Pressable>
+          </View>
+
+          <ScrollView style={styles.editSheetScroll} keyboardShouldPersistTaps="handled">
+            {destinations.map((dest, idx) => (
+              <View key={dest.id}>
+                <View style={styles.destEditRow}>
+                  <View style={styles.destDot} />
+                  <View style={styles.destEditInfo}>
+                    <Text style={[styles.destEditName, { color: colors.foreground }]}>{dest.name}</Text>
+                    {dest.country ? (
+                      <Text style={[styles.destEditCountry, { color: colors.muted }]}>{dest.country}</Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.destDaysRow}>
+                    <TouchableOpacity
+                      onPress={() => handleUpdateDays(dest.id, -1)}
+                      style={[styles.miniBtn, { backgroundColor: colors.surface }]}
+                    >
+                      <Ionicons name="remove" size={12} color="#1C3D2E" />
+                    </TouchableOpacity>
+                    <Text style={[styles.destDaysNum, { color: colors.foreground }]}>{dest.days}</Text>
+                    <Text style={[styles.destDaysLabel, { color: colors.muted }]}>dias</Text>
+                    <TouchableOpacity
+                      onPress={() => handleUpdateDays(dest.id, 1)}
+                      style={[styles.miniBtn, { backgroundColor: colors.surface }]}
+                    >
+                      <Ionicons name="add" size={12} color="#1C3D2E" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleRemove(dest.id)}
+                      style={[styles.miniBtn, { backgroundColor: colors.surface, marginLeft: 4 }]}
+                    >
+                      <Ionicons name="close" size={12} color="#C0392B" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {idx < destinations.length - 1 && (
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                )}
+              </View>
+            ))}
+
+            <TouchableOpacity
+              onPress={handleSave}
+              style={[styles.saveBtn, { backgroundColor: '#1C3D2E' }]}
+            >
+              <Text style={styles.saveBtnText}>Salvar Alterações</Text>
+            </TouchableOpacity>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Main Screen ─────────────────────────────────────────────────────────────
+
 export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { getTripById, deleteTrip } = useTripsStore();
+  const { getTripById, deleteTrip, updateStartDate } = useTripsStore();
   const trip = getTripById(id);
-  const [activeTab, setActiveTab] = useState<TabKey>('destinos');
-  const [showPlaces, setShowPlaces] = useState(false);
-
-  useEffect(() => {
-    if (activeTab === 'lugares') {
-      setShowPlaces(true);
-    } else {
-      setShowPlaces(false);
-    }
-  }, [activeTab]);
+  const [activeTab, setActiveTab] = useState<TabKey>('geral');
+  const [showEditDate, setShowEditDate] = useState(false);
+  const [showEditDests, setShowEditDests] = useState(false);
 
   if (!trip) {
     return (
@@ -85,7 +259,6 @@ export default function TripDetailScreen() {
 
   const heroImage = getHeroImage(trip);
   const tripName = getTripName(trip);
-  const destName = trip.destinations.map((d) => d.name).join(', ');
   const countryName = trip.destinations.map((d) => d.country || d.name).join(', ');
 
   const handleDelete = () => {
@@ -106,20 +279,21 @@ export default function TripDetailScreen() {
     );
   };
 
+  const handleDateChange = async (newDate: string) => {
+    await updateStartDate(trip.id, newDate);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#0F1F16' }}>
       <ScrollView showsVerticalScrollIndicator={false} stickyHeaderIndices={[1]}>
-        {/* Hero Section */}
+        {/* Hero */}
         <View style={{ height: HERO_HEIGHT }}>
-          <ImageBackground
-            source={{ uri: heroImage }}
-            style={{ flex: 1 }}
-          >
+          <ImageBackground source={{ uri: heroImage }} style={{ flex: 1 }}>
             <LinearGradient
-              colors={['rgba(0,0,0,0.2)', 'rgba(15,31,22,0.95)']}
+              colors={['rgba(0,0,0,0.15)', 'rgba(15,31,22,0.95)']}
               style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 20, paddingHorizontal: 20 }}
             >
-              {/* Back button + currency */}
+              {/* Top bar */}
               <View
                 style={{
                   position: 'absolute',
@@ -133,30 +307,14 @@ export default function TripDetailScreen() {
               >
                 <TouchableOpacity
                   onPress={() => router.back()}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: 'rgba(0,0,0,0.4)',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+                  style={styles.heroBtn}
                 >
                   <Ionicons name="chevron-back" size={20} color="#fff" />
                 </TouchableOpacity>
 
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 4,
-                      backgroundColor: 'rgba(0,0,0,0.4)',
-                      borderRadius: 20,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                    }}
-                  >
+                  {/* Currency badge */}
+                  <View style={styles.currencyBadge}>
                     <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>
                       {getCurrencySymbol(trip.currency)}
                     </Text>
@@ -164,40 +322,42 @@ export default function TripDetailScreen() {
                       {trip.currency}
                     </Text>
                   </View>
-                  <TouchableOpacity
-                    onPress={handleDelete}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      backgroundColor: 'rgba(192,57,43,0.5)',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
+                  <TouchableOpacity onPress={handleDelete} style={[styles.heroBtn, { backgroundColor: 'rgba(192,57,43,0.5)' }]}>
                     <Ionicons name="trash-outline" size={16} color="#fff" />
                   </TouchableOpacity>
                 </View>
               </View>
 
               {/* Trip title */}
-              <Text
-                style={{
-                  color: '#F5F0E8',
-                  fontSize: 28,
-                  fontFamily: 'serif',
-                  fontStyle: 'italic',
-                  fontWeight: '600',
-                  marginBottom: 4,
-                }}
-              >
-                {tripName}
-              </Text>
-              <Text style={{ color: 'rgba(245,240,232,0.7)', fontSize: 14 }}>
-                {countryName}
-              </Text>
+              <Text style={styles.heroTitle}>{tripName}</Text>
+              <Text style={styles.heroSubtitle}>{countryName}</Text>
             </LinearGradient>
           </ImageBackground>
+        </View>
+
+        {/* Action buttons row: Data + Destinos */}
+        <View style={[styles.actionBtnRow, { backgroundColor: '#0F1F16' }]}>
+          <TouchableOpacity
+            onPress={() => setShowEditDate(true)}
+            style={styles.actionBtn}
+          >
+            <Ionicons name="calendar-outline" size={14} color="#A8D5B5" />
+            <Text style={styles.actionBtnText}>Data</Text>
+            <Text style={styles.actionBtnValue}>{formatDateDisplay(trip.startDate)}</Text>
+          </TouchableOpacity>
+
+          <View style={styles.actionBtnDivider} />
+
+          <TouchableOpacity
+            onPress={() => setShowEditDests(true)}
+            style={styles.actionBtn}
+          >
+            <Ionicons name="location-outline" size={14} color="#A8D5B5" />
+            <Text style={styles.actionBtnText}>Destinos</Text>
+            <Text style={styles.actionBtnValue} numberOfLines={1}>
+              {trip.destinations.map((d) => d.name).join(', ')}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Tabs - sticky */}
@@ -207,89 +367,91 @@ export default function TripDetailScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 8 }}
           >
-            {TABS.map((tab) => (
-              <TouchableOpacity
-                key={tab.key}
-                onPress={() => setActiveTab(tab.key)}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  borderRadius: 14,
-                  backgroundColor: activeTab === tab.key ? 'rgba(82,183,136,0.25)' : 'rgba(255,255,255,0.08)',
-                  borderWidth: activeTab === tab.key ? 1 : 0,
-                  borderColor: activeTab === tab.key ? '#52B788' : 'transparent',
-                }}
-              >
-                <Ionicons
-                  name={tab.icon as any}
-                  size={16}
-                  color={activeTab === tab.key ? '#52B788' : 'rgba(245,240,232,0.5)'}
-                />
-                <Text
-                  style={{
-                    color: activeTab === tab.key ? '#52B788' : 'rgba(245,240,232,0.5)',
-                    fontSize: 13,
-                    fontWeight: activeTab === tab.key ? '600' : '400',
-                  }}
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab.key;
+              return (
+                <TouchableOpacity
+                  key={tab.key}
+                  onPress={() => setActiveTab(tab.key)}
+                  style={[
+                    styles.tabBtn,
+                    {
+                      backgroundColor: isActive ? 'rgba(82,183,136,0.25)' : 'rgba(255,255,255,0.08)',
+                      borderWidth: isActive ? 1 : 0,
+                      borderColor: isActive ? '#52B788' : 'transparent',
+                    },
+                  ]}
                 >
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Ionicons
+                    name={tab.icon as any}
+                    size={16}
+                    color={isActive ? '#52B788' : 'rgba(245,240,232,0.5)'}
+                  />
+                  <Text
+                    style={[
+                      styles.tabBtnText,
+                      { color: isActive ? '#52B788' : 'rgba(245,240,232,0.5)', fontWeight: isActive ? '600' : '400' },
+                    ]}
+                  >
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
 
-        {/* Content */}
+        {/* Tab Content */}
         <View style={{ padding: 16, paddingBottom: insets.bottom + 32 }}>
-          {activeTab === 'destinos' && (
-            <DestinationsTab trip={trip} />
-          )}
-          {activeTab === 'transporte' && (
-            <TransportTab trip={trip} />
-          )}
-          {activeTab === 'hospedagem' && (
-            <AccommodationTab trip={trip} />
-          )}
+          {activeTab === 'geral' && <GeralTab trip={trip} />}
+          {activeTab === 'transporte' && <TransportTab trip={trip} />}
+          {activeTab === 'hospedagem' && <AccommodationBlock trip={trip} />}
           {activeTab === 'lugares' && (
             <PlacesScreen tripId={trip.id} places={trip.places} destinations={trip.destinations} />
           )}
-          {activeTab === 'historia' && (
-            <HistoryTab trip={trip} />
-          )}
+          {activeTab === 'historia' && <HistoryTab trip={trip} />}
         </View>
       </ScrollView>
+
+      {/* Edit Date Modal */}
+      <EditDateModal
+        visible={showEditDate}
+        currentDate={trip.startDate}
+        onClose={() => setShowEditDate(false)}
+        onConfirm={handleDateChange}
+      />
+
+      {/* Edit Destinations Modal */}
+      <EditDestinationsModal
+        visible={showEditDests}
+        trip={trip}
+        onClose={() => setShowEditDests(false)}
+      />
     </View>
   );
 }
 
-function DestinationsTab({ trip }: { trip: any }) {
+// ─── Geral Tab ────────────────────────────────────────────────────────────────
+
+function GeralTab({ trip }: { trip: any }) {
   return (
     <View>
       {/* Transport Block */}
       <TransportBlock tripId={trip.id} transports={trip.transport} />
 
+      {/* Itinerary Block (AI Day-by-Day) */}
+      <ItineraryBlock trip={trip} />
+
       {/* Documents Block */}
       <DocumentsBlock tripId={trip.id} documents={trip.documents} />
 
       {/* Playlist Block */}
-      <View
-        style={{
-          backgroundColor: 'rgba(28,61,46,0.85)',
-          borderRadius: 20,
-          padding: 16,
-          marginBottom: 12,
-        }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+      <View style={styles.playlistBlock}>
+        <View style={styles.playlistHeader}>
           <Ionicons name="musical-notes-outline" size={16} color="#52B788" />
-          <Text style={{ color: '#F5F0E8', fontSize: 12, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
-            Playlist do Destino
-          </Text>
+          <Text style={styles.playlistTitle}>PLAYLIST DO DESTINO</Text>
         </View>
-        <Text style={{ color: 'rgba(245,240,232,0.5)', fontSize: 13 }}>
+        <Text style={styles.playlistSubtitle}>
           Sons mais tocados em {trip.destinations[0]?.name || 'seu destino'}
         </Text>
       </View>
@@ -308,71 +470,11 @@ function TransportTab({ trip }: { trip: any }) {
     <View>
       <TransportBlock tripId={trip.id} transports={trip.transport} />
       {trip.transport.length === 0 && (
-        <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+        <View style={styles.emptyState}>
           <Ionicons name="airplane-outline" size={48} color="rgba(245,240,232,0.2)" />
-          <Text style={{ color: 'rgba(245,240,232,0.4)', fontSize: 16, marginTop: 12 }}>
-            Nenhum transporte adicionado
-          </Text>
-          <Text style={{ color: 'rgba(245,240,232,0.3)', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-            Adicione voos, carros ou trens à sua viagem
-          </Text>
+          <Text style={styles.emptyStateTitle}>Nenhum transporte adicionado</Text>
+          <Text style={styles.emptyStateSubtitle}>Adicione voos, carros ou trens à sua viagem</Text>
         </View>
-      )}
-    </View>
-  );
-}
-
-function AccommodationTab({ trip }: { trip: any }) {
-  return (
-    <View>
-      {trip.accommodations.length === 0 ? (
-        <View
-          style={{
-            backgroundColor: 'rgba(28,61,46,0.85)',
-            borderRadius: 20,
-            padding: 20,
-            alignItems: 'center',
-          }}
-        >
-          <Ionicons name="bed-outline" size={40} color="rgba(245,240,232,0.3)" />
-          <Text style={{ color: 'rgba(245,240,232,0.6)', fontSize: 16, marginTop: 12, fontWeight: '500' }}>
-            Nenhuma hospedagem
-          </Text>
-          <Text style={{ color: 'rgba(245,240,232,0.4)', fontSize: 13, marginTop: 4, textAlign: 'center' }}>
-            Adicione hotéis, Airbnb ou outras acomodações
-          </Text>
-          <TouchableOpacity
-            style={{
-              marginTop: 16,
-              backgroundColor: '#52B788',
-              borderRadius: 20,
-              paddingHorizontal: 20,
-              paddingVertical: 10,
-            }}
-          >
-            <Text style={{ color: '#0F1F16', fontWeight: '600' }}>+ Adicionar Hospedagem</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        trip.accommodations.map((acc: any) => (
-          <View
-            key={acc.id}
-            style={{ backgroundColor: 'rgba(28,61,46,0.85)', borderRadius: 20, padding: 16, marginBottom: 12 }}
-          >
-            <Text style={{ color: '#F5F0E8', fontSize: 16, fontWeight: '600' }}>{acc.name}</Text>
-            {acc.address && <Text style={{ color: 'rgba(245,240,232,0.6)', fontSize: 13, marginTop: 4 }}>{acc.address}</Text>}
-            <View style={{ flexDirection: 'row', gap: 16, marginTop: 10 }}>
-              <View>
-                <Text style={{ color: 'rgba(245,240,232,0.5)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Check-in</Text>
-                <Text style={{ color: '#F5F0E8', fontSize: 13, fontWeight: '600' }}>{formatDate(acc.checkIn, 'short')}</Text>
-              </View>
-              <View>
-                <Text style={{ color: 'rgba(245,240,232,0.5)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Check-out</Text>
-                <Text style={{ color: '#F5F0E8', fontSize: 13, fontWeight: '600' }}>{formatDate(acc.checkOut, 'short')}</Text>
-              </View>
-            </View>
-          </View>
-        ))
       )}
     </View>
   );
@@ -381,22 +483,320 @@ function AccommodationTab({ trip }: { trip: any }) {
 function HistoryTab({ trip }: { trip: any }) {
   const destName = trip.destinations[0]?.name || 'seu destino';
   return (
-    <View
-      style={{
-        backgroundColor: 'rgba(28,61,46,0.85)',
-        borderRadius: 20,
-        padding: 20,
-      }}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+    <View style={styles.historyBlock}>
+      <View style={styles.historyHeader}>
         <Ionicons name="book-outline" size={18} color="#52B788" />
-        <Text style={{ color: '#F5F0E8', fontSize: 16, fontWeight: '600' }}>
-          História de {destName}
-        </Text>
+        <Text style={styles.historyTitle}>História de {destName}</Text>
       </View>
-      <Text style={{ color: 'rgba(245,240,232,0.6)', fontSize: 14, lineHeight: 22 }}>
-        Explore a rica história e cultura de {destName}. Informações históricas, curiosidades e contexto cultural serão exibidos aqui conforme você adiciona destinos à sua viagem.
+      <Text style={styles.historyText}>
+        Explore a história, cultura e curiosidades sobre {destName}. Esta seção será preenchida com informações
+        sobre os destinos da sua viagem.
       </Text>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  heroBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currencyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  heroTitle: {
+    color: '#F5F0E8',
+    fontSize: 28,
+    fontFamily: 'serif',
+    fontStyle: 'italic',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    color: 'rgba(245,240,232,0.7)',
+    fontSize: 14,
+  },
+  // Action buttons row
+  actionBtnRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  actionBtnDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginVertical: 8,
+  },
+  actionBtnText: {
+    color: '#A8D5B5',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  actionBtnValue: {
+    color: 'rgba(245,240,232,0.6)',
+    fontSize: 11,
+    flex: 1,
+  },
+  // Tabs
+  tabBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+  },
+  tabBtnText: {
+    fontSize: 13,
+  },
+  // Geral tab
+  playlistBlock: {
+    backgroundColor: 'rgba(28,61,46,0.85)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  playlistHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  playlistTitle: {
+    color: '#F5F0E8',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  playlistSubtitle: {
+    color: 'rgba(245,240,232,0.5)',
+    fontSize: 13,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateTitle: {
+    color: 'rgba(245,240,232,0.4)',
+    fontSize: 16,
+    marginTop: 12,
+  },
+  emptyStateSubtitle: {
+    color: 'rgba(245,240,232,0.3)',
+    fontSize: 13,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  historyBlock: {
+    backgroundColor: 'rgba(28,61,46,0.85)',
+    borderRadius: 20,
+    padding: 20,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  historyTitle: {
+    color: '#F5F0E8',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  historyText: {
+    color: 'rgba(245,240,232,0.6)',
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  // Edit Date Modal
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  editCard: {
+    borderRadius: 24,
+    padding: 24,
+    width: 300,
+  },
+  editCardTitle: {
+    fontSize: 18,
+    fontStyle: 'italic',
+    fontFamily: 'serif',
+    fontWeight: '600',
+    marginBottom: 20,
+  },
+  datePickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  arrowBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateCenter: {
+    alignItems: 'center',
+  },
+  dateDayNum: {
+    fontSize: 36,
+    fontWeight: '700',
+  },
+  dateMonthText: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  editCardActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelBtn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  confirmBtn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  confirmBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  // Edit Destinations Modal
+  editSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    maxHeight: '80%',
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  editSheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  editSheetTitle: {
+    fontSize: 20,
+    fontStyle: 'italic',
+    fontFamily: 'serif',
+    fontWeight: '600',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editSheetScroll: {
+    paddingHorizontal: 24,
+  },
+  destEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  destDot: {
+    width: 4,
+    height: 20,
+    borderRadius: 2,
+    backgroundColor: '#2D5A3D',
+    marginRight: 12,
+  },
+  destEditInfo: {
+    flex: 1,
+  },
+  destEditName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  destEditCountry: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  destDaysRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  miniBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  destDaysNum: {
+    fontSize: 14,
+    fontWeight: '700',
+    minWidth: 16,
+    textAlign: 'center',
+  },
+  destDaysLabel: {
+    fontSize: 11,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 16,
+  },
+  saveBtn: {
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  saveBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+});

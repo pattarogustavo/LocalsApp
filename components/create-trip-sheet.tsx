@@ -1,20 +1,25 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  TextInput,
   ScrollView,
   Modal,
   Platform,
-  Animated,
   KeyboardAvoidingView,
+  StyleSheet,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTripsStore } from '@/store/trips';
 import { generateId } from '@/utils/trip-helpers';
+import { DestinationAutocomplete } from '@/components/destination-autocomplete';
+import { AIPreferencesModal } from '@/components/ai-preferences-modal';
+import { PaywallModal } from '@/components/paywall-modal';
+import { trpc } from '@/lib/trpc';
 import type { Trip, Destination } from '@/types/voyage';
+import { useColors } from '@/hooks/use-colors';
 
 interface CreateTripSheetProps {
   visible: boolean;
@@ -30,40 +35,92 @@ function formatDateDisplay(date: Date): string {
 
 export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheetProps) {
   const insets = useSafeAreaInsets();
+  const colors = useColors();
   const addTrip = useTripsStore((s) => s.addTrip);
+  const userPlan = useTripsStore((s) => s.userPlan);
 
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [totalDays, setTotalDays] = useState(3);
   const [destinations, setDestinations] = useState<Destination[]>([]);
-  const [destInput, setDestInput] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  // For date picker
+  const today = new Date();
+  const [pickerDate, setPickerDate] = useState(today);
 
   const distributedDays = destinations.reduce((sum, d) => sum + d.days, 0);
   const canCreate = startDate !== null && destinations.length > 0;
 
-  const handleAddDestination = () => {
-    if (!destInput.trim()) return;
+  // tRPC query for place details (to get lat/lng/imageUrl after selection)
+  const detailsQuery = trpc.places.details.useQuery(
+    { placeId: '' },
+    { enabled: false }
+  );
+
+  const handleSelectDestination = async (prediction: {
+    placeId: string;
+    name: string;
+    fullDescription: string;
+    country: string;
+  }) => {
+    // Check if already added
+    if (destinations.find((d) => d.placeId === prediction.placeId)) return;
+
+    const remainingDays = Math.max(1, totalDays - distributedDays);
     const newDest: Destination = {
       id: generateId(),
-      name: destInput.trim(),
-      country: '',
-      days: Math.max(1, totalDays - distributedDays),
+      name: prediction.name,
+      country: prediction.country,
+      days: remainingDays,
+      placeId: prediction.placeId,
     };
-    setDestinations([...destinations, newDest]);
-    setDestInput('');
+    setDestinations((prev) => [...prev, newDest]);
+
+    // Fetch details in background for lat/lng/imageUrl
+    try {
+      const res = await fetch(
+        `/api/trpc/places.details?input=${encodeURIComponent(JSON.stringify({ placeId: prediction.placeId }))}`
+      );
+      // We'll update via store after trip creation — no blocking here
+    } catch {
+      // Non-critical
+    }
   };
 
   const handleUpdateDestDays = (id: string, delta: number) => {
-    setDestinations(
-      destinations.map((d) =>
-        d.id === id ? { ...d, days: Math.max(1, d.days + delta) } : d
-      )
+    setDestinations((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, days: Math.max(1, d.days + delta) } : d))
     );
   };
 
   const handleRemoveDest = (id: string) => {
-    setDestinations(destinations.filter((d) => d.id !== id));
+    setDestinations((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const handleAIPress = () => {
+    const canUseAI = userPlan.tier !== 'free' || userPlan.aiCreditsUsed < userPlan.aiCreditsLimit;
+    if (!canUseAI) {
+      setShowPaywall(true);
+    } else {
+      setShowAIModal(true);
+    }
+  };
+
+  const handleAIDestinationsSelected = (aiDestinations: Destination[]) => {
+    // Distribute days proportionally
+    const total = aiDestinations.reduce((sum, d) => sum + d.days, 0);
+    const scaleFactor = totalDays / Math.max(total, 1);
+    const scaled = aiDestinations.map((d, i) => ({
+      ...d,
+      id: generateId(),
+      days: i === aiDestinations.length - 1
+        ? totalDays - aiDestinations.slice(0, -1).reduce((s, dd) => s + Math.round(dd.days * scaleFactor), 0)
+        : Math.max(1, Math.round(d.days * scaleFactor)),
+    }));
+    setDestinations(scaled);
   };
 
   const handleCreate = async () => {
@@ -74,9 +131,10 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
     endDate.setDate(endDate.getDate() + totalDays - 1);
 
     const firstName = destinations[0].name;
-    const tripName = destinations.length === 1
-      ? `${totalDays} ${totalDays === 1 ? 'Dia' : 'Dias'} em ${firstName}`
-      : destinations.map((d) => d.name).join(', ');
+    const tripName =
+      destinations.length === 1
+        ? `${totalDays} ${totalDays === 1 ? 'Dia' : 'Dias'} em ${firstName}`
+        : destinations.map((d) => d.name).join(' + ');
 
     const trip: Trip = {
       id: generateId(),
@@ -107,13 +165,9 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
     setStartDate(null);
     setTotalDays(3);
     setDestinations([]);
-    setDestInput('');
+    setPickerDate(today);
     onClose();
   };
-
-  // Simple date picker using scroll/buttons for cross-platform
-  const today = new Date();
-  const [pickerDate, setPickerDate] = useState(today);
 
   const handleDateConfirm = () => {
     setStartDate(pickerDate);
@@ -127,225 +181,503 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={handleClose}
-    >
-      <View className="flex-1 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View
-            className="bg-background rounded-t-3xl"
-            style={{ paddingBottom: insets.bottom + 16 }}
-          >
-            {/* Handle */}
-            <View className="items-center pt-3 pb-1">
-              <View className="w-10 h-1 rounded-full bg-border" />
-            </View>
-
-            <ScrollView
-              className="px-6 pt-4"
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Header */}
-              <View className="flex-row items-center justify-between mb-6">
-                <Text style={{ fontFamily: 'serif', fontSize: 26, color: '#1C3D2E', fontStyle: 'italic' }}>
-                  Criar Roteiro
-                </Text>
-                <TouchableOpacity
-                  onPress={handleClose}
-                  className="w-8 h-8 rounded-full bg-surface items-center justify-center"
-                >
-                  <Ionicons name="close" size={16} color="#1C3D2E" />
-                </TouchableOpacity>
+    <>
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+        <View style={styles.overlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={[styles.sheet, { backgroundColor: colors.background, paddingBottom: insets.bottom + 16 }]}>
+              {/* Handle */}
+              <View style={styles.handleContainer}>
+                <View style={[styles.handle, { backgroundColor: colors.border }]} />
               </View>
 
-              {/* Start Date + Days */}
-              <Text className="text-xs font-semibold text-muted mb-2 tracking-widest uppercase">
-                Início da Viagem
-              </Text>
-              <View className="flex-row gap-3 mb-5">
-                {/* Date picker button */}
+              <ScrollView
+                style={styles.scroll}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 8 }}
+              >
+                {/* Header */}
+                <View style={styles.header}>
+                  <Text style={[styles.title, { color: '#1C3D2E' }]}>Criar Roteiro</Text>
+                  <TouchableOpacity
+                    onPress={handleClose}
+                    style={[styles.closeBtn, { backgroundColor: colors.surface }]}
+                  >
+                    <Ionicons name="close" size={16} color="#1C3D2E" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Start Date + Days */}
+                <Text style={[styles.sectionLabel, { color: colors.muted }]}>INÍCIO DA VIAGEM</Text>
+                <View style={styles.dateRow}>
+                  <TouchableOpacity
+                    onPress={() => setShowDatePicker(true)}
+                    style={[styles.dateBtn, { backgroundColor: colors.surface }]}
+                  >
+                    <Ionicons name="calendar-outline" size={18} color="#3D5A47" />
+                    <Text style={[styles.dateBtnText, { color: startDate ? colors.foreground : colors.muted }]}>
+                      {startDate ? formatDateDisplay(startDate) : 'Selecione a data'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={[styles.daysStepper, { backgroundColor: colors.surface }]}>
+                    <TouchableOpacity
+                      onPress={() => setTotalDays(Math.max(1, totalDays - 1))}
+                      style={[styles.stepperBtn, { backgroundColor: colors.background }]}
+                    >
+                      <Ionicons name="remove" size={14} color="#1C3D2E" />
+                    </TouchableOpacity>
+                    <View style={styles.stepperCenter}>
+                      <Text style={[styles.stepperNum, { color: colors.foreground }]}>{totalDays}</Text>
+                      <Text style={[styles.stepperLabel, { color: colors.muted }]}>DIAS</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setTotalDays(totalDays + 1)}
+                      style={[styles.stepperBtn, { backgroundColor: colors.background }]}
+                    >
+                      <Ionicons name="add" size={14} color="#1C3D2E" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Destinations */}
+                <Text style={[styles.sectionLabel, { color: colors.muted }]}>DESTINOS</Text>
+
+                {destinations.length > 0 && (
+                  <View style={[styles.destList, { backgroundColor: colors.surface }]}>
+                    {destinations.map((dest, idx) => (
+                      <View key={dest.id}>
+                        <View style={styles.destRow}>
+                          <View style={styles.destDot} />
+                          <View style={styles.destInfo}>
+                            <Text style={[styles.destName, { color: colors.foreground }]}>{dest.name}</Text>
+                            {dest.country ? (
+                              <Text style={[styles.destCountry, { color: colors.muted }]}>{dest.country}</Text>
+                            ) : null}
+                          </View>
+                          <View style={styles.destDaysRow}>
+                            <TouchableOpacity
+                              onPress={() => handleUpdateDestDays(dest.id, -1)}
+                              style={[styles.miniBtn, { backgroundColor: colors.background }]}
+                            >
+                              <Ionicons name="remove" size={12} color="#1C3D2E" />
+                            </TouchableOpacity>
+                            <Text style={[styles.destDaysNum, { color: colors.foreground }]}>{dest.days}</Text>
+                            <Text style={[styles.destDaysLabel, { color: colors.muted }]}>dias</Text>
+                            <TouchableOpacity
+                              onPress={() => handleUpdateDestDays(dest.id, 1)}
+                              style={[styles.miniBtn, { backgroundColor: colors.background }]}
+                            >
+                              <Ionicons name="add" size={12} color="#1C3D2E" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleRemoveDest(dest.id)}
+                              style={[styles.miniBtn, { backgroundColor: colors.background, marginLeft: 4 }]}
+                            >
+                              <Ionicons name="close" size={12} color="#C0392B" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                        {idx < destinations.length - 1 && (
+                          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                        )}
+                      </View>
+                    ))}
+                    {/* Days distributed */}
+                    <View style={[styles.daysDistRow, { borderTopColor: colors.border }]}>
+                      <Text style={[styles.daysDistLabel, { color: colors.muted }]}>Dias distribuídos</Text>
+                      <Text
+                        style={[
+                          styles.daysDistValue,
+                          { color: distributedDays > totalDays ? '#E74C3C' : '#2D5A3D' },
+                        ]}
+                      >
+                        {distributedDays}/{totalDays}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Autocomplete input */}
+                <View style={styles.autocompleteWrapper}>
+                  <DestinationAutocomplete
+                    onSelect={handleSelectDestination}
+                    placeholder="Adicionar destino"
+                  />
+                </View>
+
+                {/* AI Button */}
                 <TouchableOpacity
-                  onPress={() => setShowDatePicker(true)}
-                  className="flex-1 flex-row items-center gap-2 bg-surface rounded-2xl px-4 py-3.5"
+                  onPress={handleAIPress}
+                  style={[styles.aiBtn, { backgroundColor: colors.surface }]}
                 >
-                  <Ionicons name="calendar-outline" size={18} color="#3D5A47" />
-                  <Text className={startDate ? 'text-foreground font-medium' : 'text-muted'}>
-                    {startDate ? formatDateDisplay(startDate) : 'Selecione a data'}
+                  <Ionicons name="sparkles" size={18} color="#3D5A47" />
+                  <Text style={[styles.aiBtnText, { color: colors.foreground }]}>Criar com IA</Text>
+                  {userPlan.tier === 'free' && (
+                    <View style={styles.aiBadge}>
+                      <Text style={styles.aiBadgeText}>PRO</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                {/* Create button */}
+                <TouchableOpacity
+                  onPress={canCreate ? handleCreate : undefined}
+                  disabled={!canCreate || isCreating}
+                  style={[
+                    styles.createBtn,
+                    { backgroundColor: canCreate ? '#1C3D2E' : colors.surface },
+                  ]}
+                >
+                  <Text style={[styles.createBtnText, { color: canCreate ? '#fff' : colors.muted }]}>
+                    {!startDate
+                      ? 'Selecione a data de início'
+                      : destinations.length === 0
+                      ? 'Adicione um destino'
+                      : isCreating
+                      ? 'Criando...'
+                      : 'Criar Roteiro'}
                   </Text>
                 </TouchableOpacity>
 
-                {/* Days stepper */}
-                <View className="flex-row items-center gap-2 bg-surface rounded-2xl px-3 py-3">
-                  <TouchableOpacity
-                    onPress={() => setTotalDays(Math.max(1, totalDays - 1))}
-                    className="w-7 h-7 rounded-full bg-background items-center justify-center"
-                  >
-                    <Ionicons name="remove" size={14} color="#1C3D2E" />
-                  </TouchableOpacity>
-                  <View className="items-center w-10">
-                    <Text className="text-foreground font-bold text-lg">{totalDays}</Text>
-                    <Text className="text-muted text-xs">DIAS</Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => setTotalDays(totalDays + 1)}
-                    className="w-7 h-7 rounded-full bg-background items-center justify-center"
-                  >
-                    <Ionicons name="add" size={14} color="#1C3D2E" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Destinations */}
-              <Text className="text-xs font-semibold text-muted mb-2 tracking-widest uppercase">
-                Destinos
-              </Text>
-
-              {destinations.length > 0 && (
-                <View className="bg-surface rounded-2xl mb-3 overflow-hidden">
-                  {destinations.map((dest, idx) => (
-                    <View key={dest.id}>
-                      <View className="flex-row items-center px-4 py-3">
-                        <View className="w-1 h-4 rounded-full bg-accent mr-3" />
-                        <View className="flex-1">
-                          <Text className="text-foreground font-medium">{dest.name}</Text>
-                          {dest.country ? (
-                            <Text className="text-muted text-xs">{dest.country}</Text>
-                          ) : null}
-                        </View>
-                        <View className="flex-row items-center gap-2">
-                          <TouchableOpacity
-                            onPress={() => handleUpdateDestDays(dest.id, -1)}
-                            className="w-6 h-6 rounded-full bg-background items-center justify-center"
-                          >
-                            <Ionicons name="remove" size={12} color="#1C3D2E" />
-                          </TouchableOpacity>
-                          <Text className="text-foreground font-semibold w-4 text-center">{dest.days}</Text>
-                          <Text className="text-muted text-xs">dias</Text>
-                          <TouchableOpacity
-                            onPress={() => handleUpdateDestDays(dest.id, 1)}
-                            className="w-6 h-6 rounded-full bg-background items-center justify-center"
-                          >
-                            <Ionicons name="add" size={12} color="#1C3D2E" />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => handleRemoveDest(dest.id)}
-                            className="w-6 h-6 rounded-full bg-background items-center justify-center ml-1"
-                          >
-                            <Ionicons name="close" size={12} color="#C0392B" />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                      {idx < destinations.length - 1 && (
-                        <View className="h-px bg-border mx-4" />
-                      )}
-                    </View>
-                  ))}
-                  {/* Days distributed */}
-                  <View className="flex-row justify-between items-center px-4 py-2 border-t border-border">
-                    <Text className="text-muted text-xs">Dias distribuídos</Text>
-                    <Text className={`text-xs font-semibold ${distributedDays > totalDays ? 'text-error' : 'text-accent'}`}>
-                      {distributedDays}/{totalDays}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Add destination input */}
-              <View className="flex-row items-center bg-surface rounded-2xl px-4 py-3.5 mb-6">
-                <Ionicons name="location-outline" size={18} color="#6B7C72" />
-                <TextInput
-                  value={destInput}
-                  onChangeText={setDestInput}
-                  placeholder="Adicionar destino"
-                  placeholderTextColor="#6B7C72"
-                  className="flex-1 ml-2 text-foreground"
-                  onSubmitEditing={handleAddDestination}
-                  returnKeyType="done"
-                />
-                {destInput.length > 0 && (
-                  <TouchableOpacity onPress={handleAddDestination}>
-                    <Ionicons name="add-circle" size={22} color="#1C3D2E" />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* AI Button */}
-              <TouchableOpacity className="flex-row items-center justify-center gap-2 bg-surface rounded-2xl py-4 mb-3">
-                <Ionicons name="sparkles" size={18} color="#3D5A47" />
-                <Text className="text-foreground font-medium">Criar com IA</Text>
-              </TouchableOpacity>
-
-              {/* Create / Disabled button */}
-              <TouchableOpacity
-                onPress={canCreate ? handleCreate : undefined}
-                disabled={!canCreate || isCreating}
-                className={`rounded-2xl py-4 items-center mb-2 ${canCreate ? 'bg-primary' : 'bg-surface'}`}
-              >
-                <Text className={`font-semibold text-base ${canCreate ? 'text-background' : 'text-muted'}`}>
-                  {!startDate
-                    ? 'Selecione a data de início'
-                    : !canCreate
-                    ? 'Adicione um destino'
-                    : isCreating
-                    ? 'Criando...'
-                    : 'Criar Roteiro'}
-                </Text>
-              </TouchableOpacity>
-
-              <View className="h-4" />
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </View>
-
-      {/* Date Picker Modal */}
-      <Modal visible={showDatePicker} transparent animationType="fade">
-        <View className="flex-1 justify-center items-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View className="bg-background rounded-3xl p-6 mx-8 w-80">
-            <Text style={{ fontFamily: 'serif', fontSize: 20, color: '#1C3D2E', fontStyle: 'italic', marginBottom: 20 }}>
-              Selecionar Data
-            </Text>
-            <View className="flex-row items-center justify-between mb-6">
-              <TouchableOpacity
-                onPress={() => adjustPickerDate(-1)}
-                className="w-10 h-10 rounded-full bg-surface items-center justify-center"
-              >
-                <Ionicons name="chevron-back" size={20} color="#1C3D2E" />
-              </TouchableOpacity>
-              <View className="items-center">
-                <Text className="text-foreground font-bold text-2xl">{pickerDate.getDate()}</Text>
-                <Text className="text-muted text-sm">{MONTHS[pickerDate.getMonth()]} {pickerDate.getFullYear()}</Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => adjustPickerDate(1)}
-                className="w-10 h-10 rounded-full bg-surface items-center justify-center"
-              >
-                <Ionicons name="chevron-forward" size={20} color="#1C3D2E" />
-              </TouchableOpacity>
+                <View style={{ height: 8 }} />
+              </ScrollView>
             </View>
-            <View className="flex-row gap-3">
-              <TouchableOpacity
-                onPress={() => setShowDatePicker(false)}
-                className="flex-1 bg-surface rounded-2xl py-3 items-center"
-              >
-                <Text className="text-foreground font-medium">Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleDateConfirm}
-                className="flex-1 bg-primary rounded-2xl py-3 items-center"
-              >
-                <Text className="text-background font-semibold">Confirmar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
+
+        {/* Date Picker Modal */}
+        <Modal visible={showDatePicker} transparent animationType="fade">
+          <View style={styles.datePickerOverlay}>
+            <View style={[styles.datePickerCard, { backgroundColor: colors.background }]}>
+              <Text style={[styles.datePickerTitle, { color: '#1C3D2E' }]}>Selecionar Data</Text>
+              <View style={styles.datePickerRow}>
+                <TouchableOpacity
+                  onPress={() => adjustPickerDate(-1)}
+                  style={[styles.datePickerArrow, { backgroundColor: colors.surface }]}
+                >
+                  <Ionicons name="chevron-back" size={20} color="#1C3D2E" />
+                </TouchableOpacity>
+                <View style={styles.datePickerCenter}>
+                  <Text style={[styles.datePickerDay, { color: colors.foreground }]}>{pickerDate.getDate()}</Text>
+                  <Text style={[styles.datePickerMonth, { color: colors.muted }]}>
+                    {MONTHS[pickerDate.getMonth()]} {pickerDate.getFullYear()}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => adjustPickerDate(1)}
+                  style={[styles.datePickerArrow, { backgroundColor: colors.surface }]}
+                >
+                  <Ionicons name="chevron-forward" size={20} color="#1C3D2E" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.datePickerActions}>
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(false)}
+                  style={[styles.datePickerCancelBtn, { backgroundColor: colors.surface }]}
+                >
+                  <Text style={[styles.datePickerCancelText, { color: colors.foreground }]}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleDateConfirm}
+                  style={[styles.datePickerConfirmBtn, { backgroundColor: '#1C3D2E' }]}
+                >
+                  <Text style={styles.datePickerConfirmText}>Confirmar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </Modal>
-    </Modal>
+
+      {/* AI Preferences Modal */}
+      <AIPreferencesModal
+        visible={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        totalDays={totalDays}
+        startDate={startDate ? startDate.toISOString() : new Date().toISOString()}
+        onDestinationsSelected={handleAIDestinationsSelected}
+      />
+
+      {/* Paywall Modal */}
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        feature="Criar com IA"
+      />
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+  },
+  scroll: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 26,
+    fontStyle: 'italic',
+    fontFamily: 'serif',
+    fontWeight: '600',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  dateBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 52,
+  },
+  dateBtnText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  daysStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    height: 52,
+  },
+  stepperBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperCenter: {
+    alignItems: 'center',
+    minWidth: 36,
+  },
+  stepperNum: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  stepperLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  destList: {
+    borderRadius: 14,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  destRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  destDot: {
+    width: 4,
+    height: 20,
+    borderRadius: 2,
+    backgroundColor: '#2D5A3D',
+    marginRight: 12,
+  },
+  destInfo: {
+    flex: 1,
+  },
+  destName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  destCountry: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  destDaysRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  miniBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  destDaysNum: {
+    fontSize: 14,
+    fontWeight: '700',
+    minWidth: 16,
+    textAlign: 'center',
+  },
+  destDaysLabel: {
+    fontSize: 11,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: 14,
+  },
+  daysDistRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  daysDistLabel: {
+    fontSize: 12,
+  },
+  daysDistValue: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  autocompleteWrapper: {
+    marginBottom: 16,
+    zIndex: 200,
+  },
+  aiBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginBottom: 12,
+  },
+  aiBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  aiBadge: {
+    backgroundColor: '#2D5A3D',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 4,
+  },
+  aiBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  createBtn: {
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  createBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  datePickerOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  datePickerCard: {
+    borderRadius: 24,
+    padding: 24,
+    width: 300,
+  },
+  datePickerTitle: {
+    fontSize: 20,
+    fontStyle: 'italic',
+    fontFamily: 'serif',
+    fontWeight: '600',
+    marginBottom: 20,
+  },
+  datePickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  datePickerArrow: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  datePickerCenter: {
+    alignItems: 'center',
+  },
+  datePickerDay: {
+    fontSize: 36,
+    fontWeight: '700',
+  },
+  datePickerMonth: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  datePickerActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  datePickerCancelBtn: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  datePickerCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  datePickerConfirmBtn: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  datePickerConfirmText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+});

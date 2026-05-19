@@ -21,10 +21,24 @@
 - [x] Fix any TypeScript/build errors
 - [x] Test navigation flow (Home → Trip Detail → back)
 - [x] Add Guias Curados section on Home Screen
-- [ ] Add AI itinerary generation (OpenAI integration)
-- [ ] Add Google Places autocomplete for destination input
-- [ ] Add accommodation management UI
+- [x] Add AI itinerary generation (OpenAI integration)
+- [x] Add Google Places autocomplete for destination input
+- [x] Add accommodation management UI
 - [ ] Add trip cover image picker
 - [ ] Add currency selector in trip settings
 - [ ] Add push notifications for flight alerts
 - [ ] Final UI polish and animations
+
+## Fase 2 — Novas funcionalidades
+
+- [x] Google Places API autocomplete — só cidades/países, sem campo aberto
+- [x] Sistema de planos (Free / Pro) com paywall para funcionalidades de IA
+- [x] IA: fluxo "Criar com IA" — preferências de viagem → sugestão de destinos
+- [x] IA: sugestão de lugares por categoria em cada destino
+- [x] IA: geração de roteiro dia-a-dia (por preferências ou por lugares selecionados manualmente)
+- [x] Campo "Roteiro Dia-a-Dia" na aba Geral (entre Transporte e Documentos)
+- [x] Botão "Data" na tela de roteiro para editar datas
+- [x] Botão "Destinos" na tela de roteiro para editar destinos
+- [x] Renomear aba "Destinos" → "Geral"
+- [x] Hospedagem por destino (Hotel ou Casa) com check-in/check-out por destino
+- [x] Integrar IA em Lugares: botão "IA escolhe os lugares" + "Montar roteiro com selecionados"
