@@ -509,14 +509,6 @@ export default function TripDetailScreen() {
 function GeralTab({ trip, onGoToPlaces }: { trip: any; onGoToPlaces: () => void }) {
   return (
     <View>
-      {/* Transport Block */}
-      <TransportBlock
-        tripId={trip.id}
-        transports={trip.transport}
-        destinations={trip.destinations}
-        cityTransportMode={trip.cityTransportMode}
-      />
-
       {/* Itinerary Block (AI Day-by-Day) */}
       <ItineraryBlock trip={trip} onGoToPlaces={onGoToPlaces} />
 
