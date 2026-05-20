@@ -7,6 +7,42 @@ import { z } from "zod";
 
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
 const AVIATIONSTACK_KEY = process.env.AVIATIONSTACK_API_KEY || "";
+const GOOGLE_DIRECTIONS_KEY = process.env.GOOGLE_DIRECTIONS_API_KEY || "";
+
+// ─── Google Directions helper ─────────────────────────────────────────────────
+
+type TravelMode = 'driving' | 'walking' | 'transit' | 'bicycling';
+
+async function fetchDirections(
+  origin: string,
+  destination: string,
+  mode: TravelMode = 'driving',
+) {
+  if (!GOOGLE_DIRECTIONS_KEY) return null;
+  const url = new URL('https://maps.googleapis.com/maps/api/directions/json');
+  url.searchParams.set('origin', origin);
+  url.searchParams.set('destination', destination);
+  url.searchParams.set('mode', mode);
+  url.searchParams.set('key', GOOGLE_DIRECTIONS_KEY);
+  url.searchParams.set('language', 'pt-BR');
+  try {
+    const res = await fetch(url.toString());
+    if (!res.ok) return null;
+    const json = (await res.json()) as any;
+    if (json.status !== 'OK' || !json.routes?.length) return null;
+    const leg = json.routes[0]?.legs?.[0];
+    if (!leg) return null;
+    return {
+      durationText: leg.duration?.text as string || '',
+      durationSeconds: leg.duration?.value as number || 0,
+      distanceText: leg.distance?.text as string || '',
+      distanceMeters: leg.distance?.value as number || 0,
+      mapsUrl: `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=${mode}`,
+    };
+  } catch {
+    return null;
+  }
+}
 
 // ─── AviationStack helpers ────────────────────────────────────────────────────
 
@@ -85,6 +121,38 @@ export const appRouter = router({
           departureActual: data.departureActual,
           arrivalActual: data.arrivalActual,
         };
+      }),
+  }),
+
+  // u2500u2500u2500 Google Directions u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500
+  directions: router({
+    route: publicProcedure
+      .input(z.object({
+        origin: z.string().min(1),
+        destination: z.string().min(1),
+        mode: z.enum(["driving", "walking", "transit", "bicycling"]).default("driving"),
+      }))
+      .query(async ({ input }) => {
+        const data = await fetchDirections(input.origin, input.destination, input.mode);
+        if (!data) return { found: false as const };
+        return { found: true as const, ...data };
+      }),
+    batchRoute: publicProcedure
+      .input(z.object({
+        pairs: z.array(z.object({
+          origin: z.string(),
+          destination: z.string(),
+          mode: z.enum(["driving", "walking", "transit", "bicycling"]).default("driving"),
+        })).max(20),
+      }))
+      .mutation(async ({ input }) => {
+        const results = await Promise.all(
+          input.pairs.map(async (p) => {
+            const data = await fetchDirections(p.origin, p.destination, p.mode);
+            return data ? { found: true as const, ...data } : { found: false as const };
+          })
+        );
+        return { results };
       }),
   }),
 
@@ -245,8 +313,11 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
               destinationName: z.string(),
               hours: z.string().optional(),
               address: z.string().optional(),
+              lat: z.number().optional(),
+              lng: z.number().optional(),
             })
           ).optional(),
+          cityTransportMode: z.string().optional(),
           preferences: z.object({
             pace: z.enum(["relaxado", "moderado", "intenso"]).optional(),
             wakeUpTime: z.string().optional(), // e.g. "08:00"
@@ -257,17 +328,30 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
         })
       )
       .mutation(async ({ input }) => {
-        const { startDate, totalDays, destinations, selectedPlaces, preferences } = input;
+        const { startDate, totalDays, destinations, selectedPlaces, preferences, cityTransportMode } = input;
 
         const destSummary = destinations
           .map((d) => `${d.name} (${d.country || ""}) — ${d.days} dias`)
           .join(", ");
 
         const placesSummary = selectedPlaces && selectedPlaces.length > 0
-          ? `\nLugares selecionados pelo usuário:\n${selectedPlaces.map((p) => `- ${p.name} (${p.category}) em ${p.destinationName}${p.hours ? `, horário: ${p.hours}` : ""}`).join("\n")}`
+          ? `\nLugares selecionados pelo usuário:\n${selectedPlaces.map((p) => `- ${p.name} (${p.category}) em ${p.destinationName}${p.hours ? `, horário: ${p.hours}` : ""}${p.address ? `, endereço: ${p.address}` : ""}${p.lat && p.lng ? `, coordenadas: ${p.lat},${p.lng}` : ""}`).join("\n")}`
           : "\nUse sua expertise para sugerir os melhores lugares para visitar.";
 
         const paceStops = preferences?.pace === 'relaxado' ? 3 : preferences?.pace === 'intenso' ? 6 : 4;
+
+        // Map cityTransportMode to a human-readable label for the prompt
+        const transportLabel: Record<string, string> = {
+          walk: 'a pé (walking)',
+          bike: 'bicicleta (bicycling)',
+          public: 'transporte público / metrô (transit)',
+          uber: 'Uber/táxi (driving)',
+          car: 'carro próprio (driving)',
+          taxi: 'táxi (driving)',
+        };
+        const transportHint = cityTransportMode
+          ? `\n- Meio de transporte dentro da cidade: ${transportLabel[cityTransportMode] || cityTransportMode}`
+          : '';
 
         const prompt = `Crie um roteiro de viagem dia a dia detalhado para ${totalDays} dias.
 
@@ -277,7 +361,7 @@ ${placesSummary}
 
 Preferências:
 - Ritmo: ${preferences?.pace || "moderado"} (${paceStops} paradas por dia)
-- Horário de acordar: ${preferences?.wakeUpTime || "08:00"}
+- Horário de acordar: ${preferences?.wakeUpTime || "08:00"}${transportHint}
 ${preferences?.includeBreakfast !== false ? "- Incluir café da manhã" : ""}
 ${preferences?.includeLunch !== false ? "- Incluir almoço" : ""}
 ${preferences?.includeDinner !== false ? "- Incluir jantar" : ""}
@@ -289,9 +373,13 @@ Retorne um JSON com o array "days". Cada dia deve ter:
 - tips: dica do dia em 1 frase
 - estimatedCost: custo estimado do dia em USD (número)
 - stops: array de paradas do dia, cada parada com:
-  { time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other), description, hours (horário de funcionamento), address, travelTimeToNext (ex: "15 min a pé"), travelModeToNext (walking|driving|transit) }
+  { time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other), description, hours (horário de funcionamento), address (endereço completo), lat (latitude numérica), lng (longitude numérica), travelTimeToNext (ex: "15 min a pé"), travelModeToNext (walking|driving|transit|bicycling) }
 
-Importante: inclua ${paceStops} paradas por dia. Distribua bem os horários ao longo do dia. Para restaurantes, use horários de refeição (08:00 café, 13:00 almoço, 20:00 jantar).`;
+Importante:
+- Inclua ${paceStops} paradas por dia. Distribua bem os horários ao longo do dia.
+- Para restaurantes, use horários de refeição (08:00 café, 13:00 almoço, 20:00 jantar).
+- Sempre inclua lat/lng reais para cada parada (coordenadas geográficas precisas).
+- O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}.`;
 
         const response = await invokeLLM({
           messages: [

@@ -101,3 +101,12 @@
 - [x] Redesenhar NextTransportCard com mesmo padrão visual
 - [x] Novo modal de adicionar voo: apenas número + data, busca automática
 - [x] Notificação 4h antes do embarque (substituir 2h anterior)
+
+## Fase 8 — Google Directions API
+
+- [x] Salvar GOOGLE_DIRECTIONS_API_KEY como secret no servidor
+- [x] Endpoint tRPC: calcular rota/tempo entre dois pontos (lat/lng ou endereço) com modo de transporte
+- [x] Itinerary block: botão "Atualizar trajetos" que recalcula tempos reais entre paradas
+- [x] Link Google Maps com rota real entre paradas (tap no conector de trajeto)
+- [x] Ícone de transporte correto (a pé, carro, metrô, bicicleta) no conector de trajeto
+- [x] IA gera lat/lng reais para cada parada e usa cityTransportMode no prompt

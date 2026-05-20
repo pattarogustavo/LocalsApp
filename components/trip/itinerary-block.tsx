@@ -246,15 +246,29 @@ function StopItem({
 
       {/* Travel to next */}
       {!isLast && stop.travelTimeToNext ? (
-        <View style={styles.travelRow}>
+        <TouchableOpacity
+          style={styles.travelRow}
+          onPress={() => {
+            const url = (stop as any).mapsUrlToNext;
+            if (url) Linking.openURL(url);
+          }}
+          activeOpacity={(stop as any).mapsUrlToNext ? 0.7 : 1}
+        >
           <View style={styles.timeCol} />
           <View style={styles.iconCol}>
             <View style={styles.travelIconBg}>
-              <Ionicons name="walk-outline" size={11} color="rgba(245,240,232,0.4)" />
+              <Ionicons
+                name={travelModeIcon(stop.travelModeToNext) as any}
+                size={11}
+                color="rgba(245,240,232,0.4)"
+              />
             </View>
           </View>
           <Text style={styles.travelText}>{stop.travelTimeToNext}</Text>
-        </View>
+          {(stop as any).mapsUrlToNext ? (
+            <Ionicons name="open-outline" size={10} color="rgba(82,183,136,0.5)" style={{ marginLeft: 4 }} />
+          ) : null}
+        </TouchableOpacity>
       ) : null}
     </View>
   );
@@ -262,18 +276,38 @@ function StopItem({
 
 // ─── Day View ─────────────────────────────────────────────────────────────────
 
+// Map CityTransportMode to Google Directions travel mode
+function toDirectionsMode(mode?: string): 'driving' | 'walking' | 'transit' | 'bicycling' {
+  if (mode === 'walk') return 'walking';
+  if (mode === 'bike') return 'bicycling';
+  if (mode === 'public') return 'transit';
+  return 'driving';
+}
+
+// Map travel mode to display icon
+function travelModeIcon(mode?: string): string {
+  if (mode === 'walking' || mode === 'walk') return 'walk-outline';
+  if (mode === 'bicycling' || mode === 'bike') return 'bicycle-outline';
+  if (mode === 'transit' || mode === 'public') return 'bus-outline';
+  return 'car-outline';
+}
+
 function DayView({
   day,
   dayIndex,
   tripId,
+  cityTransportMode,
   onGoToPlaces,
 }: {
   day: DayItinerary | undefined;
   dayIndex: number;
   tripId: string;
+  cityTransportMode?: string;
   onGoToPlaces: () => void;
 }) {
   const { removeItineraryStop, updateItineraryStop } = useTripsStore();
+  const batchRoute = trpc.directions.batchRoute.useMutation();
+  const [updatingRoutes, setUpdatingRoutes] = useState(false);
   // Support both new stops[] format and legacy morning/afternoon/evening
   const stops: StopLike[] = day
     ? ((day as any).stops && (day as any).stops.length > 0
@@ -314,8 +348,64 @@ function DayView({
     updateItineraryStop(tripId, dayIndex, stop.id, { time: newTime });
   };
 
+  const handleUpdateRoutes = async () => {
+    // Only update stops that have coordinates or addresses
+    const stopsWithLocation = stops.filter((s) => (s.lat && s.lng) || s.address);
+    if (stopsWithLocation.length < 2) return;
+    setUpdatingRoutes(true);
+    try {
+      const mode = toDirectionsMode(cityTransportMode);
+      const pairs = [];
+      for (let i = 0; i < stopsWithLocation.length - 1; i++) {
+        const from = stopsWithLocation[i];
+        const to   = stopsWithLocation[i + 1];
+        const origin      = from.lat && from.lng ? `${from.lat},${from.lng}` : (from.address || '');
+        const destination = to.lat   && to.lng   ? `${to.lat},${to.lng}`     : (to.address   || '');
+        if (origin && destination) pairs.push({ origin, destination, mode });
+      }
+      if (pairs.length === 0) return;
+      const result = await batchRoute.mutateAsync({ pairs });
+      // Apply results back to the stops that have IDs
+      let pairIdx = 0;
+      for (let i = 0; i < stopsWithLocation.length - 1; i++) {
+        const s = stopsWithLocation[i];
+        if (!s.id) { pairIdx++; continue; }
+        const r = result.results[pairIdx];
+        if (r?.found) {
+          updateItineraryStop(tripId, dayIndex, s.id, {
+            travelTimeToNext: r.durationText,
+            travelModeToNext: mode as any,
+            mapsUrlToNext: r.mapsUrl,
+          });
+        }
+        pairIdx++;
+      }
+    } catch (e) {
+      console.error('Directions error:', e);
+    } finally {
+      setUpdatingRoutes(false);
+    }
+  };
+
   return (
     <View>
+      {/* Update routes button */}
+      {stops.length >= 2 && (
+        <TouchableOpacity
+          onPress={handleUpdateRoutes}
+          disabled={updatingRoutes}
+          style={styles.updateRoutesBtn}
+        >
+          {updatingRoutes ? (
+            <ActivityIndicator size="small" color="#52B788" />
+          ) : (
+            <Ionicons name="navigate-outline" size={13} color="#52B788" />
+          )}
+          <Text style={styles.updateRoutesBtnText}>
+            {updatingRoutes ? 'Calculando...' : 'Atualizar trajetos'}
+          </Text>
+        </TouchableOpacity>
+      )}
       {stops.map((s, i) => (
         <StopItem
           key={s.id || i}
@@ -340,9 +430,10 @@ function DayView({
 interface ItineraryBlockProps {
   trip: Trip;
   onGoToPlaces: () => void;
+  cityTransportMode?: string;
 }
 
-export function ItineraryBlock({ trip, onGoToPlaces }: ItineraryBlockProps) {
+export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: ItineraryBlockProps) {
   const { setItinerary } = useTripsStore();
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
@@ -371,9 +462,12 @@ export function ItineraryBlock({ trip, onGoToPlaces }: ItineraryBlockProps) {
           destinationName: trip.destinations.find((d) => d.id === p.destinationId)?.name || '',
           hours: p.hours,
           address: p.address,
+          lat: p.lat,
+          lng: p.lng,
         })),
         totalDays,
         startDate: trip.startDate,
+        cityTransportMode: cityTransportMode || trip.cityTransportMode,
         preferences: {
           pace,
           includeBreakfast: true,
@@ -429,6 +523,7 @@ export function ItineraryBlock({ trip, onGoToPlaces }: ItineraryBlockProps) {
           day={displayDays[selectedDay]}
           dayIndex={selectedDay}
           tripId={trip.id}
+          cityTransportMode={cityTransportMode || trip.cityTransportMode}
           onGoToPlaces={onGoToPlaces}
         />
         {generating && (
@@ -577,4 +672,8 @@ const styles = StyleSheet.create({
   timeModalCancelText: { color: 'rgba(245,240,232,0.6)', fontSize: 15, fontWeight: '500' },
   timeModalConfirm: { flex: 2, paddingVertical: 13, borderRadius: 14, backgroundColor: '#52B788', alignItems: 'center' },
   timeModalConfirmText: { color: '#0F1F16', fontSize: 15, fontWeight: '700' },
+
+  // Update routes button
+  updateRoutesBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-end', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: 'rgba(82,183,136,0.1)', marginBottom: 10, borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)' },
+  updateRoutesBtnText: { fontSize: 11, color: '#52B788', fontWeight: '600' },
 });
