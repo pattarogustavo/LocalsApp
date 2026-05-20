@@ -20,6 +20,7 @@ import { PaywallModal } from '@/components/paywall-modal';
 import { trpc } from '@/lib/trpc';
 import type { Trip, Destination } from '@/types/voyage';
 import { useColors } from '@/hooks/use-colors';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 
 interface CreateTripSheetProps {
   visible: boolean;
@@ -222,15 +223,14 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                 {/* Start Date + Days */}
                 <Text style={[styles.sectionLabel, { color: colors.muted }]}>INÍCIO DA VIAGEM</Text>
                 <View style={styles.dateRow}>
-                  <TouchableOpacity
-                    onPress={() => setShowDatePicker(true)}
-                    style={[styles.dateBtn, { backgroundColor: colors.surface }]}
-                  >
-                    <Ionicons name="calendar-outline" size={18} color="#3D5A47" />
-                    <Text style={[styles.dateBtnText, { color: startDate ? colors.foreground : colors.muted }]}>
-                      {startDate ? formatDateDisplay(startDate) : 'Selecione a data'}
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <DatePickerField
+                      value={startDate}
+                      onChange={(d) => setStartDate(d)}
+                      minimumDate={new Date()}
+                      compact
+                    />
+                  </View>
 
                   <View style={[styles.daysStepper, { backgroundColor: colors.surface }]}>
                     <TouchableOpacity
@@ -358,48 +358,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
           </KeyboardAvoidingView>
         </View>
 
-        {/* Date Picker Modal */}
-        <Modal visible={showDatePicker} transparent animationType="fade">
-          <View style={styles.datePickerOverlay}>
-            <View style={[styles.datePickerCard, { backgroundColor: colors.background }]}>
-              <Text style={[styles.datePickerTitle, { color: '#1C3D2E' }]}>Selecionar Data</Text>
-              <View style={styles.datePickerRow}>
-                <TouchableOpacity
-                  onPress={() => adjustPickerDate(-1)}
-                  style={[styles.datePickerArrow, { backgroundColor: colors.surface }]}
-                >
-                  <Ionicons name="chevron-back" size={20} color="#1C3D2E" />
-                </TouchableOpacity>
-                <View style={styles.datePickerCenter}>
-                  <Text style={[styles.datePickerDay, { color: colors.foreground }]}>{pickerDate.getDate()}</Text>
-                  <Text style={[styles.datePickerMonth, { color: colors.muted }]}>
-                    {MONTHS[pickerDate.getMonth()]} {pickerDate.getFullYear()}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => adjustPickerDate(1)}
-                  style={[styles.datePickerArrow, { backgroundColor: colors.surface }]}
-                >
-                  <Ionicons name="chevron-forward" size={20} color="#1C3D2E" />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.datePickerActions}>
-                <TouchableOpacity
-                  onPress={() => setShowDatePicker(false)}
-                  style={[styles.datePickerCancelBtn, { backgroundColor: colors.surface }]}
-                >
-                  <Text style={[styles.datePickerCancelText, { color: colors.foreground }]}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleDateConfirm}
-                  style={[styles.datePickerConfirmBtn, { backgroundColor: '#1C3D2E' }]}
-                >
-                  <Text style={styles.datePickerConfirmText}>Confirmar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+        {/* Date picker is now inline via DatePickerField */}
       </Modal>
 
       {/* AI Preferences Modal */}

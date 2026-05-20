@@ -9,6 +9,7 @@ import * as Notifications from 'expo-notifications';
 import { useTripsStore } from '@/store/trips';
 import { generateId } from '@/utils/trip-helpers';
 import { trpc } from '@/lib/trpc';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import type { Transport, TransportMode, CityTransportMode, Destination } from '@/types/voyage';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -328,13 +329,13 @@ function AddTransportModal({
   // Route search fields
   const [routeOrigin, setRouteOrigin] = useState('');
   const [routeDest, setRouteDest] = useState('');
-  const [routeDate, setRouteDate] = useState('');
+  const [routeDate, setRouteDate] = useState<Date | null>(null);
   const [routeResults, setRouteResults] = useState<any[]>([]);
   const [routeSearched, setRouteSearched] = useState(false);
 
   // Number search fields
   const [flightNumber, setFlightNumber] = useState('');
-  const [flightDate, setFlightDate] = useState('');
+  const [flightDate, setFlightDate] = useState<Date | null>(null);
 
   // Shared
   const [selectedFlight, setSelectedFlight] = useState<any>(null);
@@ -355,25 +356,28 @@ function AddTransportModal({
   const reset = () => {
     setMode('flight'); setSelectedLeg(legs[0] || '');
     setSearchMode('route');
-    setRouteOrigin(''); setRouteDest(''); setRouteDate(''); setRouteResults([]); setRouteSearched(false);
-    setFlightNumber(''); setFlightDate('');
+    setRouteOrigin(''); setRouteDest(''); setRouteDate(null); setRouteResults([]); setRouteSearched(false);
+    setFlightNumber(''); setFlightDate(null);
     setSelectedFlight(null); setSearchError('');
     setEnableNotifs(true);
     setTravelTime(''); setDistance(''); setTrainNumber(''); setPlatform('');
   };
 
+  // Helper: format Date to YYYY-MM-DD for AviationStack
+  const toApiDate = (d: Date) => d.toISOString().split('T')[0];
+
   const handleRouteSearch = async () => {
     const o = routeOrigin.trim().toUpperCase();
     const d = routeDest.trim().toUpperCase();
-    const dt = routeDate.trim();
     if (o.length < 2 || d.length < 2) {
       setSearchError('Informe a origem e o destino (código IATA, ex: GRU, LHR).');
       return;
     }
-    if (!dt) {
-      setSearchError('Informe a data do voo (ex: 2025-07-15).');
+    if (!routeDate) {
+      setSearchError('Selecione a data do voo.');
       return;
     }
+    const dt = toApiDate(routeDate);
     setSearchError('');
     setRouteResults([]);
     setRouteSearched(false);
@@ -391,9 +395,9 @@ function AddTransportModal({
 
   const handleNumberSearch = async () => {
     const fn = flightNumber.trim();
-    const dt = flightDate.trim();
     if (!fn) { setSearchError('Informe o número do voo (ex: LA8084).'); return; }
-    if (!dt) { setSearchError('Informe a data do voo (ex: 2025-07-15).'); return; }
+    if (!flightDate) { setSearchError('Selecione a data do voo.'); return; }
+    const dt = toApiDate(flightDate);
     setSearchError('');
     try {
       const result = await lookupMutation.mutateAsync({ flightNumber: fn, date: dt });
@@ -609,15 +613,11 @@ function AddTransportModal({
                           </View>
                         </View>
                         <View style={{ marginTop: 10 }}>
-                          <Text style={styles.inputLabel}>DATA DO VOO</Text>
-                          <TextInput
+                          <DatePickerField
+                            label="DATA DO VOO"
                             value={routeDate}
-                            onChangeText={(v) => { setRouteDate(v); setSearchError(''); }}
-                            placeholder="2025-07-15"
-                            placeholderTextColor="rgba(245,240,232,0.25)"
-                            style={styles.textInput}
+                            onChange={(d) => { setRouteDate(d); setSearchError(''); }}
                           />
-                          <Text style={styles.inputHint}>Formato: AAAA-MM-DD</Text>
                         </View>
                       </>
                     ) : (
@@ -635,15 +635,11 @@ function AddTransportModal({
                           />
                         </View>
                         <View style={{ marginTop: 10 }}>
-                          <Text style={styles.inputLabel}>DATA DO VOO</Text>
-                          <TextInput
+                          <DatePickerField
+                            label="DATA DO VOO"
                             value={flightDate}
-                            onChangeText={(v) => { setFlightDate(v); setSearchError(''); }}
-                            placeholder="2025-07-15"
-                            placeholderTextColor="rgba(245,240,232,0.25)"
-                            style={styles.textInput}
+                            onChange={(d) => { setFlightDate(d); setSearchError(''); }}
                           />
-                          <Text style={styles.inputHint}>Formato: AAAA-MM-DD</Text>
                         </View>
                       </>
                     )}
