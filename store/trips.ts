@@ -11,6 +11,8 @@ import type {
   DayItinerary,
   Destination,
   UserPlan,
+  TripPhoto,
+  ItineraryStop,
 } from '@/types/voyage';
 
 interface TripsState {
@@ -48,6 +50,14 @@ interface TripsState {
   // Edit trip dates/destinations
   updateDestinations: (tripId: string, destinations: Destination[]) => Promise<void>;
   updateStartDate: (tripId: string, startDate: string) => Promise<void>;
+  // Photos
+  addPhoto: (tripId: string, photo: TripPhoto) => Promise<void>;
+  removePhoto: (tripId: string, photoId: string) => Promise<void>;
+  // Cover image
+  updateCoverImage: (tripId: string, url: string) => Promise<void>;
+  // Itinerary stop editing
+  updateItineraryStop: (tripId: string, dayIndex: number, stopId: string, updates: Partial<ItineraryStop>) => Promise<void>;
+  removeItineraryStop: (tripId: string, dayIndex: number, stopId: string) => Promise<void>;
   // Plan
   updateUserPlan: (plan: Partial<UserPlan>) => void;
 }
@@ -308,6 +318,62 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   // ─── User Plan ─────────────────────────────────────────────────────────────
+
+  // ─── Photos ─────────────────────────────────────────────────────────────────
+
+  addPhoto: async (tripId: string, photo: TripPhoto) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId
+        ? { ...t, photos: [...(t.photos || []), photo], updatedAt: new Date().toISOString() }
+        : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  removePhoto: async (tripId: string, photoId: string) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId
+        ? { ...t, photos: (t.photos || []).filter((p) => p.id !== photoId), updatedAt: new Date().toISOString() }
+        : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  updateCoverImage: async (tripId: string, url: string) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId ? { ...t, coverImageUrl: url, updatedAt: new Date().toISOString() } : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  updateItineraryStop: async (tripId: string, dayIndex: number, stopId: string, updates: Partial<ItineraryStop>) => {
+    const trips = get().trips.map((t) => {
+      if (t.id !== tripId) return t;
+      const itinerary = t.itinerary.map((day, idx) => {
+        if (idx !== dayIndex) return day;
+        return { ...day, stops: day.stops.map((s) => (s.id === stopId ? { ...s, ...updates } : s)) };
+      });
+      return { ...t, itinerary, updatedAt: new Date().toISOString() };
+    });
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  removeItineraryStop: async (tripId: string, dayIndex: number, stopId: string) => {
+    const trips = get().trips.map((t) => {
+      if (t.id !== tripId) return t;
+      const itinerary = t.itinerary.map((day, idx) => {
+        if (idx !== dayIndex) return day;
+        return { ...day, stops: day.stops.filter((s) => s.id !== stopId) };
+      });
+      return { ...t, itinerary, updatedAt: new Date().toISOString() };
+    });
+    set({ trips });
+    await saveToStorage(trips);
+  },
 
   updateUserPlan: (plan: Partial<UserPlan>) => {
     const updated = { ...get().userPlan, ...plan };

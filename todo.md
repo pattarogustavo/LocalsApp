@@ -72,3 +72,12 @@
 - [x] Lugares: campo de busca abaixo das categorias de "Minha Viagem"
 - [x] Lugares: botão "Criar roteiro com IA" na linha de cima de "Minha Viagem"
 - [x] Lugares: seção "Disponíveis" carrega automaticamente (sem precisar clicar em "Sugerir com IA")
+
+## Fase 5 — Fotos, Viajantes e Melhorias
+
+- [x] Moedas em coluna no header do roteiro (uma por linha, alinhadas à direita)
+- [x] Fix bug: múltiplos destinos mostram apenas bandeira do primeiro
+- [x] Foto de capa personalizada (galeria ou câmera)
+- [x] Álbum de fotos da viagem compartilhado com todos os viajantes
+- [x] Edição do roteiro dia-a-dia (long-press para deletar parada)
+- [x] Sistema de viajantes com conta na plataforma (convite por e-mail, badge de status pendente/ativo)

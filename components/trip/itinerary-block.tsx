@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Linking, ActivityIndicator, Modal,
+  Linking, ActivityIndicator, Modal, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTripsStore } from '@/store/trips';
@@ -110,7 +110,15 @@ interface StopLike {
   travelModeToNext?: string;
 }
 
-function StopItem({ stop, isLast }: { stop: StopLike; isLast: boolean }) {
+function StopItem({
+  stop,
+  isLast,
+  onDelete,
+}: {
+  stop: StopLike;
+  isLast: boolean;
+  onDelete?: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const name = stop.placeName || stop.activity || '';
   const desc = stop.description || stop.tip || '';
@@ -128,7 +136,12 @@ function StopItem({ stop, isLast }: { stop: StopLike; isLast: boolean }) {
 
   return (
     <View>
-      <TouchableOpacity onPress={() => setExpanded(!expanded)} style={styles.stopRow} activeOpacity={0.75}>
+      <TouchableOpacity
+        onPress={() => setExpanded(!expanded)}
+        onLongPress={onDelete}
+        style={styles.stopRow}
+        activeOpacity={0.75}
+      >
         {/* Time */}
         <View style={styles.timeCol}>
           <Text style={styles.stopTime}>{stop.time}</Text>
@@ -199,11 +212,16 @@ function StopItem({ stop, isLast }: { stop: StopLike; isLast: boolean }) {
 
 function DayView({
   day,
+  dayIndex,
+  tripId,
   onGoToPlaces,
 }: {
   day: DayItinerary | undefined;
+  dayIndex: number;
+  tripId: string;
   onGoToPlaces: () => void;
 }) {
+  const { removeItineraryStop } = useTripsStore();
   // Support both new stops[] format and legacy morning/afternoon/evening
   const stops: StopLike[] = day
     ? ((day as any).stops && (day as any).stops.length > 0
@@ -227,10 +245,27 @@ function DayView({
     );
   }
 
+  const handleDeleteStop = (stop: StopLike) => {
+    if (!stop.id) return;
+    Alert.alert('Remover parada', `Deseja remover "${stop.placeName || stop.activity || 'esta parada'}" do roteiro?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Remover',
+        style: 'destructive',
+        onPress: () => removeItineraryStop(tripId, dayIndex, stop.id!),
+      },
+    ]);
+  };
+
   return (
     <View>
       {stops.map((s, i) => (
-        <StopItem key={s.id || i} stop={s} isLast={i === stops.length - 1} />
+        <StopItem
+          key={s.id || i}
+          stop={s}
+          isLast={i === stops.length - 1}
+          onDelete={s.id ? () => handleDeleteStop(s) : undefined}
+        />
       ))}
       {day?.tips ? (
         <View style={styles.dayTip}>
@@ -334,6 +369,8 @@ export function ItineraryBlock({ trip, onGoToPlaces }: ItineraryBlockProps) {
         />
         <DayView
           day={displayDays[selectedDay]}
+          dayIndex={selectedDay}
+          tripId={trip.id}
           onGoToPlaces={onGoToPlaces}
         />
         {generating && (

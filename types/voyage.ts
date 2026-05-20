@@ -105,6 +105,17 @@ export interface Expense {
   splitWith?: string[];
 }
 
+// ─── Trip Photo ──────────────────────────────────────────────────────────────
+
+export interface TripPhoto {
+  id: string;
+  url: string;           // local URI or remote URL
+  caption?: string;
+  uploadedBy: string;    // traveler name or 'me'
+  uploadedAt: string;    // ISO date
+  destinationId?: string;
+}
+
 // ─── Traveler ─────────────────────────────────────────────────────────────────
 
 export interface Traveler {
@@ -112,6 +123,11 @@ export interface Traveler {
   name: string;
   initials: string;
   color?: string;
+  email?: string;        // platform user email (if registered)
+  userId?: string;       // platform user ID (if registered)
+  avatarUrl?: string;    // profile picture URL
+  isRegistered?: boolean; // has a Voyage account
+  inviteStatus?: 'pending' | 'accepted' | 'declined';
 }
 
 // ─── Accommodation ────────────────────────────────────────────────────────────
@@ -195,6 +211,7 @@ export interface Trip {
   coverImageUrl?: string;
   aiGeneratedItinerary?: boolean;
   cityTransportMode?: CityTransportMode;
+  photos?: TripPhoto[];  // shared photo album
   createdAt: string;
   updatedAt: string;
 }

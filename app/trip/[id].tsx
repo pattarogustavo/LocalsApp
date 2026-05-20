@@ -24,8 +24,10 @@ import { TravelersBlock } from '@/components/trip/travelers-block';
 import { PlacesScreen } from '@/components/trip/places-screen';
 import { ItineraryBlock } from '@/components/trip/itinerary-block';
 import { AccommodationBlock } from '@/components/trip/accommodation-block';
+import { TripPhotosBlock } from '@/components/trip/photos-block';
 import { useColors } from '@/hooks/use-colors';
 import { generateId } from '@/utils/trip-helpers';
+import * as ImagePicker from 'expo-image-picker';
 import type { Destination } from '@/types/voyage';
 
 const { height } = Dimensions.get('window');
@@ -288,11 +290,26 @@ export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { getTripById, deleteTrip, updateStartDate } = useTripsStore();
+  const { getTripById, deleteTrip, updateStartDate, updateCoverImage } = useTripsStore();
   const trip = getTripById(id);
   const [activeTab, setActiveTab] = useState<TabKey>('geral');
   const [showEditDate, setShowEditDate] = useState(false);
   const [showEditDests, setShowEditDests] = useState(false);
+
+  const handlePickCoverPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permissão necessária', 'Precisamos de acesso à sua galeria para alterar a foto de capa.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.9,
+    });
+    if (!result.canceled && result.assets[0]) {
+      await updateCoverImage(trip!.id, result.assets[0].uri);
+    }
+  };
 
   if (!trip) {
     return (
@@ -360,20 +377,25 @@ export default function TripDetailScreen() {
                   <Ionicons name="chevron-back" size={20} color="#fff" />
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={handleDelete} style={[styles.heroBtn, { backgroundColor: 'rgba(192,57,43,0.5)' }]}>
-                  <Ionicons name="trash-outline" size={16} color="#fff" />
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity onPress={handlePickCoverPhoto} style={[styles.heroBtn, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
+                    <Ionicons name="camera-outline" size={16} color="#fff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleDelete} style={[styles.heroBtn, { backgroundColor: 'rgba(192,57,43,0.5)' }]}>
+                    <Ionicons name="trash-outline" size={16} color="#fff" />
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              {/* Trip title row with currency badges */}
+              {/* Trip title row with currency badges in column */}
               <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={[styles.heroTitle, { flex: 1, marginBottom: 0, marginRight: 8 }]}>{tripName}</Text>
-                {/* Currency badges — one per unique currency across all destinations */}
-                <View style={{ flexDirection: 'row', gap: 6, flexShrink: 0, alignItems: 'center', paddingBottom: 2 }}>
+                <Text style={[styles.heroTitle, { flex: 1, marginBottom: 0, marginRight: 10 }]}>{tripName}</Text>
+                {/* Currency column — one badge per unique currency, stacked vertically */}
+                <View style={{ flexDirection: 'column', gap: 4, flexShrink: 0, alignItems: 'flex-end', paddingBottom: 2 }}>
                   {getTripCurrencies(trip.destinations).map((c) => (
                     <View key={c.currency} style={styles.currencyBadge}>
-                      <Text style={{ fontSize: 14, lineHeight: 18 }}>{c.flag}</Text>
-                      <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '500' }}>{c.symbol}</Text>
+                      <Text style={{ fontSize: 13, lineHeight: 16 }}>{c.flag}</Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: '500' }}>{c.symbol}</Text>
                       <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>{c.currency}</Text>
                     </View>
                   ))}
@@ -507,6 +529,9 @@ function GeralTab({ trip, onGoToPlaces }: { trip: any; onGoToPlaces: () => void 
 
       {/* Expenses Block */}
       <ExpensesBlock tripId={trip.id} expenses={trip.expenses} currency={trip.currency} />
+
+      {/* Photos Block */}
+      <TripPhotosBlock tripId={trip.id} tripName={trip.name || ''} />
 
       {/* Travelers Block */}
       <TravelersBlock tripId={trip.id} travelers={trip.travelers} />
