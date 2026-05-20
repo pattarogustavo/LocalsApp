@@ -25,6 +25,7 @@ import { PlacesScreen } from '@/components/trip/places-screen';
 import { ItineraryBlock } from '@/components/trip/itinerary-block';
 import { AccommodationBlock } from '@/components/trip/accommodation-block';
 import { TripPhotosBlock } from '@/components/trip/photos-block';
+import { NextTransportCard } from '@/components/trip/next-transport-card';
 import { useColors } from '@/hooks/use-colors';
 import { generateId } from '@/utils/trip-helpers';
 import * as ImagePicker from 'expo-image-picker';
@@ -475,7 +476,7 @@ export default function TripDetailScreen() {
 
         {/* Tab Content */}
         <View style={{ padding: 16, paddingBottom: insets.bottom + 32 }}>
-          {activeTab === 'geral' && <GeralTab trip={trip} onGoToPlaces={() => setActiveTab('lugares')} />}
+          {activeTab === 'geral' && <GeralTab trip={trip} onGoToPlaces={() => setActiveTab('lugares')} onGoToTransport={() => setActiveTab('transporte')} />}
           {activeTab === 'transporte' && <TransportTab trip={trip} />}
           {activeTab === 'hospedagem' && <AccommodationBlock trip={trip} />}
           {activeTab === 'lugares' && (
@@ -506,9 +507,17 @@ export default function TripDetailScreen() {
 
 // ─── Geral Tab ────────────────────────────────────────────────────────────────
 
-function GeralTab({ trip, onGoToPlaces }: { trip: any; onGoToPlaces: () => void }) {
+function GeralTab({ trip, onGoToPlaces, onGoToTransport }: { trip: any; onGoToPlaces: () => void; onGoToTransport: () => void }) {
   return (
     <View>
+      {/* Next Transport Card */}
+      <NextTransportCard
+        transports={trip.transport || []}
+        destinations={trip.destinations || []}
+        startDate={trip.startDate}
+        onPress={onGoToTransport}
+      />
+
       {/* Itinerary Block (AI Day-by-Day) */}
       <ItineraryBlock trip={trip} onGoToPlaces={onGoToPlaces} />
 
