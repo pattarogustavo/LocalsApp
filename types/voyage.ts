@@ -8,10 +8,14 @@ export type CityTransportMode = 'car' | 'public' | 'uber' | 'walk' | 'bike' | 't
 export interface FlightInfo {
   flightNumber: string;
   airline: string;
-  origin: string;
-  destination: string;
+  origin: string;           // IATA code e.g. GRU
+  originCity?: string;      // Full city/airport name e.g. São Paulo
+  destination: string;      // IATA code e.g. LHR
+  destinationCity?: string; // Full city/airport name e.g. Londres
   departureTime: string;
   arrivalTime: string;
+  departureActual?: string; // actual departure time if different
+  arrivalActual?: string;   // actual arrival time if different
   duration: string;
   terminal?: string;
   gate?: string;

@@ -15,15 +15,16 @@
   ],
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/310419663029664606/W4ReyjxDyzrfQdpLmkcvHo",
-    "access_key_id": "ASIAZV3A2ECZELMIN4SL",
-    "secret_access_key": "vuNo7AClhn4cRFl4GnBdhJ4t4X23GrBntnuo04IS",
-    "session_token": "IQoJb3JpZ2luX2VjEBUaCXVzLWVhc3QtMSJIMEYCIQDKZRn5SOhkjS/A6YydGrLVn7Y6v04mnB5BaT0Ruh21lAIhALSLmGoT5hsJ5JjSVrr6XhoheaMXZ0uCQVZ4XO2mAYQZKv4DCN7//////////wEQBBoMNjY1Mzg2MDk4ODY2IgxA+HXM64fFKOXCGlgq0gPLIatmllzvF1I31D5A1NwBwsIMp1rHF5jUHFMEL86etwrFf79n/yOQuwX7yLHwFgMttPeSRwoa90RShjRKftww78KtskS3MNf1QIujEEmBhPmxsxnymR51jSFfPtlD7J5U/V00UEpQR5j1HCBvZJ6Uud6x34KbNGqLfz+QyUe2bsoJ9AtGlOLxmJrT95W+BDNcd4/c9hVsj3NcThAG4ho6VHg5u5YAD/qh6Fw0icBqZgjoruuLzc5KtSxyVq25qFeMLd4oqbdJWSshJ3vdKpWdTOqh/bWvYNtylkTg8DLpkbCrTFl9rgjTu3ihPQpV3cv90UikYD6Gxqrlq5G1pIDs3kvE66izw8KnYEJ01v2gy1wwoiME2PgRZUjilpyeoYwjMlK8pT/Uq0+KvbGiPNWYQ4RSw3lZsljKakikZVFreZeNw2ihlm5L9uXpEjvYuVsh6ByWVSYw7w+7wP4Nz23y5sQ4dHAxwvUwerN+KvawZCBOsi24eAqLU+X/TV6g8P2TfKkis7brf+zUtq9NfbX8+Tv0vCpMGYFnxBU0PRYRR0kjXSDDbOyhApVv2KayVddZDkyLBxf95ed6Ue0rjSJPgPCwlsF9ygL+q50RWpE+cGnJMOyPs9AGOpwB+3yah7fhM9h7n8HuZKD0pubV0gca96wgQlZVmXJLDHTB8H7xf51jxDdJWhyFIS8C16e5WhCxx3f6UyC+DkyyjZMG0OL5PrbrkMmNgok+nyRzROmlIiAzFJaNM2YyR8K3FcCfiiavECNg8I1IPENtjNRKVA18btZDc1NS0p6BB9dicAtHL2n+zoJ1NkK4Y5DA1YgLlRxmbAfJH1ti",
-    "expiration": "2026-05-20T08:28:28.000Z"
+    "access_key_id": "ASIAZV3A2ECZGCECKU75",
+    "secret_access_key": "mhZKk8XSjFs2MmlN6z4nZaVrj4PsAt8RqknlhXcU",
+    "session_token": "IQoJb3JpZ2luX2VjECkaCXVzLWVhc3QtMSJIMEYCIQDeHywGRi596b5f/DN2q2QDfiTvJnc5BoA8bpdm/w23/wIhAPomUzn6JwXF95rDfecCyVNVULHHd0Rp+sqrjGfLGHZyKv4DCPL//////////wEQBBoMNjY1Mzg2MDk4ODY2Igyr0KpB3njyF8gX2iYq0gOrbvbgmBkmjVwWhdZXYWs67q9+3n/fGFB8w63V170AXxs6qD1ZB5+V92SfiH4eqEE0rhWI6BRZFbuykWtVHW6AixzrPje0Al2aOt83dSn8gk6jB0gxFHyCOgl9PvdtUGlqznoDI51zXPTQPUYKhmpwx2bwRf+ip19EnRqrmSTz3kkHlksGF9Nq6KDcWZVwmDr5WTgjQ/lgPIDSqFsZl87PBFwMsrfg+w/iYaKblo7dkkKkIE9z0jyzEXk4rm2PThNOQHIMw87olIlg9jxUA4QxiQ67UYtKKRDH3vubAe7CITASpYA6NAJ9sVO28nCDjnX8XnKb/9qeTQalodzRJPN6IWHIz3Ny915HtFU34DEDOQD7ADsDxPnMSJ2oUfzg6lPlHXvfQW+CbSwk74aNqyBcdmGZfDgh2pDxQPl6D1p1ZYCNqynxWlreRn21WCEBc3ynex6jaNj0wd/GS4VGVbugA/P800z2o9S/SMGf50RCwNqFZOj8TyNmRjjNWmOgGT/ZynSlpSa16o+Vmz3cIOrBaJjTRGyj+FVTtD205dQYtfmI9VFifRNXcyySqzHgV/Wupj8avQvZz/dpKrpH5+Pp3yYeMJgDpkFAOsLwXVVD0pGBMM3Lt9AGOpwBD5B0LdpCqPUdSPwOhM3EHGBd12U56o9F9vmKi9raWDLFsMhcgeo9D2OUPK1aX+wrAc1yhXiDyZXCM/J8+P1O7aGtZt2u+1e4AOysDWZoEzpY/b9PlFW9Biqgjpolp9AYnuYTkYzhNuN74NhZ3J/oU0P+yULFPW4AgFcO6r96YeCA4sBVBZaZ+qYjPOKiWlcJsqcT/WbYj+Qloo9b",
+    "expiration": "2026-05-21T04:48:13.000Z"
   },
   "name": "voyage-app",
   "path": "/home/ubuntu/voyage-app",
   "port": 3000,
   "secrets": {
+    "AVIATIONSTACK_API_KEY": "6c543a6cf11ef412b956fa13561fd9a1",
     "BUILT_IN_FORGE_API_KEY": "Zr8sD3i87ZvRjorEMGBxCn",
     "BUILT_IN_FORGE_API_URL": "https://forge.manus.ai",
     "EXPO_APP_QR_URL": "exps://8081-ixu79jg0lbv7d36xs9jw1-87adcf90.us2.manus.computer",

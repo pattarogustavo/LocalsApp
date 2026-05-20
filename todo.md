@@ -91,3 +91,13 @@
 - [x] Seção "Dentro da Cidade" no TransportBlock (modo de transporte urbano)
 - [x] Voo com número obrigatório + seletor de trajeto (leg)
 - [x] QR code / imagem da passagem aérea (câmera ou galeria, visualizador em tela cheia)
+
+## Fase 7 — Integração AviationStack + Card de Voo
+
+- [x] Salvar AVIATIONSTACK_API_KEY como secret no servidor
+- [x] Endpoint tRPC: buscar voo por número + data via AviationStack
+- [x] Endpoint tRPC: atualizar status de voo em tempo real
+- [x] Redesenhar FlightCard no estilo da referência (cidade/IATA/horário/duração/status)
+- [x] Redesenhar NextTransportCard com mesmo padrão visual
+- [x] Novo modal de adicionar voo: apenas número + data, busca automática
+- [x] Notificação 4h antes do embarque (substituir 2h anterior)

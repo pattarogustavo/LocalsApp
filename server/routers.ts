@@ -6,6 +6,51 @@ import { invokeLLM } from "./_core/llm";
 import { z } from "zod";
 
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
+const AVIATIONSTACK_KEY = process.env.AVIATIONSTACK_API_KEY || "";
+
+// ─── AviationStack helpers ────────────────────────────────────────────────────
+
+async function fetchFlightData(flightNumber: string, date: string) {
+  if (!AVIATIONSTACK_KEY) return null;
+  // AviationStack: strip spaces, uppercase
+  const iata = flightNumber.replace(/\s+/g, '').toUpperCase();
+  const url = new URL('http://api.aviationstack.com/v1/flights');
+  url.searchParams.set('access_key', AVIATIONSTACK_KEY);
+  url.searchParams.set('flight_iata', iata);
+  url.searchParams.set('flight_date', date); // YYYY-MM-DD
+  url.searchParams.set('limit', '1');
+  try {
+    const res = await fetch(url.toString());
+    if (!res.ok) return null;
+    const json = (await res.json()) as any;
+    const flight = json?.data?.[0];
+    if (!flight) return null;
+    return {
+      flightNumber: flight.flight?.iata || iata,
+      airline: flight.airline?.name || '',
+      origin: flight.departure?.iata || '',
+      originCity: flight.departure?.airport || '',
+      destination: flight.arrival?.iata || '',
+      destinationCity: flight.arrival?.airport || '',
+      departureTime: flight.departure?.scheduled || '',
+      arrivalTime: flight.arrival?.scheduled || '',
+      departureActual: flight.departure?.actual || '',
+      arrivalActual: flight.arrival?.actual || '',
+      terminal: flight.departure?.terminal || '',
+      gate: flight.departure?.gate || '',
+      status: (flight.flight_status as string) || 'scheduled',
+      duration: (() => {
+        const dep = new Date(flight.departure?.scheduled || '');
+        const arr = new Date(flight.arrival?.scheduled || '');
+        if (isNaN(dep.getTime()) || isNaN(arr.getTime())) return '';
+        const mins = Math.round((arr.getTime() - dep.getTime()) / 60000);
+        return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
+      })(),
+    };
+  } catch {
+    return null;
+  }
+}
 
 export const appRouter = router({
   system: systemRouter,
@@ -16,6 +61,31 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+  }),
+
+  // ─── AviationStack ────────────────────────────────────────────────────────
+  flights: router({
+    lookup: publicProcedure
+      .input(z.object({ flightNumber: z.string().min(2), date: z.string() }))
+      .mutation(async ({ input }) => {
+        const data = await fetchFlightData(input.flightNumber, input.date);
+        if (!data) return { found: false as const, flight: null };
+        return { found: true as const, flight: data };
+      }),
+    refreshStatus: publicProcedure
+      .input(z.object({ flightNumber: z.string(), date: z.string() }))
+      .mutation(async ({ input }) => {
+        const data = await fetchFlightData(input.flightNumber, input.date);
+        if (!data) return { updated: false as const };
+        return {
+          updated: true as const,
+          status: data.status,
+          terminal: data.terminal,
+          gate: data.gate,
+          departureActual: data.departureActual,
+          arrivalActual: data.arrivalActual,
+        };
+      }),
   }),
 
   // ─── Google Places Proxy ───────────────────────────────────────────────────
