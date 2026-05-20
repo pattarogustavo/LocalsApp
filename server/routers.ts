@@ -247,31 +247,25 @@ Importante: inclua ${paceStops} paradas por dia. Distribua bem os horários ao l
     suggestPlaces: publicProcedure
       .input(
         z.object({
-          destination: z.string(),
+          destinationName: z.string(),
           country: z.string().optional(),
-          days: z.number(),
-          preferences: z.object({
-            style: z.array(z.string()).optional(),
-            budget: z.enum(["econômico", "moderado", "luxo"]).optional(),
-          }).optional(),
+          categories: z.array(z.string()).optional(),
+          existingPlaces: z.array(z.string()).optional(),
         })
       )
       .mutation(async ({ input }) => {
-        const { destination, country, days, preferences } = input;
+        const { destinationName, country, categories, existingPlaces } = input;
 
-        const prompt = `Sugira os melhores lugares para visitar em ${destination}${country ? `, ${country}` : ""} para uma viagem de ${days} dias.
+        const existing = existingPlaces && existingPlaces.length > 0
+          ? `\nExclua estes lugares que o usuário já tem: ${existingPlaces.join(", ")}`
+          : "";
 
-${preferences?.style ? `Estilo: ${preferences.style.join(", ")}` : ""}
-${preferences?.budget ? `Orçamento: ${preferences.budget}` : ""}
+        const prompt = `Sugira os melhores lugares para visitar em ${destinationName}${country ? `, ${country}` : ""}.
 
-Retorne um JSON com o objeto "places" contendo arrays por categoria:
-- attractions: pontos turísticos (máx 6)
-- restaurants: restaurantes (máx 5)
-- cafes: cafés (máx 4)
-- museums: museus (máx 4)
-- hidden_gems: lugares menos conhecidos (máx 3)
+Categorias solicitadas: ${(categories || ["attraction", "restaurant", "cafe", "museum", "hidden_gem"]).join(", ")}${existing}
 
-Cada lugar deve ter: { name, category, address, hours, description, rating, estimatedDuration, priceRange }`;
+Retorne um JSON com o array "places" (lista plana, máx 20 lugares no total).
+Cada lugar deve ter: { name (string), category (attraction|restaurant|cafe|museum|hidden_gem|other), address (string), hours (string, ex: "09:00 - 18:00"), description (string, 1 frase), phone (string, opcional) }`;
 
         const response = await invokeLLM({
           messages: [
@@ -284,9 +278,15 @@ Cada lugar deve ter: { name, category, address, hours, description, rating, esti
         const content = response.choices[0].message.content as string;
         try {
           const parsed = JSON.parse(content);
-          return { places: parsed.places || parsed };
+          // Handle both flat array and nested object formats
+          let places = parsed.places || [];
+          if (!Array.isArray(places)) {
+            // Flatten nested categories
+            places = Object.values(places).flat();
+          }
+          return { places };
         } catch {
-          return { places: {} };
+          return { places: [] };
         }
       }),
   }),

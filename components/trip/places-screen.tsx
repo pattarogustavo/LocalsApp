@@ -1,24 +1,25 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, Modal,
-  TextInput, ActivityIndicator, Linking, StyleSheet, Image,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView,
+  TextInput, Image, Modal, Linking, ActivityIndicator,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { trpc } from '@/lib/trpc';
 import { useTripsStore } from '@/store/trips';
-import { PaywallModal } from '@/components/paywall-modal';
-import { generateId } from '@/utils/trip-helpers';
+import { trpc } from '@/lib/trpc';
 import type { Place, Destination } from '@/types/voyage';
+import { generateId } from '@/utils/trip-helpers';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CATEGORIES = [
-  { key: 'all',        label: 'Todos',        icon: 'grid-outline' as const },
-  { key: 'attraction', label: 'Atrações',     icon: 'camera-outline' as const },
-  { key: 'restaurant', label: 'Restaurantes', icon: 'restaurant-outline' as const },
-  { key: 'cafe',       label: 'Cafés',        icon: 'cafe-outline' as const },
-  { key: 'museum',     label: 'Museus',       icon: 'book-outline' as const },
-  { key: 'hidden_gem', label: 'Hidden Gems',  icon: 'diamond-outline' as const },
+  { key: 'all',        label: 'Todos',       icon: 'grid-outline' },
+  { key: 'attraction', label: 'Atrações',    icon: 'camera-outline' },
+  { key: 'restaurant', label: 'Restaurantes', icon: 'restaurant-outline' },
+  { key: 'cafe',       label: 'Cafés',       icon: 'cafe-outline' },
+  { key: 'museum',     label: 'Museus',      icon: 'book-outline' },
+  { key: 'hidden_gem', label: 'Escondidos',  icon: 'diamond-outline' },
+  { key: 'other',      label: 'Outros',      icon: 'location-outline' },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -26,7 +27,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   restaurant: 'Restaurantes',
   cafe: 'Cafés',
   museum: 'Museus',
-  hidden_gem: 'Hidden Gems',
+  hidden_gem: 'Joias Escondidas',
   other: 'Outros',
 };
 
@@ -39,32 +40,21 @@ const CATEGORY_ICONS: Record<string, string> = {
   other: 'location-outline',
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-  attraction: '#52B788',
-  restaurant: '#E07B5A',
-  cafe: '#C4A35A',
-  museum: '#7B9FD4',
-  hidden_gem: '#B88BF5',
-  other: '#A8D5B5',
-};
-
 // ─── Place Detail Modal ───────────────────────────────────────────────────────
 
 function PlaceDetailModal({
   place,
   onClose,
+  isAdded,
   onAdd,
   onRemove,
-  isAdded,
 }: {
   place: Place;
   onClose: () => void;
-  onAdd?: () => void;
-  onRemove?: () => void;
   isAdded: boolean;
+  onAdd: () => void;
+  onRemove: () => void;
 }) {
-  const catColor = CATEGORY_COLORS[place.category] || '#52B788';
-
   const openMaps = () => {
     if (place.lat && place.lng) {
       Linking.openURL(`https://maps.google.com/?q=${place.lat},${place.lng}`);
@@ -83,14 +73,14 @@ function PlaceDetailModal({
           {place.imageUrl ? (
             <Image source={{ uri: place.imageUrl }} style={styles.placePhoto} resizeMode="cover" />
           ) : (
-            <View style={[styles.placePhotoPlaceholder, { backgroundColor: `${catColor}18` }]}>
-              <Ionicons name={CATEGORY_ICONS[place.category] as any} size={40} color={catColor} />
+            <View style={[styles.placePhotoPlaceholder, { backgroundColor: 'rgba(82,183,136,0.12)' }]}>
+              <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={40} color="rgba(82,183,136,0.4)" />
             </View>
           )}
 
           <View style={styles.detailContent}>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={16} color="#F5F0E8" />
+              <Ionicons name="close" size={16} color="rgba(245,240,232,0.7)" />
             </TouchableOpacity>
 
             <Text style={styles.detailName}>{place.name}</Text>
@@ -102,7 +92,7 @@ function PlaceDetailModal({
 
             {place.hours ? (
               <View style={styles.detailRow}>
-                <Ionicons name="time-outline" size={14} color="rgba(245,240,232,0.4)" />
+                <Ionicons name="time-outline" size={15} color="rgba(245,240,232,0.4)" />
                 <View>
                   <Text style={styles.detailRowLabel}>HORÁRIO</Text>
                   <Text style={styles.detailRowValue}>{place.hours}</Text>
@@ -112,7 +102,7 @@ function PlaceDetailModal({
 
             {place.address ? (
               <View style={styles.detailRow}>
-                <Ionicons name="location-outline" size={14} color="rgba(245,240,232,0.4)" />
+                <Ionicons name="location-outline" size={15} color="rgba(245,240,232,0.4)" />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.detailRowLabel}>ENDEREÇO</Text>
                   <Text style={styles.detailRowValue}>{place.address}</Text>
@@ -122,7 +112,7 @@ function PlaceDetailModal({
 
             {place.phone ? (
               <View style={styles.detailRow}>
-                <Ionicons name="call-outline" size={14} color="rgba(245,240,232,0.4)" />
+                <Ionicons name="call-outline" size={15} color="rgba(245,240,232,0.4)" />
                 <View>
                   <Text style={styles.detailRowLabel}>TELEFONE</Text>
                   <Text style={styles.detailRowValue}>{place.phone}</Text>
@@ -130,36 +120,38 @@ function PlaceDetailModal({
               </View>
             ) : null}
 
-            <View style={styles.detailActions}>
-              {(place.website) ? (
-                <TouchableOpacity onPress={() => Linking.openURL(place.website!)} style={styles.detailActionBtn}>
-                  <Ionicons name="globe-outline" size={16} color="#F5F0E8" />
-                  <Text style={styles.detailActionText}>Site</Text>
-                </TouchableOpacity>
-              ) : null}
-              {(place.lat || place.address) ? (
-                <TouchableOpacity onPress={openMaps} style={styles.detailActionBtn}>
-                  <Ionicons name="map-outline" size={16} color="#F5F0E8" />
-                  <Text style={styles.detailActionText}>Maps</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
+            {(place.website || place.address || (place.lat && place.lng)) ? (
+              <View style={styles.detailActions}>
+                {place.website ? (
+                  <TouchableOpacity onPress={() => Linking.openURL(place.website!)} style={styles.detailActionBtn}>
+                    <Ionicons name="globe-outline" size={16} color="#F5F0E8" />
+                    <Text style={styles.detailActionText}>Site</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {(place.address || (place.lat && place.lng)) ? (
+                  <TouchableOpacity onPress={openMaps} style={styles.detailActionBtn}>
+                    <Ionicons name="map-outline" size={16} color="#F5F0E8" />
+                    <Text style={styles.detailActionText}>Maps</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
 
             {isAdded ? (
               <TouchableOpacity
-                onPress={() => { onRemove?.(); onClose(); }}
+                onPress={() => { onRemove(); onClose(); }}
                 style={styles.removeActionBtn}
               >
                 <Ionicons name="trash-outline" size={16} color="#E74C3C" />
-                <Text style={styles.removeActionText}>Remover da viagem</Text>
+                <Text style={styles.removeActionText}>Remover da Viagem</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                onPress={() => { onAdd?.(); onClose(); }}
+                onPress={() => { onAdd(); onClose(); }}
                 style={styles.addActionBtn}
               >
                 <Ionicons name="add" size={18} color="#0F1F16" />
-                <Text style={styles.addActionText}>Adicionar à viagem</Text>
+                <Text style={styles.addActionText}>Adicionar à Viagem</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -169,7 +161,7 @@ function PlaceDetailModal({
   );
 }
 
-// ─── Place Row (Minha Viagem) ─────────────────────────────────────────────────
+// ─── My Place Row ─────────────────────────────────────────────────────────────
 
 function MyPlaceRow({
   place,
@@ -180,20 +172,17 @@ function MyPlaceRow({
   onPress: () => void;
   onRemove: () => void;
 }) {
-  const catColor = CATEGORY_COLORS[place.category] || '#52B788';
-  const catIcon  = CATEGORY_ICONS[place.category] || 'location-outline';
-
   return (
     <TouchableOpacity onPress={onPress} style={styles.myPlaceRow} activeOpacity={0.75}>
       {place.imageUrl ? (
-        <Image source={{ uri: place.imageUrl }} style={styles.myPlaceThumb} />
+        <Image source={{ uri: place.imageUrl }} style={styles.myPlaceThumb} resizeMode="cover" />
       ) : (
-        <View style={[styles.myPlaceThumb, { backgroundColor: `${catColor}20`, alignItems: 'center', justifyContent: 'center' }]}>
-          <Ionicons name={catIcon as any} size={16} color={catColor} />
+        <View style={[styles.myPlaceThumb, { backgroundColor: 'rgba(82,183,136,0.12)', alignItems: 'center', justifyContent: 'center' }]}>
+          <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={18} color="rgba(82,183,136,0.5)" />
         </View>
       )}
       <Text style={styles.myPlaceName} numberOfLines={1}>{place.name}</Text>
-      <TouchableOpacity onPress={onRemove} style={styles.removeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+      <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
         <Ionicons name="trash-outline" size={15} color="#E74C3C" />
       </TouchableOpacity>
     </TouchableOpacity>
@@ -202,27 +191,26 @@ function MyPlaceRow({
 
 // ─── Available Place Row ──────────────────────────────────────────────────────
 
-function AvailablePlaceRow({
+function AvailPlaceRow({
   place,
   isAdded,
   onAdd,
+  onRemove,
   onPress,
 }: {
   place: Place;
   isAdded: boolean;
   onAdd: () => void;
+  onRemove: () => void;
   onPress: () => void;
 }) {
-  const catColor = CATEGORY_COLORS[place.category] || '#52B788';
-  const catIcon  = CATEGORY_ICONS[place.category] || 'location-outline';
-
   return (
     <TouchableOpacity onPress={onPress} style={styles.availRow} activeOpacity={0.75}>
       {place.imageUrl ? (
-        <Image source={{ uri: place.imageUrl }} style={styles.availThumb} />
+        <Image source={{ uri: place.imageUrl }} style={styles.availThumb} resizeMode="cover" />
       ) : (
-        <View style={[styles.availThumb, { backgroundColor: `${catColor}20`, alignItems: 'center', justifyContent: 'center' }]}>
-          <Ionicons name={catIcon as any} size={18} color={catColor} />
+        <View style={[styles.availThumb, { backgroundColor: 'rgba(82,183,136,0.12)', alignItems: 'center', justifyContent: 'center' }]}>
+          <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={20} color="rgba(82,183,136,0.5)" />
         </View>
       )}
       <View style={styles.availInfo}>
@@ -231,21 +219,21 @@ function AvailablePlaceRow({
           <Text style={styles.availDesc} numberOfLines={1}>{place.description}</Text>
         ) : null}
       </View>
-      {!isAdded ? (
-        <TouchableOpacity onPress={onAdd} style={styles.addChip} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-          <Text style={styles.addChipText}>Adicionar</Text>
-        </TouchableOpacity>
-      ) : (
-        <View style={styles.addedBadge}>
+      {isAdded ? (
+        <TouchableOpacity onPress={onRemove} style={styles.addedBadge}>
           <Ionicons name="checkmark" size={12} color="#52B788" />
           <Text style={styles.addedBadgeText}>Adicionado</Text>
-        </View>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity onPress={onAdd} style={styles.addChip}>
+          <Text style={styles.addChipText}>Adicionar</Text>
+        </TouchableOpacity>
       )}
     </TouchableOpacity>
   );
 }
 
-// ─── AI Suggestions Panel ─────────────────────────────────────────────────────
+// ─── AI Suggestions Panel (auto-loads) ───────────────────────────────────────
 
 function AIPanel({
   destination,
@@ -253,134 +241,122 @@ function AIPanel({
   onAdd,
   onRemove,
   activeCategory,
+  searchQuery,
 }: {
   destination: Destination;
   addedPlaces: Place[];
   onAdd: (place: Place) => void;
-  onRemove: (placeId: string) => void;
+  onRemove: (id: string) => void;
   activeCategory: string;
+  searchQuery: string;
 }) {
-  const { userPlan, updateUserPlan } = useTripsStore();
-  const [showPaywall, setShowPaywall] = useState(false);
-  const [aiPlaces, setAiPlaces] = useState<Place[]>([]);
+  const [suggestions, setSuggestions] = useState<Place[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const fetchedRef = useRef(false);
 
-  const suggestMutation = trpc.ai.suggestPlaces.useMutation({
-    onSuccess: (data) => {
-      if (!data?.places) return;
-      const categoryMap: Record<string, string> = {
-        attractions: 'attraction',
-        restaurants: 'restaurant',
-        cafes: 'cafe',
-        museums: 'museum',
-        hidden_gems: 'hidden_gem',
-      };
-      const all: Place[] = [];
-      for (const [rawKey, items] of Object.entries(data.places as Record<string, any[]>)) {
-        const cat = categoryMap[rawKey] || rawKey;
-        for (const item of (items || [])) {
-          all.push({
-            id: generateId(),
-            name: item.name,
-            category: cat as any,
-            address: item.address,
-            hours: item.hours,
-            description: item.description || item.tip,
-            website: item.website,
-            imageUrl: item.imageUrl,
-            destinationId: destination.id,
-            addedByAI: true,
-          });
-        }
+  const suggestPlaces = trpc.ai.suggestPlaces.useMutation();
+
+  const loadSuggestions = useCallback(async () => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    setLoading(true);
+    try {
+      const result = await suggestPlaces.mutateAsync({
+        destinationName: destination.name,
+        country: destination.country || '',
+        categories: ['attraction', 'restaurant', 'cafe', 'museum', 'hidden_gem'],
+        existingPlaces: addedPlaces.map((p) => p.name),
+      });
+      if (result?.places) {
+        setSuggestions(result.places.map((p: any) => ({ ...p, id: generateId() })));
       }
-      setAiPlaces(all);
-      if (userPlan.tier === 'free') {
-        updateUserPlan({ aiCreditsUsed: userPlan.aiCreditsUsed + 1 });
-      }
-    },
-  });
+    } catch (e) {
+      console.error('AI suggest places error:', e);
+    } finally {
+      setLoading(false);
+      setLoaded(true);
+    }
+  }, [destination.name, destination.country]);
 
-  const handleLoad = () => {
-    const canUse = userPlan.tier !== 'free' || userPlan.aiCreditsUsed < userPlan.aiCreditsLimit;
-    if (!canUse) { setShowPaywall(true); return; }
-    suggestMutation.mutate({ destination: destination.name, country: destination.country, days: destination.days });
-  };
+  // Auto-load on mount
+  useEffect(() => {
+    loadSuggestions();
+  }, []);
 
-  const filtered = activeCategory === 'all'
-    ? aiPlaces
-    : aiPlaces.filter((p) => p.category === activeCategory);
+  const filtered = useMemo(() => {
+    return suggestions.filter((p) => {
+      const matchCat = activeCategory === 'all' || p.category === activeCategory;
+      const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+      return matchCat && matchSearch;
+    });
+  }, [suggestions, activeCategory, searchQuery]);
 
-  const isAdded = (p: Place) => addedPlaces.some((a) => a.name === p.name);
+  const isAdded = (place: Place) => addedPlaces.some((p) => p.name === place.name);
+
+  if (loading) {
+    return (
+      <View style={styles.aiLoadingRow}>
+        <ActivityIndicator size="small" color="#52B788" />
+        <Text style={styles.aiLoadingText}>Buscando sugestões para {destination.name}...</Text>
+      </View>
+    );
+  }
+
+  if (loaded && filtered.length === 0) {
+    return (
+      <View style={styles.aiEmptyRow}>
+        <Ionicons name="search-outline" size={16} color="rgba(245,240,232,0.3)" />
+        <Text style={styles.aiEmptyText}>
+          {searchQuery ? `Nenhum resultado para "${searchQuery}"` : 'Nenhuma sugestão disponível'}
+        </Text>
+        <TouchableOpacity
+          onPress={() => { fetchedRef.current = false; loadSuggestions(); }}
+          style={styles.aiRefreshBtn}
+        >
+          <Ionicons name="refresh-outline" size={14} color="#52B788" />
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View>
-      {aiPlaces.length === 0 ? (
-        <View style={styles.aiEmptyRow}>
-          {suggestMutation.isPending ? (
-            <>
-              <ActivityIndicator size="small" color="#52B788" />
-              <Text style={styles.aiEmptyText}>A IA está buscando lugares em {destination.name}...</Text>
-            </>
-          ) : (
-            <>
-              <Ionicons name="sparkles-outline" size={14} color="rgba(245,240,232,0.4)" />
-              <Text style={styles.aiEmptyText}>Nenhuma sugestão carregada</Text>
-              <TouchableOpacity onPress={handleLoad} style={styles.aiLoadBtn}>
-                <Ionicons name="sparkles" size={12} color="#0F1F16" />
-                <Text style={styles.aiLoadBtnText}>Sugerir com IA</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      ) : (
-        <>
-          <View style={styles.aiHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="sparkles" size={12} color="#52B788" />
-              <Text style={styles.aiHeaderText}>Sugestões IA · {destination.name}</Text>
-            </View>
-            <TouchableOpacity onPress={handleLoad} style={styles.aiRefreshBtn} disabled={suggestMutation.isPending}>
-              {suggestMutation.isPending
-                ? <ActivityIndicator size="small" color="#52B788" />
-                : <Ionicons name="refresh-outline" size={14} color="#52B788" />}
-            </TouchableOpacity>
-          </View>
-          {filtered.map((place) => (
-            <AvailablePlaceRow
-              key={place.id}
-              place={place}
-              isAdded={isAdded(place)}
-              onAdd={() => onAdd({ ...place, id: generateId() })}
-              onPress={() => setSelectedPlace(place)}
-            />
-          ))}
-          {filtered.length === 0 && (
-            <Text style={[styles.aiEmptyText, { paddingVertical: 8 }]}>
-              Nenhuma sugestão nesta categoria
-            </Text>
-          )}
-        </>
-      )}
-
+      {filtered.map((place) => (
+        <AvailPlaceRow
+          key={place.id}
+          place={place}
+          isAdded={isAdded(place)}
+          onAdd={() => onAdd(place)}
+          onRemove={() => {
+            const added = addedPlaces.find((p) => p.name === place.name);
+            if (added) onRemove(added.id);
+          }}
+          onPress={() => setSelectedPlace(place)}
+        />
+      ))}
       {selectedPlace && (
         <PlaceDetailModal
           place={selectedPlace}
           onClose={() => setSelectedPlace(null)}
           isAdded={isAdded(selectedPlace)}
-          onAdd={() => onAdd({ ...selectedPlace, id: generateId() })}
+          onAdd={() => {
+            onAdd(selectedPlace);
+            setSelectedPlace(null);
+          }}
           onRemove={() => {
             const added = addedPlaces.find((p) => p.name === selectedPlace.name);
             if (added) onRemove(added.id);
+            setSelectedPlace(null);
           }}
         />
       )}
-
-      <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} feature="sugestões de lugares" />
     </View>
   );
 }
 
-// ─── Main PlacesScreen ────────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 interface PlacesScreenProps {
   tripId: string;
@@ -389,11 +365,15 @@ interface PlacesScreenProps {
 }
 
 export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps) {
-  const { addPlace, removePlace } = useTripsStore();
+  const { addPlace, removePlace, setItinerary } = useTripsStore();
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeDestFilter, setActiveDestFilter] = useState('all');
-  const [search, setSearch] = useState('');
+  const [mySearch, setMySearch] = useState('');
+  const [availSearch, setAvailSearch] = useState('');
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [generatingItinerary, setGeneratingItinerary] = useState(false);
+
+  const generateItinerary = trpc.ai.generateItinerary.useMutation();
 
   const handleAddPlace = useCallback(async (place: Place) => {
     await addPlace(tripId, { ...place, id: generateId() });
@@ -408,10 +388,10 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
     return places.filter((p) => {
       const matchCat  = activeCategory === 'all' || p.category === activeCategory;
       const matchDest = activeDestFilter === 'all' || p.destinationId === activeDestFilter;
-      const matchSrch = !search || p.name.toLowerCase().includes(search.toLowerCase());
+      const matchSrch = !mySearch || p.name.toLowerCase().includes(mySearch.toLowerCase());
       return matchCat && matchDest && matchSrch;
     });
-  }, [places, activeCategory, activeDestFilter, search]);
+  }, [places, activeCategory, activeDestFilter, mySearch]);
 
   // Group my places by destination → category
   const grouped = useMemo(() => {
@@ -429,11 +409,61 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
     }, {} as Record<string, { dest: Destination; byCategory: Record<string, Place[]> }>);
   }, [myPlaces, destinations]);
 
+  const handleGenerateItinerary = async () => {
+    if (places.length === 0) return;
+    setGeneratingItinerary(true);
+    try {
+      const { trips } = useTripsStore.getState();
+      const trip = trips.find((t) => t.id === tripId);
+      if (!trip) return;
+      const result = await generateItinerary.mutateAsync({
+        tripId,
+        startDate: trip.startDate,
+        totalDays: trip.totalDays,
+        destinations: trip.destinations.map((d) => ({ name: d.name, country: d.country, days: d.days })),
+        selectedPlaces: places.map((p) => ({
+          name: p.name,
+          category: p.category,
+          destinationName: trip.destinations.find((d) => d.id === p.destinationId)?.name || '',
+          hours: p.hours,
+          address: p.address,
+        })),
+        preferences: { pace: 'moderado', includeBreakfast: true, includeLunch: true, includeDinner: true },
+      });
+      if (result?.days) {
+        await setItinerary(tripId, result.days);
+      }
+    } catch (e) {
+      console.error('Itinerary generation error:', e);
+    } finally {
+      setGeneratingItinerary(false);
+    }
+  };
+
   return (
     <View>
       {/* ── MINHA VIAGEM ── */}
       <View style={styles.sectionBlock}>
-        <Text style={styles.sectionLabel}>MINHA VIAGEM</Text>
+        {/* Header row: label + IA button */}
+        <View style={styles.myViagemHeader}>
+          <Text style={styles.sectionLabel}>MINHA VIAGEM</Text>
+          {places.length > 0 && (
+            <TouchableOpacity
+              onPress={handleGenerateItinerary}
+              style={styles.iaHeaderBtn}
+              disabled={generatingItinerary}
+            >
+              {generatingItinerary ? (
+                <ActivityIndicator size="small" color="#0F1F16" />
+              ) : (
+                <>
+                  <Ionicons name="sparkles-outline" size={13} color="#0F1F16" />
+                  <Text style={styles.iaHeaderBtnText}>Montar Roteiro</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Destination filter */}
         {destinations.length > 1 && (
@@ -462,7 +492,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
         )}
 
         {/* Category filter */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}
           contentContainerStyle={{ gap: 6 }}>
           {CATEGORIES.map((cat) => (
             <TouchableOpacity
@@ -470,14 +500,32 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
               onPress={() => setActiveCategory(cat.key)}
               style={[styles.catChip, activeCategory === cat.key && styles.catChipActive]}
             >
-              <Ionicons name={cat.icon} size={12}
-                color={activeCategory === cat.key ? '#52B788' : 'rgba(245,240,232,0.45)'} />
+              <Ionicons name={cat.icon as any}
+                size={12} color={activeCategory === cat.key ? '#52B788' : 'rgba(245,240,232,0.45)'} />
               <Text style={[styles.catChipText, activeCategory === cat.key && styles.catChipTextActive]}>
                 {cat.label}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
+
+        {/* Search within Minha Viagem */}
+        <View style={styles.searchRow}>
+          <Ionicons name="search-outline" size={15} color="rgba(245,240,232,0.4)" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar nos meus lugares..."
+            placeholderTextColor="rgba(245,240,232,0.3)"
+            value={mySearch}
+            onChangeText={setMySearch}
+            returnKeyType="search"
+          />
+          {mySearch.length > 0 && (
+            <TouchableOpacity onPress={() => setMySearch('')}>
+              <Ionicons name="close-circle" size={15} color="rgba(245,240,232,0.4)" />
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Grouped places */}
         {Object.values(grouped).length > 0 ? (
@@ -505,35 +553,38 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
           <View style={styles.emptyMyPlaces}>
             <Ionicons name="location-outline" size={24} color="rgba(245,240,232,0.2)" />
             <Text style={styles.emptyMyPlacesText}>
-              {search ? 'Nenhum lugar encontrado' : 'Nenhum lugar adicionado ainda'}
+              {mySearch ? 'Nenhum lugar encontrado' : 'Nenhum lugar adicionado ainda'}
             </Text>
           </View>
         )}
       </View>
 
-      {/* ── BUSCAR / DISPONÍVEIS ── */}
+      {/* ── DISPONÍVEIS (auto-loads) ── */}
       <View style={styles.sectionBlock}>
-        <Text style={styles.sectionLabel}>DISPONÍVEIS</Text>
+        <View style={styles.availHeader}>
+          <Text style={styles.sectionLabel}>DISPONÍVEIS</Text>
+          <Text style={styles.availSubtitle}>Sugestões para cada destino</Text>
+        </View>
 
-        {/* Search */}
-        <View style={styles.searchRow}>
-          <Ionicons name="search-outline" size={16} color="rgba(245,240,232,0.4)" />
+        {/* Search within Disponíveis */}
+        <View style={[styles.searchRow, { marginBottom: 16 }]}>
+          <Ionicons name="search-outline" size={15} color="rgba(245,240,232,0.4)" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar lugares..."
-            placeholderTextColor="rgba(245,240,232,0.35)"
-            value={search}
-            onChangeText={setSearch}
+            placeholder="Buscar lugares disponíveis..."
+            placeholderTextColor="rgba(245,240,232,0.3)"
+            value={availSearch}
+            onChangeText={setAvailSearch}
             returnKeyType="search"
           />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={16} color="rgba(245,240,232,0.4)" />
+          {availSearch.length > 0 && (
+            <TouchableOpacity onPress={() => setAvailSearch('')}>
+              <Ionicons name="close-circle" size={15} color="rgba(245,240,232,0.4)" />
             </TouchableOpacity>
           )}
         </View>
 
-        {/* AI suggestions per destination */}
+        {/* AI suggestions per destination — auto-loads */}
         {destinations.map((dest) => (
           <View key={dest.id} style={styles.destAiBlock}>
             {destinations.length > 1 && (
@@ -545,17 +596,19 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
               onAdd={(place) => handleAddPlace({ ...place, destinationId: dest.id })}
               onRemove={handleRemovePlace}
               activeCategory={activeCategory}
+              searchQuery={availSearch}
             />
           </View>
         ))}
       </View>
 
-      {/* Place detail modal */}
+      {/* My place detail modal */}
       {selectedPlace && (
         <PlaceDetailModal
           place={selectedPlace}
           onClose={() => setSelectedPlace(null)}
           isAdded={places.some((p) => p.id === selectedPlace.id)}
+          onAdd={() => handleAddPlace({ ...selectedPlace, id: generateId() })}
           onRemove={() => handleRemovePlace(selectedPlace.id)}
         />
       )}
@@ -570,8 +623,23 @@ const styles = StyleSheet.create({
   sectionLabel: {
     color: 'rgba(245,240,232,0.5)',
     fontSize: 11, fontWeight: '700', letterSpacing: 1.5,
+  },
+
+  // Minha Viagem header
+  myViagemHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: 12,
   },
+  iaHeaderBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#52B788', borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 6,
+  },
+  iaHeaderBtnText: { fontSize: 12, fontWeight: '700', color: '#0F1F16' },
+
+  // Available header
+  availHeader: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 12 },
+  availSubtitle: { fontSize: 11, color: 'rgba(245,240,232,0.3)' },
 
   // Destination chips
   destChip: {
@@ -592,6 +660,15 @@ const styles = StyleSheet.create({
   catChipActive: { backgroundColor: 'rgba(82,183,136,0.15)', borderColor: '#52B788' },
   catChipText: { fontSize: 12, fontWeight: '500', color: 'rgba(245,240,232,0.45)' },
   catChipTextActive: { color: '#52B788' },
+
+  // Search
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11,
+    gap: 10, marginBottom: 12,
+  },
+  searchInput: { flex: 1, color: '#F5F0E8', fontSize: 14 },
 
   // Group labels
   destGroupLabel: {
@@ -621,38 +698,23 @@ const styles = StyleSheet.create({
   emptyMyPlaces: { alignItems: 'center', paddingVertical: 20, gap: 6 },
   emptyMyPlacesText: { color: 'rgba(245,240,232,0.35)', fontSize: 13 },
 
-  // Search
-  searchRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    gap: 10, marginBottom: 16,
+  // AI loading/empty
+  aiLoadingRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 16, justifyContent: 'center',
   },
-  searchInput: { flex: 1, color: '#F5F0E8', fontSize: 14 },
-
-  // AI panel
-  destAiBlock: { marginBottom: 16 },
-  aiHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 8,
+  aiLoadingText: { fontSize: 13, color: 'rgba(245,240,232,0.4)' },
+  aiEmptyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 12,
   },
-  aiHeaderText: { fontSize: 11, fontWeight: '700', color: '#52B788', letterSpacing: 0.5 },
+  aiEmptyText: { flex: 1, color: 'rgba(245,240,232,0.4)', fontSize: 13 },
   aiRefreshBtn: {
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: 'rgba(82,183,136,0.12)',
     alignItems: 'center', justifyContent: 'center',
   },
-  aiEmptyRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 10,
-  },
-  aiEmptyText: { flex: 1, color: 'rgba(245,240,232,0.4)', fontSize: 13 },
-  aiLoadBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#52B788', borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 6,
-  },
-  aiLoadBtnText: { fontSize: 12, fontWeight: '700', color: '#0F1F16' },
+  destAiBlock: { marginBottom: 16 },
 
   // Available place row
   availRow: {
@@ -700,7 +762,7 @@ const styles = StyleSheet.create({
   },
   detailContent: { paddingHorizontal: 20, paddingTop: 16 },
   closeBtn: {
-    position: 'absolute', right: 20, top: 0,
+    position: 'absolute', right: 0, top: 0,
     width: 32, height: 32, borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center', justifyContent: 'center',

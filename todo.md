@@ -63,3 +63,12 @@
 - [x] Pop-up de detalhes do local: foto real, descrição, horário, site, telefone, upload de arquivo
 - [x] IA avançada: perfil, estilo, ritmo, orçamento, restrições → roteiro otimizado
 - [x] Dica do dia + custo estimado no final de cada dia do roteiro
+
+## Fase 4 — Correções de UX
+
+- [x] Remover sistema de paywall/remuneração (ajustar depois com layout final)
+- [x] Aba Geral: mostrar dias do roteiro mesmo sem itinérário criado
+- [x] Aba Geral: botão vazio direciona para aba "Lugares"
+- [x] Lugares: campo de busca abaixo das categorias de "Minha Viagem"
+- [x] Lugares: botão "Criar roteiro com IA" na linha de cima de "Minha Viagem"
+- [x] Lugares: seção "Disponíveis" carrega automaticamente (sem precisar clicar em "Sugerir com IA")

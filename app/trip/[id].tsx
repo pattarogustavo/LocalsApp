@@ -451,7 +451,7 @@ export default function TripDetailScreen() {
 
         {/* Tab Content */}
         <View style={{ padding: 16, paddingBottom: insets.bottom + 32 }}>
-          {activeTab === 'geral' && <GeralTab trip={trip} />}
+          {activeTab === 'geral' && <GeralTab trip={trip} onGoToPlaces={() => setActiveTab('lugares')} />}
           {activeTab === 'transporte' && <TransportTab trip={trip} />}
           {activeTab === 'hospedagem' && <AccommodationBlock trip={trip} />}
           {activeTab === 'lugares' && (
@@ -481,14 +481,14 @@ export default function TripDetailScreen() {
 
 // ─── Geral Tab ────────────────────────────────────────────────────────────────
 
-function GeralTab({ trip }: { trip: any }) {
+function GeralTab({ trip, onGoToPlaces }: { trip: any; onGoToPlaces: () => void }) {
   return (
     <View>
       {/* Transport Block */}
       <TransportBlock tripId={trip.id} transports={trip.transport} />
 
       {/* Itinerary Block (AI Day-by-Day) */}
-      <ItineraryBlock trip={trip} />
+      <ItineraryBlock trip={trip} onGoToPlaces={onGoToPlaces} />
 
       {/* Documents Block */}
       <DocumentsBlock tripId={trip.id} documents={trip.documents} />

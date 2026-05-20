@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTripsStore } from '@/store/trips';
-import { PaywallModal } from '@/components/paywall-modal';
 import { trpc } from '@/lib/trpc';
 import type { Trip, DayItinerary, TravelPace } from '@/types/voyage';
 
@@ -38,12 +37,28 @@ const PACE_OPTIONS: { id: TravelPace; label: string; icon: string; desc: string 
 const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const DAY_NAMES   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
+// ─── Build empty day placeholders ─────────────────────────────────────────────
+
+function buildEmptyDays(totalDays: number, startDate: string): DayItinerary[] {
+  return Array.from({ length: totalDays }, (_, i) => {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    return {
+      date: d.toISOString().split('T')[0],
+      destination: '',
+      title: '',
+      tips: '',
+      estimatedCost: 0,
+    } as DayItinerary;
+  });
+}
+
 // ─── Day Selector ─────────────────────────────────────────────────────────────
 
 function DaySelector({
-  days, selectedIndex, onSelect, startDate,
+  totalDays, selectedIndex, onSelect, startDate,
 }: {
-  days: DayItinerary[]; selectedIndex: number; onSelect: (i: number) => void; startDate: string;
+  totalDays: number; selectedIndex: number; onSelect: (i: number) => void; startDate: string;
 }) {
   return (
     <ScrollView
@@ -51,7 +66,7 @@ function DaySelector({
       contentContainerStyle={{ gap: 8, paddingHorizontal: 2, paddingBottom: 4 }}
       style={{ marginBottom: 16 }}
     >
-      {days.map((day, i) => {
+      {Array.from({ length: totalDays }, (_, i) => {
         const base = new Date(startDate);
         base.setDate(base.getDate() + i);
         const isSelected = i === selectedIndex;
@@ -182,20 +197,32 @@ function StopItem({ stop, isLast }: { stop: StopLike; isLast: boolean }) {
 
 // ─── Day View ─────────────────────────────────────────────────────────────────
 
-function DayView({ day }: { day: DayItinerary }) {
+function DayView({
+  day,
+  onGoToPlaces,
+}: {
+  day: DayItinerary | undefined;
+  onGoToPlaces: () => void;
+}) {
   // Support both new stops[] format and legacy morning/afternoon/evening
-  const stops: StopLike[] = (day as any).stops && (day as any).stops.length > 0
-    ? (day as any).stops
-    : [
-        day.morning   ? { id: 'm', time: day.morning.time   || '09:00', placeName: day.morning.activity,   placeCategory: 'attraction', description: day.morning.tip   } : null,
-        day.afternoon ? { id: 'a', time: day.afternoon.time || '14:00', placeName: day.afternoon.activity, placeCategory: 'restaurant', description: day.afternoon.tip } : null,
-        day.evening   ? { id: 'e', time: day.evening.time   || '19:00', placeName: day.evening.activity,   placeCategory: 'other',      description: day.evening.tip   } : null,
-      ].filter(Boolean) as StopLike[];
+  const stops: StopLike[] = day
+    ? ((day as any).stops && (day as any).stops.length > 0
+        ? (day as any).stops
+        : [
+            day.morning   ? { id: 'm', time: day.morning.time   || '09:00', placeName: day.morning.activity,   placeCategory: 'attraction', description: day.morning.tip   } : null,
+            day.afternoon ? { id: 'a', time: day.afternoon.time || '14:00', placeName: day.afternoon.activity, placeCategory: 'restaurant', description: day.afternoon.tip } : null,
+            day.evening   ? { id: 'e', time: day.evening.time   || '19:00', placeName: day.evening.activity,   placeCategory: 'other',      description: day.evening.tip   } : null,
+          ].filter(Boolean) as StopLike[])
+    : [];
 
   if (stops.length === 0) {
     return (
       <View style={styles.emptyDay}>
         <Text style={styles.emptyDayText}>Nenhuma atividade para este dia</Text>
+        <TouchableOpacity onPress={onGoToPlaces} style={styles.goToPlacesBtn}>
+          <Ionicons name="location-outline" size={14} color="#0F1F16" />
+          <Text style={styles.goToPlacesBtnText}>Adicionar lugares</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -205,16 +232,10 @@ function DayView({ day }: { day: DayItinerary }) {
       {stops.map((s, i) => (
         <StopItem key={s.id || i} stop={s} isLast={i === stops.length - 1} />
       ))}
-      {day.tips ? (
+      {day?.tips ? (
         <View style={styles.dayTip}>
           <Ionicons name="bulb-outline" size={14} color="#C4A35A" />
           <Text style={styles.dayTipText}>{day.tips}</Text>
-        </View>
-      ) : null}
-      {day.estimatedCost != null ? (
-        <View style={styles.dayCost}>
-          <Ionicons name="wallet-outline" size={13} color="rgba(245,240,232,0.4)" />
-          <Text style={styles.dayCostText}>Estimativa: ~{day.estimatedCost}</Text>
         </View>
       ) : null}
     </View>
@@ -223,21 +244,29 @@ function DayView({ day }: { day: DayItinerary }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function ItineraryBlock({ trip }: { trip: Trip }) {
-  const { setItinerary, updateUserPlan, userPlan } = useTripsStore();
+interface ItineraryBlockProps {
+  trip: Trip;
+  onGoToPlaces: () => void;
+}
+
+export function ItineraryBlock({ trip, onGoToPlaces }: ItineraryBlockProps) {
+  const { setItinerary } = useTripsStore();
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
-  const [showPaywall, setShowPaywall] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [showPaceModal, setShowPaceModal] = useState(false);
 
   const generateItinerary = trpc.ai.generateItinerary.useMutation();
 
   const hasItinerary = trip.itinerary && trip.itinerary.length > 0;
-  const canUseAI = userPlan.tier !== 'free' || userPlan.aiCreditsUsed < userPlan.aiCreditsLimit;
+  const totalDays = trip.totalDays || 1;
+
+  // Merge real itinerary days with empty placeholders
+  const displayDays: (DayItinerary | undefined)[] = Array.from({ length: totalDays }, (_, i) => {
+    return trip.itinerary?.[i] ?? undefined;
+  });
 
   const handleGenerate = async () => {
-    if (!canUseAI) { setShowPaywall(true); return; }
     setGenerating(true);
     try {
       const result = await generateItinerary.mutateAsync({
@@ -250,7 +279,7 @@ export function ItineraryBlock({ trip }: { trip: Trip }) {
           hours: p.hours,
           address: p.address,
         })),
-        totalDays: trip.totalDays,
+        totalDays,
         startDate: trip.startDate,
         preferences: {
           pace,
@@ -261,15 +290,13 @@ export function ItineraryBlock({ trip }: { trip: Trip }) {
       });
       if (result?.days && result.days.length > 0) {
         await setItinerary(trip.id, result.days);
-        if (userPlan.tier === 'free') {
-          await updateUserPlan({ ...userPlan, aiCreditsUsed: userPlan.aiCreditsUsed + 1 });
-        }
         setSelectedDay(0);
       }
     } catch (e) {
       console.error('Itinerary generation error:', e);
     } finally {
       setGenerating(false);
+      setShowPaceModal(false);
     }
   };
 
@@ -281,70 +308,52 @@ export function ItineraryBlock({ trip }: { trip: Trip }) {
           <Ionicons name="calendar-outline" size={15} color="#52B788" />
           <Text style={styles.sectionTitle}>ROTEIRO DIA-A-DIA</Text>
         </View>
-        {hasItinerary && (
-          <TouchableOpacity onPress={() => setShowPaceModal(true)} style={styles.regenBtn}>
-            <Ionicons name="sparkles-outline" size={14} color="#52B788" />
-            <Text style={styles.regenBtnText}>Regerar</Text>
-          </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setShowPaceModal(true)}
+          style={styles.regenBtn}
+          disabled={generating}
+        >
+          {generating ? (
+            <ActivityIndicator size="small" color="#52B788" />
+          ) : (
+            <>
+              <Ionicons name="sparkles-outline" size={14} color="#52B788" />
+              <Text style={styles.regenBtnText}>{hasItinerary ? 'Regerar' : 'Criar com IA'}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Day selector — always visible */}
+      <View style={styles.itineraryCard}>
+        <DaySelector
+          totalDays={totalDays}
+          selectedIndex={selectedDay}
+          onSelect={setSelectedDay}
+          startDate={trip.startDate}
+        />
+        <DayView
+          day={displayDays[selectedDay]}
+          onGoToPlaces={onGoToPlaces}
+        />
+        {generating && (
+          <View style={styles.generatingRow}>
+            <ActivityIndicator size="small" color="#52B788" />
+            <Text style={styles.loadingText}>A IA está criando seu roteiro...</Text>
+          </View>
         )}
       </View>
 
-      {hasItinerary ? (
-        <View style={styles.itineraryCard}>
-          <DaySelector
-            days={trip.itinerary}
-            selectedIndex={selectedDay}
-            onSelect={setSelectedDay}
-            startDate={trip.startDate}
-          />
-          {trip.itinerary[selectedDay] && <DayView day={trip.itinerary[selectedDay]} />}
-        </View>
-      ) : (
-        <View style={styles.emptyCard}>
-          <Ionicons name="map-outline" size={32} color="rgba(82,183,136,0.4)" />
-          <Text style={styles.emptyTitle}>Roteiro ainda não criado</Text>
-          <Text style={styles.emptySubtitle}>
-            {trip.places.length > 0
-              ? `${trip.places.length} lugares selecionados. Escolha o ritmo e gere o roteiro.`
-              : 'Adicione lugares na aba Lugares e gere seu roteiro personalizado com IA.'}
-          </Text>
-          <View style={styles.paceRow}>
-            {PACE_OPTIONS.map((p) => (
-              <TouchableOpacity
-                key={p.id} onPress={() => setPace(p.id)}
-                style={[styles.paceChip, pace === p.id && styles.paceChipActive]}
-              >
-                <Ionicons name={p.icon as any} size={14} color={pace === p.id ? '#0F1F16' : '#52B788'} />
-                <Text style={[styles.paceChipText, pace === p.id && { color: '#0F1F16' }]}>{p.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity
-            onPress={handleGenerate} disabled={generating}
-            style={[styles.generateBtn, generating && { opacity: 0.6 }]}
-          >
-            {generating ? (
-              <ActivityIndicator size="small" color="#0F1F16" />
-            ) : (
-              <>
-                <Ionicons name="sparkles-outline" size={16} color="#0F1F16" />
-                <Text style={styles.generateBtnText}>
-                  {userPlan.tier === 'free' ? 'Criar Roteiro com IA (PRO)' : 'Criar Roteiro com IA'}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-          {generating && (
-            <Text style={styles.loadingText}>A IA está criando seu roteiro personalizado...</Text>
-          )}
-        </View>
-      )}
-
-      {/* Pace modal for regeneration */}
+      {/* Pace modal */}
       <Modal visible={showPaceModal} transparent animationType="fade" onRequestClose={() => setShowPaceModal(false)}>
         <View style={styles.paceModalOverlay}>
           <View style={styles.paceModalCard}>
             <Text style={styles.paceModalTitle}>Ritmo da Viagem</Text>
+            <Text style={styles.paceModalSubtitle}>
+              {trip.places.length > 0
+                ? `${trip.places.length} lugares selecionados serão incluídos no roteiro.`
+                : 'A IA vai sugerir os melhores lugares para cada dia.'}
+            </Text>
             {PACE_OPTIONS.map((p) => (
               <TouchableOpacity
                 key={p.id} onPress={() => setPace(p.id)}
@@ -366,18 +375,25 @@ export function ItineraryBlock({ trip }: { trip: Trip }) {
                 <Text style={{ color: 'rgba(245,240,232,0.7)', fontWeight: '600' }}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => { setShowPaceModal(false); handleGenerate(); }}
+                onPress={handleGenerate}
                 style={[styles.paceModalBtn, { backgroundColor: '#52B788', flex: 1.5 }]}
+                disabled={generating}
               >
-                <Ionicons name="sparkles-outline" size={15} color="#0F1F16" />
-                <Text style={{ color: '#0F1F16', fontWeight: '700' }}>Regerar</Text>
+                {generating ? (
+                  <ActivityIndicator size="small" color="#0F1F16" />
+                ) : (
+                  <>
+                    <Ionicons name="sparkles-outline" size={15} color="#0F1F16" />
+                    <Text style={{ color: '#0F1F16', fontWeight: '700' }}>
+                      {hasItinerary ? 'Regerar' : 'Criar Roteiro'}
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-
-      <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} feature="Gerar Roteiro com IA" />
     </View>
   );
 }
@@ -388,7 +404,7 @@ const styles = StyleSheet.create({
   container: { marginBottom: 16 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: 'rgba(245,240,232,0.7)' },
-  regenBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(82,183,136,0.12)' },
+  regenBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(82,183,136,0.12)', minWidth: 80, justifyContent: 'center' },
   regenBtnText: { fontSize: 12, color: '#52B788', fontWeight: '600' },
 
   itineraryCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'rgba(82,183,136,0.1)' },
@@ -425,32 +441,29 @@ const styles = StyleSheet.create({
   travelIconBg: { width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },
   travelText: { fontSize: 11, color: 'rgba(245,240,232,0.35)', paddingLeft: 10 },
 
-  // Day tip / cost
+  // Day tip
   dayTip: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 12, padding: 10, backgroundColor: 'rgba(196,163,90,0.1)', borderRadius: 10, borderLeftWidth: 2, borderLeftColor: '#C4A35A' },
   dayTipText: { flex: 1, fontSize: 12, color: 'rgba(245,240,232,0.6)', lineHeight: 18 },
-  dayCost: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  dayCostText: { fontSize: 12, color: 'rgba(245,240,232,0.4)' },
 
   // Empty day
-  emptyDay: { padding: 16, alignItems: 'center' },
-  emptyDayText: { fontSize: 13, color: 'rgba(245,240,232,0.4)' },
+  emptyDay: { paddingVertical: 20, alignItems: 'center', gap: 12 },
+  emptyDayText: { fontSize: 14, color: 'rgba(245,240,232,0.4)', textAlign: 'center' },
+  goToPlacesBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#52B788', borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 8,
+  },
+  goToPlacesBtnText: { fontSize: 13, fontWeight: '700', color: '#0F1F16' },
 
-  // Empty state
-  emptyCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, padding: 20, alignItems: 'center', gap: 8, borderWidth: 1, borderColor: 'rgba(82,183,136,0.1)' },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: '#F5F0E8', textAlign: 'center' },
-  emptySubtitle: { fontSize: 13, color: 'rgba(245,240,232,0.5)', textAlign: 'center', lineHeight: 18, marginBottom: 4 },
-  paceRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  paceChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: 'rgba(82,183,136,0.1)', borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)' },
-  paceChipActive: { backgroundColor: '#52B788', borderColor: '#52B788' },
-  paceChipText: { fontSize: 12, fontWeight: '600', color: '#52B788' },
-  generateBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#52B788', borderRadius: 14, paddingHorizontal: 20, paddingVertical: 13, marginTop: 4, width: '100%', justifyContent: 'center' },
-  generateBtnText: { fontSize: 15, fontWeight: '700', color: '#0F1F16' },
+  // Generating
+  generatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 12, justifyContent: 'center' },
   loadingText: { fontSize: 12, color: 'rgba(245,240,232,0.4)', textAlign: 'center' },
 
   // Pace modal
   paceModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
   paceModalCard: { backgroundColor: '#1A2E22', borderRadius: 20, padding: 20, gap: 10 },
-  paceModalTitle: { fontSize: 18, fontWeight: '700', color: '#F5F0E8', fontStyle: 'italic', marginBottom: 4 },
+  paceModalTitle: { fontSize: 18, fontWeight: '700', color: '#F5F0E8', fontStyle: 'italic', marginBottom: 2 },
+  paceModalSubtitle: { fontSize: 13, color: 'rgba(245,240,232,0.5)', lineHeight: 18, marginBottom: 4 },
   paceModalOption: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)' },
   paceModalOptionActive: { backgroundColor: '#52B788' },
   paceModalOptionLabel: { fontSize: 15, fontWeight: '700', color: '#F5F0E8' },
