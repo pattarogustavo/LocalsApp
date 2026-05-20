@@ -8,6 +8,18 @@ import "react-native-reanimated";
 import { Platform } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
+import * as Notifications from "expo-notifications";
+
+// Configure how notifications are presented when the app is in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -33,6 +45,15 @@ export default function RootLayout() {
 
   useEffect(() => {
     initManusRuntime();
+    // Create Android notification channel for flight reminders
+    if (Platform.OS === 'android') {
+      Notifications.setNotificationChannelAsync('flight-reminders', {
+        name: 'Lembretes de Voo',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        sound: 'default',
+      });
+    }
   }, []);
 
   const handleSafeAreaUpdate = useCallback((metrics: Metrics) => {

@@ -41,6 +41,8 @@ interface TripsState {
   // Transport
   addTransport: (tripId: string, transport: Transport) => Promise<void>;
   removeTransport: (tripId: string, transportId: string) => Promise<void>;
+  updateTransport: (tripId: string, transportId: string, updates: Partial<Transport>) => Promise<void>;
+  updateCityTransportMode: (tripId: string, mode: import('@/types/voyage').CityTransportMode) => Promise<void>;
   // Accommodations
   addAccommodation: (tripId: string, accommodation: Accommodation) => Promise<void>;
   removeAccommodation: (tripId: string, accommodationId: string) => Promise<void>;
@@ -235,6 +237,28 @@ export const useTripsStore = create<TripsState>((set, get) => ({
       t.id === tripId
         ? { ...t, transport: t.transport.filter((tr) => tr.id !== transportId), updatedAt: new Date().toISOString() }
         : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  updateTransport: async (tripId: string, transportId: string, updates: Partial<Transport>) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId
+        ? {
+            ...t,
+            transport: t.transport.map((tr) => (tr.id === transportId ? { ...tr, ...updates } : tr)),
+            updatedAt: new Date().toISOString(),
+          }
+        : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  updateCityTransportMode: async (tripId: string, mode) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId ? { ...t, cityTransportMode: mode, updatedAt: new Date().toISOString() } : t
     );
     set({ trips });
     await saveToStorage(trips);

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Linking, ActivityIndicator, Modal, Alert,
+  Linking, ActivityIndicator, Modal, Alert, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTripsStore } from '@/store/trips';
@@ -114,12 +114,16 @@ function StopItem({
   stop,
   isLast,
   onDelete,
+  onTimeChange,
 }: {
   stop: StopLike;
   isLast: boolean;
   onDelete?: () => void;
+  onTimeChange?: (newTime: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editingTime, setEditingTime] = useState(false);
+  const [timeInput, setTimeInput] = useState(stop.time || '');
   const name = stop.placeName || stop.activity || '';
   const desc = stop.description || stop.tip || '';
   const cat  = stop.placeCategory || 'other';
@@ -142,10 +146,58 @@ function StopItem({
         style={styles.stopRow}
         activeOpacity={0.75}
       >
-        {/* Time */}
+        {/* Time — tap to edit */}
         <View style={styles.timeCol}>
-          <Text style={styles.stopTime}>{stop.time}</Text>
+          <TouchableOpacity
+            onPress={() => { setTimeInput(stop.time || ''); setEditingTime(true); }}
+            style={styles.timeBtn}
+          >
+            <Text style={styles.stopTime}>{stop.time || '--:--'}</Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Time Edit Modal */}
+        <Modal visible={editingTime} transparent animationType="fade" onRequestClose={() => setEditingTime(false)}>
+          <View style={styles.timeModalOverlay}>
+            <View style={styles.timeModalSheet}>
+              <Text style={styles.timeModalTitle}>Editar horário</Text>
+              <TextInput
+                style={styles.timeModalInput}
+                value={timeInput}
+                onChangeText={setTimeInput}
+                placeholder="09:30"
+                placeholderTextColor="rgba(245,240,232,0.3)"
+                keyboardType="numbers-and-punctuation"
+                maxLength={5}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  if (onTimeChange && timeInput.match(/^\d{1,2}:\d{2}$/)) {
+                    onTimeChange(timeInput);
+                  }
+                  setEditingTime(false);
+                }}
+              />
+              <Text style={styles.timeModalHint}>Formato: HH:MM (ex: 09:30)</Text>
+              <View style={styles.timeModalActions}>
+                <TouchableOpacity style={styles.timeModalCancel} onPress={() => setEditingTime(false)}>
+                  <Text style={styles.timeModalCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.timeModalConfirm}
+                  onPress={() => {
+                    if (onTimeChange && timeInput.trim()) {
+                      onTimeChange(timeInput.trim());
+                    }
+                    setEditingTime(false);
+                  }}
+                >
+                  <Text style={styles.timeModalConfirmText}>Salvar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
         {/* Icon + vertical line */}
         <View style={styles.iconCol}>
           <View style={[styles.stopIconBg, { backgroundColor: `${catColor}22` }]}>
@@ -221,7 +273,7 @@ function DayView({
   tripId: string;
   onGoToPlaces: () => void;
 }) {
-  const { removeItineraryStop } = useTripsStore();
+  const { removeItineraryStop, updateItineraryStop } = useTripsStore();
   // Support both new stops[] format and legacy morning/afternoon/evening
   const stops: StopLike[] = day
     ? ((day as any).stops && (day as any).stops.length > 0
@@ -257,6 +309,11 @@ function DayView({
     ]);
   };
 
+  const handleTimeChange = (stop: StopLike, newTime: string) => {
+    if (!stop.id) return;
+    updateItineraryStop(tripId, dayIndex, stop.id, { time: newTime });
+  };
+
   return (
     <View>
       {stops.map((s, i) => (
@@ -265,6 +322,7 @@ function DayView({
           stop={s}
           isLast={i === stops.length - 1}
           onDelete={s.id ? () => handleDeleteStop(s) : undefined}
+          onTimeChange={s.id ? (t) => handleTimeChange(s, t) : undefined}
         />
       ))}
       {day?.tips ? (
@@ -506,4 +564,17 @@ const styles = StyleSheet.create({
   paceModalOptionLabel: { fontSize: 15, fontWeight: '700', color: '#F5F0E8' },
   paceModalOptionDesc: { fontSize: 12, color: 'rgba(245,240,232,0.5)', marginTop: 1 },
   paceModalBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12 },
+
+  // Time edit
+  timeBtn: { paddingHorizontal: 4, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)' },
+  timeModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 32 },
+  timeModalSheet: { backgroundColor: '#1A2E22', borderRadius: 20, padding: 20, gap: 12 },
+  timeModalTitle: { fontSize: 17, fontWeight: '700', color: '#F5F0E8', textAlign: 'center' },
+  timeModalInput: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: 14, fontSize: 28, fontWeight: '700', color: '#F5F0E8', textAlign: 'center', borderWidth: 1, borderColor: 'rgba(82,183,136,0.3)', letterSpacing: 4 },
+  timeModalHint: { fontSize: 12, color: 'rgba(245,240,232,0.35)', textAlign: 'center' },
+  timeModalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  timeModalCancel: { flex: 1, paddingVertical: 13, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center' },
+  timeModalCancelText: { color: 'rgba(245,240,232,0.6)', fontSize: 15, fontWeight: '500' },
+  timeModalConfirm: { flex: 2, paddingVertical: 13, borderRadius: 14, backgroundColor: '#52B788', alignItems: 'center' },
+  timeModalConfirmText: { color: '#0F1F16', fontSize: 15, fontWeight: '700' },
 });

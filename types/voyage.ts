@@ -22,6 +22,8 @@ export interface FlightInfo {
 export interface Transport {
   id: string;
   mode: TransportMode;
+  // Leg: which segment this transport covers (e.g. 'GRU → FCO', 'FCO → LHR')
+  leg?: string;
   flight?: FlightInfo;
   distance?: string;
   tolls?: string;
@@ -29,6 +31,8 @@ export interface Transport {
   platform?: string;
   station?: string;
   trainNumber?: string;
+  boardingPassUri?: string; // local URI of boarding pass image/QR
+  notificationIds?: string[]; // scheduled notification IDs for this flight
 }
 
 // ─── Destination ──────────────────────────────────────────────────────────────

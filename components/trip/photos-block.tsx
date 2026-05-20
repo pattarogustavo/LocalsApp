@@ -24,9 +24,10 @@ const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3; // 3 columns with padding
 interface Props {
   tripId: string;
   tripName: string;
+  fullPage?: boolean;
 }
 
-export function TripPhotosBlock({ tripId, tripName }: Props) {
+export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
   const { trips, addPhoto, removePhoto } = useTripsStore();
   const trip = trips.find((t) => t.id === tripId);
   const photos = trip?.photos || [];
@@ -119,12 +120,17 @@ export function TripPhotosBlock({ tripId, tripName }: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, fullPage && styles.containerFullPage]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Ionicons name="images-outline" size={16} color="#4CAF7D" />
-          <Text style={styles.headerTitle}>ÁLBUM DA VIAGEM</Text>
+          <Text style={styles.headerTitle}>{fullPage ? 'FOTOS DA VIAGEM' : 'ÁLBUM DA VIAGEM'}</Text>
+          {photos.length > 0 && (
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{photos.length}</Text>
+            </View>
+          )}
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={showOptions}>
           <Ionicons name="add" size={16} color="#4CAF7D" />
@@ -251,6 +257,23 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
+  },
+  containerFullPage: {
+    backgroundColor: 'transparent',
+    padding: 0,
+    marginBottom: 0,
+  },
+  countBadge: {
+    backgroundColor: 'rgba(76,175,125,0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginLeft: 4,
+  },
+  countText: {
+    color: '#4CAF7D',
+    fontSize: 11,
+    fontWeight: '700',
   },
   header: {
     flexDirection: 'row',

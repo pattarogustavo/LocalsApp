@@ -81,3 +81,13 @@
 - [x] Álbum de fotos da viagem compartilhado com todos os viajantes
 - [x] Edição do roteiro dia-a-dia (long-press para deletar parada)
 - [x] Sistema de viajantes com conta na plataforma (convite por e-mail, badge de status pendente/ativo)
+
+## Fase 6 — Transporte, Fotos e Roteiro
+
+- [x] Aba "Fotos" dedicada no trip detail (grade 3x3, contador, fullPage mode)
+- [x] Time picker para editar horário de parada do roteiro dia-a-dia (tap no horário)
+- [x] Notificações de voo automáticas (check-in 24h antes, embarque 2h antes)
+- [x] Reestruturar TransportBlock: seção "Entre Destinos" com voos reais por trajeto
+- [x] Seção "Dentro da Cidade" no TransportBlock (modo de transporte urbano)
+- [x] Voo com número obrigatório + seletor de trajeto (leg)
+- [x] QR code / imagem da passagem aérea (câmera ou galeria, visualizador em tela cheia)

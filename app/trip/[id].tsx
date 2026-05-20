@@ -112,13 +112,14 @@ function getHeroImage(trip: any): string {
   return DESTINATION_IMAGES.default;
 }
 
-type TabKey = 'geral' | 'transporte' | 'hospedagem' | 'lugares' | 'historia';
+type TabKey = 'geral' | 'transporte' | 'hospedagem' | 'lugares' | 'fotos' | 'historia';
 
 const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'geral', label: 'Geral', icon: 'location' },
   { key: 'transporte', label: 'Transporte', icon: 'airplane' },
   { key: 'hospedagem', label: 'Hospedagem', icon: 'bed' },
-  { key: 'lugares', label: 'Lugares', icon: 'camera' },
+  { key: 'lugares', label: 'Lugares', icon: 'map' },
+  { key: 'fotos', label: 'Fotos', icon: 'images' },
   { key: 'historia', label: 'História', icon: 'book' },
 ];
 
@@ -480,6 +481,7 @@ export default function TripDetailScreen() {
           {activeTab === 'lugares' && (
             <PlacesScreen tripId={trip.id} places={trip.places} destinations={trip.destinations} />
           )}
+          {activeTab === 'fotos' && <FotosTab trip={trip} />}
           {activeTab === 'historia' && <HistoryTab trip={trip} />}
         </View>
       </ScrollView>
@@ -508,7 +510,12 @@ function GeralTab({ trip, onGoToPlaces }: { trip: any; onGoToPlaces: () => void 
   return (
     <View>
       {/* Transport Block */}
-      <TransportBlock tripId={trip.id} transports={trip.transport} />
+      <TransportBlock
+        tripId={trip.id}
+        transports={trip.transport}
+        destinations={trip.destinations}
+        cityTransportMode={trip.cityTransportMode}
+      />
 
       {/* Itinerary Block (AI Day-by-Day) */}
       <ItineraryBlock trip={trip} onGoToPlaces={onGoToPlaces} />
@@ -530,11 +537,16 @@ function GeralTab({ trip, onGoToPlaces }: { trip: any; onGoToPlaces: () => void 
       {/* Expenses Block */}
       <ExpensesBlock tripId={trip.id} expenses={trip.expenses} currency={trip.currency} />
 
-      {/* Photos Block */}
-      <TripPhotosBlock tripId={trip.id} tripName={trip.name || ''} />
-
       {/* Travelers Block */}
       <TravelersBlock tripId={trip.id} travelers={trip.travelers} />
+    </View>
+  );
+}
+
+function FotosTab({ trip }: { trip: any }) {
+  return (
+    <View style={{ paddingTop: 4 }}>
+      <TripPhotosBlock tripId={trip.id} tripName={trip.name || ''} fullPage />
     </View>
   );
 }
@@ -542,7 +554,12 @@ function GeralTab({ trip, onGoToPlaces }: { trip: any; onGoToPlaces: () => void 
 function TransportTab({ trip }: { trip: any }) {
   return (
     <View>
-      <TransportBlock tripId={trip.id} transports={trip.transport} />
+      <TransportBlock
+        tripId={trip.id}
+        transports={trip.transport}
+        destinations={trip.destinations}
+        cityTransportMode={trip.cityTransportMode}
+      />
       {trip.transport.length === 0 && (
         <View style={styles.emptyState}>
           <Ionicons name="airplane-outline" size={48} color="rgba(245,240,232,0.2)" />
