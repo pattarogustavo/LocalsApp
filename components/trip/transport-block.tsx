@@ -279,6 +279,34 @@ function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: 
 
 // ─── Add Transport Modal ───────────────────────────────────────────────────────
 
+// ─── Mini flight result row ───────────────────────────────────────────────────
+function FlightResultRow({
+  flight,
+  onSelect,
+}: {
+  flight: any;
+  onSelect: () => void;
+}) {
+  return (
+    <TouchableOpacity style={styles.flightResultRow} onPress={onSelect}>
+      <View style={styles.flightResultLeft}>
+        <Text style={styles.flightResultIATA}>{flight.origin}</Text>
+        <Ionicons name="arrow-forward" size={12} color="rgba(245,240,232,0.35)" style={{ marginHorizontal: 4 }} />
+        <Text style={styles.flightResultIATA}>{flight.destination}</Text>
+      </View>
+      <View style={styles.flightResultMid}>
+        <Text style={styles.flightResultNum}>{flight.flightNumber}</Text>
+        {flight.airline ? <Text style={styles.flightResultAirline} numberOfLines={1}>{flight.airline}</Text> : null}
+      </View>
+      <View style={styles.flightResultRight}>
+        <Text style={styles.flightResultTime}>{formatTime(flight.departureTime)}</Text>
+        {flight.duration ? <Text style={styles.flightResultDur}>{flight.duration}</Text> : null}
+      </View>
+      <Ionicons name="chevron-forward" size={14} color="rgba(82,183,136,0.5)" />
+    </TouchableOpacity>
+  );
+}
+
 function AddTransportModal({
   visible,
   onClose,
@@ -290,99 +318,117 @@ function AddTransportModal({
   onAdd: (t: Transport) => void;
   legs: string[];
 }) {
+  // Transport type
   const [mode, setMode] = useState<TransportMode>('flight');
   const [selectedLeg, setSelectedLeg] = useState(legs[0] || '');
+
+  // Search mode: 'route' = origin+dest+date, 'number' = flight number+date
+  const [searchMode, setSearchMode] = useState<'route' | 'number'>('route');
+
+  // Route search fields
+  const [routeOrigin, setRouteOrigin] = useState('');
+  const [routeDest, setRouteDest] = useState('');
+  const [routeDate, setRouteDate] = useState('');
+  const [routeResults, setRouteResults] = useState<any[]>([]);
+  const [routeSearched, setRouteSearched] = useState(false);
+
+  // Number search fields
   const [flightNumber, setFlightNumber] = useState('');
-  const [flightDate, setFlightDate] = useState(''); // YYYY-MM-DD
-  const [lookupDone, setLookupDone] = useState(false);
-  const [lookupError, setLookupError] = useState('');
-  const [lookedUpFlight, setLookedUpFlight] = useState<any>(null);
-  const [airline, setAirline] = useState('');
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
-  const [departure, setDeparture] = useState('');
-  const [arrival, setArrival] = useState('');
-  const [duration, setDuration] = useState('');
-  const [terminal, setTerminal] = useState('');
-  const [gate, setGate] = useState('');
+  const [flightDate, setFlightDate] = useState('');
+
+  // Shared
+  const [selectedFlight, setSelectedFlight] = useState<any>(null);
+  const [searchError, setSearchError] = useState('');
+  const [enableNotifs, setEnableNotifs] = useState(true);
+
+  // Non-flight fields
   const [travelTime, setTravelTime] = useState('');
   const [distance, setDistance] = useState('');
   const [trainNumber, setTrainNumber] = useState('');
   const [platform, setPlatform] = useState('');
-  const [enableNotifs, setEnableNotifs] = useState(true);
 
   const lookupMutation = trpc.flights.lookup.useMutation();
+  const searchByRouteMutation = trpc.flights.searchByRoute.useMutation();
+
+  const isSearching = lookupMutation.isPending || searchByRouteMutation.isPending;
 
   const reset = () => {
-    setFlightNumber(''); setFlightDate(''); setLookupDone(false); setLookupError('');
-    setLookedUpFlight(null);
-    setAirline(''); setOrigin(''); setDestination('');
-    setDeparture(''); setArrival(''); setDuration(''); setTerminal(''); setGate('');
+    setMode('flight'); setSelectedLeg(legs[0] || '');
+    setSearchMode('route');
+    setRouteOrigin(''); setRouteDest(''); setRouteDate(''); setRouteResults([]); setRouteSearched(false);
+    setFlightNumber(''); setFlightDate('');
+    setSelectedFlight(null); setSearchError('');
+    setEnableNotifs(true);
     setTravelTime(''); setDistance(''); setTrainNumber(''); setPlatform('');
-    setMode('flight'); setEnableNotifs(true);
-    setSelectedLeg(legs[0] || '');
   };
 
-  const handleLookup = async () => {
-    if (!flightNumber.trim()) {
-      Alert.alert('Número obrigatório', 'Informe o número do voo (ex: LA8084).');
+  const handleRouteSearch = async () => {
+    const o = routeOrigin.trim().toUpperCase();
+    const d = routeDest.trim().toUpperCase();
+    const dt = routeDate.trim();
+    if (o.length < 2 || d.length < 2) {
+      setSearchError('Informe a origem e o destino (código IATA, ex: GRU, LHR).');
       return;
     }
-    if (!flightDate.trim()) {
-      Alert.alert('Data obrigatória', 'Informe a data do voo (ex: 2025-07-15).');
+    if (!dt) {
+      setSearchError('Informe a data do voo (ex: 2025-07-15).');
       return;
     }
-    setLookupError('');
+    setSearchError('');
+    setRouteResults([]);
+    setRouteSearched(false);
     try {
-      const result = await lookupMutation.mutateAsync({
-        flightNumber: flightNumber.trim(),
-        date: flightDate.trim(),
-      });
-      if (result.found && result.flight) {
-        const fl = result.flight;
-        setLookedUpFlight(fl);
-        setAirline(fl.airline || '');
-        setOrigin(fl.origin || '');
-        setDestination(fl.destination || '');
-        setDeparture(fl.departureTime || '');
-        setArrival(fl.arrivalTime || '');
-        setDuration(fl.duration || '');
-        setTerminal(fl.terminal || '');
-        setGate(fl.gate || '');
-        setLookupDone(true);
-      } else {
-        setLookupError('Voo não encontrado. Verifique o número e a data.');
+      const result = await searchByRouteMutation.mutateAsync({ origin: o, destination: d, date: dt });
+      setRouteResults(result.flights || []);
+      setRouteSearched(true);
+      if ((result.flights || []).length === 0) {
+        setSearchError('Nenhum voo encontrado para essa rota e data. Tente o modo "Número do voo".');
       }
     } catch {
-      setLookupError('Erro ao buscar voo. Tente novamente.');
+      setSearchError('Erro ao buscar voos. Tente novamente.');
+    }
+  };
+
+  const handleNumberSearch = async () => {
+    const fn = flightNumber.trim();
+    const dt = flightDate.trim();
+    if (!fn) { setSearchError('Informe o número do voo (ex: LA8084).'); return; }
+    if (!dt) { setSearchError('Informe a data do voo (ex: 2025-07-15).'); return; }
+    setSearchError('');
+    try {
+      const result = await lookupMutation.mutateAsync({ flightNumber: fn, date: dt });
+      if (result.found && result.flight) {
+        setSelectedFlight(result.flight);
+      } else {
+        setSearchError('Voo não encontrado. Verifique o número e a data.');
+      }
+    } catch {
+      setSearchError('Erro ao buscar voo. Tente novamente.');
     }
   };
 
   const handleAdd = async () => {
-    if (mode === 'flight') {
-      if (!flightNumber.trim()) {
-        Alert.alert('Número do voo obrigatório', 'Por favor, informe o número do voo (ex: LA8084).');
-        return;
-      }
-    }
+    if (mode === 'flight' && !selectedFlight) return;
     const t: Transport = {
       id: generateId(),
       mode,
       leg: selectedLeg || undefined,
       ...(mode === 'flight' ? {
         flight: {
-          flightNumber: flightNumber.toUpperCase().trim(),
-          airline,
-          origin: origin.toUpperCase().trim(),
-          originCity: lookedUpFlight?.originCity,
-          destination: destination.toUpperCase().trim(),
-          destinationCity: lookedUpFlight?.destinationCity,
-          departureTime: departure,
-          arrivalTime: arrival,
-          duration,
-          terminal: terminal || undefined,
-          gate: gate || undefined,
-          status: (lookedUpFlight?.status as any) || 'scheduled',
+          flightNumber: selectedFlight.flightNumber,
+          airline: selectedFlight.airline || '',
+          origin: selectedFlight.origin,
+          originCity: selectedFlight.originCity,
+          destination: selectedFlight.destination,
+          destinationCity: selectedFlight.destinationCity,
+          departureTime: selectedFlight.departureTime,
+          arrivalTime: selectedFlight.arrivalTime,
+          departureActual: selectedFlight.departureActual,
+          arrivalActual: selectedFlight.arrivalActual,
+          duration: selectedFlight.duration,
+          terminal: selectedFlight.terminal || undefined,
+          gate: selectedFlight.gate || undefined,
+          status: (selectedFlight.status as any) || 'scheduled',
         },
       } : {
         travelTime: travelTime || undefined,
@@ -391,18 +437,55 @@ function AddTransportModal({
         platform: platform || undefined,
       }),
     };
-
-    // Schedule notifications for flights
-    if (mode === 'flight' && enableNotifs && departure) {
+    if (mode === 'flight' && enableNotifs && selectedFlight?.departureTime) {
       try {
         const ids = await scheduleFlightNotifications(t);
         if (ids.length > 0) t.notificationIds = ids;
       } catch (_) {}
     }
-
     onAdd(t);
     reset();
   };
+
+  // ── Confirmed flight preview (shared by both search modes) ──────────────────
+  const ConfirmedFlight = () => (
+    <View style={styles.lookupResultCard}>
+      <View style={styles.lookupResultHeader}>
+        <Ionicons name="checkmark-circle" size={16} color="#52B788" />
+        <Text style={styles.lookupResultTitle}>Voo selecionado</Text>
+        <TouchableOpacity
+          onPress={() => { setSelectedFlight(null); setRouteResults([]); setRouteSearched(false); }}
+          style={{ marginLeft: 'auto' }}
+        >
+          <Text style={styles.lookupChangeText}>Alterar</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.lookupResultRoute}>
+        <View style={{ alignItems: 'flex-start' }}>
+          <Text style={styles.lookupResultCity}>{selectedFlight.originCity || selectedFlight.origin}</Text>
+          <Text style={styles.lookupResultIATA}>{selectedFlight.origin}</Text>
+          <Text style={styles.lookupResultTime}>{formatTime(selectedFlight.departureTime)}</Text>
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', gap: 2 }}>
+          <Text style={styles.lookupResultFlightNum}>{selectedFlight.flightNumber}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', gap: 2 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(82,183,136,0.4)' }} />
+            <Ionicons name="airplane" size={12} color="#52B788" />
+            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(82,183,136,0.4)' }} />
+          </View>
+          <Text style={styles.lookupResultDuration}>{selectedFlight.duration}</Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={styles.lookupResultCity}>{selectedFlight.destinationCity || selectedFlight.destination}</Text>
+          <Text style={styles.lookupResultIATA}>{selectedFlight.destination}</Text>
+          <Text style={styles.lookupResultTime}>{formatTime(selectedFlight.arrivalTime)}</Text>
+        </View>
+      </View>
+      {selectedFlight.airline ? (
+        <Text style={styles.lookupResultAirline}>{selectedFlight.airline}</Text>
+      ) : null}
+    </View>
+  );
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -416,6 +499,7 @@ function AddTransportModal({
             </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
             {/* Leg selector */}
             <Text style={styles.inputLabel}>TRAJETO</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
@@ -437,8 +521,11 @@ function AddTransportModal({
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
               <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 2 }}>
                 {BETWEEN_MODES.map((m) => (
-                  <TouchableOpacity key={m.key} onPress={() => { setMode(m.key); setLookupDone(false); setLookedUpFlight(null); setLookupError(''); }}
-                    style={[styles.modeChip, mode === m.key && styles.modeChipActive]}>
+                  <TouchableOpacity
+                    key={m.key}
+                    onPress={() => { setMode(m.key); setSelectedFlight(null); setSearchError(''); }}
+                    style={[styles.modeChip, mode === m.key && styles.modeChipActive]}
+                  >
                     <Ionicons name={m.icon as any} size={16} color={mode === m.key ? '#0F1F16' : '#52B788'} />
                     <Text style={[styles.modeChipText, mode === m.key && { color: '#0F1F16' }]}>{m.label}</Text>
                   </TouchableOpacity>
@@ -448,86 +535,10 @@ function AddTransportModal({
 
             {mode === 'flight' ? (
               <>
-                {/* Flight number + date lookup */}
-                {!lookupDone ? (
-                  <View style={styles.lookupCard}>
-                    <View style={styles.lookupIcon}>
-                      <Ionicons name="search-outline" size={20} color="#52B788" />
-                    </View>
-                    <Text style={styles.lookupTitle}>Buscar voo real</Text>
-                    <Text style={styles.lookupDesc}>Informe o número do voo e a data. O aplicativo buscará os dados automaticamente.</Text>
-                    <InputRow
-                      label="NÚMERO DO VOO"
-                      value={flightNumber}
-                      onChange={(v) => { setFlightNumber(v); setLookupError(''); }}
-                      placeholder="LA8084"
-                      autoCapitalize="characters"
-                    />
-                    <InputRow
-                      label="DATA DO VOO"
-                      value={flightDate}
-                      onChange={(v) => { setFlightDate(v); setLookupError(''); }}
-                      placeholder="2025-07-15"
-                      hint="Formato: AAAA-MM-DD"
-                    />
-                    {lookupError ? (
-                      <View style={styles.lookupErrorRow}>
-                        <Ionicons name="alert-circle-outline" size={14} color="#EF4444" />
-                        <Text style={styles.lookupErrorText}>{lookupError}</Text>
-                      </View>
-                    ) : null}
-                    <TouchableOpacity
-                      style={[styles.lookupBtn, lookupMutation.isPending && { opacity: 0.6 }]}
-                      onPress={handleLookup}
-                      disabled={lookupMutation.isPending}
-                    >
-                      {lookupMutation.isPending ? (
-                        <ActivityIndicator size="small" color="#0F1F16" />
-                      ) : (
-                        <Text style={styles.lookupBtnText}>Buscar voo</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                ) : (
+                {selectedFlight ? (
+                  // ── Confirmed flight + notification toggle ──────────────────
                   <>
-                    {/* Show found flight preview */}
-                    {lookedUpFlight && (
-                      <View style={styles.lookupResultCard}>
-                        <View style={styles.lookupResultHeader}>
-                          <Ionicons name="checkmark-circle" size={16} color="#52B788" />
-                          <Text style={styles.lookupResultTitle}>Voo encontrado</Text>
-                          <TouchableOpacity onPress={() => { setLookupDone(false); setLookedUpFlight(null); }} style={{ marginLeft: 'auto' }}>
-                            <Text style={styles.lookupChangeText}>Alterar</Text>
-                          </TouchableOpacity>
-                        </View>
-                        <View style={styles.lookupResultRoute}>
-                          <View style={{ alignItems: 'flex-start' }}>
-                            <Text style={styles.lookupResultCity}>{lookedUpFlight.originCity || lookedUpFlight.origin}</Text>
-                            <Text style={styles.lookupResultIATA}>{lookedUpFlight.origin}</Text>
-                            <Text style={styles.lookupResultTime}>{formatTime(lookedUpFlight.departureTime)}</Text>
-                          </View>
-                          <View style={{ flex: 1, alignItems: 'center', gap: 2 }}>
-                            <Text style={styles.lookupResultFlightNum}>{lookedUpFlight.flightNumber}</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', gap: 2 }}>
-                              <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(82,183,136,0.4)' }} />
-                              <Ionicons name="airplane" size={12} color="#52B788" />
-                              <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(82,183,136,0.4)' }} />
-                            </View>
-                            <Text style={styles.lookupResultDuration}>{lookedUpFlight.duration}</Text>
-                          </View>
-                          <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={styles.lookupResultCity}>{lookedUpFlight.destinationCity || lookedUpFlight.destination}</Text>
-                            <Text style={styles.lookupResultIATA}>{lookedUpFlight.destination}</Text>
-                            <Text style={styles.lookupResultTime}>{formatTime(lookedUpFlight.arrivalTime)}</Text>
-                          </View>
-                        </View>
-                        {lookedUpFlight.airline ? (
-                          <Text style={styles.lookupResultAirline}>{lookedUpFlight.airline}</Text>
-                        ) : null}
-                      </View>
-                    )}
-
-                    {/* Notification toggle */}
+                    <ConfirmedFlight />
                     {Platform.OS !== 'web' && (
                       <TouchableOpacity
                         style={styles.notifToggleRow}
@@ -544,9 +555,142 @@ function AddTransportModal({
                       </TouchableOpacity>
                     )}
                   </>
+                ) : (
+                  // ── Search panel ────────────────────────────────────────────
+                  <View style={styles.lookupCard}>
+                    {/* Search mode toggle */}
+                    <View style={styles.searchModeRow}>
+                      <TouchableOpacity
+                        style={[styles.searchModeBtn, searchMode === 'route' && styles.searchModeBtnActive]}
+                        onPress={() => { setSearchMode('route'); setSearchError(''); setRouteResults([]); setRouteSearched(false); }}
+                      >
+                        <Ionicons name="swap-horizontal-outline" size={14} color={searchMode === 'route' ? '#0F1F16' : '#52B788'} />
+                        <Text style={[styles.searchModeBtnText, searchMode === 'route' && { color: '#0F1F16' }]}>Origem / Destino</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.searchModeBtn, searchMode === 'number' && styles.searchModeBtnActive]}
+                        onPress={() => { setSearchMode('number'); setSearchError(''); }}
+                      >
+                        <Ionicons name="barcode-outline" size={14} color={searchMode === 'number' ? '#0F1F16' : '#52B788'} />
+                        <Text style={[styles.searchModeBtnText, searchMode === 'number' && { color: '#0F1F16' }]}>Número do voo</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {searchMode === 'route' ? (
+                      // ── Route search ─────────────────────────────────────────
+                      <>
+                        <View style={styles.routeInputRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.inputLabel}>ORIGEM</Text>
+                            <TextInput
+                              value={routeOrigin}
+                              onChangeText={(v) => { setRouteOrigin(v); setSearchError(''); }}
+                              placeholder="GRU"
+                              placeholderTextColor="rgba(245,240,232,0.25)"
+                              autoCapitalize="characters"
+                              maxLength={4}
+                              style={[styles.textInput, { textAlign: 'center', letterSpacing: 2, fontSize: 18, fontWeight: '700' }]}
+                            />
+                          </View>
+                          <View style={styles.routeArrow}>
+                            <Ionicons name="airplane" size={18} color="rgba(82,183,136,0.5)" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.inputLabel}>DESTINO</Text>
+                            <TextInput
+                              value={routeDest}
+                              onChangeText={(v) => { setRouteDest(v); setSearchError(''); }}
+                              placeholder="LHR"
+                              placeholderTextColor="rgba(245,240,232,0.25)"
+                              autoCapitalize="characters"
+                              maxLength={4}
+                              style={[styles.textInput, { textAlign: 'center', letterSpacing: 2, fontSize: 18, fontWeight: '700' }]}
+                            />
+                          </View>
+                        </View>
+                        <View style={{ marginTop: 10 }}>
+                          <Text style={styles.inputLabel}>DATA DO VOO</Text>
+                          <TextInput
+                            value={routeDate}
+                            onChangeText={(v) => { setRouteDate(v); setSearchError(''); }}
+                            placeholder="2025-07-15"
+                            placeholderTextColor="rgba(245,240,232,0.25)"
+                            style={styles.textInput}
+                          />
+                          <Text style={styles.inputHint}>Formato: AAAA-MM-DD</Text>
+                        </View>
+                      </>
+                    ) : (
+                      // ── Number search ─────────────────────────────────────────
+                      <>
+                        <View style={{ marginTop: 4 }}>
+                          <Text style={styles.inputLabel}>NÚMERO DO VOO</Text>
+                          <TextInput
+                            value={flightNumber}
+                            onChangeText={(v) => { setFlightNumber(v); setSearchError(''); }}
+                            placeholder="LA8084"
+                            placeholderTextColor="rgba(245,240,232,0.25)"
+                            autoCapitalize="characters"
+                            style={[styles.textInput, { letterSpacing: 2, fontSize: 18, fontWeight: '700' }]}
+                          />
+                        </View>
+                        <View style={{ marginTop: 10 }}>
+                          <Text style={styles.inputLabel}>DATA DO VOO</Text>
+                          <TextInput
+                            value={flightDate}
+                            onChangeText={(v) => { setFlightDate(v); setSearchError(''); }}
+                            placeholder="2025-07-15"
+                            placeholderTextColor="rgba(245,240,232,0.25)"
+                            style={styles.textInput}
+                          />
+                          <Text style={styles.inputHint}>Formato: AAAA-MM-DD</Text>
+                        </View>
+                      </>
+                    )}
+
+                    {/* Error */}
+                    {searchError ? (
+                      <View style={[styles.lookupErrorRow, { marginTop: 10 }]}>
+                        <Ionicons name="alert-circle-outline" size={14} color="#EF4444" />
+                        <Text style={styles.lookupErrorText}>{searchError}</Text>
+                      </View>
+                    ) : null}
+
+                    {/* Search button */}
+                    <TouchableOpacity
+                      style={[styles.lookupBtn, { marginTop: 14 }, isSearching && { opacity: 0.6 }]}
+                      onPress={searchMode === 'route' ? handleRouteSearch : handleNumberSearch}
+                      disabled={isSearching}
+                    >
+                      {isSearching ? (
+                        <ActivityIndicator size="small" color="#0F1F16" />
+                      ) : (
+                        <Text style={styles.lookupBtnText}>
+                          {searchMode === 'route' ? 'Buscar voos' : 'Buscar voo'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Route results list */}
+                    {routeSearched && routeResults.length > 0 && (
+                      <View style={styles.routeResultsList}>
+                        <Text style={[styles.inputLabel, { marginBottom: 8 }]}>
+                          {routeResults.length} VOO{routeResults.length > 1 ? 'S' : ''} ENCONTRADO{routeResults.length > 1 ? 'S' : ''} — SELECIONE
+                        </Text>
+                        {routeResults.map((fl, idx) => (
+                          <FlightResultRow
+                            key={fl.flightNumber + idx}
+                            flight={fl}
+                            onSelect={() => setSelectedFlight(fl)}
+                          />
+                        ))}
+                      </View>
+                    )}
+                  </View>
                 )}
               </>
             ) : (
+              // ── Non-flight modes ─────────────────────────────────────────────
               <>
                 <InputRow label="TEMPO DE VIAGEM" value={travelTime} onChange={setTravelTime} placeholder="2h30" />
                 <InputRow label="DISTÂNCIA (OPCIONAL)" value={distance} onChange={setDistance} placeholder="180 km" />
@@ -559,8 +703,8 @@ function AddTransportModal({
               </>
             )}
 
-            {/* Add button — only show when flight is looked up, or for non-flight modes */}
-            {(mode !== 'flight' || lookupDone) && (
+            {/* Add button */}
+            {(mode !== 'flight' || selectedFlight) && (
               <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
                 <Text style={styles.addBtnText}>Adicionar</Text>
               </TouchableOpacity>
@@ -1204,5 +1348,97 @@ const styles = StyleSheet.create({
     color: 'rgba(245,240,232,0.4)',
     marginTop: 8,
     textAlign: 'center',
+  },
+
+  // ── Dual search mode styles ────────────────────────────────────────────────
+  searchModeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+    width: '100%',
+  },
+  searchModeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(82,183,136,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(82,183,136,0.2)',
+  },
+  searchModeBtnActive: {
+    backgroundColor: '#52B788',
+    borderColor: '#52B788',
+  },
+  searchModeBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#52B788',
+  },
+  routeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    marginTop: 4,
+  },
+  routeArrow: {
+    paddingBottom: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  routeResultsList: {
+    marginTop: 14,
+    gap: 6,
+    width: '100%',
+  },
+  flightResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(82,183,136,0.15)',
+    gap: 8,
+  },
+  flightResultLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  flightResultIATA: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#F5F0E8',
+    letterSpacing: 0.5,
+  },
+  flightResultMid: {
+    flex: 1,
+    gap: 2,
+  },
+  flightResultNum: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#52B788',
+  },
+  flightResultAirline: {
+    fontSize: 10,
+    color: 'rgba(245,240,232,0.4)',
+  },
+  flightResultRight: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  flightResultTime: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(245,240,232,0.7)',
+  },
+  flightResultDur: {
+    fontSize: 10,
+    color: 'rgba(245,240,232,0.35)',
   },
 });

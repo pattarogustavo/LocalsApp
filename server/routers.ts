@@ -101,6 +101,59 @@ export const appRouter = router({
 
   // ─── AviationStack ────────────────────────────────────────────────────────
   flights: router({
+    /**
+     * Search flights by origin IATA + destination IATA + date.
+     * Returns up to 5 matching flights so the user can pick one.
+     */
+    searchByRoute: publicProcedure
+      .input(z.object({
+        origin: z.string().min(2).max(4),
+        destination: z.string().min(2).max(4),
+        date: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        if (!AVIATIONSTACK_KEY) return { flights: [] };
+        const url = new URL('http://api.aviationstack.com/v1/flights');
+        url.searchParams.set('access_key', AVIATIONSTACK_KEY);
+        url.searchParams.set('dep_iata', input.origin.toUpperCase());
+        url.searchParams.set('arr_iata', input.destination.toUpperCase());
+        url.searchParams.set('flight_date', input.date);
+        url.searchParams.set('limit', '5');
+        try {
+          const res = await fetch(url.toString());
+          if (!res.ok) return { flights: [] };
+          const json = (await res.json()) as any;
+          const data: any[] = json?.data || [];
+          const flights = data.map((flight: any) => {
+            const iata = flight.flight?.iata || '';
+            const dep = new Date(flight.departure?.scheduled || '');
+            const arr = new Date(flight.arrival?.scheduled || '');
+            const mins = (!isNaN(dep.getTime()) && !isNaN(arr.getTime()))
+              ? Math.round((arr.getTime() - dep.getTime()) / 60000) : 0;
+            const duration = mins > 0
+              ? `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}` : '';
+            return {
+              flightNumber: iata,
+              airline: flight.airline?.name || '',
+              origin: flight.departure?.iata || input.origin.toUpperCase(),
+              originCity: flight.departure?.airport || '',
+              destination: flight.arrival?.iata || input.destination.toUpperCase(),
+              destinationCity: flight.arrival?.airport || '',
+              departureTime: flight.departure?.scheduled || '',
+              arrivalTime: flight.arrival?.scheduled || '',
+              departureActual: flight.departure?.actual || '',
+              arrivalActual: flight.arrival?.actual || '',
+              terminal: flight.departure?.terminal || '',
+              gate: flight.departure?.gate || '',
+              status: (flight.flight_status as string) || 'scheduled',
+              duration,
+            };
+          });
+          return { flights };
+        } catch {
+          return { flights: [] };
+        }
+      }),
     lookup: publicProcedure
       .input(z.object({ flightNumber: z.string().min(2), date: z.string() }))
       .mutation(async ({ input }) => {
