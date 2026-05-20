@@ -6,7 +6,8 @@ import { invokeLLM } from "./_core/llm";
 import { z } from "zod";
 
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
-const AVIATIONSTACK_KEY = process.env.AVIATIONSTACK_API_KEY || "";
+const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
+const AERODATABOX_HOST = 'aerodatabox.p.rapidapi.com';
 const GOOGLE_DIRECTIONS_KEY = process.env.GOOGLE_DIRECTIONS_API_KEY || "";
 
 // ─── Google Directions helper ─────────────────────────────────────────────────
@@ -44,45 +45,61 @@ async function fetchDirections(
   }
 }
 
-// ─── AviationStack helpers ────────────────────────────────────────────────────
+// ─── AeroDataBox helpers ─────────────────────────────────────────────────────
+
+function adbHeaders() {
+  return {
+    'x-rapidapi-key': AERODATABOX_KEY,
+    'x-rapidapi-host': AERODATABOX_HOST,
+  };
+}
+
+function calcDuration(dep: string, arr: string): string {
+  const d = new Date(dep);
+  const a = new Date(arr);
+  if (isNaN(d.getTime()) || isNaN(a.getTime())) return '';
+  const mins = Math.round((a.getTime() - d.getTime()) / 60000);
+  return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
+}
+
+function mapAdbFlight(f: any, fallbackOrigin = '', fallbackDest = '') {
+  const dep = f.departure || {};
+  const arr = f.arrival || {};
+  const flightNum = f.number || f.iataNumber || '';
+  const airline = f.airline?.name || '';
+  const depTime = dep.scheduledTime?.utc || dep.scheduledTime?.local || '';
+  const arrTime = arr.scheduledTime?.utc || arr.scheduledTime?.local || '';
+  const depActual = dep.actualTime?.utc || dep.actualTime?.local || '';
+  const arrActual = arr.actualTime?.utc || arr.actualTime?.local || '';
+  return {
+    flightNumber: flightNum,
+    airline,
+    origin: dep.airport?.iata || fallbackOrigin,
+    originCity: dep.airport?.municipalityName || dep.airport?.name || '',
+    destination: arr.airport?.iata || fallbackDest,
+    destinationCity: arr.airport?.municipalityName || arr.airport?.name || '',
+    departureTime: depTime,
+    arrivalTime: arrTime,
+    departureActual: depActual,
+    arrivalActual: arrActual,
+    terminal: dep.terminal || '',
+    gate: dep.gate || '',
+    status: (f.status || 'scheduled').toLowerCase(),
+    duration: calcDuration(depTime, arrTime),
+  };
+}
 
 async function fetchFlightData(flightNumber: string, date: string) {
-  if (!AVIATIONSTACK_KEY) return null;
-  // AviationStack: strip spaces, uppercase
-  const iata = flightNumber.replace(/\s+/g, '').toUpperCase();
-  const url = new URL('http://api.aviationstack.com/v1/flights');
-  url.searchParams.set('access_key', AVIATIONSTACK_KEY);
-  url.searchParams.set('flight_iata', iata);
-  url.searchParams.set('flight_date', date); // YYYY-MM-DD
-  url.searchParams.set('limit', '1');
+  if (!AERODATABOX_KEY) return null;
+  const fn = flightNumber.replace(/\s+/g, '').toUpperCase();
+  const url = `https://${AERODATABOX_HOST}/flights/number/${fn}/${date}`;
   try {
-    const res = await fetch(url.toString());
+    const res = await fetch(url, { headers: adbHeaders() });
     if (!res.ok) return null;
     const json = (await res.json()) as any;
-    const flight = json?.data?.[0];
+    const flight = Array.isArray(json) ? json[0] : json;
     if (!flight) return null;
-    return {
-      flightNumber: flight.flight?.iata || iata,
-      airline: flight.airline?.name || '',
-      origin: flight.departure?.iata || '',
-      originCity: flight.departure?.airport || '',
-      destination: flight.arrival?.iata || '',
-      destinationCity: flight.arrival?.airport || '',
-      departureTime: flight.departure?.scheduled || '',
-      arrivalTime: flight.arrival?.scheduled || '',
-      departureActual: flight.departure?.actual || '',
-      arrivalActual: flight.arrival?.actual || '',
-      terminal: flight.departure?.terminal || '',
-      gate: flight.departure?.gate || '',
-      status: (flight.flight_status as string) || 'scheduled',
-      duration: (() => {
-        const dep = new Date(flight.departure?.scheduled || '');
-        const arr = new Date(flight.arrival?.scheduled || '');
-        if (isNaN(dep.getTime()) || isNaN(arr.getTime())) return '';
-        const mins = Math.round((arr.getTime() - dep.getTime()) / 60000);
-        return `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
-      })(),
-    };
+    return mapAdbFlight(flight);
   } catch {
     return null;
   }
@@ -99,57 +116,39 @@ export const appRouter = router({
     }),
   }),
 
-  // ─── AviationStack ────────────────────────────────────────────────────────
+  // ─── AeroDataBox ─────────────────────────────────────────────────────────
   flights: router({
     /**
      * Search flights by origin IATA + destination IATA + date.
-     * Returns up to 5 matching flights so the user can pick one.
+     * Uses AeroDataBox airport departures endpoint, filtered by destination.
+     * Returns up to 6 matching flights so the user can pick one.
      */
     searchByRoute: publicProcedure
       .input(z.object({
         origin: z.string().min(2).max(4),
         destination: z.string().min(2).max(4),
-        date: z.string(),
+        date: z.string(), // YYYY-MM-DD
       }))
       .mutation(async ({ input }) => {
-        if (!AVIATIONSTACK_KEY) return { flights: [] };
-        const url = new URL('http://api.aviationstack.com/v1/flights');
-        url.searchParams.set('access_key', AVIATIONSTACK_KEY);
-        url.searchParams.set('dep_iata', input.origin.toUpperCase());
-        url.searchParams.set('arr_iata', input.destination.toUpperCase());
-        url.searchParams.set('flight_date', input.date);
-        url.searchParams.set('limit', '5');
+        if (!AERODATABOX_KEY) return { flights: [] };
+        const orig = input.origin.toUpperCase();
+        const dest = input.destination.toUpperCase();
+        const date = input.date;
+        // AeroDataBox: GET /flights/airports/iata/{iata}/{fromDateTime}/{toDateTime}/Departure
+        const from = `${date}T00:00`;
+        const to   = `${date}T23:59`;
+        const url = `https://${AERODATABOX_HOST}/flights/airports/iata/${orig}/${from}/${to}/Departure?withLeg=true&withCancelled=false&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
         try {
-          const res = await fetch(url.toString());
+          const res = await fetch(url, { headers: adbHeaders() });
           if (!res.ok) return { flights: [] };
           const json = (await res.json()) as any;
-          const data: any[] = json?.data || [];
-          const flights = data.map((flight: any) => {
-            const iata = flight.flight?.iata || '';
-            const dep = new Date(flight.departure?.scheduled || '');
-            const arr = new Date(flight.arrival?.scheduled || '');
-            const mins = (!isNaN(dep.getTime()) && !isNaN(arr.getTime()))
-              ? Math.round((arr.getTime() - dep.getTime()) / 60000) : 0;
-            const duration = mins > 0
-              ? `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}` : '';
-            return {
-              flightNumber: iata,
-              airline: flight.airline?.name || '',
-              origin: flight.departure?.iata || input.origin.toUpperCase(),
-              originCity: flight.departure?.airport || '',
-              destination: flight.arrival?.iata || input.destination.toUpperCase(),
-              destinationCity: flight.arrival?.airport || '',
-              departureTime: flight.departure?.scheduled || '',
-              arrivalTime: flight.arrival?.scheduled || '',
-              departureActual: flight.departure?.actual || '',
-              arrivalActual: flight.arrival?.actual || '',
-              terminal: flight.departure?.terminal || '',
-              gate: flight.departure?.gate || '',
-              status: (flight.flight_status as string) || 'scheduled',
-              duration,
-            };
-          });
-          return { flights };
+          const departures: any[] = json?.departures || [];
+          // Filter by destination IATA
+          const filtered = departures
+            .filter((f: any) => (f.arrival?.airport?.iata || '').toUpperCase() === dest)
+            .slice(0, 6)
+            .map((f: any) => mapAdbFlight(f, orig, dest));
+          return { flights: filtered };
         } catch {
           return { flights: [] };
         }
