@@ -46,3 +46,20 @@
 - [x] Renomear aba "Destinos" → "Geral"
 - [x] Hospedagem por destino (Hotel ou Casa) com check-in/check-out por destino
 - [x] Integrar IA em Lugares: botão "IA escolhe os lugares" + "Montar roteiro com selecionados"
+
+## Fase 3 — Melhorias no Roteiro e Lugares
+
+- [x] Moeda com bandeira do país no cabeçalho do roteiro (mesma linha do nome)
+- [x] Nome criativo do roteiro baseado nas cidades de destino
+- [x] Data + destinos na mesma linha no cabeçalho
+- [x] Redesenhar bloco de Transporte (caixa maior, padrão visual da referência)
+- [x] Roteiro dia-a-dia com timeline por horário (não por período)
+- [x] Ícones de categoria no roteiro dia-a-dia
+- [x] Link Google Maps com trajeto entre locais no roteiro
+- [x] Tempo de deslocamento entre locais (Google Maps + ícone do meio de transporte)
+- [x] Botão "Criar roteiro dia-a-dia" quando não há lugares selecionados
+- [x] Tela Lugares: seção "Minha Viagem" + "Disponíveis" com busca e categorias
+- [x] Adicionar/remover lugares com atualização automática do roteiro
+- [x] Pop-up de detalhes do local: foto real, descrição, horário, site, telefone, upload de arquivo
+- [x] IA avançada: perfil, estilo, ritmo, orçamento, restrições → roteiro otimizado
+- [x] Dica do dia + custo estimado no final de cada dia do roteiro

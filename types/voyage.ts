@@ -2,6 +2,9 @@
 
 export type TransportMode = 'flight' | 'car' | 'train' | 'bus' | 'ferry' | 'other';
 
+// Transport used within the destination city (for routing/itinerary)
+export type CityTransportMode = 'car' | 'public' | 'uber' | 'walk' | 'bike' | 'taxi';
+
 export interface FlightInfo {
   flightNumber: string;
   airline: string;
@@ -39,11 +42,20 @@ export interface Destination {
   lat?: number;
   lng?: number;
   imageUrl?: string;
+  // Currency used in this destination country
+  currency?: string;
 }
 
 // ─── Place ────────────────────────────────────────────────────────────────────
 
 export type PlaceCategory = 'attraction' | 'restaurant' | 'cafe' | 'museum' | 'hidden_gem' | 'other';
+
+export interface PlaceAttachment {
+  id: string;
+  name: string;
+  url: string;
+  type: 'pdf' | 'image' | 'other';
+}
 
 export interface Place {
   id: string;
@@ -51,6 +63,7 @@ export interface Place {
   category: PlaceCategory;
   address?: string;
   hours?: string;
+  phone?: string;
   rating?: number;
   priceLevel?: number;
   priceRange?: string;
@@ -66,6 +79,7 @@ export interface Place {
   placeId?: string;
   destinationId: string;
   addedByAI?: boolean;
+  attachments?: PlaceAttachment[];
 }
 
 // ─── Document ─────────────────────────────────────────────────────────────────
@@ -106,7 +120,7 @@ export type AccommodationType = 'hotel' | 'house' | 'hostel' | 'airbnb' | 'other
 
 export interface Accommodation {
   id: string;
-  destinationId: string; // Required: linked to a specific destination
+  destinationId: string;
   name: string;
   type: AccommodationType;
   address?: string;
@@ -120,33 +134,45 @@ export interface Accommodation {
   imageUrl?: string;
 }
 
-// ─── Day-by-Day Itinerary ─────────────────────────────────────────────────────
+// ─── Day-by-Day Itinerary (Timeline-based) ────────────────────────────────────
 
-export interface ItineraryActivity {
-  time: string;
-  activity: string;
-  place?: string;
-  tip?: string;
-}
-
-export interface ItineraryMeals {
-  breakfast?: string;
-  lunch?: string;
-  dinner?: string;
+export interface ItineraryStop {
+  id: string;
+  time: string;           // e.g. "09:00"
+  placeId?: string;       // links to Place.id
+  placeName: string;
+  placeCategory: PlaceCategory;
+  description?: string;
+  imageUrl?: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+  website?: string;
+  phone?: string;
+  hours?: string;
+  // Travel to next stop
+  travelTimeToNext?: string;   // e.g. "20 min"
+  travelModeToNext?: CityTransportMode;
+  mapsUrlToNext?: string;      // Google Maps URL from this stop to next
 }
 
 export interface DayItinerary {
-  date: string;  // YYYY-MM-DD
-  destination: string;
+  date: string;           // YYYY-MM-DD
+  destination: string;   // destination name
+  dayNumber: number;     // 1-based day number in trip
+  stops: ItineraryStop[];
+  tip?: string;           // AI tip for the day
+  estimatedCost?: number; // estimated daily cost in local currency
+  estimatedCostCurrency?: string;
+  // Legacy fields (kept for backward compat)
   title?: string;
-  morning?: ItineraryActivity;
-  afternoon?: ItineraryActivity;
-  evening?: ItineraryActivity;
-  meals?: ItineraryMeals;
+  morning?: { time: string; activity: string; place?: string; tip?: string };
+  afternoon?: { time: string; activity: string; place?: string; tip?: string };
+  evening?: { time: string; activity: string; place?: string; tip?: string };
+  meals?: { breakfast?: string; lunch?: string; dinner?: string };
   places?: string[];
   notes?: string;
   tips?: string;
-  estimatedCost?: number;
 }
 
 // ─── Trip ─────────────────────────────────────────────────────────────────────
@@ -168,6 +194,7 @@ export interface Trip {
   currency: string;
   coverImageUrl?: string;
   aiGeneratedItinerary?: boolean;
+  cityTransportMode?: CityTransportMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -207,10 +234,23 @@ export type TravelStyle =
   | 'historia'
   | 'praia'
   | 'montanha'
-  | 'cidade';
+  | 'cidade'
+  | 'vida_noturna';
 
 export type TravelBudget = 'econômico' | 'moderado' | 'luxo';
 export type TravelPace = 'relaxado' | 'moderado' | 'intenso';
+export type TravelProfile = 'casal' | 'família' | 'solo' | 'amigos' | 'negócios';
+
+export interface ItineraryPreferences {
+  profile: TravelProfile;
+  style: TravelStyle[];
+  budget: TravelBudget;
+  pace: TravelPace;
+  interests: string[];
+  restrictions?: string;
+  approximateBudget?: string;
+  cityTransportMode?: CityTransportMode;
+}
 
 export interface TravelPreferences {
   style: TravelStyle[];

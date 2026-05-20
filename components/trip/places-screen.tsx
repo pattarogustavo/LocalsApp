@@ -1,38 +1,24 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  TextInput,
-  Pressable,
-  ActivityIndicator,
-  Linking,
-  StyleSheet,
-  Alert,
+  View, Text, TouchableOpacity, ScrollView, Modal,
+  TextInput, ActivityIndicator, Linking, StyleSheet, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
 import { useTripsStore } from '@/store/trips';
-import { useColors } from '@/hooks/use-colors';
 import { PaywallModal } from '@/components/paywall-modal';
 import { generateId } from '@/utils/trip-helpers';
 import type { Place, Destination } from '@/types/voyage';
 
-interface PlacesScreenProps {
-  tripId: string;
-  places: Place[];
-  destinations: Destination[];
-}
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const CATEGORIES = [
-  { key: 'all', label: 'Todos', icon: 'grid-outline' },
-  { key: 'attraction', label: 'Atrações', icon: 'camera-outline' },
-  { key: 'restaurant', label: 'Restaurantes', icon: 'restaurant-outline' },
-  { key: 'cafe', label: 'Cafés', icon: 'cafe-outline' },
-  { key: 'museum', label: 'Museus', icon: 'book-outline' },
-  { key: 'hidden_gem', label: 'Hidden Gems', icon: 'diamond-outline' },
+  { key: 'all',        label: 'Todos',        icon: 'grid-outline' as const },
+  { key: 'attraction', label: 'Atrações',     icon: 'camera-outline' as const },
+  { key: 'restaurant', label: 'Restaurantes', icon: 'restaurant-outline' as const },
+  { key: 'cafe',       label: 'Cafés',        icon: 'cafe-outline' as const },
+  { key: 'museum',     label: 'Museus',       icon: 'book-outline' as const },
+  { key: 'hidden_gem', label: 'Hidden Gems',  icon: 'diamond-outline' as const },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -41,9 +27,28 @@ const CATEGORY_LABELS: Record<string, string> = {
   cafe: 'Cafés',
   museum: 'Museus',
   hidden_gem: 'Hidden Gems',
+  other: 'Outros',
 };
 
-// ─── Place Detail Modal ──────────────────────────────────────────────────────
+const CATEGORY_ICONS: Record<string, string> = {
+  attraction: 'camera-outline',
+  restaurant: 'restaurant-outline',
+  cafe: 'cafe-outline',
+  museum: 'book-outline',
+  hidden_gem: 'diamond-outline',
+  other: 'location-outline',
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  attraction: '#52B788',
+  restaurant: '#E07B5A',
+  cafe: '#C4A35A',
+  museum: '#7B9FD4',
+  hidden_gem: '#B88BF5',
+  other: '#A8D5B5',
+};
+
+// ─── Place Detail Modal ───────────────────────────────────────────────────────
 
 function PlaceDetailModal({
   place,
@@ -58,7 +63,7 @@ function PlaceDetailModal({
   onRemove?: () => void;
   isAdded: boolean;
 }) {
-  const colors = useColors();
+  const catColor = CATEGORY_COLORS[place.category] || '#52B788';
 
   const openMaps = () => {
     if (place.lat && place.lng) {
@@ -68,81 +73,93 @@ function PlaceDetailModal({
     }
   };
 
-  const openSite = () => {
-    if (place.website) Linking.openURL(place.website);
-  };
-
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
-        <View style={[styles.detailSheet, { backgroundColor: colors.background }]}>
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+        <View style={styles.detailSheet}>
+          <View style={styles.handle} />
 
-          {/* Place image placeholder */}
-          <View style={[styles.placeImagePlaceholder, { backgroundColor: '#1A3A2A' }]}>
-            <Ionicons name="location" size={40} color="#52B788" />
-          </View>
+          {/* Photo */}
+          {place.imageUrl ? (
+            <Image source={{ uri: place.imageUrl }} style={styles.placePhoto} resizeMode="cover" />
+          ) : (
+            <View style={[styles.placePhotoPlaceholder, { backgroundColor: `${catColor}18` }]}>
+              <Ionicons name={CATEGORY_ICONS[place.category] as any} size={40} color={catColor} />
+            </View>
+          )}
 
           <View style={styles.detailContent}>
-            <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="close" size={16} color={colors.foreground} />
-            </Pressable>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <Ionicons name="close" size={16} color="#F5F0E8" />
+            </TouchableOpacity>
 
-            <Text style={[styles.detailName, { color: colors.foreground }]}>{place.name}</Text>
-            {place.description && (
-              <Text style={[styles.detailDesc, { color: colors.muted }]}>{place.description}</Text>
-            )}
+            <Text style={styles.detailName}>{place.name}</Text>
+            <Text style={styles.detailCategory}>{CATEGORY_LABELS[place.category] || place.category}</Text>
 
-            {place.hours && (
+            {place.description ? (
+              <Text style={styles.detailDesc}>{place.description}</Text>
+            ) : null}
+
+            {place.hours ? (
               <View style={styles.detailRow}>
-                <Ionicons name="time-outline" size={14} color={colors.muted} />
+                <Ionicons name="time-outline" size={14} color="rgba(245,240,232,0.4)" />
                 <View>
-                  <Text style={[styles.detailRowLabel, { color: colors.muted }]}>HORÁRIO</Text>
-                  <Text style={[styles.detailRowValue, { color: colors.foreground }]}>{place.hours}</Text>
+                  <Text style={styles.detailRowLabel}>HORÁRIO</Text>
+                  <Text style={styles.detailRowValue}>{place.hours}</Text>
                 </View>
               </View>
-            )}
+            ) : null}
 
-            {place.address && (
+            {place.address ? (
               <View style={styles.detailRow}>
-                <Ionicons name="location-outline" size={14} color={colors.muted} />
+                <Ionicons name="location-outline" size={14} color="rgba(245,240,232,0.4)" />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.detailRowLabel, { color: colors.muted }]}>ENDEREÇO</Text>
-                  <Text style={[styles.detailRowValue, { color: colors.foreground }]}>{place.address}</Text>
+                  <Text style={styles.detailRowLabel}>ENDEREÇO</Text>
+                  <Text style={styles.detailRowValue}>{place.address}</Text>
                 </View>
               </View>
-            )}
+            ) : null}
+
+            {place.phone ? (
+              <View style={styles.detailRow}>
+                <Ionicons name="call-outline" size={14} color="rgba(245,240,232,0.4)" />
+                <View>
+                  <Text style={styles.detailRowLabel}>TELEFONE</Text>
+                  <Text style={styles.detailRowValue}>{place.phone}</Text>
+                </View>
+              </View>
+            ) : null}
 
             <View style={styles.detailActions}>
-              {(place.website) && (
-                <TouchableOpacity onPress={openSite} style={[styles.detailActionBtn, { backgroundColor: colors.surface }]}>
-                  <Ionicons name="globe-outline" size={16} color={colors.foreground} />
-                  <Text style={[styles.detailActionText, { color: colors.foreground }]}>Site</Text>
+              {(place.website) ? (
+                <TouchableOpacity onPress={() => Linking.openURL(place.website!)} style={styles.detailActionBtn}>
+                  <Ionicons name="globe-outline" size={16} color="#F5F0E8" />
+                  <Text style={styles.detailActionText}>Site</Text>
                 </TouchableOpacity>
-              )}
-              {(place.lat || place.address) && (
-                <TouchableOpacity onPress={openMaps} style={[styles.detailActionBtn, { backgroundColor: colors.surface }]}>
-                  <Ionicons name="map-outline" size={16} color={colors.foreground} />
-                  <Text style={[styles.detailActionText, { color: colors.foreground }]}>Maps</Text>
+              ) : null}
+              {(place.lat || place.address) ? (
+                <TouchableOpacity onPress={openMaps} style={styles.detailActionBtn}>
+                  <Ionicons name="map-outline" size={16} color="#F5F0E8" />
+                  <Text style={styles.detailActionText}>Maps</Text>
                 </TouchableOpacity>
-              )}
+              ) : null}
             </View>
 
             {isAdded ? (
               <TouchableOpacity
                 onPress={() => { onRemove?.(); onClose(); }}
-                style={[styles.addBtn, { backgroundColor: '#C0392B22', borderColor: '#C0392B', borderWidth: 1 }]}
+                style={styles.removeActionBtn}
               >
-                <Ionicons name="trash-outline" size={16} color="#C0392B" />
-                <Text style={[styles.addBtnText, { color: '#C0392B' }]}>Remover da viagem</Text>
+                <Ionicons name="trash-outline" size={16} color="#E74C3C" />
+                <Text style={styles.removeActionText}>Remover da viagem</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 onPress={() => { onAdd?.(); onClose(); }}
-                style={[styles.addBtn, { backgroundColor: '#1C3D2E' }]}
+                style={styles.addActionBtn}
               >
-                <Ionicons name="add" size={16} color="#fff" />
-                <Text style={[styles.addBtnText, { color: '#fff' }]}>Adicionar à viagem</Text>
+                <Ionicons name="add" size={18} color="#0F1F16" />
+                <Text style={styles.addActionText}>Adicionar à viagem</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -152,182 +169,197 @@ function PlaceDetailModal({
   );
 }
 
-// ─── AI Places Panel ─────────────────────────────────────────────────────────
+// ─── Place Row (Minha Viagem) ─────────────────────────────────────────────────
 
-function AIPlacesPanel({
+function MyPlaceRow({
+  place,
+  onPress,
+  onRemove,
+}: {
+  place: Place;
+  onPress: () => void;
+  onRemove: () => void;
+}) {
+  const catColor = CATEGORY_COLORS[place.category] || '#52B788';
+  const catIcon  = CATEGORY_ICONS[place.category] || 'location-outline';
+
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.myPlaceRow} activeOpacity={0.75}>
+      {place.imageUrl ? (
+        <Image source={{ uri: place.imageUrl }} style={styles.myPlaceThumb} />
+      ) : (
+        <View style={[styles.myPlaceThumb, { backgroundColor: `${catColor}20`, alignItems: 'center', justifyContent: 'center' }]}>
+          <Ionicons name={catIcon as any} size={16} color={catColor} />
+        </View>
+      )}
+      <Text style={styles.myPlaceName} numberOfLines={1}>{place.name}</Text>
+      <TouchableOpacity onPress={onRemove} style={styles.removeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Ionicons name="trash-outline" size={15} color="#E74C3C" />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Available Place Row ──────────────────────────────────────────────────────
+
+function AvailablePlaceRow({
+  place,
+  isAdded,
+  onAdd,
+  onPress,
+}: {
+  place: Place;
+  isAdded: boolean;
+  onAdd: () => void;
+  onPress: () => void;
+}) {
+  const catColor = CATEGORY_COLORS[place.category] || '#52B788';
+  const catIcon  = CATEGORY_ICONS[place.category] || 'location-outline';
+
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.availRow} activeOpacity={0.75}>
+      {place.imageUrl ? (
+        <Image source={{ uri: place.imageUrl }} style={styles.availThumb} />
+      ) : (
+        <View style={[styles.availThumb, { backgroundColor: `${catColor}20`, alignItems: 'center', justifyContent: 'center' }]}>
+          <Ionicons name={catIcon as any} size={18} color={catColor} />
+        </View>
+      )}
+      <View style={styles.availInfo}>
+        <Text style={styles.availName} numberOfLines={1}>{place.name}</Text>
+        {place.description ? (
+          <Text style={styles.availDesc} numberOfLines={1}>{place.description}</Text>
+        ) : null}
+      </View>
+      {!isAdded ? (
+        <TouchableOpacity onPress={onAdd} style={styles.addChip} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+          <Text style={styles.addChipText}>Adicionar</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.addedBadge}>
+          <Ionicons name="checkmark" size={12} color="#52B788" />
+          <Text style={styles.addedBadgeText}>Adicionado</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// ─── AI Suggestions Panel ─────────────────────────────────────────────────────
+
+function AIPanel({
   destination,
-  tripId,
   addedPlaces,
   onAdd,
   onRemove,
+  activeCategory,
 }: {
   destination: Destination;
-  tripId: string;
   addedPlaces: Place[];
   onAdd: (place: Place) => void;
   onRemove: (placeId: string) => void;
+  activeCategory: string;
 }) {
-  const colors = useColors();
   const { userPlan, updateUserPlan } = useTripsStore();
   const [showPaywall, setShowPaywall] = useState(false);
-  const [aiPlaces, setAiPlaces] = useState<Record<string, Place[]>>({});
+  const [aiPlaces, setAiPlaces] = useState<Place[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
-  const [activeCategory, setActiveCategory] = useState('all');
 
   const suggestMutation = trpc.ai.suggestPlaces.useMutation({
     onSuccess: (data) => {
-      if (data.places) {
-        const mapped: Record<string, Place[]> = {};
-        const categoryMap: Record<string, string> = {
-          attractions: 'attraction',
-          restaurants: 'restaurant',
-          cafes: 'cafe',
-          museums: 'museum',
-          hidden_gems: 'hidden_gem',
-        };
-        for (const [rawKey, items] of Object.entries(data.places as Record<string, any[]>)) {
-          const cat = categoryMap[rawKey] || rawKey;
-          mapped[cat] = (items || []).map((item: any) => ({
+      if (!data?.places) return;
+      const categoryMap: Record<string, string> = {
+        attractions: 'attraction',
+        restaurants: 'restaurant',
+        cafes: 'cafe',
+        museums: 'museum',
+        hidden_gems: 'hidden_gem',
+      };
+      const all: Place[] = [];
+      for (const [rawKey, items] of Object.entries(data.places as Record<string, any[]>)) {
+        const cat = categoryMap[rawKey] || rawKey;
+        for (const item of (items || [])) {
+          all.push({
             id: generateId(),
             name: item.name,
             category: cat as any,
             address: item.address,
             hours: item.hours,
-            description: item.description,
+            description: item.description || item.tip,
             website: item.website,
+            imageUrl: item.imageUrl,
             destinationId: destination.id,
             addedByAI: true,
-          }));
+          });
         }
-        setAiPlaces(mapped);
-        if (userPlan.tier === 'free') {
-          updateUserPlan({ aiCreditsUsed: userPlan.aiCreditsUsed + 1 });
-        }
+      }
+      setAiPlaces(all);
+      if (userPlan.tier === 'free') {
+        updateUserPlan({ aiCreditsUsed: userPlan.aiCreditsUsed + 1 });
       }
     },
   });
 
-  const handleLoadAI = () => {
-    const canUseAI = userPlan.tier !== 'free' || userPlan.aiCreditsUsed < userPlan.aiCreditsLimit;
-    if (!canUseAI) {
-      setShowPaywall(true);
-      return;
-    }
-    suggestMutation.mutate({
-      destination: destination.name,
-      country: destination.country,
-      days: destination.days,
-    });
+  const handleLoad = () => {
+    const canUse = userPlan.tier !== 'free' || userPlan.aiCreditsUsed < userPlan.aiCreditsLimit;
+    if (!canUse) { setShowPaywall(true); return; }
+    suggestMutation.mutate({ destination: destination.name, country: destination.country, days: destination.days });
   };
 
-  const allAiPlaces = Object.values(aiPlaces).flat();
-  const hasAiPlaces = allAiPlaces.length > 0;
+  const filtered = activeCategory === 'all'
+    ? aiPlaces
+    : aiPlaces.filter((p) => p.category === activeCategory);
 
-  const filteredAiPlaces = activeCategory === 'all'
-    ? allAiPlaces
-    : (aiPlaces[activeCategory] || []);
-
-  const isAdded = (place: Place) => addedPlaces.some((p) => p.name === place.name);
+  const isAdded = (p: Place) => addedPlaces.some((a) => a.name === p.name);
 
   return (
-    <View style={[styles.aiPanel, { backgroundColor: '#1A3A2A' }]}>
-      <View style={styles.aiPanelHeader}>
-        <View style={styles.aiPanelTitleRow}>
-          <Ionicons name="sparkles" size={14} color="#A8D5B5" />
-          <Text style={styles.aiPanelTitle}>SUGESTÕES IA — {destination.name.toUpperCase()}</Text>
-        </View>
-        {!hasAiPlaces && (
-          <TouchableOpacity
-            onPress={handleLoadAI}
-            disabled={suggestMutation.isPending}
-            style={[styles.aiLoadBtn, { opacity: suggestMutation.isPending ? 0.7 : 1 }]}
-          >
-            {suggestMutation.isPending ? (
-              <ActivityIndicator size="small" color="#A8D5B5" />
-            ) : (
-              <>
-                <Ionicons name="sparkles" size={12} color="#A8D5B5" />
-                <Text style={styles.aiLoadBtnText}>Sugerir lugares</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        )}
-        {hasAiPlaces && (
-          <TouchableOpacity
-            onPress={handleLoadAI}
-            style={styles.aiRefreshBtn}
-          >
-            <Ionicons name="refresh-outline" size={14} color="#A8D5B5" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {hasAiPlaces && (
-        <>
-          {/* Category filter */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll}>
-            {CATEGORIES.map((cat) => {
-              const count = cat.key === 'all' ? allAiPlaces.length : (aiPlaces[cat.key] || []).length;
-              if (count === 0 && cat.key !== 'all') return null;
-              return (
-                <TouchableOpacity
-                  key={cat.key}
-                  onPress={() => setActiveCategory(cat.key)}
-                  style={[
-                    styles.catChip,
-                    {
-                      backgroundColor: activeCategory === cat.key ? 'rgba(82,183,136,0.3)' : 'rgba(255,255,255,0.07)',
-                      borderColor: activeCategory === cat.key ? '#52B788' : 'transparent',
-                      borderWidth: 1,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.catChipText, { color: activeCategory === cat.key ? '#52B788' : 'rgba(245,240,232,0.6)' }]}>
-                    {cat.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {filteredAiPlaces.map((place) => {
-            const added = isAdded(place);
-            return (
-              <TouchableOpacity
-                key={place.id}
-                onPress={() => setSelectedPlace(place)}
-                style={styles.placeRow}
-              >
-                <View style={[styles.placeIconBox, { backgroundColor: 'rgba(82,183,136,0.15)' }]}>
-                  <Ionicons name="location" size={16} color="#52B788" />
-                </View>
-                <View style={styles.placeInfo}>
-                  <Text style={styles.placeName}>{place.name}</Text>
-                  {place.description && (
-                    <Text style={styles.placeDesc} numberOfLines={1}>{place.description}</Text>
-                  )}
-                </View>
-                <TouchableOpacity
-                  onPress={() => added ? onRemove(addedPlaces.find((p) => p.name === place.name)!.id) : onAdd(place)}
-                  style={[
-                    styles.addChip,
-                    { backgroundColor: added ? 'rgba(192,57,43,0.2)' : 'rgba(82,183,136,0.2)' },
-                  ]}
-                >
-                  <Text style={[styles.addChipText, { color: added ? '#E74C3C' : '#52B788' }]}>
-                    {added ? 'Remover' : 'Adicionar'}
-                  </Text>
-                </TouchableOpacity>
+    <View>
+      {aiPlaces.length === 0 ? (
+        <View style={styles.aiEmptyRow}>
+          {suggestMutation.isPending ? (
+            <>
+              <ActivityIndicator size="small" color="#52B788" />
+              <Text style={styles.aiEmptyText}>A IA está buscando lugares em {destination.name}...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="sparkles-outline" size={14} color="rgba(245,240,232,0.4)" />
+              <Text style={styles.aiEmptyText}>Nenhuma sugestão carregada</Text>
+              <TouchableOpacity onPress={handleLoad} style={styles.aiLoadBtn}>
+                <Ionicons name="sparkles" size={12} color="#0F1F16" />
+                <Text style={styles.aiLoadBtnText}>Sugerir com IA</Text>
               </TouchableOpacity>
-            );
-          })}
+            </>
+          )}
+        </View>
+      ) : (
+        <>
+          <View style={styles.aiHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="sparkles" size={12} color="#52B788" />
+              <Text style={styles.aiHeaderText}>Sugestões IA · {destination.name}</Text>
+            </View>
+            <TouchableOpacity onPress={handleLoad} style={styles.aiRefreshBtn} disabled={suggestMutation.isPending}>
+              {suggestMutation.isPending
+                ? <ActivityIndicator size="small" color="#52B788" />
+                : <Ionicons name="refresh-outline" size={14} color="#52B788" />}
+            </TouchableOpacity>
+          </View>
+          {filtered.map((place) => (
+            <AvailablePlaceRow
+              key={place.id}
+              place={place}
+              isAdded={isAdded(place)}
+              onAdd={() => onAdd({ ...place, id: generateId() })}
+              onPress={() => setSelectedPlace(place)}
+            />
+          ))}
+          {filtered.length === 0 && (
+            <Text style={[styles.aiEmptyText, { paddingVertical: 8 }]}>
+              Nenhuma sugestão nesta categoria
+            </Text>
+          )}
         </>
-      )}
-
-      {!hasAiPlaces && !suggestMutation.isPending && (
-        <Text style={styles.aiEmptyText}>
-          Clique em "Sugerir lugares" para ver recomendações da IA para {destination.name}
-        </Text>
       )}
 
       {selectedPlace && (
@@ -335,7 +367,7 @@ function AIPlacesPanel({
           place={selectedPlace}
           onClose={() => setSelectedPlace(null)}
           isAdded={isAdded(selectedPlace)}
-          onAdd={() => onAdd(selectedPlace)}
+          onAdd={() => onAdd({ ...selectedPlace, id: generateId() })}
           onRemove={() => {
             const added = addedPlaces.find((p) => p.name === selectedPlace.name);
             if (added) onRemove(added.id);
@@ -348,174 +380,175 @@ function AIPlacesPanel({
   );
 }
 
-// ─── Main PlacesScreen ───────────────────────────────────────────────────────
+// ─── Main PlacesScreen ────────────────────────────────────────────────────────
+
+interface PlacesScreenProps {
+  tripId: string;
+  places: Place[];
+  destinations: Destination[];
+}
 
 export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps) {
-  const colors = useColors();
   const { addPlace, removePlace } = useTripsStore();
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [activeCategory, setActiveCategory] = useState('all');
   const [activeDestFilter, setActiveDestFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
   const handleAddPlace = useCallback(async (place: Place) => {
-    const newPlace: Place = { ...place, id: generateId(), destinationId: place.destinationId };
-    await addPlace(tripId, newPlace);
+    await addPlace(tripId, { ...place, id: generateId() });
   }, [tripId, addPlace]);
 
   const handleRemovePlace = useCallback(async (placeId: string) => {
     await removePlace(tripId, placeId);
   }, [tripId, removePlace]);
 
-  const filteredPlaces = places.filter((p) => {
-    const matchCat = activeFilter === 'all' || p.category === activeFilter;
-    const matchDest = activeDestFilter === 'all' || p.destinationId === activeDestFilter;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchDest && matchSearch;
-  });
+  // ── "Minha Viagem" filtered list ──
+  const myPlaces = useMemo(() => {
+    return places.filter((p) => {
+      const matchCat  = activeCategory === 'all' || p.category === activeCategory;
+      const matchDest = activeDestFilter === 'all' || p.destinationId === activeDestFilter;
+      const matchSrch = !search || p.name.toLowerCase().includes(search.toLowerCase());
+      return matchCat && matchDest && matchSrch;
+    });
+  }, [places, activeCategory, activeDestFilter, search]);
 
-  // Group by destination
-  const groupedByDest = destinations.reduce((acc, dest) => {
-    const destPlaces = filteredPlaces.filter((p) => p.destinationId === dest.id);
-    if (destPlaces.length > 0) {
-      acc[dest.id] = { dest, places: destPlaces };
-    }
-    return acc;
-  }, {} as Record<string, { dest: Destination; places: Place[] }>);
-
-  // Group by category within each destination
-  const getByCategory = (destPlaces: Place[]) => {
-    return CATEGORIES.slice(1).reduce((acc, cat) => {
-      const catPlaces = destPlaces.filter((p) => p.category === cat.key);
-      if (catPlaces.length > 0) acc[cat.key] = catPlaces;
+  // Group my places by destination → category
+  const grouped = useMemo(() => {
+    return destinations.reduce((acc, dest) => {
+      const destPlaces = myPlaces.filter((p) => p.destinationId === dest.id);
+      if (destPlaces.length > 0) {
+        const byCategory: Record<string, Place[]> = {};
+        for (const cat of CATEGORIES.slice(1)) {
+          const catPlaces = destPlaces.filter((p) => p.category === cat.key);
+          if (catPlaces.length > 0) byCategory[cat.key] = catPlaces;
+        }
+        acc[dest.id] = { dest, byCategory };
+      }
       return acc;
-    }, {} as Record<string, Place[]>);
-  };
+    }, {} as Record<string, { dest: Destination; byCategory: Record<string, Place[]> }>);
+  }, [myPlaces, destinations]);
 
   return (
     <View>
-      {/* My Places Section */}
-      {places.length > 0 && (
-        <View style={{ marginBottom: 20 }}>
-          <Text style={styles.sectionHeader}>MINHA VIAGEM</Text>
+      {/* ── MINHA VIAGEM ── */}
+      <View style={styles.sectionBlock}>
+        <Text style={styles.sectionLabel}>MINHA VIAGEM</Text>
 
-          {/* Dest filter */}
-          {destinations.length > 1 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+        {/* Destination filter */}
+        {destinations.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}
+            contentContainerStyle={{ gap: 6 }}>
+            <TouchableOpacity
+              onPress={() => setActiveDestFilter('all')}
+              style={[styles.destChip, activeDestFilter === 'all' && styles.destChipActive]}
+            >
+              <Text style={[styles.destChipText, activeDestFilter === 'all' && styles.destChipTextActive]}>
+                Todos
+              </Text>
+            </TouchableOpacity>
+            {destinations.map((dest) => (
               <TouchableOpacity
-                onPress={() => setActiveDestFilter('all')}
-                style={[styles.destChip, { backgroundColor: activeDestFilter === 'all' ? '#2D5A3D' : 'rgba(255,255,255,0.1)' }]}
+                key={dest.id}
+                onPress={() => setActiveDestFilter(dest.id)}
+                style={[styles.destChip, activeDestFilter === dest.id && styles.destChipActive]}
               >
-                <Text style={[styles.destChipText, { color: activeDestFilter === 'all' ? '#fff' : 'rgba(245,240,232,0.6)' }]}>
-                  Todos
-                </Text>
-              </TouchableOpacity>
-              {destinations.map((dest) => (
-                <TouchableOpacity
-                  key={dest.id}
-                  onPress={() => setActiveDestFilter(dest.id)}
-                  style={[styles.destChip, { backgroundColor: activeDestFilter === dest.id ? '#2D5A3D' : 'rgba(255,255,255,0.1)' }]}
-                >
-                  <Text style={[styles.destChipText, { color: activeDestFilter === dest.id ? '#fff' : 'rgba(245,240,232,0.6)' }]}>
-                    {dest.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-
-          {/* Category filter */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-            {CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat.key}
-                onPress={() => setActiveFilter(cat.key)}
-                style={[
-                  styles.catChip,
-                  {
-                    backgroundColor: activeFilter === cat.key ? 'rgba(82,183,136,0.3)' : 'rgba(255,255,255,0.07)',
-                    borderColor: activeFilter === cat.key ? '#52B788' : 'transparent',
-                    borderWidth: 1,
-                  },
-                ]}
-              >
-                <Ionicons name={cat.icon as any} size={12} color={activeFilter === cat.key ? '#52B788' : 'rgba(245,240,232,0.5)'} />
-                <Text style={[styles.catChipText, { color: activeFilter === cat.key ? '#52B788' : 'rgba(245,240,232,0.5)' }]}>
-                  {cat.label}
+                <Text style={[styles.destChipText, activeDestFilter === dest.id && styles.destChipTextActive]}>
+                  {dest.name}
                 </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
+        )}
 
-          {Object.values(groupedByDest).map(({ dest, places: destPlaces }) => {
-            const byCategory = getByCategory(destPlaces);
-            return (
-              <View key={dest.id} style={{ marginBottom: 12 }}>
-                {destinations.length > 1 && (
-                  <Text style={styles.destGroupLabel}>{dest.name}</Text>
-                )}
-                {Object.entries(byCategory).map(([catKey, catPlaces]) => (
-                  <View key={catKey}>
-                    <Text style={styles.catGroupLabel}>{CATEGORY_LABELS[catKey] || catKey}</Text>
-                    {catPlaces.map((place) => (
-                      <TouchableOpacity
-                        key={place.id}
-                        onPress={() => setSelectedPlace(place)}
-                        style={styles.myPlaceRow}
-                      >
-                        <View style={styles.myPlaceIcon}>
-                          <Ionicons name="location" size={14} color="#52B788" />
-                        </View>
-                        <Text style={styles.myPlaceName}>{place.name}</Text>
-                        <TouchableOpacity
-                          onPress={() => handleRemovePlace(place.id)}
-                          style={styles.removeBtn}
-                        >
-                          <Ionicons name="trash-outline" size={14} color="#E74C3C" />
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ))}
-              </View>
-            );
-          })}
+        {/* Category filter */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}
+          contentContainerStyle={{ gap: 6 }}>
+          {CATEGORIES.map((cat) => (
+            <TouchableOpacity
+              key={cat.key}
+              onPress={() => setActiveCategory(cat.key)}
+              style={[styles.catChip, activeCategory === cat.key && styles.catChipActive]}
+            >
+              <Ionicons name={cat.icon} size={12}
+                color={activeCategory === cat.key ? '#52B788' : 'rgba(245,240,232,0.45)'} />
+              <Text style={[styles.catChipText, activeCategory === cat.key && styles.catChipTextActive]}>
+                {cat.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
-          {filteredPlaces.length === 0 && (
-            <Text style={styles.emptyText}>Nenhum lugar encontrado com os filtros selecionados</Text>
-          )}
-        </View>
-      )}
-
-      {/* Search */}
-      <View style={[styles.searchRow, { backgroundColor: 'rgba(255,255,255,0.07)' }]}>
-        <Ionicons name="search-outline" size={16} color="rgba(245,240,232,0.4)" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar lugares..."
-          placeholderTextColor="rgba(245,240,232,0.4)"
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={16} color="rgba(245,240,232,0.4)" />
-          </TouchableOpacity>
+        {/* Grouped places */}
+        {Object.values(grouped).length > 0 ? (
+          Object.values(grouped).map(({ dest, byCategory }) => (
+            <View key={dest.id} style={{ marginBottom: 8 }}>
+              {destinations.length > 1 && (
+                <Text style={styles.destGroupLabel}>{dest.name}</Text>
+              )}
+              {Object.entries(byCategory).map(([catKey, catPlaces]) => (
+                <View key={catKey}>
+                  <Text style={styles.catGroupLabel}>{CATEGORY_LABELS[catKey] || catKey}</Text>
+                  {catPlaces.map((place) => (
+                    <MyPlaceRow
+                      key={place.id}
+                      place={place}
+                      onPress={() => setSelectedPlace(place)}
+                      onRemove={() => handleRemovePlace(place.id)}
+                    />
+                  ))}
+                </View>
+              ))}
+            </View>
+          ))
+        ) : (
+          <View style={styles.emptyMyPlaces}>
+            <Ionicons name="location-outline" size={24} color="rgba(245,240,232,0.2)" />
+            <Text style={styles.emptyMyPlacesText}>
+              {search ? 'Nenhum lugar encontrado' : 'Nenhum lugar adicionado ainda'}
+            </Text>
+          </View>
         )}
       </View>
 
-      {/* AI Suggestions per destination */}
-      <Text style={[styles.sectionHeader, { marginTop: 16 }]}>SUGESTÕES POR DESTINO</Text>
-      {destinations.map((dest) => (
-        <AIPlacesPanel
-          key={dest.id}
-          destination={dest}
-          tripId={tripId}
-          addedPlaces={places.filter((p) => p.destinationId === dest.id)}
-          onAdd={(place) => handleAddPlace({ ...place, destinationId: dest.id })}
-          onRemove={handleRemovePlace}
-        />
-      ))}
+      {/* ── BUSCAR / DISPONÍVEIS ── */}
+      <View style={styles.sectionBlock}>
+        <Text style={styles.sectionLabel}>DISPONÍVEIS</Text>
+
+        {/* Search */}
+        <View style={styles.searchRow}>
+          <Ionicons name="search-outline" size={16} color="rgba(245,240,232,0.4)" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar lugares..."
+            placeholderTextColor="rgba(245,240,232,0.35)"
+            value={search}
+            onChangeText={setSearch}
+            returnKeyType="search"
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Ionicons name="close-circle" size={16} color="rgba(245,240,232,0.4)" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* AI suggestions per destination */}
+        {destinations.map((dest) => (
+          <View key={dest.id} style={styles.destAiBlock}>
+            {destinations.length > 1 && (
+              <Text style={styles.destGroupLabel}>{dest.name}</Text>
+            )}
+            <AIPanel
+              destination={dest}
+              addedPlaces={places.filter((p) => p.destinationId === dest.id)}
+              onAdd={(place) => handleAddPlace({ ...place, destinationId: dest.id })}
+              onRemove={handleRemovePlace}
+              activeCategory={activeCategory}
+            />
+          </View>
+        ))}
+      </View>
 
       {/* Place detail modal */}
       {selectedPlace && (
@@ -530,295 +563,184 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  sectionHeader: {
+  sectionBlock: { marginBottom: 20 },
+  sectionLabel: {
     color: 'rgba(245,240,232,0.5)',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    marginBottom: 10,
-  },
-  destChip: {
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    marginRight: 8,
-  },
-  destChipText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  catScroll: {
-    marginBottom: 10,
-  },
-  catChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 8,
-  },
-  catChipText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  destGroupLabel: {
-    color: '#A8D5B5',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-    marginTop: 4,
-  },
-  catGroupLabel: {
-    color: 'rgba(245,240,232,0.4)',
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-    marginTop: 4,
-    textTransform: 'uppercase',
-  },
-  myPlaceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 6,
-    gap: 10,
-  },
-  myPlaceIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: 'rgba(82,183,136,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  myPlaceName: {
-    flex: 1,
-    color: '#F5F0E8',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  removeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(192,57,43,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
-    marginBottom: 4,
-  },
-  searchInput: {
-    flex: 1,
-    color: '#F5F0E8',
-    fontSize: 14,
-  },
-  emptyText: {
-    color: 'rgba(245,240,232,0.4)',
-    fontSize: 13,
-    textAlign: 'center',
-    paddingVertical: 12,
-  },
-  // AI Panel
-  aiPanel: {
-    borderRadius: 16,
-    padding: 14,
+    fontSize: 11, fontWeight: '700', letterSpacing: 1.5,
     marginBottom: 12,
   },
-  aiPanelHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
+
+  // Destination chips
+  destChip: {
+    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.07)',
   },
-  aiPanelTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  destChipActive: { backgroundColor: '#2D5A3D' },
+  destChipText: { fontSize: 13, fontWeight: '500', color: 'rgba(245,240,232,0.6)' },
+  destChipTextActive: { color: '#F5F0E8' },
+
+  // Category chips
+  catChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: 'transparent',
   },
-  aiPanelTitle: {
-    color: '#A8D5B5',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
+  catChipActive: { backgroundColor: 'rgba(82,183,136,0.15)', borderColor: '#52B788' },
+  catChipText: { fontSize: 12, fontWeight: '500', color: 'rgba(245,240,232,0.45)' },
+  catChipTextActive: { color: '#52B788' },
+
+  // Group labels
+  destGroupLabel: {
+    color: '#A8D5B5', fontSize: 12, fontWeight: '700',
+    letterSpacing: 0.5, marginBottom: 6, marginTop: 4,
   },
-  aiLoadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(82,183,136,0.2)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  catGroupLabel: {
+    color: 'rgba(245,240,232,0.35)', fontSize: 10, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4, marginTop: 8,
   },
-  aiLoadBtnText: {
-    color: '#A8D5B5',
-    fontSize: 12,
-    fontWeight: '600',
+
+  // My place row
+  myPlaceRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 12, padding: 10, marginBottom: 6, gap: 10,
   },
+  myPlaceThumb: { width: 40, height: 40, borderRadius: 8 },
+  myPlaceName: { flex: 1, color: '#F5F0E8', fontSize: 14, fontWeight: '500' },
+  removeBtn: {
+    width: 32, height: 32, borderRadius: 8,
+    backgroundColor: 'rgba(231,76,60,0.12)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  // Empty my places
+  emptyMyPlaces: { alignItems: 'center', paddingVertical: 20, gap: 6 },
+  emptyMyPlacesText: { color: 'rgba(245,240,232,0.35)', fontSize: 13 },
+
+  // Search
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    gap: 10, marginBottom: 16,
+  },
+  searchInput: { flex: 1, color: '#F5F0E8', fontSize: 14 },
+
+  // AI panel
+  destAiBlock: { marginBottom: 16 },
+  aiHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  aiHeaderText: { fontSize: 11, fontWeight: '700', color: '#52B788', letterSpacing: 0.5 },
   aiRefreshBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: 'rgba(82,183,136,0.12)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  aiEmptyText: {
-    color: 'rgba(245,240,232,0.4)',
-    fontSize: 13,
-    textAlign: 'center',
-    paddingVertical: 8,
-  },
-  placeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  aiEmptyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 10,
+  },
+  aiEmptyText: { flex: 1, color: 'rgba(245,240,232,0.4)', fontSize: 13 },
+  aiLoadBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#52B788', borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 6,
+  },
+  aiLoadBtnText: { fontSize: 12, fontWeight: '700', color: '#0F1F16' },
+
+  // Available place row
+  availRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 10, gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-    gap: 10,
+    borderBottomColor: 'rgba(255,255,255,0.07)',
   },
-  placeIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  placeInfo: {
-    flex: 1,
-  },
-  placeName: {
-    color: '#F5F0E8',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  placeDesc: {
-    color: 'rgba(245,240,232,0.5)',
-    fontSize: 12,
-    marginTop: 1,
-  },
+  availThumb: { width: 44, height: 44, borderRadius: 10 },
+  availInfo: { flex: 1 },
+  availName: { color: '#F5F0E8', fontSize: 14, fontWeight: '500' },
+  availDesc: { color: 'rgba(245,240,232,0.45)', fontSize: 12, marginTop: 2 },
   addChip: {
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: 'rgba(82,183,136,0.15)',
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: 'rgba(82,183,136,0.3)',
   },
-  addChipText: {
-    fontSize: 12,
-    fontWeight: '600',
+  addChipText: { fontSize: 12, fontWeight: '600', color: '#52B788' },
+  addedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(82,183,136,0.08)',
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6,
   },
+  addedBadgeText: { fontSize: 12, fontWeight: '600', color: '#52B788' },
+
   // Place Detail Modal
   modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    flex: 1, justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   detailSheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 12,
+    backgroundColor: '#1A2E22',
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
     paddingBottom: 32,
   },
   handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 12,
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignSelf: 'center', marginTop: 12, marginBottom: 0,
   },
-  placeImagePlaceholder: {
-    height: 160,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 20,
-    borderRadius: 16,
-    marginBottom: 16,
+  placePhoto: { height: 180, marginHorizontal: 16, borderRadius: 16, marginTop: 12 },
+  placePhotoPlaceholder: {
+    height: 180, marginHorizontal: 16, borderRadius: 16, marginTop: 12,
+    alignItems: 'center', justifyContent: 'center',
   },
-  detailContent: {
-    paddingHorizontal: 20,
-  },
+  detailContent: { paddingHorizontal: 20, paddingTop: 16 },
   closeBtn: {
-    position: 'absolute',
-    right: 20,
-    top: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'absolute', right: 20, top: 0,
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center', justifyContent: 'center',
   },
   detailName: {
-    fontSize: 22,
-    fontStyle: 'italic',
-    fontFamily: 'serif',
-    fontWeight: '600',
-    marginBottom: 4,
-    paddingRight: 40,
+    fontSize: 22, fontStyle: 'italic', fontWeight: '700',
+    color: '#F5F0E8', paddingRight: 40, lineHeight: 28,
+  },
+  detailCategory: {
+    fontSize: 13, color: 'rgba(245,240,232,0.5)', marginTop: 2, marginBottom: 12,
   },
   detailDesc: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 16,
+    fontSize: 14, color: 'rgba(245,240,232,0.7)', lineHeight: 20, marginBottom: 14,
   },
   detailRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 12,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12,
   },
   detailRowLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+    fontSize: 10, fontWeight: '700', letterSpacing: 0.5,
+    color: 'rgba(245,240,232,0.4)', textTransform: 'uppercase',
   },
-  detailRowValue: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  detailActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-    marginTop: 4,
-  },
+  detailRowValue: { fontSize: 14, color: '#F5F0E8', marginTop: 2 },
+  detailActions: { flexDirection: 'row', gap: 10, marginBottom: 14, marginTop: 4 },
   detailActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderRadius: 12,
-    paddingVertical: 12,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12, paddingVertical: 10,
   },
-  detailActionText: {
-    fontSize: 14,
-    fontWeight: '600',
+  detailActionText: { fontSize: 14, fontWeight: '600', color: '#F5F0E8' },
+  addActionBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#52B788', borderRadius: 14,
+    paddingVertical: 14, marginTop: 4,
   },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderRadius: 14,
-    paddingVertical: 14,
+  addActionText: { fontSize: 15, fontWeight: '700', color: '#0F1F16' },
+  removeActionBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: 'rgba(231,76,60,0.12)',
+    borderRadius: 14, paddingVertical: 14, marginTop: 4,
+    borderWidth: 1, borderColor: 'rgba(231,76,60,0.3)',
   },
-  addBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
+  removeActionText: { fontSize: 15, fontWeight: '700', color: '#E74C3C' },
 });

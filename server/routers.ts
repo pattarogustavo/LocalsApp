@@ -197,6 +197,8 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
           ? `\nLugares selecionados pelo usuário:\n${selectedPlaces.map((p) => `- ${p.name} (${p.category}) em ${p.destinationName}${p.hours ? `, horário: ${p.hours}` : ""}`).join("\n")}`
           : "\nUse sua expertise para sugerir os melhores lugares para visitar.";
 
+        const paceStops = preferences?.pace === 'relaxado' ? 3 : preferences?.pace === 'intenso' ? 6 : 4;
+
         const prompt = `Crie um roteiro de viagem dia a dia detalhado para ${totalDays} dias.
 
 Data de início: ${startDate}
@@ -204,22 +206,22 @@ Destinos: ${destSummary}
 ${placesSummary}
 
 Preferências:
-- Ritmo: ${preferences?.pace || "moderado"}
+- Ritmo: ${preferences?.pace || "moderado"} (${paceStops} paradas por dia)
 - Horário de acordar: ${preferences?.wakeUpTime || "08:00"}
-${preferences?.includeBreakfast !== false ? "- Incluir sugestão de café da manhã" : ""}
-${preferences?.includeLunch !== false ? "- Incluir sugestão de almoço" : ""}
-${preferences?.includeDinner !== false ? "- Incluir sugestão de jantar" : ""}
+${preferences?.includeBreakfast !== false ? "- Incluir café da manhã" : ""}
+${preferences?.includeLunch !== false ? "- Incluir almoço" : ""}
+${preferences?.includeDinner !== false ? "- Incluir jantar" : ""}
 
 Retorne um JSON com o array "days". Cada dia deve ter:
 - date: data no formato YYYY-MM-DD
 - destination: nome do destino
 - title: título do dia (ex: "Chegada em Paris — Torre Eiffel e Champs-Élysées")
-- morning: { time, activity, place, tip }
-- afternoon: { time, activity, place, tip }
-- evening: { time, activity, place, tip }
-- meals: { breakfast, lunch, dinner } (nomes de restaurantes/cafés sugeridos)
 - tips: dica do dia em 1 frase
-- estimatedCost: custo estimado do dia em USD`;
+- estimatedCost: custo estimado do dia em USD (número)
+- stops: array de paradas do dia, cada parada com:
+  { time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other), description, hours (horário de funcionamento), address, travelTimeToNext (ex: "15 min a pé"), travelModeToNext (walking|driving|transit) }
+
+Importante: inclua ${paceStops} paradas por dia. Distribua bem os horários ao longo do dia. Para restaurantes, use horários de refeição (08:00 café, 13:00 almoço, 20:00 jantar).`;
 
         const response = await invokeLLM({
           messages: [
