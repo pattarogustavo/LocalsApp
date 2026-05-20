@@ -110,3 +110,13 @@
 - [x] Link Google Maps com rota real entre paradas (tap no conector de trajeto)
 - [x] Ícone de transporte correto (a pé, carro, metrô, bicicleta) no conector de trajeto
 - [x] IA gera lat/lng reais para cada parada e usa cityTransportMode no prompt
+
+## Fase 9 — Transporte de Carro
+
+- [x] Modal de Carro: campos de endereço origem e destino
+- [x] Sugestão automática do hotel como endereço de origem/destino
+- [x] Campo de horário de chegada desejado com DateTimePickerField
+- [x] Botão "Calcular rota" via Google Directions com resultado de tempo e distância
+- [x] Cálculo do horário de saída = chegada desejada - tempo de percurso
+- [x] Notificação 1h antes do horário de saída calculado
+- [x] CarCard para exibir trajeto de carro com endereços, horários e duração

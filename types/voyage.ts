@@ -23,12 +23,24 @@ export interface FlightInfo {
   layovers?: string[];
 }
 
+export interface CarInfo {
+  originAddress: string;       // e.g. "Aeroporto de Guarulhos, SP"
+  destinationAddress: string;  // e.g. "Hotel Colosseo, Roma"
+  desiredArrivalTime: string;  // ISO datetime string
+  departureTime?: string;      // calculated: desiredArrivalTime - travelDuration
+  travelDuration?: string;     // e.g. "1h30"
+  travelDurationSeconds?: number;
+  distanceText?: string;       // e.g. "45 km"
+  mapsUrl?: string;            // Google Maps URL for the route
+}
+
 export interface Transport {
   id: string;
   mode: TransportMode;
   // Leg: which segment this transport covers (e.g. 'GRU → FCO', 'FCO → LHR')
   leg?: string;
   flight?: FlightInfo;
+  car?: CarInfo;               // car-specific details
   distance?: string;
   tolls?: string;
   travelTime?: string;

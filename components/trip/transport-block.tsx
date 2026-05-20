@@ -10,7 +10,9 @@ import { useTripsStore } from '@/store/trips';
 import { generateId } from '@/utils/trip-helpers';
 import { trpc } from '@/lib/trpc';
 import { DatePickerField } from '@/components/ui/date-picker-field';
-import type { Transport, TransportMode, CityTransportMode, Destination } from '@/types/voyage';
+import { DateTimePickerField } from '@/components/ui/datetime-picker-field';
+import * as Linking from 'expo-linking';
+import type { Transport, TransportMode, CityTransportMode, Destination, Accommodation, CarInfo } from '@/types/voyage';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -231,6 +233,76 @@ function FlightCard({
   );
 }
 
+// ─── Car Card ────────────────────────────────────────────────────────────────
+
+function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () => void }) {
+  const c = transport.car!;
+
+  const formatDT = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <View style={styles.carCard}>
+      {/* Top row */}
+      <View style={styles.flightCardTopRow}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={styles.modeIconBg}>
+            <Ionicons name="car-outline" size={14} color="#52B788" />
+          </View>
+          <Text style={styles.flightAirlineName}>{transport.leg || 'Carro'}</Text>
+        </View>
+        <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
+          <Ionicons name="trash-outline" size={14} color="rgba(245,240,232,0.35)" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Route */}
+      <View style={styles.carRouteRow}>
+        <View style={styles.carEndpoint}>
+          <Text style={styles.carEndpointLabel}>SAÍDA</Text>
+          <Text style={styles.carTime}>
+            {c.departureTime ? formatDT(c.departureTime) : '--:--'}
+          </Text>
+          <Text style={styles.carAddress} numberOfLines={2}>{c.originAddress}</Text>
+        </View>
+        <View style={styles.carMiddle}>
+          <View style={styles.carLineRow}>
+            <View style={styles.carLineDot} />
+            <View style={styles.carLineBar} />
+            <Ionicons name="car" size={14} color="rgba(245,240,232,0.5)" />
+            <View style={styles.carLineBar} />
+            <View style={styles.carLineDot} />
+          </View>
+          {c.travelDuration ? (
+            <Text style={styles.carDuration}>{c.travelDuration}</Text>
+          ) : null}
+          {c.distanceText ? (
+            <Text style={styles.carDistance}>{c.distanceText}</Text>
+          ) : null}
+        </View>
+        <View style={[styles.carEndpoint, { alignItems: 'flex-end' }]}>
+          <Text style={styles.carEndpointLabel}>CHEGADA</Text>
+          <Text style={styles.carTime}>{formatDT(c.desiredArrivalTime)}</Text>
+          <Text style={[styles.carAddress, { textAlign: 'right' }]} numberOfLines={2}>{c.destinationAddress}</Text>
+        </View>
+      </View>
+
+      {/* Footer: maps link */}
+      {c.mapsUrl ? (
+        <TouchableOpacity
+          style={styles.carMapsBtn}
+          onPress={() => Linking.openURL(c.mapsUrl!)}
+        >
+          <Ionicons name="map-outline" size={12} color="#52B788" />
+          <Text style={styles.carMapsBtnText}>Abrir no Google Maps</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
 function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: () => void }) {
   const modeInfo = BETWEEN_MODES.find((m) => m.key === transport.mode);
   return (
@@ -313,11 +385,13 @@ function AddTransportModal({
   onClose,
   onAdd,
   legs,
+  accommodations,
 }: {
   visible: boolean;
   onClose: () => void;
   onAdd: (t: Transport) => void;
   legs: string[];
+  accommodations: Accommodation[];
 }) {
   // Transport type
   const [mode, setMode] = useState<TransportMode>('flight');
@@ -348,8 +422,21 @@ function AddTransportModal({
   const [trainNumber, setTrainNumber] = useState('');
   const [platform, setPlatform] = useState('');
 
+  // Car-specific fields
+  const [carOrigin, setCarOrigin] = useState('');
+  const [carDest, setCarDest] = useState('');
+  const [carArrival, setCarArrival] = useState<Date | null>(null);
+  const [carRouteResult, setCarRouteResult] = useState<{ duration: string; durationSeconds: number; distance: string; mapsUrl: string } | null>(null);
+  const [carRouteSearched, setCarRouteSearched] = useState(false);
+  const [carRouteError, setCarRouteError] = useState('');
+  const [carNotifEnabled, setCarNotifEnabled] = useState(true);
+
   const lookupMutation = trpc.flights.lookup.useMutation();
   const searchByRouteMutation = trpc.flights.searchByRoute.useMutation();
+  const directionsQuery = trpc.directions.route.useQuery(
+    { origin: carOrigin.trim(), destination: carDest.trim(), mode: 'driving' },
+    { enabled: false }
+  );
 
   const isSearching = lookupMutation.isPending || searchByRouteMutation.isPending;
 
@@ -361,6 +448,39 @@ function AddTransportModal({
     setSelectedFlight(null); setSearchError('');
     setEnableNotifs(true);
     setTravelTime(''); setDistance(''); setTrainNumber(''); setPlatform('');
+    setCarOrigin(''); setCarDest(''); setCarArrival(null);
+    setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError('');
+    setCarNotifEnabled(true);
+  };
+
+  const handleCarRouteSearch = async () => {
+    const o = carOrigin.trim();
+    const d = carDest.trim();
+    if (!o || !d) { setCarRouteError('Informe o endereço de origem e destino.'); return; }
+    if (!carArrival) { setCarRouteError('Selecione o horário de chegada desejado.'); return; }
+    setCarRouteError('');
+    setCarRouteResult(null);
+    setCarRouteSearched(false);
+    try {
+      // Use fetch directly to call the tRPC query endpoint
+      const params = new URLSearchParams({ origin: o, destination: d, mode: 'driving' });
+      const res = await fetch(`/trpc/directions.route?input=${encodeURIComponent(JSON.stringify({ origin: o, destination: d, mode: 'driving' }))}`);
+      const json = await res.json();
+      const data = json?.result?.data;
+      if (data?.found && data.durationText) {
+        setCarRouteResult({
+          duration: data.durationText,
+          durationSeconds: data.durationSeconds || 0,
+          distance: data.distanceText || '',
+          mapsUrl: `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(o)}&destination=${encodeURIComponent(d)}&travelmode=driving`,
+        });
+        setCarRouteSearched(true);
+      } else {
+        setCarRouteError('Não foi possível calcular a rota. Verifique os endereços.');
+      }
+    } catch {
+      setCarRouteError('Erro ao calcular rota. Tente novamente.');
+    }
   };
 
   // Helper: format Date to YYYY-MM-DD for AviationStack
@@ -413,6 +533,26 @@ function AddTransportModal({
 
   const handleAdd = async () => {
     if (mode === 'flight' && !selectedFlight) return;
+    if (mode === 'car' && (!carOrigin.trim() || !carDest.trim() || !carArrival)) return;
+
+    let carInfo: CarInfo | undefined;
+    if (mode === 'car') {
+      const durationSec = carRouteResult?.durationSeconds || 0;
+      const depTime = durationSec > 0
+        ? new Date(carArrival!.getTime() - durationSec * 1000).toISOString()
+        : undefined;
+      carInfo = {
+        originAddress: carOrigin.trim(),
+        destinationAddress: carDest.trim(),
+        desiredArrivalTime: carArrival!.toISOString(),
+        departureTime: depTime,
+        travelDuration: carRouteResult?.duration,
+        travelDurationSeconds: durationSec || undefined,
+        distanceText: carRouteResult?.distance,
+        mapsUrl: carRouteResult?.mapsUrl,
+      };
+    }
+
     const t: Transport = {
       id: generateId(),
       mode,
@@ -434,6 +574,8 @@ function AddTransportModal({
           gate: selectedFlight.gate || undefined,
           status: (selectedFlight.status as any) || 'scheduled',
         },
+      } : mode === 'car' ? {
+        car: carInfo,
       } : {
         travelTime: travelTime || undefined,
         distance: distance || undefined,
@@ -441,12 +583,36 @@ function AddTransportModal({
         platform: platform || undefined,
       }),
     };
+
     if (mode === 'flight' && enableNotifs && selectedFlight?.departureTime) {
       try {
         const ids = await scheduleFlightNotifications(t);
         if (ids.length > 0) t.notificationIds = ids;
       } catch (_) {}
     }
+
+    // Car: schedule notification 1h before departure
+    if (mode === 'car' && carNotifEnabled && carInfo?.departureTime && Platform.OS !== 'web') {
+      try {
+        const granted = await requestNotifPermission();
+        if (granted) {
+          const depDate = new Date(carInfo.departureTime);
+          const alertDate = new Date(depDate.getTime() - 60 * 60 * 1000); // 1h before
+          if (alertDate > new Date()) {
+            const id = await Notifications.scheduleNotificationAsync({
+              content: {
+                title: '⏰ Hora de sair!',
+                body: `Saia em 1 hora para chegar a tempo: ${carInfo.destinationAddress}`,
+                data: { type: 'car_departure', transportId: t.id },
+              },
+              trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: alertDate },
+            });
+            t.notificationIds = [id];
+          }
+        }
+      } catch (_) {}
+    }
+
     onAdd(t);
     reset();
   };
@@ -685,8 +851,145 @@ function AddTransportModal({
                   </View>
                 )}
               </>
+            ) : mode === 'car' ? (
+              // ── Car mode ───────────────────────────────────────────────────────────
+              <>
+                {/* Origin */}
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={styles.inputLabel}>ENDEREÇO DE ORIGEM</Text>
+                  <TextInput
+                    value={carOrigin}
+                    onChangeText={(v) => { setCarOrigin(v); setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError(''); }}
+                    placeholder="Ex: Aeroporto de Guarulhos, SP"
+                    placeholderTextColor="rgba(245,240,232,0.25)"
+                    style={styles.textInput}
+                  />
+                  {/* Hotel suggestion */}
+                  {accommodations.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        {accommodations.filter(a => a.address).map((a) => (
+                          <TouchableOpacity
+                            key={a.id}
+                            style={styles.hotelSuggestionChip}
+                            onPress={() => setCarOrigin(a.address!)}
+                          >
+                            <Ionicons name="bed-outline" size={11} color="#52B788" />
+                            <Text style={styles.hotelSuggestionText} numberOfLines={1}>{a.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  )}
+                </View>
+
+                {/* Destination */}
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={styles.inputLabel}>ENDEREÇO DE DESTINO</Text>
+                  <TextInput
+                    value={carDest}
+                    onChangeText={(v) => { setCarDest(v); setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError(''); }}
+                    placeholder="Ex: Hotel Roma, Via Veneto 125"
+                    placeholderTextColor="rgba(245,240,232,0.25)"
+                    style={styles.textInput}
+                  />
+                  {accommodations.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                      <View style={{ flexDirection: 'row', gap: 6 }}>
+                        {accommodations.filter(a => a.address).map((a) => (
+                          <TouchableOpacity
+                            key={a.id}
+                            style={styles.hotelSuggestionChip}
+                            onPress={() => setCarDest(a.address!)}
+                          >
+                            <Ionicons name="bed-outline" size={11} color="#52B788" />
+                            <Text style={styles.hotelSuggestionText} numberOfLines={1}>{a.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  )}
+                </View>
+
+                {/* Arrival time */}
+                <DateTimePickerField
+                  label="HORÁRIO DE CHEGADA DESEJADO"
+                  value={carArrival}
+                  onChange={(d) => { setCarArrival(d); setCarRouteResult(null); setCarRouteSearched(false); }}
+                  hint="O app calculará quando você precisa sair"
+                />
+
+                {/* Calculate route button */}
+                {!carRouteSearched && (
+                  <TouchableOpacity
+                    style={[styles.lookupBtn, { marginBottom: 12 }]}
+                    onPress={handleCarRouteSearch}
+                  >
+                    <Ionicons name="navigate-outline" size={16} color="#0F1F16" />
+                    <Text style={[styles.lookupBtnText, { marginLeft: 6 }]}>Calcular rota</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Route error */}
+                {carRouteError ? (
+                  <View style={[styles.lookupErrorRow, { marginBottom: 12 }]}>
+                    <Ionicons name="alert-circle-outline" size={14} color="#EF4444" />
+                    <Text style={styles.lookupErrorText}>{carRouteError}</Text>
+                  </View>
+                ) : null}
+
+                {/* Route result */}
+                {carRouteSearched && carRouteResult && (
+                  <View style={styles.carRouteResultCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <Ionicons name="checkmark-circle" size={16} color="#52B788" />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#52B788' }}>Rota calculada</Text>
+                      <TouchableOpacity onPress={() => { setCarRouteResult(null); setCarRouteSearched(false); }} style={{ marginLeft: 'auto' }}>
+                        <Text style={{ fontSize: 12, color: 'rgba(245,240,232,0.4)', textDecorationLine: 'underline' }}>Recalcular</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 16 }}>
+                      <View style={{ alignItems: 'center', flex: 1 }}>
+                        <Text style={{ fontSize: 22, fontWeight: '800', color: '#F5F0E8' }}>{carRouteResult.duration}</Text>
+                        <Text style={{ fontSize: 11, color: 'rgba(245,240,232,0.45)', marginTop: 2 }}>Tempo estimado</Text>
+                      </View>
+                      {carRouteResult.distance ? (
+                        <View style={{ alignItems: 'center', flex: 1 }}>
+                          <Text style={{ fontSize: 22, fontWeight: '800', color: '#F5F0E8' }}>{carRouteResult.distance}</Text>
+                          <Text style={{ fontSize: 11, color: 'rgba(245,240,232,0.45)', marginTop: 2 }}>Distância</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    {carArrival && carRouteResult.durationSeconds > 0 && (
+                      <View style={{ marginTop: 12, padding: 10, backgroundColor: 'rgba(196,163,90,0.1)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(196,163,90,0.2)' }}>
+                        <Text style={{ fontSize: 12, color: '#C4A35A', fontWeight: '600' }}>
+                          ⏰ Sair às {new Date(carArrival.getTime() - carRouteResult.durationSeconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: 'rgba(245,240,232,0.45)', marginTop: 2 }}>Lembrete 1h antes da saída</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Notification toggle */}
+                {Platform.OS !== 'web' && (
+                  <TouchableOpacity
+                    style={styles.notifToggleRow}
+                    onPress={() => setCarNotifEnabled(!carNotifEnabled)}
+                  >
+                    <View style={[styles.notifToggleBox, carNotifEnabled && styles.notifToggleBoxActive]}>
+                      {carNotifEnabled && <Ionicons name="checkmark" size={13} color="#0F1F16" />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.notifToggleLabel}>Lembrete de saída</Text>
+                      <Text style={styles.notifToggleDesc}>Aviso 1 hora antes de precisar sair</Text>
+                    </View>
+                    <Ionicons name="notifications-outline" size={16} color="#C4A35A" />
+                  </TouchableOpacity>
+                )}
+              </>
             ) : (
-              // ── Non-flight modes ─────────────────────────────────────────────
+              // ── Non-flight, non-car modes ─────────────────────────────────────────────
               <>
                 <InputRow label="TEMPO DE VIAGEM" value={travelTime} onChange={setTravelTime} placeholder="2h30" />
                 <InputRow label="DISTÂNCIA (OPCIONAL)" value={distance} onChange={setDistance} placeholder="180 km" />
@@ -700,7 +1003,8 @@ function AddTransportModal({
             )}
 
             {/* Add button */}
-            {(mode !== 'flight' || selectedFlight) && (
+            {(mode !== 'flight' || selectedFlight) &&
+             (mode !== 'car' || (carOrigin.trim() && carDest.trim() && carArrival)) && (
               <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
                 <Text style={styles.addBtnText}>Adicionar</Text>
               </TouchableOpacity>
@@ -800,11 +1104,13 @@ export function TransportBlock({
   transports,
   destinations,
   cityTransportMode,
+  accommodations,
 }: {
   tripId: string;
   transports: Transport[];
   destinations: Destination[];
   cityTransportMode?: CityTransportMode;
+  accommodations?: Accommodation[];
 }) {
   const { addTransport, removeTransport, updateTransport } = useTripsStore();
   const [showModal, setShowModal] = useState(false);
@@ -961,6 +1267,8 @@ export function TransportBlock({
                           onAddBoardingPass={() => handleAddBoardingPass(t.id)}
                           onViewBoardingPass={() => setViewingBoardingPass(t)}
                         />
+                      ) : t.mode === 'car' && t.car ? (
+                        <CarCard key={t.id} transport={t} onRemove={() => handleRemove(t)} />
                       ) : (
                         <GenericCard key={t.id} transport={t} onRemove={() => handleRemove(t)} />
                       )
@@ -978,19 +1286,21 @@ export function TransportBlock({
                 <Text style={styles.legHeaderText}>Outros</Text>
               </View>
               <View style={{ gap: 10 }}>
-                {byLeg['Outros'].map((t) =>
-                  t.mode === 'flight' && t.flight ? (
-                    <FlightCard
-                      key={t.id}
-                      transport={t}
-                      onRemove={() => handleRemove(t)}
-                      onAddBoardingPass={() => handleAddBoardingPass(t.id)}
-                      onViewBoardingPass={() => setViewingBoardingPass(t)}
-                    />
-                  ) : (
-                    <GenericCard key={t.id} transport={t} onRemove={() => handleRemove(t)} />
-                  )
-                )}
+              {byLeg['Outros'].map((t) =>
+                t.mode === 'flight' && t.flight ? (
+                  <FlightCard
+                    key={t.id}
+                    transport={t}
+                    onRemove={() => handleRemove(t)}
+                    onAddBoardingPass={() => handleAddBoardingPass(t.id)}
+                    onViewBoardingPass={() => setViewingBoardingPass(t)}
+                  />
+                ) : t.mode === 'car' && t.car ? (
+                  <CarCard key={t.id} transport={t} onRemove={() => handleRemove(t)} />
+                ) : (
+                  <GenericCard key={t.id} transport={t} onRemove={() => handleRemove(t)} />
+                )
+              )}
               </View>
             </View>
           )}
@@ -1006,6 +1316,7 @@ export function TransportBlock({
         onClose={() => setShowModal(false)}
         onAdd={handleAdd}
         legs={legs}
+        accommodations={accommodations || []}
       />
 
       {viewingBoardingPass && viewingBoardingPass.boardingPassUri && (
@@ -1437,4 +1748,28 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: 'rgba(245,240,232,0.35)',
   },
+
+  // Car Card
+  carCard: { backgroundColor: '#0F1F16', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'rgba(82,183,136,0.18)' },
+  carRouteRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  carEndpoint: { flex: 1, alignItems: 'flex-start' },
+  carEndpointLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1.2, color: 'rgba(245,240,232,0.4)', marginBottom: 3 },
+  carTime: { fontSize: 14, fontWeight: '700', color: '#F5F0E8', lineHeight: 18 },
+  carAddress: { fontSize: 10, color: 'rgba(245,240,232,0.45)', marginTop: 3, lineHeight: 14 },
+  carMiddle: { flex: 1, alignItems: 'center', gap: 4, paddingHorizontal: 4 },
+  carLineRow: { flexDirection: 'row', alignItems: 'center', width: '100%', gap: 2 },
+  carLineDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'rgba(245,240,232,0.4)' },
+  carLineBar: { flex: 1, height: 1, backgroundColor: 'rgba(245,240,232,0.2)' },
+  carDuration: { fontSize: 11, color: 'rgba(245,240,232,0.5)' },
+  carDistance: { fontSize: 10, color: 'rgba(245,240,232,0.35)' },
+  carMapsBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: 'rgba(82,183,136,0.1)', borderRadius: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)' },
+  carMapsBtnText: { fontSize: 12, color: '#52B788', fontWeight: '600' },
+
+  // Car route result card
+  carRouteResultCard: { backgroundColor: 'rgba(82,183,136,0.06)', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: 'rgba(82,183,136,0.15)', marginBottom: 14 },
+
+  // Hotel suggestion chips
+  hotelSuggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(82,183,136,0.1)', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)' },
+  hotelSuggestionText: { fontSize: 11, color: '#52B788', fontWeight: '600', maxWidth: 120 },
 });
+

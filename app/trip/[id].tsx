@@ -560,6 +560,7 @@ function TransportTab({ trip }: { trip: any }) {
         transports={trip.transport}
         destinations={trip.destinations}
         cityTransportMode={trip.cityTransportMode}
+        accommodations={trip.accommodations}
       />
       {trip.transport.length === 0 && (
         <View style={styles.emptyState}>
