@@ -16,7 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTripsStore } from '@/store/trips';
-import { getTripName, formatDate, getCurrencySymbol } from '@/utils/trip-helpers';
+import { getTripName, formatDate, getCurrencySymbol, getTripCurrencies } from '@/utils/trip-helpers';
 import { TransportBlock } from '@/components/trip/transport-block';
 import { DocumentsBlock } from '@/components/trip/documents-block';
 import { ExpensesBlock } from '@/components/trip/expenses-block';
@@ -360,24 +360,25 @@ export default function TripDetailScreen() {
                   <Ionicons name="chevron-back" size={20} color="#fff" />
                 </TouchableOpacity>
 
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {/* Currency badge */}
-                  <View style={styles.currencyBadge}>
-                    <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>
-                      {getCurrencySymbol(trip.currency)}
-                    </Text>
-                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
-                      {trip.currency}
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={handleDelete} style={[styles.heroBtn, { backgroundColor: 'rgba(192,57,43,0.5)' }]}>
-                    <Ionicons name="trash-outline" size={16} color="#fff" />
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity onPress={handleDelete} style={[styles.heroBtn, { backgroundColor: 'rgba(192,57,43,0.5)' }]}>
+                  <Ionicons name="trash-outline" size={16} color="#fff" />
+                </TouchableOpacity>
               </View>
 
-              {/* Trip title */}
-              <Text style={styles.heroTitle}>{tripName}</Text>
+              {/* Trip title row with currency badges */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={[styles.heroTitle, { flex: 1, marginBottom: 0, marginRight: 8 }]}>{tripName}</Text>
+                {/* Currency badges — one per unique currency across all destinations */}
+                <View style={{ flexDirection: 'row', gap: 6, flexShrink: 0, alignItems: 'center', paddingBottom: 2 }}>
+                  {getTripCurrencies(trip.destinations).map((c) => (
+                    <View key={c.currency} style={styles.currencyBadge}>
+                      <Text style={{ fontSize: 14, lineHeight: 18 }}>{c.flag}</Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '500' }}>{c.symbol}</Text>
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>{c.currency}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
               <Text style={styles.heroSubtitle}>{countryName}</Text>
             </LinearGradient>
           </ImageBackground>
@@ -556,11 +557,13 @@ const styles = StyleSheet.create({
   currencyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    gap: 3,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   heroTitle: {
     color: '#F5F0E8',
