@@ -211,7 +211,8 @@ export const appRouter = router({
   // ─── Google Places Proxy ───────────────────────────────────────────────────
   places: router({
     /**
-     * Autocomplete cities and countries only.
+     * Autocomplete cities, countries, islands and regions.
+     * Uses geocode type to support (cities), countries, islands (e.g. Mallorca, Ibiza, Santorini).
      * Returns structured predictions with placeId, name, country, lat, lng.
      */
     autocomplete: publicProcedure
@@ -219,21 +220,48 @@ export const appRouter = router({
       .query(async ({ input }) => {
         if (!GOOGLE_PLACES_KEY) return { predictions: [] };
 
-        const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
-        url.searchParams.set("input", input.query);
-        url.searchParams.set("types", "(cities)");
-        url.searchParams.set("language", "pt-BR");
-        url.searchParams.set("key", GOOGLE_PLACES_KEY);
+        // Run two parallel requests:
+        // 1. (cities) — cities and localities (most common)
+        // 2. geocode — broader: countries, islands, regions, natural features
+        const makeUrl = (types: string) => {
+          const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
+          url.searchParams.set("input", input.query);
+          url.searchParams.set("types", types);
+          url.searchParams.set("language", "pt-BR");
+          url.searchParams.set("key", GOOGLE_PLACES_KEY!);
+          return url.toString();
+        };
 
-        const res = await fetch(url.toString());
-        const data = (await res.json()) as any;
+        const [resCities, resGeocode] = await Promise.all([
+          fetch(makeUrl("(cities)")),
+          fetch(makeUrl("geocode")),
+        ]);
+        const [dataCities, dataGeocode] = await Promise.all([
+          resCities.json() as Promise<any>,
+          resGeocode.json() as Promise<any>,
+        ]);
 
-        if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-          return { predictions: [] };
+        // Merge results, deduplicate by placeId, cities first
+        const seen = new Set<string>();
+        const merged: any[] = [];
+        for (const p of [...(dataCities.predictions || []), ...(dataGeocode.predictions || [])]) {
+          if (!seen.has(p.place_id)) {
+            seen.add(p.place_id);
+            // Filter to relevant types: locality, sublocality, country, natural_feature, archipelago, island
+            const types: string[] = p.types || [];
+            const relevant = types.some((t: string) =>
+              ["locality", "sublocality", "administrative_area_level_1",
+               "administrative_area_level_2", "country", "natural_feature",
+               "archipelago", "island", "political"].includes(t)
+            );
+            if (relevant || dataCities.predictions?.includes(p)) {
+              merged.push(p);
+            }
+          }
         }
 
         return {
-          predictions: (data.predictions || []).map((p: any) => ({
+          predictions: merged.slice(0, 8).map((p: any) => ({
             placeId: p.place_id,
             name: p.structured_formatting?.main_text || p.description,
             fullDescription: p.description,
