@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { z } from "zod";
+import { searchIslands } from "../constants/islands-regions";
 
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
@@ -241,33 +242,51 @@ export const appRouter = router({
           resGeocode.json() as Promise<any>,
         ]);
 
-        // Merge results, deduplicate by placeId, cities first
+        // 1. Merge Google results, deduplicate by placeId, cities first
         const seen = new Set<string>();
-        const merged: any[] = [];
+        const googleMerged: any[] = [];
         for (const p of [...(dataCities.predictions || []), ...(dataGeocode.predictions || [])]) {
           if (!seen.has(p.place_id)) {
             seen.add(p.place_id);
-            // Filter to relevant types: locality, sublocality, country, natural_feature, archipelago, island
             const types: string[] = p.types || [];
             const relevant = types.some((t: string) =>
               ["locality", "sublocality", "administrative_area_level_1",
                "administrative_area_level_2", "country", "natural_feature",
                "archipelago", "island", "political"].includes(t)
             );
-            if (relevant || dataCities.predictions?.includes(p)) {
-              merged.push(p);
-            }
+            if (relevant) googleMerged.push(p);
           }
         }
 
-        return {
-          predictions: merged.slice(0, 8).map((p: any) => ({
-            placeId: p.place_id,
-            name: p.structured_formatting?.main_text || p.description,
-            fullDescription: p.description,
-            country: p.structured_formatting?.secondary_text || "",
-          })),
-        };
+        // 2. Search local islands/regions database
+        const islandMatches = searchIslands(input.query);
+        const islandPredictions = islandMatches.map((island) => ({
+          placeId: `island:${island.id}`,
+          name: island.name,
+          fullDescription: island.fullDescription,
+          country: island.country,
+          lat: island.lat,
+          lng: island.lng,
+          isIsland: true,
+        }));
+
+        // 3. Combine: islands first (exact matches), then Google results
+        const googlePredictions = googleMerged.slice(0, 6).map((p: any) => ({
+          placeId: p.place_id,
+          name: p.structured_formatting?.main_text || p.description,
+          fullDescription: p.description,
+          country: p.structured_formatting?.secondary_text || "",
+        }));
+
+        // Deduplicate islands vs google (avoid showing both "Ibiza" entries)
+        const islandNames = new Set(islandPredictions.map((i) => i.name.toLowerCase()));
+        const filteredGoogle = googlePredictions.filter(
+          (p) => !islandNames.has(p.name.toLowerCase())
+        );
+
+        const combined = [...islandPredictions, ...filteredGoogle].slice(0, 8);
+
+        return { predictions: combined };
       }),
 
     /**
@@ -276,6 +295,22 @@ export const appRouter = router({
     details: publicProcedure
       .input(z.object({ placeId: z.string() }))
       .query(async ({ input }) => {
+        // Handle local island entries (placeId starts with "island:")
+        if (input.placeId.startsWith("island:")) {
+          const islandId = input.placeId.replace("island:", "");
+          const { ISLANDS_AND_REGIONS } = await import("../constants/islands-regions");
+          const island = ISLANDS_AND_REGIONS.find((i) => i.id === islandId);
+          if (island) {
+            return {
+              lat: island.lat,
+              lng: island.lng,
+              imageUrl: undefined,
+              country: island.country.split(",").pop()?.trim() || island.country,
+            };
+          }
+          return null;
+        }
+
         if (!GOOGLE_PLACES_KEY) return null;
 
         const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
