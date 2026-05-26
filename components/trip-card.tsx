@@ -114,16 +114,12 @@ interface TripCardStackedProps {
 /**
  * True Apple Wallet stack:
  * - All cards are absolutely positioned on top of each other.
- * - Only PEEK_HEIGHT of each card is visible (the top strip).
- * - The last (bottom) card is fully visible.
- * - Tapping a peek strip brings that card to the active position (bottom).
- * - The container height = (n-1) * PEEK_HEIGHT + CARD_HEIGHT.
+ * - Only PEEK_HEIGHT of each card's top strip is visible (except the last card).
+ * - The last card is fully visible at the bottom.
+ * - Tapping any card opens it directly — no deck reorganization.
+ * - Container height = (n-1) * PEEK_HEIGHT + CARD_HEIGHT.
  */
 export function TripCardStacked({ trips, onPressTrip }: TripCardStackedProps) {
-  // activeIndex = which card is "on top" / fully expanded
-  // We start with the last card expanded (index = trips.length - 1)
-  const [activeIndex, setActiveIndex] = useState(trips.length - 1);
-
   if (trips.length === 0) return null;
   if (trips.length === 1) {
     return (
@@ -132,19 +128,6 @@ export function TripCardStacked({ trips, onPressTrip }: TripCardStackedProps) {
       </View>
     );
   }
-
-  const handlePeekPress = (index: number) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setActiveIndex(index);
-  };
-
-  // Build display order: cards are rendered back-to-front (index 0 at back).
-  // Each card i gets a top offset = i * PEEK_HEIGHT.
-  // The active card gets top = activeIndex * PEEK_HEIGHT (same formula).
-  // Cards after activeIndex are hidden behind the active card.
-  //
-  // Visual order (zIndex): card 0 has lowest zIndex, last card highest.
-  // But we want the active card on top → give it the highest zIndex.
 
   const n = trips.length;
   // Total container height: all peeks + one full card
@@ -160,32 +143,19 @@ export function TripCardStacked({ trips, onPressTrip }: TripCardStackedProps) {
           const dateRange = `${formatDate(trip.startDate, 'short')} – ${formatDate(trip.endDate, 'short')}`;
           const destNames = trip.destinations.map((d) => d.name).join(' · ');
 
-          // Cards before activeIndex: stacked at their natural position
-          // Active card: sits at activeIndex * PEEK_HEIGHT
-          // Cards after activeIndex: hidden behind active card (same top as active)
-          let topOffset: number;
-          if (idx <= activeIndex) {
-            topOffset = idx * PEEK_HEIGHT;
-          } else {
-            // Push cards after active behind the active card (not visible)
-            topOffset = activeIndex * PEEK_HEIGHT;
-          }
+          // Each card sits at its natural stacked position — never moves
+          const topOffset = idx * PEEK_HEIGHT;
 
-          // zIndex: active card is on top, others below in order
-          const zIndex = idx === activeIndex ? n + 10 : idx;
-
-          const isActive = idx === activeIndex;
+          // zIndex: higher index = visually on top (later cards cover earlier ones)
+          const zIndex = idx;
 
           return (
             <TouchableOpacity
               key={trip.id}
-              activeOpacity={isActive ? 0.93 : 0.85}
+              activeOpacity={0.88}
               onPress={() => {
-                if (isActive) {
-                  onPressTrip(trip);
-                } else {
-                  handlePeekPress(idx);
-                }
+                // Always open the trip directly — no deck reorganization
+                onPressTrip(trip);
               }}
               style={[
                 styles.card,
@@ -195,7 +165,6 @@ export function TripCardStacked({ trips, onPressTrip }: TripCardStackedProps) {
                   left: 0,
                   right: 0,
                   zIndex,
-                  // Only show full card height for active; others are clipped by cards on top
                   height: CARD_HEIGHT,
                 },
               ]}
