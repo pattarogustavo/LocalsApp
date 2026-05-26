@@ -409,28 +409,30 @@ export default function TripDetailScreen() {
         </View>
 
         {/* Action buttons row: Data + Destinos */}
-        <View style={[styles.actionBtnRow, { backgroundColor: '#0F1F16' }]}>
-          <TouchableOpacity
-            onPress={() => setShowEditDate(true)}
-            style={styles.actionBtn}
-          >
-            <Ionicons name="calendar-outline" size={14} color="#A8D5B5" />
-            <Text style={styles.actionBtnText}>Data</Text>
-            <Text style={styles.actionBtnValue}>{formatDateDisplay(trip.startDate)}</Text>
-          </TouchableOpacity>
+        <View style={{ paddingHorizontal: 16, marginTop: 12, marginBottom: 4 }}>
+          <View style={styles.actionBtnRow}>
+            <TouchableOpacity
+              onPress={() => setShowEditDate(true)}
+              style={styles.actionBtn}
+            >
+              <Ionicons name="calendar-outline" size={14} color="#A8D5B5" />
+              <Text style={styles.actionBtnText}>Data</Text>
+              <Text style={styles.actionBtnValue} numberOfLines={1}>{formatDateDisplay(trip.startDate)}</Text>
+            </TouchableOpacity>
 
-          <View style={styles.actionBtnDivider} />
+            <View style={styles.actionBtnDivider} />
 
-          <TouchableOpacity
-            onPress={() => setShowEditDests(true)}
-            style={styles.actionBtn}
-          >
-            <Ionicons name="location-outline" size={14} color="#A8D5B5" />
-            <Text style={styles.actionBtnText}>Destinos</Text>
-            <Text style={styles.actionBtnValue} numberOfLines={1}>
-              {trip.destinations.map((d) => d.name).join(', ')}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowEditDests(true)}
+              style={styles.actionBtn}
+            >
+              <Ionicons name="location-outline" size={14} color="#A8D5B5" />
+              <Text style={styles.actionBtnText}>Destinos</Text>
+              <Text style={styles.actionBtnValue} numberOfLines={1}>
+                {trip.destinations.map((d) => d.name).join(', ')}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Tabs - sticky */}
@@ -624,9 +626,6 @@ const styles = StyleSheet.create({
   // Action buttons row
   actionBtnRow: {
     flexDirection: 'row',
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
     borderRadius: 14,
     overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.07)',
