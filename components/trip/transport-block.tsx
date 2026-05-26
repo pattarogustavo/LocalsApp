@@ -1721,7 +1721,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(82,183,136,0.15)',
     marginBottom: 16,
-    alignItems: 'center',
+    alignSelf: 'stretch',
     gap: 6,
   },
   lookupIcon: {

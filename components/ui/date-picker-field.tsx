@@ -217,6 +217,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 32,
+    alignItems: 'stretch',
   },
   iosSheetHeader: {
     flexDirection: 'row',
@@ -238,5 +239,7 @@ const styles = StyleSheet.create({
   },
   iosPicker: {
     height: 200,
+    width: '100%',
+    alignSelf: 'center',
   },
 });
