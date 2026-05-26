@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ImageBackground,
   Dimensions,
   StyleSheet,
-  Animated,
   LayoutAnimation,
   Platform,
   UIManager,
@@ -14,19 +13,19 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import type { Trip } from '@/types/voyage';
-import { getTripBadge, getTripName, formatDate, getTotalSpots } from '@/utils/trip-helpers';
+import { getTripBadge, getTripName, formatDate } from '@/utils/trip-helpers';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-// Full card dimensions
+// Credit-card proportions: 85.6mm × 53.98mm → ratio ~1.586
 export const CARD_WIDTH = width - 32;
-export const CARD_HEIGHT = Math.round(height * 0.52);
+export const CARD_HEIGHT = Math.round(CARD_WIDTH / 1.586); // ~200px on 375px screen
 
-// How much of each stacked card is visible (the "peek" header strip)
+// How much of each card sticks out above the one in front of it
 const PEEK_HEIGHT = 64;
 
 const DESTINATION_IMAGES: Record<string, string> = {
@@ -61,7 +60,7 @@ function getImageForTrip(trip: Trip): string {
   return DESTINATION_IMAGES.default;
 }
 
-// ─── Single full card (used when expanded) ────────────────────────────────────
+// ─── Standalone TripCard (used outside of stacked context) ───────────────────
 
 interface TripCardProps {
   trip: Trip;
@@ -77,33 +76,22 @@ export function TripCard({ trip, onPress, style }: TripCardProps) {
   const destNames = trip.destinations.map((d) => d.name).join(' · ');
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.93}
-      style={[styles.card, style]}
-    >
-      <ImageBackground
-        source={{ uri: imageUrl }}
-        style={styles.image}
-        imageStyle={styles.imageStyle}
-      >
+    <TouchableOpacity onPress={onPress} activeOpacity={0.93} style={[styles.card, style]}>
+      <ImageBackground source={{ uri: imageUrl }} style={styles.image} imageStyle={styles.imageStyle}>
         <LinearGradient
-          colors={['rgba(0,0,0,0.52)', 'transparent', 'rgba(0,0,0,0.55)']}
+          colors={['rgba(0,0,0,0.55)', 'transparent', 'rgba(0,0,0,0.6)']}
           style={styles.gradient}
         >
-          {/* Top row: date (left) + destinations (right) */}
           <View style={styles.topRow}>
-            <View style={styles.dateBadge}>
+            <View style={styles.infoBadge}>
               <Ionicons name="calendar-outline" size={11} color="rgba(255,255,255,0.9)" />
-              <Text style={styles.dateText}>{dateRange}</Text>
+              <Text style={styles.infoText}>{dateRange}</Text>
             </View>
-            <View style={styles.destBadge}>
+            <View style={[styles.infoBadge, { flexShrink: 1, maxWidth: '55%' }]}>
               <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.9)" />
-              <Text style={styles.destText} numberOfLines={1}>{destNames}</Text>
+              <Text style={styles.infoText} numberOfLines={1}>{destNames}</Text>
             </View>
           </View>
-
-          {/* Bottom: trip name + status badge */}
           <View style={styles.bottomRow}>
             <Text style={styles.tripName} numberOfLines={2}>{name}</Text>
             <View style={styles.badgePill}>
@@ -124,22 +112,22 @@ interface TripCardStackedProps {
 }
 
 /**
- * Apple Wallet-style stacked card deck.
- *
- * - Cards are stacked: only PEEK_HEIGHT of each card is visible (except the bottom/active card).
- * - Tapping a peek strip brings that card to the front (expands it).
- * - The bottom card is always fully expanded.
- * - Layout matches the reference image: stacked headers at top, full card at bottom.
+ * True Apple Wallet stack:
+ * - All cards are absolutely positioned on top of each other.
+ * - Only PEEK_HEIGHT of each card is visible (the top strip).
+ * - The last (bottom) card is fully visible.
+ * - Tapping a peek strip brings that card to the active position (bottom).
+ * - The container height = (n-1) * PEEK_HEIGHT + CARD_HEIGHT.
  */
 export function TripCardStacked({ trips, onPressTrip }: TripCardStackedProps) {
+  // activeIndex = which card is "on top" / fully expanded
+  // We start with the last card expanded (index = trips.length - 1)
   const [activeIndex, setActiveIndex] = useState(trips.length - 1);
 
   if (trips.length === 0) return null;
-
-  // Single card — just render normally
   if (trips.length === 1) {
     return (
-      <View style={styles.listContainer}>
+      <View style={{ paddingHorizontal: 16 }}>
         <TripCard trip={trips[0]} onPress={() => onPressTrip(trips[0])} />
       </View>
     );
@@ -150,201 +138,133 @@ export function TripCardStacked({ trips, onPressTrip }: TripCardStackedProps) {
     setActiveIndex(index);
   };
 
-  // Build the visual order:
-  // Cards above the active one show as peek strips (top portion visible).
-  // The active card is fully expanded at the bottom.
-  // Cards below the active one are hidden behind the active card.
+  // Build display order: cards are rendered back-to-front (index 0 at back).
+  // Each card i gets a top offset = i * PEEK_HEIGHT.
+  // The active card gets top = activeIndex * PEEK_HEIGHT (same formula).
+  // Cards after activeIndex are hidden behind the active card.
+  //
+  // Visual order (zIndex): card 0 has lowest zIndex, last card highest.
+  // But we want the active card on top → give it the highest zIndex.
 
-  // We show: all cards from 0..activeIndex as peek strips (stacked),
-  // then the active card fully expanded.
-  const peekCards = trips.slice(0, activeIndex);
-  const activeTrip = trips[activeIndex];
+  const n = trips.length;
+  // Total container height: all peeks + one full card
+  const containerHeight = (n - 1) * PEEK_HEIGHT + CARD_HEIGHT;
 
   return (
-    <View style={styles.listContainer}>
-      <View style={styles.walletContainer}>
-        {/* Peek strips for cards above the active one */}
-        {peekCards.map((trip, idx) => {
+    <View style={{ paddingHorizontal: 16 }}>
+      <View style={{ height: containerHeight, position: 'relative' }}>
+        {trips.map((trip, idx) => {
           const imageUrl = getImageForTrip(trip);
           const name = getTripName(trip);
           const badge = getTripBadge(trip);
           const dateRange = `${formatDate(trip.startDate, 'short')} – ${formatDate(trip.endDate, 'short')}`;
           const destNames = trip.destinations.map((d) => d.name).join(' · ');
 
+          // Cards before activeIndex: stacked at their natural position
+          // Active card: sits at activeIndex * PEEK_HEIGHT
+          // Cards after activeIndex: hidden behind active card (same top as active)
+          let topOffset: number;
+          if (idx <= activeIndex) {
+            topOffset = idx * PEEK_HEIGHT;
+          } else {
+            // Push cards after active behind the active card (not visible)
+            topOffset = activeIndex * PEEK_HEIGHT;
+          }
+
+          // zIndex: active card is on top, others below in order
+          const zIndex = idx === activeIndex ? n + 10 : idx;
+
+          const isActive = idx === activeIndex;
+
           return (
             <TouchableOpacity
               key={trip.id}
-              activeOpacity={0.85}
-              onPress={() => handlePeekPress(idx)}
-              style={styles.peekCard}
+              activeOpacity={isActive ? 0.93 : 0.85}
+              onPress={() => {
+                if (isActive) {
+                  onPressTrip(trip);
+                } else {
+                  handlePeekPress(idx);
+                }
+              }}
+              style={[
+                styles.card,
+                {
+                  position: 'absolute',
+                  top: topOffset,
+                  left: 0,
+                  right: 0,
+                  zIndex,
+                  // Only show full card height for active; others are clipped by cards on top
+                  height: CARD_HEIGHT,
+                },
+              ]}
             >
               <ImageBackground
                 source={{ uri: imageUrl }}
-                style={StyleSheet.absoluteFill}
-                imageStyle={{ borderRadius: 20 }}
+                style={styles.image}
+                imageStyle={styles.imageStyle}
               >
                 <LinearGradient
-                  colors={['rgba(0,0,0,0.65)', 'rgba(0,0,0,0.3)']}
-                  style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
-                />
+                  colors={['rgba(0,0,0,0.60)', 'rgba(0,0,0,0.15)', 'rgba(0,0,0,0.65)']}
+                  style={styles.gradient}
+                >
+                  {/* Top peek area: name left, badge right */}
+                  <View style={styles.topRow}>
+                    <Text style={styles.tripName} numberOfLines={1}>{name}</Text>
+                    <View style={styles.badgePill}>
+                      <Text style={styles.badgeText}>{badge}</Text>
+                    </View>
+                  </View>
+
+                  {/* Second line: date + destination (always in peek area) */}
+                  <View style={styles.peekSecondLine}>
+                    <View style={styles.peekInfoItem}>
+                      <Ionicons name="calendar-outline" size={10} color="rgba(255,255,255,0.75)" />
+                      <Text style={styles.peekInfoText}>{dateRange}</Text>
+                    </View>
+                    <View style={styles.peekInfoItem}>
+                      <Ionicons name="location-outline" size={10} color="rgba(255,255,255,0.75)" />
+                      <Text style={styles.peekInfoText} numberOfLines={1}>{destNames}</Text>
+                    </View>
+                  </View>
+                </LinearGradient>
               </ImageBackground>
-              {/* Peek content: name left, badge right */}
-              <View style={styles.peekContent}>
-                <Text style={styles.peekName} numberOfLines={1}>{name}</Text>
-                <View style={styles.peekBadge}>
-                  <Text style={styles.peekBadgeText}>{badge}</Text>
-                </View>
-              </View>
-              {/* Second line: date + destination */}
-              <View style={styles.peekSecondLine}>
-                <View style={styles.peekInfoItem}>
-                  <Ionicons name="calendar-outline" size={10} color="rgba(255,255,255,0.7)" />
-                  <Text style={styles.peekInfoText}>{dateRange}</Text>
-                </View>
-                <View style={styles.peekInfoItem}>
-                  <Ionicons name="location-outline" size={10} color="rgba(255,255,255,0.7)" />
-                  <Text style={styles.peekInfoText} numberOfLines={1}>{destNames}</Text>
-                </View>
-              </View>
             </TouchableOpacity>
           );
         })}
-
-        {/* Active (expanded) card */}
-        <TouchableOpacity
-          activeOpacity={0.93}
-          onPress={() => onPressTrip(activeTrip)}
-          style={styles.card}
-        >
-          <ImageBackground
-            source={{ uri: getImageForTrip(activeTrip) }}
-            style={styles.image}
-            imageStyle={styles.imageStyle}
-          >
-            <LinearGradient
-              colors={['rgba(0,0,0,0.52)', 'transparent', 'rgba(0,0,0,0.55)']}
-              style={styles.gradient}
-            >
-              {/* Top row */}
-              <View style={styles.topRow}>
-                <View style={styles.dateBadge}>
-                  <Ionicons name="calendar-outline" size={11} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.dateText}>
-                    {formatDate(activeTrip.startDate, 'short')} – {formatDate(activeTrip.endDate, 'short')}
-                  </Text>
-                </View>
-                <View style={styles.destBadge}>
-                  <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.destText} numberOfLines={1}>
-                    {activeTrip.destinations.map((d) => d.name).join(' · ')}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Bottom: name + badge */}
-              <View style={styles.bottomRow}>
-                <Text style={styles.tripName} numberOfLines={2}>{getTripName(activeTrip)}</Text>
-                <View style={styles.badgePill}>
-                  <Text style={styles.badgeText}>{getTripBadge(activeTrip)}</Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </ImageBackground>
-        </TouchableOpacity>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  listContainer: {
-    paddingHorizontal: 16,
-  },
-  walletContainer: {
-    // No extra padding — cards manage their own spacing
-  },
-
-  // ── Peek strip ──────────────────────────────────────────────────────────────
-  peekCard: {
-    width: CARD_WIDTH,
-    height: PEEK_HEIGHT,
-    borderRadius: 20,
-    overflow: 'hidden',
-    alignSelf: 'center',
-    marginBottom: 4,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  peekContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  peekName: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 8,
-  },
-  peekBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  peekBadgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  peekSecondLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  peekInfoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  peekInfoText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
-  },
-
-  // ── Full card ───────────────────────────────────────────────────────────────
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    borderRadius: 24,
+    borderRadius: 20,
     overflow: 'hidden',
     alignSelf: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 8,
   },
   image: {
     flex: 1,
   },
   imageStyle: {
-    borderRadius: 24,
+    borderRadius: 20,
   },
   gradient: {
     flex: 1,
-    borderRadius: 24,
-    padding: 18,
-    justifyContent: 'space-between',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 16,
+    justifyContent: 'flex-start',
+    gap: 6,
   },
   topRow: {
     flexDirection: 'row',
@@ -352,21 +272,45 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
-  dateBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.38)',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  dateText: {
+  tripName: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 16,
+    fontFamily: 'serif',
+    fontStyle: 'italic',
+    fontWeight: '700',
+    flex: 1,
+    lineHeight: 20,
   },
-  destBadge: {
+  badgePill: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    flexShrink: 0,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  peekSecondLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  peekInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  peekInfoText: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 11,
+  },
+  // Legacy standalone card styles (used by TripCard export)
+  infoBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -374,10 +318,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    flexShrink: 1,
-    maxWidth: '60%',
   },
-  destText: {
+  infoText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: '500',
@@ -387,28 +329,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-  },
-  tripName: {
-    color: '#fff',
-    fontSize: 22,
-    fontFamily: 'serif',
-    fontStyle: 'italic',
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 8,
-    lineHeight: 28,
-  },
-  badgePill: {
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
+    marginTop: 'auto' as any,
   },
 });
