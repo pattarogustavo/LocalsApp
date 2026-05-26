@@ -1,24 +1,45 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ImageBackground, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ImageBackground,
+  Dimensions,
+  StyleSheet,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import type { Trip } from '@/types/voyage';
 import { getTripBadge, getTripName, formatDate, getTotalSpots } from '@/utils/trip-helpers';
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.72;
-const CARD_HEIGHT = 220;
+const { width, height } = Dimensions.get('window');
 
-// Destination cover images (using Unsplash for demo)
+// Card takes ~55% of screen height so ~1/3 of the next card peeks below
+export const CARD_WIDTH = width - 32;
+export const CARD_HEIGHT = Math.round(height * 0.52);
+// Gap between cards — the peek amount is CARD_HEIGHT * ~0.33
+const CARD_GAP = 16;
+
 const DESTINATION_IMAGES: Record<string, string> = {
   paris: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800',
   rome: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=800',
+  roma: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=800',
   london: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800',
+  londres: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800',
   tokyo: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800',
+  tóquio: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800',
   'new york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800',
+  'nova york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800',
   barcelona: 'https://images.unsplash.com/photo-1583422409516-2895a77efded?w=800',
   amsterdam: 'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?w=800',
   lisbon: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800',
+  lisboa: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800',
+  madrid: 'https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=800',
+  berlin: 'https://images.unsplash.com/photo-1560969184-10fe8719e047?w=800',
+  berlim: 'https://images.unsplash.com/photo-1560969184-10fe8719e047?w=800',
+  santorini: 'https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?w=800',
+  bali: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800',
+  dubai: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800',
   default: 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=800',
 };
 
@@ -37,62 +58,52 @@ interface TripCardProps {
   style?: object;
 }
 
+/**
+ * Full-width trip card.
+ * - Info at the TOP (date left, destinations right) so it's visible when peeking.
+ * - Trip name at the BOTTOM.
+ * - Height ~52% of screen so ~1/3 of the next card peeks below.
+ */
 export function TripCard({ trip, onPress, style }: TripCardProps) {
   const badge = getTripBadge(trip);
   const name = getTripName(trip);
-  const spots = getTotalSpots(trip);
   const imageUrl = getImageForTrip(trip);
-  const dateRange = `${formatDate(trip.startDate, 'short')} - ${formatDate(trip.endDate, 'short')}`;
+  const dateRange = `${formatDate(trip.startDate, 'short')} – ${formatDate(trip.endDate, 'short')}`;
+  const destNames = trip.destinations.map((d) => d.name).join(' · ');
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.92}
-      style={[{ width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: 20, overflow: 'hidden' }, style]}
+      activeOpacity={0.93}
+      style={[styles.card, style]}
     >
       <ImageBackground
         source={{ uri: imageUrl }}
-        style={{ flex: 1 }}
-        imageStyle={{ borderRadius: 20 }}
+        style={styles.image}
+        imageStyle={styles.imageStyle}
       >
         <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.75)']}
-          style={{ flex: 1, borderRadius: 20, justifyContent: 'flex-end', padding: 16 }}
+          colors={['rgba(0,0,0,0.52)', 'transparent', 'rgba(0,0,0,0.55)']}
+          style={styles.gradient}
         >
-          {/* Badge */}
-          <View
-            style={{
-              position: 'absolute',
-              top: 12,
-              right: 12,
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              borderRadius: 20,
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-              backdropFilter: 'blur(10px)',
-            }}
-          >
-            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>{badge}</Text>
+          {/* ── Top row: date (left) + destinations (right) ── */}
+          <View style={styles.topRow}>
+            <View style={styles.dateBadge}>
+              <Ionicons name="calendar-outline" size={11} color="rgba(255,255,255,0.9)" />
+              <Text style={styles.dateText}>{dateRange}</Text>
+            </View>
+            <View style={styles.destBadge}>
+              <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.9)" />
+              <Text style={styles.destText} numberOfLines={1}>{destNames}</Text>
+            </View>
           </View>
 
-          {/* Bottom info */}
-          <Text
-            style={{ color: '#fff', fontSize: 20, fontFamily: 'serif', fontStyle: 'italic', fontWeight: '600', marginBottom: 4 }}
-            numberOfLines={2}
-          >
-            {name}
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Ionicons name="calendar-outline" size={12} color="rgba(255,255,255,0.8)" />
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{dateRange}</Text>
+          {/* ── Bottom: trip name + status badge ── */}
+          <View style={styles.bottomRow}>
+            <Text style={styles.tripName} numberOfLines={2}>{name}</Text>
+            <View style={styles.badgePill}>
+              <Text style={styles.badgeText}>{badge}</Text>
             </View>
-            {spots > 0 && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ionicons name="location-outline" size={12} color="rgba(255,255,255,0.8)" />
-                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{spots} spots</Text>
-              </View>
-            )}
           </View>
         </LinearGradient>
       </ImageBackground>
@@ -100,116 +111,126 @@ export function TripCard({ trip, onPress, style }: TripCardProps) {
   );
 }
 
-// Compact stacked card for the "Por Vir" section header
+// ─── Stacked variant ──────────────────────────────────────────────────────────
+
 interface TripCardStackedProps {
   trips: Trip[];
   onPressTrip: (trip: Trip) => void;
 }
 
+/**
+ * Renders trips as a vertical list where 1/3 of the next card is visible.
+ * Cards are spaced with CARD_GAP so the peek is natural.
+ */
 export function TripCardStacked({ trips, onPressTrip }: TripCardStackedProps) {
   if (trips.length === 0) return null;
 
-  const mainTrip = trips[trips.length - 1]; // Show the soonest upcoming
-  const imageUrl = getImageForTrip(mainTrip);
-  const name = getTripName(mainTrip);
-  const badge = getTripBadge(mainTrip);
-  const spots = getTotalSpots(mainTrip);
-  const dateRange = `${formatDate(mainTrip.startDate, 'short')} - ${formatDate(mainTrip.endDate, 'short')}`;
-
   return (
-    <View style={{ height: 260, marginHorizontal: 16 }}>
-      {/* Stack effect - background cards */}
-      {trips.length > 2 && (
-        <View
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 16,
-            right: 16,
-            height: 240,
-            borderRadius: 20,
-            backgroundColor: 'rgba(28,61,46,0.3)',
-          }}
+    <View style={styles.listContainer}>
+      {trips.map((trip, index) => (
+        <TripCard
+          key={trip.id}
+          trip={trip}
+          onPress={() => onPressTrip(trip)}
+          style={index < trips.length - 1 ? { marginBottom: CARD_GAP } : undefined}
         />
-      )}
-      {trips.length > 1 && (
-        <View
-          style={{
-            position: 'absolute',
-            top: 8,
-            left: 8,
-            right: 8,
-            height: 240,
-            borderRadius: 20,
-            backgroundColor: 'rgba(28,61,46,0.5)',
-          }}
-        />
-      )}
-
-      {/* Main card */}
-      <TouchableOpacity
-        onPress={() => onPressTrip(mainTrip)}
-        activeOpacity={0.92}
-        style={{ position: 'absolute', top: 16, left: 0, right: 0, height: 240, borderRadius: 20, overflow: 'hidden' }}
-      >
-        <ImageBackground
-          source={{ uri: imageUrl }}
-          style={{ flex: 1 }}
-          imageStyle={{ borderRadius: 20 }}
-        >
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.8)']}
-            style={{ flex: 1, borderRadius: 20, justifyContent: 'flex-end', padding: 20 }}
-          >
-            {/* Stack labels */}
-            {trips.length > 1 && (
-              <View style={{ position: 'absolute', top: 12, left: 16, right: 16 }}>
-                {trips.slice(0, -1).reverse().map((t, idx) => (
-                  <View
-                    key={t.id}
-                    style={{
-                      backgroundColor: 'rgba(0,0,0,0.4)',
-                      borderRadius: 8,
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
-                      marginBottom: 4,
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={{ color: '#fff', fontSize: 13, fontFamily: 'serif', fontStyle: 'italic' }}>
-                      {getTripName(t)}
-                    </Text>
-                    <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
-                      {getTripBadge(t)}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <Text
-              style={{ color: '#fff', fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', fontWeight: '600', marginBottom: 6 }}
-              numberOfLines={2}
-            >
-              {name}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.8)" />
-                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{dateRange}</Text>
-              </View>
-              {spots > 0 && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.8)" />
-                  <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{spots} spots</Text>
-                </View>
-              )}
-            </View>
-          </LinearGradient>
-        </ImageBackground>
-      </TouchableOpacity>
+      ))}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: 24,
+    overflow: 'hidden',
+    alignSelf: 'center',
+    // Subtle shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  image: {
+    flex: 1,
+  },
+  imageStyle: {
+    borderRadius: 24,
+  },
+  gradient: {
+    flex: 1,
+    borderRadius: 24,
+    padding: 18,
+    justifyContent: 'space-between',
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  dateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  dateText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  destBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    flexShrink: 1,
+    maxWidth: '60%',
+  },
+  destText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+    flexShrink: 1,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  tripName: {
+    color: '#fff',
+    fontSize: 22,
+    fontFamily: 'serif',
+    fontStyle: 'italic',
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 8,
+    lineHeight: 28,
+  },
+  badgePill: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  listContainer: {
+    paddingHorizontal: 16,
+  },
+});

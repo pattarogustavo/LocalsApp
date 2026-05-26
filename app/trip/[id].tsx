@@ -654,6 +654,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     flex: 1,
   },
+  actionBtnValueText: {
+    color: 'rgba(245,240,232,0.6)',
+    fontSize: 11,
+    flex: 1,
+  },
   // Tabs
   tabBtn: {
     flexDirection: 'row',

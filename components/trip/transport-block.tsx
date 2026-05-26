@@ -13,15 +13,17 @@ import { DatePickerField } from '@/components/ui/date-picker-field';
 import { DateTimePickerField } from '@/components/ui/datetime-picker-field';
 import * as Linking from 'expo-linking';
 import type { Transport, TransportMode, CityTransportMode, Destination, Accommodation, CarInfo } from '@/types/voyage';
+import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
+import { DocAttachField } from '@/components/ui/doc-attach-field';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const BETWEEN_MODES: Array<{ key: TransportMode; label: string; icon: string }> = [
   { key: 'flight', label: 'Voo', icon: 'airplane-outline' },
+  { key: 'car', label: 'Carro', icon: 'car-outline' },
   { key: 'train', label: 'Trem', icon: 'train-outline' },
   { key: 'bus', label: 'Ônibus', icon: 'bus-outline' },
   { key: 'ferry', label: 'Barco', icon: 'boat-outline' },
-  { key: 'car', label: 'Carro', icon: 'car-outline' },
   { key: 'other', label: 'Outro', icon: 'navigate-outline' },
 ];
 
@@ -422,6 +424,23 @@ function AddTransportModal({
   const [trainNumber, setTrainNumber] = useState('');
   const [platform, setPlatform] = useState('');
 
+  // Train/Bus/Ferry/Other fields
+  const [tbfOriginStation, setTbfOriginStation] = useState<PlaceResult | null>(null);
+  const [tbfDestStation, setTbfDestStation] = useState<PlaceResult | null>(null);
+  const [tbfDeparture, setTbfDeparture] = useState<Date | null>(null);
+  const [tbfArrival, setTbfArrival] = useState<Date | null>(null);
+  const [tbfTicketNumber, setTbfTicketNumber] = useState('');
+  const [tbfNotifEnabled, setTbfNotifEnabled] = useState(true);
+  const [tbfDocUri, setTbfDocUri] = useState<string | null>(null);
+  const [otherName, setOtherName] = useState('');
+  const [otherDeparture, setOtherDeparture] = useState<Date | null>(null);
+  const [otherArrival, setOtherArrival] = useState<Date | null>(null);
+
+  // Car contract
+  const [carContractUri, setCarContractUri] = useState<string | null>(null);
+  const [carOriginPlace, setCarOriginPlace] = useState<PlaceResult | null>(null);
+  const [carDestPlace, setCarDestPlace] = useState<PlaceResult | null>(null);
+
   // Car-specific fields
   const [carOrigin, setCarOrigin] = useState('');
   const [carDest, setCarDest] = useState('');
@@ -448,6 +467,11 @@ function AddTransportModal({
     setSelectedFlight(null); setSearchError('');
     setEnableNotifs(true);
     setTravelTime(''); setDistance(''); setTrainNumber(''); setPlatform('');
+    setTbfOriginStation(null); setTbfDestStation(null);
+    setTbfDeparture(null); setTbfArrival(null);
+    setTbfTicketNumber(''); setTbfNotifEnabled(true); setTbfDocUri(null);
+    setOtherName(''); setOtherDeparture(null); setOtherArrival(null);
+    setCarContractUri(null); setCarOriginPlace(null); setCarDestPlace(null);
     setCarOrigin(''); setCarDest(''); setCarArrival(null);
     setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError('');
     setCarNotifEnabled(true);
@@ -534,6 +558,8 @@ function AddTransportModal({
   const handleAdd = async () => {
     if (mode === 'flight' && !selectedFlight) return;
     if (mode === 'car' && (!carOrigin.trim() || !carDest.trim() || !carArrival)) return;
+    if ((mode === 'train' || mode === 'bus' || mode === 'ferry') && (!tbfOriginStation || !tbfDestStation || !tbfDeparture)) return;
+    if (mode === 'other' && !otherName.trim()) return;
 
     let carInfo: CarInfo | undefined;
     if (mode === 'car') {
@@ -542,8 +568,8 @@ function AddTransportModal({
         ? new Date(carArrival!.getTime() - durationSec * 1000).toISOString()
         : undefined;
       carInfo = {
-        originAddress: carOrigin.trim(),
-        destinationAddress: carDest.trim(),
+        originAddress: carOriginPlace?.fullDescription || carOrigin.trim(),
+        destinationAddress: carDestPlace?.fullDescription || carDest.trim(),
         desiredArrivalTime: carArrival!.toISOString(),
         departureTime: depTime,
         travelDuration: carRouteResult?.duration,
@@ -576,11 +602,28 @@ function AddTransportModal({
         },
       } : mode === 'car' ? {
         car: carInfo,
+        boardingPassUri: carContractUri || undefined,
+      } : (mode === 'train' || mode === 'bus' || mode === 'ferry') ? {
+        trainBusFerry: {
+          originStation: tbfOriginStation!.name,
+          originStationPlaceId: tbfOriginStation!.placeId,
+          destinationStation: tbfDestStation!.name,
+          destinationStationPlaceId: tbfDestStation!.placeId,
+          departureTime: tbfDeparture!.toISOString(),
+          arrivalTime: tbfArrival?.toISOString(),
+          ticketNumber: tbfTicketNumber || undefined,
+          notifyBeforeDeparture: tbfNotifEnabled,
+          ticketDocUri: tbfDocUri || undefined,
+        },
+      } : mode === 'other' ? {
+        other: {
+          name: otherName.trim(),
+          departureTime: otherDeparture?.toISOString(),
+          arrivalTime: otherArrival?.toISOString(),
+        },
       } : {
         travelTime: travelTime || undefined,
         distance: distance || undefined,
-        trainNumber: trainNumber || undefined,
-        platform: platform || undefined,
       }),
     };
 
@@ -604,6 +647,28 @@ function AddTransportModal({
                 title: '⏰ Hora de sair!',
                 body: `Saia em 1 hora para chegar a tempo: ${carInfo.destinationAddress}`,
                 data: { type: 'car_departure', transportId: t.id },
+              },
+              trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: alertDate },
+            });
+            t.notificationIds = [id];
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Train/Bus/Ferry: schedule notification 1h before departure
+    if ((mode === 'train' || mode === 'bus' || mode === 'ferry') && tbfNotifEnabled && tbfDeparture && Platform.OS !== 'web') {
+      try {
+        const granted = await requestNotifPermission();
+        if (granted) {
+          const alertDate = new Date(tbfDeparture.getTime() - 60 * 60 * 1000);
+          if (alertDate > new Date()) {
+            const modeLabel = mode === 'train' ? 'Trem' : mode === 'bus' ? 'Ônibus' : 'Barco';
+            const id = await Notifications.scheduleNotificationAsync({
+              content: {
+                title: `⏰ ${modeLabel} em 1 hora`,
+                body: `Partida de ${tbfOriginStation!.name} → ${tbfDestStation!.name}`,
+                data: { type: 'tbf_departure', transportId: t.id },
               },
               trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: alertDate },
             });
@@ -852,19 +917,23 @@ function AddTransportModal({
                 )}
               </>
             ) : mode === 'car' ? (
-              // ── Car mode ───────────────────────────────────────────────────────────
+              // ── Car mode ────────────────────────────────────────────────────────────────────
               <>
-                {/* Origin */}
+                {/* Origin via Google Places */}
                 <View style={{ marginBottom: 14 }}>
                   <Text style={styles.inputLabel}>ENDEREÇO DE ORIGEM</Text>
-                  <TextInput
-                    value={carOrigin}
-                    onChangeText={(v) => { setCarOrigin(v); setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError(''); }}
-                    placeholder="Ex: Aeroporto de Guarulhos, SP"
-                    placeholderTextColor="rgba(245,240,232,0.25)"
-                    style={styles.textInput}
+                  <PlacesAutocompleteInput
+                    placeholder="Buscar endereço de origem..."
+                    value={carOriginPlace?.fullDescription || ''}
+                    onSelect={(p) => {
+                      setCarOriginPlace(p);
+                      setCarOrigin(p.fullDescription);
+                      setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError('');
+                    }}
+                    searchTypes="address"
+                    dark
                   />
-                  {/* Hotel suggestion */}
+                  {/* Hotel suggestion chips */}
                   {accommodations.length > 0 && (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
                       <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -872,7 +941,11 @@ function AddTransportModal({
                           <TouchableOpacity
                             key={a.id}
                             style={styles.hotelSuggestionChip}
-                            onPress={() => setCarOrigin(a.address!)}
+                            onPress={() => {
+                              setCarOrigin(a.address!);
+                              setCarOriginPlace({ placeId: '', name: a.name || '', fullDescription: a.address!, country: '' });
+                              setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError('');
+                            }}
                           >
                             <Ionicons name="bed-outline" size={11} color="#52B788" />
                             <Text style={styles.hotelSuggestionText} numberOfLines={1}>{a.name}</Text>
@@ -883,15 +956,19 @@ function AddTransportModal({
                   )}
                 </View>
 
-                {/* Destination */}
+                {/* Destination via Google Places */}
                 <View style={{ marginBottom: 14 }}>
                   <Text style={styles.inputLabel}>ENDEREÇO DE DESTINO</Text>
-                  <TextInput
-                    value={carDest}
-                    onChangeText={(v) => { setCarDest(v); setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError(''); }}
-                    placeholder="Ex: Hotel Roma, Via Veneto 125"
-                    placeholderTextColor="rgba(245,240,232,0.25)"
-                    style={styles.textInput}
+                  <PlacesAutocompleteInput
+                    placeholder="Buscar endereço de destino..."
+                    value={carDestPlace?.fullDescription || ''}
+                    onSelect={(p) => {
+                      setCarDestPlace(p);
+                      setCarDest(p.fullDescription);
+                      setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError('');
+                    }}
+                    searchTypes="address"
+                    dark
                   />
                   {accommodations.length > 0 && (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
@@ -900,7 +977,11 @@ function AddTransportModal({
                           <TouchableOpacity
                             key={a.id}
                             style={styles.hotelSuggestionChip}
-                            onPress={() => setCarDest(a.address!)}
+                            onPress={() => {
+                              setCarDest(a.address!);
+                              setCarDestPlace({ placeId: '', name: a.name || '', fullDescription: a.address!, country: '' });
+                              setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError('');
+                            }}
                           >
                             <Ionicons name="bed-outline" size={11} color="#52B788" />
                             <Text style={styles.hotelSuggestionText} numberOfLines={1}>{a.name}</Text>
@@ -987,24 +1068,122 @@ function AddTransportModal({
                     <Ionicons name="notifications-outline" size={16} color="#C4A35A" />
                   </TouchableOpacity>
                 )}
+
+                {/* Car contract / rental document */}
+                <DocAttachField
+                  label="CONTRATO DE LOCAÇÃO (OPCIONAL)"
+                  uri={carContractUri}
+                  onPick={setCarContractUri}
+                  onRemove={() => setCarContractUri(null)}
+                />
               </>
-            ) : (
-              // ── Non-flight, non-car modes ─────────────────────────────────────────────
+            ) : (mode === 'train' || mode === 'bus' || mode === 'ferry') ? (
+              // ── Train / Bus / Ferry mode ────────────────────────────────────────────────────────────────────
               <>
-                <InputRow label="TEMPO DE VIAGEM" value={travelTime} onChange={setTravelTime} placeholder="2h30" />
-                <InputRow label="DISTÂNCIA (OPCIONAL)" value={distance} onChange={setDistance} placeholder="180 km" />
-                {(mode === 'train' || mode === 'bus') && (
-                  <>
-                    <InputRow label="NÚMERO" value={trainNumber} onChange={setTrainNumber} placeholder="IC 123" />
-                    <InputRow label="PLATAFORMA" value={platform} onChange={setPlatform} placeholder="3A" />
-                  </>
+                {/* Origin station */}
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={styles.inputLabel}>
+                    {mode === 'ferry' ? 'PORTO DE EMBARQUE' : 'ESTAÇÃO DE ORIGEM'}
+                  </Text>
+                  <PlacesAutocompleteInput
+                    placeholder={mode === 'ferry' ? 'Buscar porto de embarque...' : 'Buscar estação de origem...'}
+                    value={tbfOriginStation?.name || ''}
+                    onSelect={(p) => setTbfOriginStation(p)}
+                    searchTypes="establishment"
+                    dark
+                  />
+                </View>
+
+                {/* Destination station */}
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={styles.inputLabel}>
+                    {mode === 'ferry' ? 'PORTO DE DESEMBARQUE' : 'ESTAÇÃO DE DESTINO'}
+                  </Text>
+                  <PlacesAutocompleteInput
+                    placeholder={mode === 'ferry' ? 'Buscar porto de desembarque...' : 'Buscar estação de destino...'}
+                    value={tbfDestStation?.name || ''}
+                    onSelect={(p) => setTbfDestStation(p)}
+                    searchTypes="establishment"
+                    dark
+                  />
+                </View>
+
+                {/* Departure time */}
+                <DateTimePickerField
+                  label="HORÁRIO DE SAÍDA"
+                  value={tbfDeparture}
+                  onChange={setTbfDeparture}
+                />
+
+                {/* Arrival time */}
+                <DateTimePickerField
+                  label="HORÁRIO DE CHEGADA (ESTIMADO)"
+                  value={tbfArrival}
+                  onChange={setTbfArrival}
+                />
+
+                {/* Ticket number */}
+                <InputRow
+                  label="NÚMERO DO BILHETE"
+                  value={tbfTicketNumber}
+                  onChange={setTbfTicketNumber}
+                  placeholder="Ex: 12345678"
+                />
+
+                {/* Notification toggle */}
+                {Platform.OS !== 'web' && (
+                  <TouchableOpacity
+                    style={styles.notifToggleRow}
+                    onPress={() => setTbfNotifEnabled(!tbfNotifEnabled)}
+                  >
+                    <View style={[styles.notifToggleBox, tbfNotifEnabled && styles.notifToggleBoxActive]}>
+                      {tbfNotifEnabled && <Ionicons name="checkmark" size={13} color="#0F1F16" />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.notifToggleLabel}>Alerta 1h antes da saída</Text>
+                      <Text style={styles.notifToggleDesc}>Aviso antes do horário de partida</Text>
+                    </View>
+                    <Ionicons name="notifications-outline" size={16} color="#C4A35A" />
+                  </TouchableOpacity>
                 )}
+
+                {/* Ticket document */}
+                <DocAttachField
+                  label="BILHETE / RESERVA (OPCIONAL)"
+                  uri={tbfDocUri}
+                  onPick={setTbfDocUri}
+                  onRemove={() => setTbfDocUri(null)}
+                />
               </>
-            )}
+            ) : mode === 'other' ? (
+              // ── Other mode ────────────────────────────────────────────────────────────────────
+              <>
+                <InputRow
+                  label="NOME DO TRANSPORTE"
+                  value={otherName}
+                  onChange={setOtherName}
+                  placeholder="Ex: Transfer privado, Van, Helicóptero..."
+                />
+                <DateTimePickerField
+                  label="HORÁRIO DE SAÍDA"
+                  value={otherDeparture}
+                  onChange={setOtherDeparture}
+                />
+                <DateTimePickerField
+                  label="HORÁRIO DE CHEGADA"
+                  value={otherArrival}
+                  onChange={setOtherArrival}
+                />
+              </>
+            ) : null}
 
             {/* Add button */}
-            {(mode !== 'flight' || selectedFlight) &&
-             (mode !== 'car' || (carOrigin.trim() && carDest.trim() && carArrival)) && (
+            {(
+              (mode === 'flight' && !!selectedFlight) ||
+              (mode === 'car' && carOrigin.trim() && carDest.trim() && !!carArrival) ||
+              ((mode === 'train' || mode === 'bus' || mode === 'ferry') && !!tbfOriginStation && !!tbfDestStation && !!tbfDeparture) ||
+              (mode === 'other' && otherName.trim().length > 0)
+            ) && (
               <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
                 <Text style={styles.addBtnText}>Adicionar</Text>
               </TouchableOpacity>

@@ -217,13 +217,13 @@ export const appRouter = router({
      * Returns structured predictions with placeId, name, country, lat, lng.
      */
     autocomplete: publicProcedure
-      .input(z.object({ query: z.string().min(1) }))
+      .input(z.object({
+        query: z.string().min(1),
+        types: z.enum(['address', 'establishment', 'cities', 'geocode']).optional(),
+      }))
       .query(async ({ input }) => {
         if (!GOOGLE_PLACES_KEY) return { predictions: [] };
 
-        // Run two parallel requests:
-        // 1. (cities) — cities and localities (most common)
-        // 2. geocode — broader: countries, islands, regions, natural features
         const makeUrl = (types: string) => {
           const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
           url.searchParams.set("input", input.query);
@@ -233,6 +233,21 @@ export const appRouter = router({
           return url.toString();
         };
 
+        // For address/establishment searches (transport forms), skip island fallback
+        if (input.types === 'address' || input.types === 'establishment') {
+          const googleType = input.types === 'address' ? 'address' : 'establishment';
+          const res = await fetch(makeUrl(googleType));
+          const data = await res.json() as any;
+          const predictions = (data.predictions || []).slice(0, 8).map((p: any) => ({
+            placeId: p.place_id,
+            name: p.structured_formatting?.main_text || p.description,
+            fullDescription: p.description,
+            country: p.structured_formatting?.secondary_text || "",
+          }));
+          return { predictions };
+        }
+
+        // Default: city/destination search with island fallback
         const [resCities, resGeocode] = await Promise.all([
           fetch(makeUrl("(cities)")),
           fetch(makeUrl("geocode")),
@@ -242,7 +257,6 @@ export const appRouter = router({
           resGeocode.json() as Promise<any>,
         ]);
 
-        // 1. Merge Google results, deduplicate by placeId, cities first
         const seen = new Set<string>();
         const googleMerged: any[] = [];
         for (const p of [...(dataCities.predictions || []), ...(dataGeocode.predictions || [])]) {
@@ -258,7 +272,6 @@ export const appRouter = router({
           }
         }
 
-        // 2. Search local islands/regions database
         const islandMatches = searchIslands(input.query);
         const islandPredictions = islandMatches.map((island) => ({
           placeId: `island:${island.id}`,
@@ -270,7 +283,6 @@ export const appRouter = router({
           isIsland: true,
         }));
 
-        // 3. Combine: islands first (exact matches), then Google results
         const googlePredictions = googleMerged.slice(0, 6).map((p: any) => ({
           placeId: p.place_id,
           name: p.structured_formatting?.main_text || p.description,
@@ -278,14 +290,12 @@ export const appRouter = router({
           country: p.structured_formatting?.secondary_text || "",
         }));
 
-        // Deduplicate islands vs google (avoid showing both "Ibiza" entries)
         const islandNames = new Set(islandPredictions.map((i) => i.name.toLowerCase()));
         const filteredGoogle = googlePredictions.filter(
           (p) => !islandNames.has(p.name.toLowerCase())
         );
 
         const combined = [...islandPredictions, ...filteredGoogle].slice(0, 8);
-
         return { predictions: combined };
       }),
 
@@ -315,7 +325,7 @@ export const appRouter = router({
 
         const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
         url.searchParams.set("place_id", input.placeId);
-        url.searchParams.set("fields", "geometry,photos,name,address_components");
+        url.searchParams.set("fields", "geometry,photos,name,address_components,formatted_address");
         url.searchParams.set("language", "pt-BR");
         url.searchParams.set("key", GOOGLE_PLACES_KEY);
 
@@ -342,9 +352,9 @@ export const appRouter = router({
         const countryComponent = result?.address_components?.find((c: any) =>
           c.types.includes("country")
         );
-        const country = countryComponent?.long_name || "";
-
-        return { lat, lng, imageUrl, country };
+                const country = countryComponent?.long_name || "";
+        const address = result?.formatted_address || "";
+        return { lat, lng, imageUrl, country, address };
       }),
   }),
 

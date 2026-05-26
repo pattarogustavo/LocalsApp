@@ -34,6 +34,24 @@ export interface CarInfo {
   mapsUrl?: string;            // Google Maps URL for the route
 }
 
+export interface TrainBusFerryInfo {
+  originStation: string;       // Google Places selected station/port
+  originStationPlaceId?: string;
+  destinationStation: string;  // Google Places selected station/port
+  destinationStationPlaceId?: string;
+  departureTime?: string;      // ISO datetime
+  arrivalTime?: string;        // ISO datetime
+  ticketNumber?: string;       // free text
+  notifyBeforeDeparture?: boolean;
+  ticketDocUri?: string;       // local URI of ticket PDF/photo
+}
+
+export interface OtherTransportInfo {
+  name: string;                // free text name
+  departureTime?: string;      // ISO datetime
+  arrivalTime?: string;        // ISO datetime
+}
+
 export interface Transport {
   id: string;
   mode: TransportMode;
@@ -41,6 +59,9 @@ export interface Transport {
   leg?: string;
   flight?: FlightInfo;
   car?: CarInfo;               // car-specific details
+  trainBusFerry?: TrainBusFerryInfo; // train/bus/ferry details
+  other?: OtherTransportInfo;  // other transport details
+  // Legacy generic fields (kept for backward compat)
   distance?: string;
   tolls?: string;
   travelTime?: string;
@@ -49,6 +70,7 @@ export interface Transport {
   trainNumber?: string;
   boardingPassUri?: string; // local URI of boarding pass image/QR
   notificationIds?: string[]; // scheduled notification IDs for this flight
+  carContractUri?: string;   // local URI of car rental contract PDF/photo
 }
 
 // ─── Destination ──────────────────────────────────────────────────────────────
@@ -152,14 +174,15 @@ export interface Traveler {
 
 // ─── Accommodation ────────────────────────────────────────────────────────────
 
-export type AccommodationType = 'hotel' | 'house' | 'hostel' | 'airbnb' | 'other';
+export type AccommodationType = 'hotel' | 'house' | 'other';
 
 export interface Accommodation {
   id: string;
   destinationId: string;
-  name: string;
+  name: string;           // empty string for house/apartment
   type: AccommodationType;
   address?: string;
+  addressPlaceId?: string; // Google Place ID for the address
   checkIn: string;
   checkOut: string;
   confirmationCode?: string;
@@ -168,6 +191,7 @@ export interface Accommodation {
   notes?: string;
   pricePerNight?: number;
   imageUrl?: string;
+  confirmationDocUri?: string; // local URI of confirmation PDF/photo
 }
 
 // ─── Day-by-Day Itinerary (Timeline-based) ────────────────────────────────────

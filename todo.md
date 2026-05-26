@@ -120,3 +120,20 @@
 - [x] Cálculo do horário de saída = chegada desejada - tempo de percurso
 - [x] Notificação 1h antes do horário de saída calculado
 - [x] CarCard para exibir trajeto de carro com endereços, horários e duração
+
+## Fase 10 — UX Melhorias Gerais
+
+- [x] Tela inicial: cards de roteiro com separação e altura maior (52% da tela), 1/3 do próximo card visível
+- [x] Aba Geral: data e destinos na mesma linha (data esquerda, destinos direita)
+- [x] DatePicker: rolo centralizado verticalmente ao abrir
+- [x] Transporte: reordenar tipos (Voo, Carro, Trem, Ônibus, Barco, Outro)
+- [x] Transporte Carro: campos de endereço via Google Places (PlacesAutocompleteInput), campo para contrato de locação (PDF/foto)
+- [x] Transporte Trem: estação origem/destino via Google, horário saída/chegada em DateTimePicker, número do bilhete, alerta 1h, anexo bilhete
+- [x] Transporte Ônibus: mesmo formato do trem
+- [x] Transporte Barco: mesmo formato do trem
+- [x] Transporte Outros: apenas nome, horário saída e horário chegada
+- [x] Hotel: nome do hotel via Google Places com endereço preenchido automaticamente
+- [x] Hotel: reordenar campos (tipo → datas check-in/check-out → nome do local)
+- [x] Hotel: Casa/Apartamento apenas campo de endereço via Google (sem nome do local)
+- [x] Hotel: remover tipos Airbnb e Hostel
+- [x] Hotel: campo de anexo (PDF/foto) da confirmação em todos os tipos
