@@ -29,7 +29,7 @@ interface PlacesAutocompleteInputProps {
   /** Dark mode for use inside dark modals (transport/hotel sheets) */
   dark?: boolean;
   /** Optional search type hint (passed to server for filtering) */
-  searchTypes?: 'address' | 'establishment' | 'cities' | 'geocode';
+  searchTypes?: 'address' | 'establishment' | 'cities' | 'geocode' | 'mixed';
 }
 
 /**

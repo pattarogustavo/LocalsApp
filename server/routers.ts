@@ -219,7 +219,7 @@ export const appRouter = router({
     autocomplete: publicProcedure
       .input(z.object({
         query: z.string().min(1),
-        types: z.enum(['address', 'establishment', 'cities', 'geocode']).optional(),
+        types: z.enum(['address', 'establishment', 'cities', 'geocode', 'mixed']).optional(),
       }))
       .query(async ({ input }) => {
         if (!GOOGLE_PLACES_KEY) return { predictions: [] };
@@ -233,8 +233,34 @@ export const appRouter = router({
           return url.toString();
         };
 
-        // For address/establishment searches (transport forms), skip island fallback
-        if (input.types === 'address' || input.types === 'establishment') {
+        // For address/establishment/mixed searches (transport forms), skip island fallback
+        if (input.types === 'address' || input.types === 'establishment' || input.types === 'mixed') {
+          if (input.types === 'mixed') {
+            // Fetch both address and establishment results in parallel and merge
+            const [resAddr, resEst] = await Promise.all([
+              fetch(makeUrl('address')),
+              fetch(makeUrl('establishment')),
+            ]);
+            const [dataAddr, dataEst] = await Promise.all([
+              resAddr.json() as Promise<any>,
+              resEst.json() as Promise<any>,
+            ]);
+            const seen = new Set<string>();
+            const merged: any[] = [];
+            for (const p of [...(dataEst.predictions || []), ...(dataAddr.predictions || [])]) {
+              if (!seen.has(p.place_id)) {
+                seen.add(p.place_id);
+                merged.push(p);
+              }
+            }
+            const predictions = merged.slice(0, 8).map((p: any) => ({
+              placeId: p.place_id,
+              name: p.structured_formatting?.main_text || p.description,
+              fullDescription: p.description,
+              country: p.structured_formatting?.secondary_text || "",
+            }));
+            return { predictions };
+          }
           const googleType = input.types === 'address' ? 'address' : 'establishment';
           const res = await fetch(makeUrl(googleType));
           const data = await res.json() as any;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, StyleSheet,
   ScrollView, TextInput, Alert, Image, Platform, ActivityIndicator,
@@ -15,6 +15,7 @@ import * as Linking from 'expo-linking';
 import type { Transport, TransportMode, CityTransportMode, Destination, Accommodation, CarInfo } from '@/types/voyage';
 import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
 import { DocAttachField } from '@/components/ui/doc-attach-field';
+import { getApiBaseUrl } from '@/constants/oauth';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -440,6 +441,8 @@ function AddTransportModal({
   const [carContractUri, setCarContractUri] = useState<string | null>(null);
   const [carOriginPlace, setCarOriginPlace] = useState<PlaceResult | null>(null);
   const [carDestPlace, setCarDestPlace] = useState<PlaceResult | null>(null);
+  const [carOriginPlaceId, setCarOriginPlaceId] = useState('');
+  const [carDestPlaceId, setCarDestPlaceId] = useState('');
 
   // Car-specific fields
   const [carOrigin, setCarOrigin] = useState('');
@@ -452,10 +455,29 @@ function AddTransportModal({
 
   const lookupMutation = trpc.flights.lookup.useMutation();
   const searchByRouteMutation = trpc.flights.searchByRoute.useMutation();
-  const directionsQuery = trpc.directions.route.useQuery(
-    { origin: carOrigin.trim(), destination: carDest.trim(), mode: 'driving' },
-    { enabled: false }
+
+  // Resolve formatted address for car origin when an establishment is selected
+  const carOriginDetailsQuery = trpc.places.details.useQuery(
+    { placeId: carOriginPlaceId },
+    { enabled: carOriginPlaceId.length > 0 }
   );
+  const carDestDetailsQuery = trpc.places.details.useQuery(
+    { placeId: carDestPlaceId },
+    { enabled: carDestPlaceId.length > 0 }
+  );
+
+  // When place details resolve, update the address used for routing
+  useEffect(() => {
+    if (carOriginDetailsQuery.data?.address) {
+      setCarOrigin(carOriginDetailsQuery.data.address);
+    }
+  }, [carOriginDetailsQuery.data]);
+
+  useEffect(() => {
+    if (carDestDetailsQuery.data?.address) {
+      setCarDest(carDestDetailsQuery.data.address);
+    }
+  }, [carDestDetailsQuery.data]);
 
   const isSearching = lookupMutation.isPending || searchByRouteMutation.isPending;
 
@@ -472,6 +494,7 @@ function AddTransportModal({
     setTbfTicketNumber(''); setTbfNotifEnabled(true); setTbfDocUri(null);
     setOtherName(''); setOtherDeparture(null); setOtherArrival(null);
     setCarContractUri(null); setCarOriginPlace(null); setCarDestPlace(null);
+    setCarOriginPlaceId(''); setCarDestPlaceId('');
     setCarOrigin(''); setCarDest(''); setCarArrival(null);
     setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError('');
     setCarNotifEnabled(true);
@@ -487,10 +510,10 @@ function AddTransportModal({
     setCarRouteSearched(false);
     try {
       // Use fetch directly to call the tRPC query endpoint
-      const params = new URLSearchParams({ origin: o, destination: d, mode: 'driving' });
-      const res = await fetch(`/trpc/directions.route?input=${encodeURIComponent(JSON.stringify({ origin: o, destination: d, mode: 'driving' }))}`);
+      const res = await fetch(`${getApiBaseUrl()}/api/trpc/directions.route?input=${encodeURIComponent(JSON.stringify({ json: { origin: o, destination: d, mode: 'driving' } }))}`);
       const json = await res.json();
-      const data = json?.result?.data;
+      // tRPC with superjson: response is { result: { data: { json: { ... } } } }
+      const data = json?.result?.data?.json ?? json?.result?.data;
       if (data?.found && data.durationText) {
         setCarRouteResult({
           duration: data.durationText,
@@ -923,14 +946,22 @@ function AddTransportModal({
                 <View style={{ marginBottom: 14 }}>
                   <Text style={styles.inputLabel}>ENDEREÇO DE ORIGEM</Text>
                   <PlacesAutocompleteInput
-                    placeholder="Buscar endereço de origem..."
+                    placeholder="Buscar endereço ou estabelecimento..."
                     value={carOriginPlace?.fullDescription || ''}
                     onSelect={(p) => {
                       setCarOriginPlace(p);
-                      setCarOrigin(p.fullDescription);
+                      // If it has a placeId, resolve formatted_address via details
+                      if (p.placeId) {
+                        setCarOriginPlaceId(p.placeId);
+                        // Optimistic: use fullDescription until details resolve
+                        setCarOrigin(p.fullDescription);
+                      } else {
+                        setCarOriginPlaceId('');
+                        setCarOrigin(p.fullDescription);
+                      }
                       setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError('');
                     }}
-                    searchTypes="address"
+                    searchTypes="mixed"
                     dark
                   />
                   {/* Hotel suggestion chips */}
@@ -960,14 +991,22 @@ function AddTransportModal({
                 <View style={{ marginBottom: 14 }}>
                   <Text style={styles.inputLabel}>ENDEREÇO DE DESTINO</Text>
                   <PlacesAutocompleteInput
-                    placeholder="Buscar endereço de destino..."
+                    placeholder="Buscar endereço ou estabelecimento..."
                     value={carDestPlace?.fullDescription || ''}
                     onSelect={(p) => {
                       setCarDestPlace(p);
-                      setCarDest(p.fullDescription);
+                      // If it has a placeId, resolve formatted_address via details
+                      if (p.placeId) {
+                        setCarDestPlaceId(p.placeId);
+                        // Optimistic: use fullDescription until details resolve
+                        setCarDest(p.fullDescription);
+                      } else {
+                        setCarDestPlaceId('');
+                        setCarDest(p.fullDescription);
+                      }
                       setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError('');
                     }}
-                    searchTypes="address"
+                    searchTypes="mixed"
                     dark
                   />
                   {accommodations.length > 0 && (
