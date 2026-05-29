@@ -137,3 +137,9 @@
 - [x] Hotel: Casa/Apartamento apenas campo de endereço via Google (sem nome do local)
 - [x] Hotel: remover tipos Airbnb e Hostel
 - [x] Hotel: campo de anexo (PDF/foto) da confirmação em todos os tipos
+
+## Fase 11 — Timeline e Rotas Melhoradas
+
+- [x] Hotel auto-aparece na timeline para os dias reservados; endereço do hotel usado como ponto de partida do dia
+- [x] Links Google Maps na timeline mostram rota origem→destino (não apenas pin de localização)
+- [x] Tempo de rota e links Maps usam o meio de transporte informado pelo usuário na aba Transporte

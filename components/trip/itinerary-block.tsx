@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTripsStore } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
-import type { Trip, DayItinerary, TravelPace } from '@/types/voyage';
+import type { Trip, DayItinerary, TravelPace, Accommodation } from '@/types/voyage';
 
 // ─── Category helpers ─────────────────────────────────────────────────────────
 
@@ -16,6 +16,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   cafe: 'cafe-outline',
   museum: 'book-outline',
   hidden_gem: 'diamond-outline',
+  hotel: 'bed-outline',
   other: 'location-outline',
 };
 
@@ -25,6 +26,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   cafe: '#C4A35A',
   museum: '#7B9FD4',
   hidden_gem: '#B88BF5',
+  hotel: '#7B9FD4',
   other: '#A8D5B5',
 };
 
@@ -91,6 +93,24 @@ function DaySelector({
   );
 }
 
+// ─── Hotel helper ───────────────────────────────────────────────────────────
+
+/**
+ * Returns the active accommodation for a given date (YYYY-MM-DD).
+ * An accommodation is active if checkIn <= date <= checkOut.
+ */
+function getHotelForDay(date: string, accommodations: Accommodation[]): Accommodation | null {
+  if (!date || !accommodations?.length) return null;
+  const d = date.split('T')[0];
+  for (const acc of accommodations) {
+    const ci = acc.checkIn?.split('T')[0];
+    const co = acc.checkOut?.split('T')[0];
+    if (!ci || !co) continue;
+    if (d >= ci && d <= co && acc.address) return acc;
+  }
+  return null;
+}
+
 // ─── Stop Item ────────────────────────────────────────────────────────────────
 
 interface StopLike {
@@ -113,11 +133,15 @@ interface StopLike {
 function StopItem({
   stop,
   isLast,
+  prevStop,
+  cityTransportMode,
   onDelete,
   onTimeChange,
 }: {
   stop: StopLike;
   isLast: boolean;
+  prevStop?: StopLike | null;
+  cityTransportMode?: string;
   onDelete?: () => void;
   onTimeChange?: (newTime: string) => void;
 }) {
@@ -131,10 +155,20 @@ function StopItem({
   const catColor = CATEGORY_COLORS[cat] || '#52B788';
 
   const openMaps = () => {
-    if (stop.lat && stop.lng) {
-      Linking.openURL(`https://maps.google.com/?q=${stop.lat},${stop.lng}`);
-    } else if (stop.address) {
-      Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(stop.address)}`);
+    const destCoord = stop.lat && stop.lng ? `${stop.lat},${stop.lng}` : stop.address;
+    if (!destCoord) return;
+    const travelmode = toDirectionsMode(cityTransportMode);
+    // If we have a previous stop, build a directions URL (origin → destination)
+    const originCoord = prevStop
+      ? (prevStop.lat && prevStop.lng ? `${prevStop.lat},${prevStop.lng}` : prevStop.address)
+      : null;
+    if (originCoord) {
+      Linking.openURL(
+        `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originCoord)}&destination=${encodeURIComponent(destCoord)}&travelmode=${travelmode}`
+      );
+    } else {
+      // First stop of the day — open just the location
+      Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(destCoord)}`);
     }
   };
 
@@ -297,19 +331,21 @@ function DayView({
   dayIndex,
   tripId,
   cityTransportMode,
+  accommodations,
   onGoToPlaces,
 }: {
   day: DayItinerary | undefined;
   dayIndex: number;
   tripId: string;
   cityTransportMode?: string;
+  accommodations?: Accommodation[];
   onGoToPlaces: () => void;
 }) {
   const { removeItineraryStop, updateItineraryStop } = useTripsStore();
   const batchRoute = trpc.directions.batchRoute.useMutation();
   const [updatingRoutes, setUpdatingRoutes] = useState(false);
   // Support both new stops[] format and legacy morning/afternoon/evening
-  const stops: StopLike[] = day
+  const rawStops: StopLike[] = day
     ? ((day as any).stops && (day as any).stops.length > 0
         ? (day as any).stops
         : [
@@ -318,6 +354,21 @@ function DayView({
             day.evening   ? { id: 'e', time: day.evening.time   || '19:00', placeName: day.evening.activity,   placeCategory: 'other',      description: day.evening.tip   } : null,
           ].filter(Boolean) as StopLike[])
     : [];
+
+  // Inject hotel as a virtual first stop if there's an active accommodation for this day
+  const dayDate = day?.date || '';
+  const hotelForDay = getHotelForDay(dayDate, accommodations || []);
+  const hotelStop: StopLike | null = hotelForDay ? {
+    id: undefined, // virtual — not persisted
+    time: '',
+    placeName: hotelForDay.name || 'Hospedagem',
+    placeCategory: 'hotel' as any,
+    description: hotelForDay.address,
+    address: hotelForDay.address,
+  } : null;
+
+  // Full stops list: hotel (virtual) + real stops
+  const stops: StopLike[] = hotelStop ? [hotelStop, ...rawStops] : rawStops;
 
   if (stops.length === 0) {
     return (
@@ -349,7 +400,7 @@ function DayView({
   };
 
   const handleUpdateRoutes = async () => {
-    // Only update stops that have coordinates or addresses
+    // Use all stops with location (including virtual hotel stop as origin)
     const stopsWithLocation = stops.filter((s) => (s.lat && s.lng) || s.address);
     if (stopsWithLocation.length < 2) return;
     setUpdatingRoutes(true);
@@ -366,11 +417,13 @@ function DayView({
       if (pairs.length === 0) return;
       const result = await batchRoute.mutateAsync({ pairs });
       // Apply results back to the stops that have IDs
+      // Note: hotel stop has no id (virtual), so we skip it but still consume its pair result
       let pairIdx = 0;
       for (let i = 0; i < stopsWithLocation.length - 1; i++) {
         const s = stopsWithLocation[i];
-        if (!s.id) { pairIdx++; continue; }
         const r = result.results[pairIdx];
+        pairIdx++;
+        if (!s.id) continue; // virtual hotel stop — skip persisting but still advance pairIdx
         if (r?.found) {
           updateItineraryStop(tripId, dayIndex, s.id, {
             travelTimeToNext: r.durationText,
@@ -378,7 +431,6 @@ function DayView({
             mapsUrlToNext: r.mapsUrl,
           });
         }
-        pairIdx++;
       }
     } catch (e) {
       console.error('Directions error:', e);
@@ -408,9 +460,11 @@ function DayView({
       )}
       {stops.map((s, i) => (
         <StopItem
-          key={s.id || i}
+          key={s.id || `virtual-${i}`}
           stop={s}
           isLast={i === stops.length - 1}
+          prevStop={i > 0 ? stops[i - 1] : null}
+          cityTransportMode={cityTransportMode}
           onDelete={s.id ? () => handleDeleteStop(s) : undefined}
           onTimeChange={s.id ? (t) => handleTimeChange(s, t) : undefined}
         />
@@ -524,6 +578,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           dayIndex={selectedDay}
           tripId={trip.id}
           cityTransportMode={cityTransportMode || trip.cityTransportMode}
+          accommodations={trip.accommodations}
           onGoToPlaces={onGoToPlaces}
         />
         {generating && (

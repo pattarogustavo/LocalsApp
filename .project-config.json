@@ -1,8 +1,8 @@
 {
   "build_command": "pnpm run build",
   "capabilities": [
-    "server",
     "db",
+    "server",
     "user"
   ],
   "dev_command": "pnpm run dev",
@@ -15,10 +15,10 @@
   ],
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/310419663029664606/W4ReyjxDyzrfQdpLmkcvHo",
-    "access_key_id": "ASIAZV3A2ECZHUNZS3M6",
-    "secret_access_key": "xFRbYSqJJsX+pXZRVqUqEthKSDoI92B4nZc+yRLH",
-    "session_token": "IQoJb3JpZ2luX2VjEC4aCXVzLWVhc3QtMSJGMEQCIG1XeJts5M4r1Smdw1jODs0y7oX+il5zYHmZOajLFhe4AiBPPOvaNOramxhlA6UK4E/2ykwOtl3RQHomb3FCIGM/CSr+Awj3//////////8BEAQaDDY2NTM4NjA5ODg2NiIMs/XpZJKtPTS3+SYCKtIDzpjui0YWDtvyiyIsdInlrPFaMh31dHE22hQ6Btk1YMsJCHa9pnhKPvJ3si+pTNUoOyqpzJFj6VkPnxDXvSPxmT1vnQ37zZrDWnDxyonb9gMofxjCpNUTl4NpRwMzaQP/hxjXo6HmNgMIRi4MQxzLPBryHhwJODS+UdC5u8qmg0st87nb3RqpVV8Uts5pDjXFRDKaTllMGNQCdJo+58eMmEx+7qQAg4whbGdav1KXukm3SK4LA28oibeV/AqfsQR0BEBn16YEypLg/pGts66sM0d4KeXJKUH7s2jWrQS0B1nVoEGvlPQmOg7PnA3BOcWAMhpfTwICeNYstGX4GdAORvnHlNqIZpJg+DYljnu2nnpabX5m87K1p6ZD6RoYWuDn1BVvtn01DpfMiJPR2CyorbR2MDY7kvVwVXmDHlN8i1lsN/0rGkcaTZwBJM7fXSttJTbrTyyjTWLo15T0cBvivxgp9Gxn/ipw2FhlpvVJPh36kvygYcSX4RzGNMBloreWAA3uRmASNGcp97ETt5FDqFn42UfgzbQ28n8ceTYt17rOsfpNZZFazyGIy7VcZ4GrHyPapDu6DuV/P6CIG+QPJQ6gBZEmYH2ZYPePQ6WfCzJRtzD71LjQBjqeAaboqYfki3VIDrk+ZK4Af+vZzeHYmL7T2eUgWPVTfVGL0O2Gi9e185xf00t2iespOJgDG16xufNAsOive9WzXKPo9ob39ZLTjqXfrWfbXDv/17N2S8CVjeCqCX6RHgWjO/i0FzTPmorSnbneGI7bWk2+sL7sfR9HQs7wzsTQ8fUUccgl8ilAJRjmEYg4ZMi7VuOe+t+9jKQKy+UonzB0",
-    "expiration": "2026-05-21T09:41:15.000Z"
+    "access_key_id": "ASIAZV3A2ECZGTXT5XQP",
+    "secret_access_key": "fVUIBecFLN0Ta+XmG1LMzr7G/q2BvLWcD+e6A/hl",
+    "session_token": "IQoJb3JpZ2luX2VjEPz//////////wEaCXVzLWVhc3QtMSJIMEYCIQD3ycuD4FWKvTRwVngDMuKxQRxJLvmCMPA7zoGBcZpCSwIhAMtmF75HQUxD4z6gFAnSE5lyOmVzmsjijT6f7u7QdTXgKv4DCMX//////////wEQBBoMNjY1Mzg2MDk4ODY2IgzkYAaZdTs8NPdkNl8q0gNJxVnXfxyMmt4G9ynZ4LivKtpnzU0c5nWdpCVKFl6qtmUjJSPbaEVsylBs5ciHi6A3J7T6oJCtJegELAr4Ohv04+Ak+nD8vyCkkVgBYYW6j9IPPbWUbNuYIbO2+ygi/6iLay6Ir3o38y+OXFXc7pgRVWF3bEPg2ixNSfLdKghPlDFbBWrY/VeaubJ+6jYi3EBq4K9OaBqc7hfeIQ5a8rGa6kCfQeZNLeI+5LfoUyue29KeAO5OrBcsxTWIi6frGsJg3yReBn9+ILNidQGYtZd1+Lw3Zj0C2u+nYCvA/u8zUu6ETVso+PrKIeR+jrME/p7o/Bk+DXiKx+Q3AzNxgL2PXAYv7maOgMtftcvd0d/x0e2bguq5t4lE6gW4+nzXuUEbGwuKbwL7B7LX/LmMuAPgR8OLKBQOdZVelBI6zdWjT0WsR+C1+C4eQMDsNTwdMt4Oz8UFhDMQI7IjlopSfHVY7acFuZGmXtXbIFd4xKWgWAS1QpqFA2LlbdXu7db/vbwJLtSoGU+3FFelIQ7uYmW3o/QSB0u0eWNyN0Kim1u1/m71r5RgLxUCz4ximmV9GtQ/k8O16isQbf+O0mYs6sDn2fuoBZjc25IkGN/OsSF0j4DtMMTv5dAGOpwBu5j8TMfGmQbaloqxPhn8RbmpO996D/6oTL776qDrHfxFjY7UqB6GLz5RL0uHtI4cpBxOJnAQXqvPAACyAwVd3wyyLcbDG2xkUbcamzZk4vIrGJ7rIcXwcld76gd/ajaUk6nlovJ2br3LPKNavqlqqlwO9p0lBtw+lymg1VPC+sqfN+IQSDk5uKrCLnWVQMUZ8OU3je/kB8f/Xb7p",
+    "expiration": "2026-05-29T23:25:56.000Z"
   },
   "name": "voyage-app",
   "path": "/home/ubuntu/voyage-app",
