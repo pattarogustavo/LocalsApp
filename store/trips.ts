@@ -60,6 +60,9 @@ interface TripsState {
   // Itinerary stop editing
   updateItineraryStop: (tripId: string, dayIndex: number, stopId: string, updates: Partial<ItineraryStop>) => Promise<void>;
   removeItineraryStop: (tripId: string, dayIndex: number, stopId: string) => Promise<void>;
+  // Itinerary stop movement and addition
+  moveItineraryStop: (tripId: string, fromDayIndex: number, toDayIndex: number, stopId: string, toPosition?: number) => Promise<void>;
+  addItineraryStop: (tripId: string, dayIndex: number, stop: ItineraryStop) => Promise<void>;
   // Plan
   updateUserPlan: (plan: Partial<UserPlan>) => void;
 }
@@ -137,11 +140,17 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   removePlace: async (tripId: string, placeId: string) => {
-    const trips = get().trips.map((t) =>
-      t.id === tripId
-        ? { ...t, places: t.places.filter((p) => p.id !== placeId), updatedAt: new Date().toISOString() }
-        : t
-    );
+    const trips = get().trips.map((t) => {
+      if (t.id !== tripId) return t;
+      // Remove from places list
+      const places = t.places.filter((p) => p.id !== placeId);
+      // Also remove matching itinerary stops that reference this place
+      const itinerary = t.itinerary.map((day) => ({
+        ...day,
+        stops: day.stops.filter((s) => s.placeId !== placeId),
+      }));
+      return { ...t, places, itinerary, updatedAt: new Date().toISOString() };
+    });
     set({ trips });
     await saveToStorage(trips);
   },
@@ -392,6 +401,48 @@ export const useTripsStore = create<TripsState>((set, get) => ({
       const itinerary = t.itinerary.map((day, idx) => {
         if (idx !== dayIndex) return day;
         return { ...day, stops: day.stops.filter((s) => s.id !== stopId) };
+      });
+      return { ...t, itinerary, updatedAt: new Date().toISOString() };
+    });
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  moveItineraryStop: async (tripId: string, fromDayIndex: number, toDayIndex: number, stopId: string, toPosition?: number) => {
+    const trips = get().trips.map((t) => {
+      if (t.id !== tripId) return t;
+      const itinerary = t.itinerary.map((day, idx) => {
+        if (idx === fromDayIndex) {
+          return { ...day, stops: day.stops.filter((s) => s.id !== stopId) };
+        }
+        return day;
+      });
+      // Find the stop that was moved
+      const fromDay = t.itinerary[fromDayIndex];
+      const stop = fromDay?.stops.find((s) => s.id === stopId);
+      if (!stop) return t;
+      const updatedItinerary = itinerary.map((day, idx) => {
+        if (idx !== toDayIndex) return day;
+        const newStops = [...day.stops];
+        if (toPosition !== undefined && toPosition >= 0 && toPosition <= newStops.length) {
+          newStops.splice(toPosition, 0, stop);
+        } else {
+          newStops.push(stop);
+        }
+        return { ...day, stops: newStops };
+      });
+      return { ...t, itinerary: updatedItinerary, updatedAt: new Date().toISOString() };
+    });
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  addItineraryStop: async (tripId: string, dayIndex: number, stop: ItineraryStop) => {
+    const trips = get().trips.map((t) => {
+      if (t.id !== tripId) return t;
+      const itinerary = t.itinerary.map((day, idx) => {
+        if (idx !== dayIndex) return day;
+        return { ...day, stops: [...day.stops, stop] };
       });
       return { ...t, itinerary, updatedAt: new Date().toISOString() };
     });

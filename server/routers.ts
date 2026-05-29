@@ -652,6 +652,99 @@ Importante:
      * Generate place suggestions for a destination by category.
      * Used in the "Lugares" tab when AI selects places.
      */
+    /**
+     * Generate itinerary from scratch with user profile questions.
+     * Returns both suggested places AND a day-by-day itinerary.
+     */
+    generateFromScratch: publicProcedure
+      .input(
+        z.object({
+          tripId: z.string(),
+          startDate: z.string(),
+          totalDays: z.number(),
+          destinations: z.array(
+            z.object({
+              name: z.string(),
+              country: z.string().optional(),
+              days: z.number(),
+            })
+          ),
+          cityTransportMode: z.string().optional(),
+          profile: z.object({
+            travelStyle: z.array(z.string()),   // e.g. ["cultura", "gastronomia"]
+            budget: z.enum(["econômico", "moderado", "luxo"]),
+            pace: z.enum(["relaxado", "moderado", "intenso"]),
+            travelProfile: z.enum(["casal", "família", "solo", "amigos", "negócios"]),
+            interests: z.string().optional(),   // free text
+            wakeUpTime: z.string().optional(),
+          }),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { startDate, totalDays, destinations, cityTransportMode, profile } = input;
+
+        const destSummary = destinations
+          .map((d) => `${d.name} (${d.country || ""}) — ${d.days} dias`)
+          .join(", ");
+
+        const paceStops = profile.pace === 'relaxado' ? 3 : profile.pace === 'intenso' ? 6 : 4;
+
+        const transportLabel: Record<string, string> = {
+          walk: 'a pé (walking)',
+          bike: 'bicicleta (bicycling)',
+          public: 'transporte público / metrô (transit)',
+          uber: 'Uber/táxi (driving)',
+          car: 'carro próprio (driving)',
+          taxi: 'táxi (driving)',
+        };
+        const transportHint = cityTransportMode
+          ? `\n- Meio de transporte: ${transportLabel[cityTransportMode] || cityTransportMode}`
+          : '';
+
+        const prompt = `Crie um roteiro de viagem personalizado para ${totalDays} dias.
+
+Data de início: ${startDate}
+Destinos: ${destSummary}
+
+Perfil do viajante:
+- Estilo: ${profile.travelStyle.join(", ")}
+- Orçamento: ${profile.budget}
+- Ritmo: ${profile.pace} (${paceStops} paradas/dia)
+- Tipo de viagem: ${profile.travelProfile}
+${profile.interests ? `- Interesses específicos: ${profile.interests}` : ""}
+- Horário de acordar: ${profile.wakeUpTime || "08:00"}${transportHint}
+
+Crie o roteiro completo com lugares autênticos que combinem com o perfil acima.
+
+Retorne um JSON com:
+1. "suggestedPlaces": array de todos os lugares usados no roteiro, cada um com:
+   { name, category (attraction|restaurant|cafe|museum|hidden_gem|other), address, hours, description, lat, lng, destinationName }
+2. "days": array dia-a-dia, cada dia com:
+   { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, stops: [{ id (uuid), time (HH:MM), placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
+
+Importante:
+- Inclua lat/lng reais para cada lugar.
+- O travelModeToNext deve ser: ${cityTransportMode || 'driving'}.
+- Distribua bem os horários ao longo do dia.
+- Respeite o orçamento e o ritmo do viajante.`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: "Você é um guia de viagens especialista. Crie roteiros personalizados, detalhados e culturalmente ricos. Responda sempre em JSON válido." },
+            { role: "user", content: prompt },
+          ],
+          response_format: { type: "json_object" },
+        });
+
+        const content = response.choices[0].message.content as string;
+        try {
+          const parsed = JSON.parse(content);
+          return { days: parsed.days || [], suggestedPlaces: parsed.suggestedPlaces || [] };
+        } catch {
+          return { days: [], suggestedPlaces: [] };
+        }
+      }),
+
     suggestPlaces: publicProcedure
       .input(
         z.object({

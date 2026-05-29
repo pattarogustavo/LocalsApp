@@ -146,15 +146,24 @@
 
 ## Fase 12 — Melhorias de UI e Roteiro
 
-- [ ] Campo "Início da viagem" com texto mais escuro no celular (cor do placeholder/valor visível)
-- [ ] Corrigir moeda, bandeira e foto para destinos como Maiorca e Milão
-- [ ] Painel de Destinos: adicionar novo destino + arrastar para reordenar + validação de dias totais
-- [ ] Painel de Data: adicionar edição de quantidade de dias do roteiro
+- [x] Campo "Início da viagem" com texto mais escuro no celular (cor do placeholder/valor visível)
+- [x] Corrigir moeda, bandeira e foto para destinos como Maiorca e Milão
+- [x] Painel de Destinos: adicionar novo destino + arrastar para reordenar + validação de dias totais
+- [x] Painel de Data: adicionar edição de quantidade de dias do roteiro
 
 ## Fase 13 — Melhorias de UI e Funcionalidades
 
-- [ ] Remover campo de busca duplicado na tela de lugares (manter apenas busca de lugares disponíveis)
-- [ ] Renomear aba "História" para "Informações" com dados por destino (clima, lotação, habitantes, saúde, visto)
-- [ ] Corrigir botão de busca (lupa) na tela inicial para pesquisar roteiros criados
-- [ ] Corrigir busca de aeroportos na opção Origem/Destino do voo (busca por iniciais, nome, estado, país)
-- [ ] Implementar busca de voos reais com origem, destino e data para o usuário selecionar
+- [x] Remover campo de busca duplicado na tela de lugares (manter apenas busca de lugares disponíveis)
+- [x] Renomear aba "História" para "Informações" com dados por destino (clima, lotação, habitantes, saúde, visto)
+- [x] Corrigir botão de busca (lupa) na tela inicial para pesquisar roteiros criados
+- [x] Corrigir busca de aeroportos na opção Origem/Destino do voo (busca por iniciais, nome, estado, país)
+- [x] Implementar busca de voos reais com origem, destino e data para o usuário selecionar
+
+## Fase 14 — Redesign do Sistema de Roteiro
+
+- [x] Lugares salvos na aba Lugares são a fonte única de verdade para o roteiro dia-a-dia
+- [x] Modo 1: IA cria roteiro do zero com perguntas de perfil do usuário
+- [x] Modo 2: IA organiza roteiro com base nos lugares salvos pelo usuário
+- [x] Modo 3: Usuário monta manualmente o roteiro com os lugares salvos (via painel de lugares não agendados)
+- [x] Mover paradas entre dias com recálculo automático de trânsito e links Maps
+- [x] Roteiro gerado por IA considera tempo de trânsito e proximidade geográfica
