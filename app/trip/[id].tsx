@@ -32,6 +32,9 @@ import * as ImagePicker from 'expo-image-picker';
 import type { Destination } from '@/types/voyage';
 import { DestinationAutocomplete } from '@/components/destination-autocomplete';
 import { useTripsStore as useTripsStoreForDuration } from '@/store/trips';
+import { trpc } from '@/lib/trpc';
+import { ActivityIndicator } from 'react-native';
+import { getCountryFlag } from '@/utils/trip-helpers';
 
 const { height } = Dimensions.get('window');
 const HERO_HEIGHT = height * 0.38;
@@ -123,7 +126,7 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'hospedagem', label: 'Hospedagem', icon: 'bed' },
   { key: 'lugares', label: 'Lugares', icon: 'map' },
   { key: 'fotos', label: 'Fotos', icon: 'images' },
-  { key: 'historia', label: 'História', icon: 'book' },
+  { key: 'historia', label: 'Informações', icon: 'information-circle' },
 ];
 
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -721,21 +724,281 @@ function TransportTab({ trip }: { trip: any }) {
   );
 }
 
-function HistoryTab({ trip }: { trip: any }) {
-  const destName = trip.destinations[0]?.name || 'seu destino';
+function DestinationInfoCard({ destination, travelMonth }: { destination: Destination; travelMonth?: string }) {
+  const generateInfo = trpc.destinationInfo.generate.useMutation();
+  const [info, setInfo] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [loaded, setLoaded] = React.useState(false);
+
+  const load = async () => {
+    if (loaded || loading) return;
+    setLoading(true);
+    try {
+      const result = await generateInfo.mutateAsync({
+        destination: destination.name,
+        country: destination.country,
+        travelMonth,
+      });
+      setInfo(result.data);
+      setLoaded(true);
+    } catch {
+      setLoaded(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => { load(); }, []);
+
+  const crowdColor = (level: string) => {
+    if (!level) return '#52B788';
+    const l = level.toLowerCase();
+    if (l.includes('alto') || l.includes('high')) return '#EF4444';
+    if (l.includes('médio') || l.includes('medium') || l.includes('medio')) return '#F59E0B';
+    return '#52B788';
+  };
+
   return (
-    <View style={styles.historyBlock}>
-      <View style={styles.historyHeader}>
-        <Ionicons name="book-outline" size={18} color="#52B788" />
-        <Text style={styles.historyTitle}>História de {destName}</Text>
+    <View style={infoStyles.card}>
+      {/* Destination header */}
+      <View style={infoStyles.destHeader}>
+        <Text style={infoStyles.destFlag}>{getCountryFlag(destination.country || destination.name) || '🌍'}</Text>
+        <Text style={infoStyles.destName}>{destination.name}</Text>
+        {travelMonth && <Text style={infoStyles.destMonth}>{travelMonth}</Text>}
       </View>
-      <Text style={styles.historyText}>
-        Explore a história, cultura e curiosidades sobre {destName}. Esta seção será preenchida com informações
-        sobre os destinos da sua viagem.
-      </Text>
+
+      {loading && (
+        <View style={infoStyles.loadingRow}>
+          <ActivityIndicator size="small" color="#52B788" />
+          <Text style={infoStyles.loadingText}>Carregando informações...</Text>
+        </View>
+      )}
+
+      {!loading && !info && loaded && (
+        <View style={infoStyles.loadingRow}>
+          <Ionicons name="alert-circle-outline" size={16} color="rgba(245,240,232,0.4)" />
+          <Text style={infoStyles.loadingText}>Não foi possível carregar as informações.</Text>
+        </View>
+      )}
+
+      {info && (
+        <>
+          {/* Climate */}
+          <View style={infoStyles.section}>
+            <View style={infoStyles.sectionHeader}>
+              <Ionicons name="partly-sunny-outline" size={16} color="#F59E0B" />
+              <Text style={infoStyles.sectionTitle}>Clima</Text>
+              {info.climate?.avgTempC != null && (
+                <View style={infoStyles.tempBadge}>
+                  <Text style={infoStyles.tempText}>{info.climate.avgTempC}°C</Text>
+                </View>
+              )}
+            </View>
+            <Text style={infoStyles.sectionBody}>{info.climate?.description}</Text>
+            {info.climate?.recommendation && (
+              <View style={infoStyles.tipRow}>
+                <Ionicons name="bulb-outline" size={13} color="#F59E0B" />
+                <Text style={infoStyles.tipText}>{info.climate.recommendation}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Crowd */}
+          <View style={infoStyles.section}>
+            <View style={infoStyles.sectionHeader}>
+              <Ionicons name="people-outline" size={16} color={crowdColor(info.crowd?.level)} />
+              <Text style={infoStyles.sectionTitle}>Lotação</Text>
+              {info.crowd?.level && (
+                <View style={[infoStyles.levelBadge, { backgroundColor: crowdColor(info.crowd.level) + '22', borderColor: crowdColor(info.crowd.level) + '44' }]}>
+                  <Text style={[infoStyles.levelText, { color: crowdColor(info.crowd.level) }]}>{info.crowd.level}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={infoStyles.sectionBody}>{info.crowd?.description}</Text>
+            {info.crowd?.tip && (
+              <View style={infoStyles.tipRow}>
+                <Ionicons name="bulb-outline" size={13} color="#52B788" />
+                <Text style={infoStyles.tipText}>{info.crowd.tip}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Population */}
+          {info.population?.count && (
+            <View style={infoStyles.section}>
+              <View style={infoStyles.sectionHeader}>
+                <Ionicons name="business-outline" size={16} color="rgba(245,240,232,0.6)" />
+                <Text style={infoStyles.sectionTitle}>Habitantes</Text>
+              </View>
+              <Text style={infoStyles.sectionBody}>{info.population.count} habitantes</Text>
+            </View>
+          )}
+
+          {/* Health */}
+          <View style={infoStyles.section}>
+            <View style={infoStyles.sectionHeader}>
+              <Ionicons name="medical-outline" size={16} color="#EF4444" />
+              <Text style={infoStyles.sectionTitle}>Saúde</Text>
+              <View style={[infoStyles.levelBadge, { backgroundColor: info.health?.waterSafe ? '#52B78822' : '#EF444422', borderColor: info.health?.waterSafe ? '#52B78844' : '#EF444444' }]}>
+                <Text style={[infoStyles.levelText, { color: info.health?.waterSafe ? '#52B788' : '#EF4444' }]}>
+                  {info.health?.waterSafe ? 'Água potável' : 'Água não potável'}
+                </Text>
+              </View>
+            </View>
+            {info.health?.vaccines?.length > 0 && (
+              <View style={infoStyles.tagRow}>
+                {info.health.vaccines.map((v: string, i: number) => (
+                  <View key={i} style={infoStyles.tag}>
+                    <Text style={infoStyles.tagText}>{v}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {info.health?.notes && <Text style={[infoStyles.sectionBody, { marginTop: 6 }]}>{info.health.notes}</Text>}
+          </View>
+
+          {/* Visa */}
+          <View style={infoStyles.section}>
+            <View style={infoStyles.sectionHeader}>
+              <Ionicons name="document-text-outline" size={16} color="#52B788" />
+              <Text style={infoStyles.sectionTitle}>Visto</Text>
+              <View style={[infoStyles.levelBadge, { backgroundColor: info.visa?.required ? '#EF444422' : '#52B78822', borderColor: info.visa?.required ? '#EF444444' : '#52B78844' }]}>
+                <Text style={[infoStyles.levelText, { color: info.visa?.required ? '#EF4444' : '#52B788' }]}>
+                  {info.visa?.required ? 'Necessário' : 'Não necessário'}
+                </Text>
+              </View>
+            </View>
+            <Text style={infoStyles.sectionBody}>{info.visa?.type}</Text>
+            {info.visa?.notes && <Text style={[infoStyles.sectionBody, { marginTop: 4, opacity: 0.7 }]}>{info.visa.notes}</Text>}
+          </View>
+
+          {/* Tips */}
+          {info.tips?.length > 0 && (
+            <View style={infoStyles.section}>
+              <View style={infoStyles.sectionHeader}>
+                <Ionicons name="star-outline" size={16} color="#52B788" />
+                <Text style={infoStyles.sectionTitle}>Dicas</Text>
+              </View>
+              {info.tips.map((tip: string, i: number) => (
+                <View key={i} style={infoStyles.tipRow}>
+                  <Text style={infoStyles.tipBullet}>•</Text>
+                  <Text style={infoStyles.tipText}>{tip}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </>
+      )}
     </View>
   );
 }
+
+function HistoryTab({ trip }: { trip: any }) {
+  const travelMonth = trip.startDate
+    ? new Date(trip.startDate).toLocaleString('pt-BR', { month: 'long' })
+    : undefined;
+
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {trip.destinations.length === 0 ? (
+        <View style={infoStyles.emptyState}>
+          <Ionicons name="information-circle-outline" size={40} color="rgba(245,240,232,0.2)" />
+          <Text style={infoStyles.emptyText}>Adicione destinos ao roteiro para ver as informações</Text>
+        </View>
+      ) : (
+        trip.destinations.map((dest: Destination) => (
+          <DestinationInfoCard key={dest.id} destination={dest} travelMonth={travelMonth} />
+        ))
+      )}
+    </ScrollView>
+  );
+}
+
+const infoStyles = StyleSheet.create({
+  card: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  destHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  destFlag: { fontSize: 24 },
+  destName: { flex: 1, fontSize: 18, fontWeight: '700', color: '#F5F0E8' },
+  destMonth: {
+    fontSize: 12,
+    color: 'rgba(245,240,232,0.5)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  loadingText: { fontSize: 13, color: 'rgba(245,240,232,0.5)' },
+  section: {
+    marginBottom: 14,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.07)',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: 'rgba(245,240,232,0.8)', flex: 1 },
+  sectionBody: { fontSize: 13, color: 'rgba(245,240,232,0.65)', lineHeight: 18 },
+  tempBadge: {
+    backgroundColor: 'rgba(245,158,11,0.15)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 0.5,
+    borderColor: 'rgba(245,158,11,0.3)',
+  },
+  tempText: { fontSize: 13, fontWeight: '700', color: '#F59E0B' },
+  levelBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 0.5,
+  },
+  levelText: { fontSize: 11, fontWeight: '600' },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  tag: {
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 0.5,
+    borderColor: 'rgba(239,68,68,0.25)',
+  },
+  tagText: { fontSize: 11, color: '#EF4444' },
+  tipRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 4 },
+  tipBullet: { fontSize: 13, color: '#52B788', lineHeight: 18 },
+  tipText: { flex: 1, fontSize: 12, color: 'rgba(245,240,232,0.6)', lineHeight: 18 },
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
+  emptyText: { fontSize: 14, color: 'rgba(245,240,232,0.4)', textAlign: 'center', paddingHorizontal: 32 },
+});
 
 const styles = StyleSheet.create({
   heroBtn: {

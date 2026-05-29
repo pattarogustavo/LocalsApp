@@ -108,6 +108,105 @@ async function fetchFlightData(flightNumber: string, date: string) {
 
 export const appRouter = router({
   system: systemRouter,
+
+  // ─── Destination Info (AI) ───────────────────────────────────────────────
+  destinationInfo: router({
+    /**
+     * Generate per-destination travel info using LLM:
+     * climate, crowd level, population, health/vaccine requirements, visa info.
+     */
+    generate: publicProcedure
+      .input(z.object({
+        destination: z.string(),
+        country: z.string().optional(),
+        travelMonth: z.string().optional(), // e.g. "junho"
+        originCountry: z.string().optional().default('Brasil'),
+      }))
+      .mutation(async ({ input }) => {
+        const { destination, country, travelMonth, originCountry } = input;
+        const prompt = `Você é um especialista em viagens. Forneça informações práticas e concisas sobre viajar para ${destination}${country ? `, ${country}` : ''}${travelMonth ? ` no mês de ${travelMonth}` : ''} para turistas do ${originCountry}.
+
+Responda APENAS com JSON válido neste formato exato:
+{
+  "climate": {
+    "avgTempC": 22,
+    "description": "Clima ameno, dias ensolarados com noites frescas",
+    "recommendation": "Leve um casaco leve para as noites"
+  },
+  "crowd": {
+    "level": "Alto",
+    "description": "Alta temporada turística, muitos visitantes",
+    "tip": "Reserve atrações com antecedência"
+  },
+  "population": {
+    "count": "3,2 milhões",
+    "city": "${destination}"
+  },
+  "health": {
+    "vaccines": ["Febre Amarela (recomendada)", "Hepatite A"],
+    "waterSafe": true,
+    "notes": "Água da torneira potável. Sem riscos sanitários especiais."
+  },
+  "visa": {
+    "required": false,
+    "type": "Isento de visto para turismo até 90 dias",
+    "notes": "Passaporte válido por pelo menos 6 meses necessário"
+  },
+  "tips": ["Dica prática 1", "Dica prática 2"]
+}`;
+
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: 'system', content: 'Você é um especialista em viagens internacionais. Responda sempre em JSON válido.' },
+              { role: 'user', content: prompt },
+            ],
+            response_format: { type: 'json_object' },
+          });
+          const content = response.choices[0].message.content as string;
+          return { data: JSON.parse(content) };
+        } catch {
+          return { data: null };
+        }
+      }),
+  }),
+
+  // ─── Airport Search ───────────────────────────────────────────────────────
+  airports: router({
+    /**
+     * Search airports by query string (IATA code, name, city, country).
+     * Uses AeroDataBox airport search endpoint.
+     */
+    search: publicProcedure
+      .input(z.object({ query: z.string().min(1) }))
+      .query(async ({ input }) => {
+        if (!AERODATABOX_KEY) return { airports: [] };
+        try {
+          const url = `https://${AERODATABOX_HOST}/airports/search/term?q=${encodeURIComponent(input.query)}&limit=7`;
+          const res = await fetch(url, {
+            headers: {
+              'x-rapidapi-key': AERODATABOX_KEY,
+              'x-rapidapi-host': AERODATABOX_HOST,
+            },
+          });
+          if (!res.ok) return { airports: [] };
+          const json = (await res.json()) as any;
+          const items = json.items || [];
+          return {
+            airports: items.map((a: any) => ({
+              iata: a.iata || '',
+              name: a.name || '',
+              city: a.municipalityName || '',
+              country: a.countryCode || '',
+              fullName: `${a.municipalityName || a.name} (${a.iata})`,
+            })).filter((a: any) => a.iata),
+          };
+        } catch {
+          return { airports: [] };
+        }
+      }),
+  }),
+
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {

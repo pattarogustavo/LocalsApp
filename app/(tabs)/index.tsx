@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,10 @@ import {
   Dimensions,
   RefreshControl,
   ImageBackground,
+  Modal,
+  TextInput,
+  StyleSheet,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,6 +67,17 @@ export default function HomeScreen() {
   const { trips, loadTrips } = useTripsStore();
   const [showCreate, setShowCreate] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return trips.filter((t) =>
+      t.name.toLowerCase().includes(q) ||
+      t.destinations.some((d: { name: string }) => d.name.toLowerCase().includes(q))
+    );
+  }, [trips, searchQuery]);
 
   useEffect(() => {
     loadTrips();
@@ -119,7 +134,10 @@ export default function HomeScreen() {
             >
               <Ionicons name="add" size={20} color="#F5F0E8" />
             </TouchableOpacity>
-            <TouchableOpacity className="w-10 h-10 rounded-full bg-primary items-center justify-center">
+            <TouchableOpacity
+              onPress={() => { setShowSearch(true); setSearchQuery(''); }}
+              className="w-10 h-10 rounded-full bg-primary items-center justify-center"
+            >
               <Ionicons name="search" size={18} color="#F5F0E8" />
             </TouchableOpacity>
             <TouchableOpacity className="w-10 h-10 rounded-full bg-primary items-center justify-center">
@@ -224,6 +242,149 @@ export default function HomeScreen() {
         onClose={() => setShowCreate(false)}
         onCreated={handleTripCreated}
       />
+
+      {/* Search Modal */}
+      <Modal
+        visible={showSearch}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowSearch(false)}
+      >
+        <View style={searchStyles.container}>
+          <View style={searchStyles.header}>
+            <View style={searchStyles.inputRow}>
+              <Ionicons name="search" size={18} color="rgba(28,61,46,0.5)" />
+              <TextInput
+                style={searchStyles.input}
+                placeholder="Buscar roteiros..."
+                placeholderTextColor="rgba(28,61,46,0.4)"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={18} color="rgba(28,61,46,0.4)" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity onPress={() => setShowSearch(false)} style={searchStyles.cancelBtn}>
+              <Text style={searchStyles.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+
+          {searchQuery.trim().length === 0 ? (
+            <View style={searchStyles.emptyState}>
+              <Ionicons name="search-outline" size={40} color="rgba(28,61,46,0.2)" />
+              <Text style={searchStyles.emptyText}>Digite para buscar seus roteiros</Text>
+            </View>
+          ) : searchResults.length === 0 ? (
+            <View style={searchStyles.emptyState}>
+              <Ionicons name="alert-circle-outline" size={40} color="rgba(28,61,46,0.2)" />
+              <Text style={searchStyles.emptyText}>Nenhum roteiro encontrado para "{searchQuery}"</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ padding: 16, gap: 12 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={searchStyles.resultCard}
+                  onPress={() => { setShowSearch(false); router.push(`/trip/${item.id}`); }}
+                >
+                  <View style={searchStyles.resultLeft}>
+                    <Text style={searchStyles.resultName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={searchStyles.resultDest} numberOfLines={1}>
+                      {item.destinations.map((d) => d.name).join(' · ')}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="rgba(28,61,46,0.4)" />
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
+
+const searchStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F0E8',
+    paddingTop: Platform.OS === 'android' ? 16 : 0,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(28,61,46,0.15)',
+  },
+  inputRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(28,61,46,0.08)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1C3D2E',
+  },
+  cancelBtn: {
+    paddingVertical: 8,
+  },
+  cancelText: {
+    fontSize: 15,
+    color: '#1C3D2E',
+    fontWeight: '500',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingBottom: 80,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: 'rgba(28,61,46,0.4)',
+    textAlign: 'center',
+    paddingHorizontal: 32,
+  },
+  resultCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 16,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  resultLeft: { flex: 1 },
+  resultName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C3D2E',
+    marginBottom: 3,
+  },
+  resultDest: {
+    fontSize: 13,
+    color: 'rgba(28,61,46,0.5)',
+  },
+});

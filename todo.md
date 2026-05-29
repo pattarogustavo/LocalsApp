@@ -150,3 +150,11 @@
 - [ ] Corrigir moeda, bandeira e foto para destinos como Maiorca e Milão
 - [ ] Painel de Destinos: adicionar novo destino + arrastar para reordenar + validação de dias totais
 - [ ] Painel de Data: adicionar edição de quantidade de dias do roteiro
+
+## Fase 13 — Melhorias de UI e Funcionalidades
+
+- [ ] Remover campo de busca duplicado na tela de lugares (manter apenas busca de lugares disponíveis)
+- [ ] Renomear aba "História" para "Informações" com dados por destino (clima, lotação, habitantes, saúde, visto)
+- [ ] Corrigir botão de busca (lupa) na tela inicial para pesquisar roteiros criados
+- [ ] Corrigir busca de aeroportos na opção Origem/Destino do voo (busca por iniciais, nome, estado, país)
+- [ ] Implementar busca de voos reais com origem, destino e data para o usuário selecionar

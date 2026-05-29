@@ -368,7 +368,6 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
   const { addPlace, removePlace, setItinerary } = useTripsStore();
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeDestFilter, setActiveDestFilter] = useState('all');
-  const [mySearch, setMySearch] = useState('');
   const [availSearch, setAvailSearch] = useState('');
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
@@ -388,10 +387,9 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
     return places.filter((p) => {
       const matchCat  = activeCategory === 'all' || p.category === activeCategory;
       const matchDest = activeDestFilter === 'all' || p.destinationId === activeDestFilter;
-      const matchSrch = !mySearch || p.name.toLowerCase().includes(mySearch.toLowerCase());
-      return matchCat && matchDest && matchSrch;
+      return matchCat && matchDest;
     });
-  }, [places, activeCategory, activeDestFilter, mySearch]);
+  }, [places, activeCategory, activeDestFilter]);
 
   // Group my places by destination → category
   const grouped = useMemo(() => {
@@ -509,24 +507,6 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
           ))}
         </ScrollView>
 
-        {/* Search within Minha Viagem */}
-        <View style={styles.searchRow}>
-          <Ionicons name="search-outline" size={15} color="rgba(245,240,232,0.4)" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar nos meus lugares..."
-            placeholderTextColor="rgba(245,240,232,0.3)"
-            value={mySearch}
-            onChangeText={setMySearch}
-            returnKeyType="search"
-          />
-          {mySearch.length > 0 && (
-            <TouchableOpacity onPress={() => setMySearch('')}>
-              <Ionicons name="close-circle" size={15} color="rgba(245,240,232,0.4)" />
-            </TouchableOpacity>
-          )}
-        </View>
-
         {/* Grouped places */}
         {Object.values(grouped).length > 0 ? (
           Object.values(grouped).map(({ dest, byCategory }) => (
@@ -553,7 +533,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
           <View style={styles.emptyMyPlaces}>
             <Ionicons name="location-outline" size={24} color="rgba(245,240,232,0.2)" />
             <Text style={styles.emptyMyPlacesText}>
-              {mySearch ? 'Nenhum lugar encontrado' : 'Nenhum lugar adicionado ainda'}
+              {'Nenhum lugar adicionado ainda'}
             </Text>
           </View>
         )}
