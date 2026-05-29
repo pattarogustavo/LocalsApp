@@ -30,6 +30,8 @@ import { useColors } from '@/hooks/use-colors';
 import { generateId } from '@/utils/trip-helpers';
 import * as ImagePicker from 'expo-image-picker';
 import type { Destination } from '@/types/voyage';
+import { DestinationAutocomplete } from '@/components/destination-autocomplete';
+import { useTripsStore as useTripsStoreForDuration } from '@/store/trips';
 
 const { height } = Dimensions.get('window');
 const HERO_HEIGHT = height * 0.38;
@@ -136,31 +138,53 @@ function formatDateDisplay(iso: string) {
 function EditDateModal({
   visible,
   currentDate,
+  currentDuration,
   onClose,
   onConfirm,
 }: {
   visible: boolean;
   currentDate: string;
+  currentDuration: number;
   onClose: () => void;
-  onConfirm: (newDate: string) => void;
+  onConfirm: (newDate: string, newDuration: number) => void;
 }) {
   const colors = useColors();
   const today = new Date();
   const [pickerDate, setPickerDate] = useState(new Date(currentDate));
+  const [duration, setDuration] = useState(currentDuration);
 
-  const adjust = (delta: number) => {
+  // Sync when modal opens
+  React.useEffect(() => {
+    if (visible) {
+      setPickerDate(new Date(currentDate));
+      setDuration(currentDuration);
+    }
+  }, [visible, currentDate, currentDuration]);
+
+  const adjustDate = (delta: number) => {
     const d = new Date(pickerDate);
     d.setDate(d.getDate() + delta);
     if (d >= today) setPickerDate(d);
   };
 
+  const adjustDuration = (delta: number) => {
+    setDuration((prev) => Math.max(1, prev + delta));
+  };
+
+  // Compute end date preview
+  const endDate = new Date(pickerDate);
+  endDate.setDate(endDate.getDate() + duration - 1);
+
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.modalOverlay}>
         <View style={[styles.editCard, { backgroundColor: colors.background }]}>
-          <Text style={[styles.editCardTitle, { color: '#1C3D2E' }]}>Alterar Data de Início</Text>
+          <Text style={[styles.editCardTitle, { color: '#1C3D2E' }]}>Datas do Roteiro</Text>
+
+          {/* Start date */}
+          <Text style={{ fontSize: 11, color: colors.muted, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Data de Início</Text>
           <View style={styles.datePickerRow}>
-            <TouchableOpacity onPress={() => adjust(-1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
+            <TouchableOpacity onPress={() => adjustDate(-1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
               <Ionicons name="chevron-back" size={20} color="#1C3D2E" />
             </TouchableOpacity>
             <View style={styles.dateCenter}>
@@ -169,16 +193,37 @@ function EditDateModal({
                 {MONTHS[pickerDate.getMonth()]} {pickerDate.getFullYear()}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => adjust(1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
+            <TouchableOpacity onPress={() => adjustDate(1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
               <Ionicons name="chevron-forward" size={20} color="#1C3D2E" />
             </TouchableOpacity>
           </View>
+
+          {/* Duration */}
+          <Text style={{ fontSize: 11, color: colors.muted, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, marginTop: 16 }}>Duração</Text>
+          <View style={[styles.datePickerRow, { marginBottom: 8 }]}>
+            <TouchableOpacity onPress={() => adjustDuration(-1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
+              <Ionicons name="chevron-back" size={20} color="#1C3D2E" />
+            </TouchableOpacity>
+            <View style={styles.dateCenter}>
+              <Text style={[styles.dateDayNum, { color: colors.foreground }]}>{duration}</Text>
+              <Text style={[styles.dateMonthText, { color: colors.muted }]}>dias</Text>
+            </View>
+            <TouchableOpacity onPress={() => adjustDuration(1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
+              <Ionicons name="chevron-forward" size={20} color="#1C3D2E" />
+            </TouchableOpacity>
+          </View>
+
+          {/* End date preview */}
+          <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', marginBottom: 20 }}>
+            Término: {endDate.getDate()} de {MONTHS[endDate.getMonth()]} de {endDate.getFullYear()}
+          </Text>
+
           <View style={styles.editCardActions}>
             <TouchableOpacity onPress={onClose} style={[styles.cancelBtn, { backgroundColor: colors.surface }]}>
               <Text style={[styles.cancelBtnText, { color: colors.foreground }]}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => { onConfirm(pickerDate.toISOString()); onClose(); }}
+              onPress={() => { onConfirm(pickerDate.toISOString(), duration); onClose(); }}
               style={[styles.confirmBtn, { backgroundColor: '#1C3D2E' }]}
             >
               <Text style={styles.confirmBtnText}>Confirmar</Text>
@@ -203,7 +248,16 @@ function EditDestinationsModal({
 }) {
   const colors = useColors();
   const { updateDestinations } = useTripsStore();
-  const [destinations, setDestinations] = useState<Destination[]>(trip.destinations);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+  // Sync destinations when modal opens
+  React.useEffect(() => {
+    if (visible) setDestinations(trip.destinations);
+  }, [visible, trip.destinations]);
+
+  const totalDays = trip.totalDays;
+  const allocatedDays = destinations.reduce((sum, d) => sum + d.days, 0);
 
   const handleUpdateDays = (id: string, delta: number) => {
     setDestinations((prev) =>
@@ -213,6 +267,55 @@ function EditDestinationsModal({
 
   const handleRemove = (id: string) => {
     setDestinations((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const handleMoveUp = (idx: number) => {
+    if (idx === 0) return;
+    setDestinations((prev) => {
+      const next = [...prev];
+      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+      return next;
+    });
+  };
+
+  const handleMoveDown = (idx: number) => {
+    setDestinations((prev) => {
+      if (idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      return next;
+    });
+  };
+
+  const handleAddDestination = async (prediction: { placeId: string; name: string; fullDescription: string; country: string }) => {
+    if (destinations.find((d) => d.placeId === prediction.placeId)) return;
+    const newDest: Destination = {
+      id: generateId(),
+      name: prediction.name,
+      country: prediction.country,
+      days: 1,
+      placeId: prediction.placeId,
+    };
+    setDestinations((prev) => [...prev, newDest]);
+    // Fetch details in background for lat/lng/imageUrl
+    try {
+      const res = await fetch(
+        `/api/trpc/places.details?input=${encodeURIComponent(JSON.stringify({ json: { placeId: prediction.placeId } }))}`
+      );
+      const json = await res.json();
+      const details = json?.result?.data?.json;
+      if (details?.imageUrl || details?.lat) {
+        setDestinations((prev) =>
+          prev.map((d) =>
+            d.placeId === prediction.placeId
+              ? { ...d, lat: details.lat, lng: details.lng, imageUrl: details.imageUrl, country: details.country || d.country }
+              : d
+          )
+        );
+      }
+    } catch {
+      // Non-critical
+    }
   };
 
   const handleSave = async () => {
@@ -232,17 +335,48 @@ function EditDestinationsModal({
             </Pressable>
           </View>
 
+          {/* Days summary */}
+          <View style={{ paddingHorizontal: 24, marginBottom: 12 }}>
+            <View style={[styles.daysSummaryRow, { backgroundColor: allocatedDays > totalDays ? 'rgba(192,57,43,0.12)' : 'rgba(28,61,46,0.08)' }]}>
+              <Ionicons name="calendar-outline" size={14} color={allocatedDays > totalDays ? '#C0392B' : '#2D5A3D'} />
+              <Text style={[styles.daysSummaryText, { color: allocatedDays > totalDays ? '#C0392B' : '#2D5A3D' }]}>
+                {allocatedDays} de {totalDays} dias alocados
+              </Text>
+              {allocatedDays > totalDays && (
+                <Text style={{ fontSize: 11, color: '#C0392B', marginLeft: 4 }}>— excede o roteiro</Text>
+              )}
+            </View>
+          </View>
+
           <ScrollView style={styles.editSheetScroll} keyboardShouldPersistTaps="handled">
             {destinations.map((dest, idx) => (
               <View key={dest.id}>
                 <View style={styles.destEditRow}>
-                  <View style={styles.destDot} />
+                  {/* Reorder arrows */}
+                  <View style={{ gap: 2, marginRight: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => handleMoveUp(idx)}
+                      style={[styles.miniBtn, { backgroundColor: idx === 0 ? 'transparent' : colors.surface }]}
+                      disabled={idx === 0}
+                    >
+                      <Ionicons name="chevron-up" size={12} color={idx === 0 ? 'transparent' : '#1C3D2E'} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleMoveDown(idx)}
+                      style={[styles.miniBtn, { backgroundColor: idx === destinations.length - 1 ? 'transparent' : colors.surface }]}
+                      disabled={idx === destinations.length - 1}
+                    >
+                      <Ionicons name="chevron-down" size={12} color={idx === destinations.length - 1 ? 'transparent' : '#1C3D2E'} />
+                    </TouchableOpacity>
+                  </View>
+
                   <View style={styles.destEditInfo}>
                     <Text style={[styles.destEditName, { color: colors.foreground }]}>{dest.name}</Text>
                     {dest.country ? (
                       <Text style={[styles.destEditCountry, { color: colors.muted }]}>{dest.country}</Text>
                     ) : null}
                   </View>
+
                   <View style={styles.destDaysRow}>
                     <TouchableOpacity
                       onPress={() => handleUpdateDays(dest.id, -1)}
@@ -272,9 +406,15 @@ function EditDestinationsModal({
               </View>
             ))}
 
+            {/* Add new destination */}
+            <View style={{ marginTop: 16, marginBottom: 8 }}>
+              <Text style={[styles.destDaysLabel, { color: colors.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }]}>Adicionar destino</Text>
+              <DestinationAutocomplete onSelect={handleAddDestination} placeholder="Buscar cidade ou região..." />
+            </View>
+
             <TouchableOpacity
               onPress={handleSave}
-              style={[styles.saveBtn, { backgroundColor: '#1C3D2E' }]}
+              style={[styles.saveBtn, { backgroundColor: '#1C3D2E', marginTop: 16 }]}
             >
               <Text style={styles.saveBtnText}>Salvar Alterações</Text>
             </TouchableOpacity>
@@ -292,7 +432,7 @@ export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { getTripById, deleteTrip, updateStartDate, updateCoverImage } = useTripsStore();
+  const { getTripById, deleteTrip, updateStartDate, updateCoverImage, updateTrip } = useTripsStore();
   const trip = getTripById(id);
   const [activeTab, setActiveTab] = useState<TabKey>('geral');
   const [showEditDate, setShowEditDate] = useState(false);
@@ -346,8 +486,13 @@ export default function TripDetailScreen() {
     );
   };
 
-  const handleDateChange = async (newDate: string) => {
+  const handleDateChange = async (newDate: string, newDuration: number) => {
     await updateStartDate(trip.id, newDate);
+    // Also update totalDays and recalculate endDate
+    const start = new Date(newDate);
+    const end = new Date(start);
+    end.setDate(end.getDate() + newDuration - 1);
+    await updateTrip(trip.id, { totalDays: newDuration, endDate: end.toISOString() });
   };
 
   return (
@@ -493,6 +638,7 @@ export default function TripDetailScreen() {
       <EditDateModal
         visible={showEditDate}
         currentDate={trip.startDate}
+        currentDuration={trip.totalDays}
         onClose={() => setShowEditDate(false)}
         onConfirm={handleDateChange}
       />
@@ -897,5 +1043,17 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  daysSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  daysSummaryText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

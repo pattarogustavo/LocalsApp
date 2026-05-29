@@ -143,3 +143,10 @@
 - [x] Hotel auto-aparece na timeline para os dias reservados; endereço do hotel usado como ponto de partida do dia
 - [x] Links Google Maps na timeline mostram rota origem→destino (não apenas pin de localização)
 - [x] Tempo de rota e links Maps usam o meio de transporte informado pelo usuário na aba Transporte
+
+## Fase 12 — Melhorias de UI e Roteiro
+
+- [ ] Campo "Início da viagem" com texto mais escuro no celular (cor do placeholder/valor visível)
+- [ ] Corrigir moeda, bandeira e foto para destinos como Maiorca e Milão
+- [ ] Painel de Destinos: adicionar novo destino + arrastar para reordenar + validação de dias totais
+- [ ] Painel de Data: adicionar edição de quantidade de dias do roteiro

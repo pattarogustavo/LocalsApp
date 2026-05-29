@@ -284,7 +284,18 @@ const COUNTRY_CURRENCY: Record<string, string> = {
 };
 
 export function getCurrencyForCountry(country: string): string {
-  return COUNTRY_CURRENCY[country] || 'USD';
+  if (COUNTRY_CURRENCY[country]) return COUNTRY_CURRENCY[country];
+  // Fuzzy match: try each part of a compound string like "Ilhas Baleares, Espanha"
+  const parts = country.split(',').map((p) => p.trim());
+  for (const part of parts.reverse()) {
+    if (COUNTRY_CURRENCY[part]) return COUNTRY_CURRENCY[part];
+    // Try partial key match
+    const key = Object.keys(COUNTRY_CURRENCY).find((k) =>
+      part.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(part.toLowerCase())
+    );
+    if (key) return COUNTRY_CURRENCY[key];
+  }
+  return 'USD';
 }
 
 /**
@@ -363,7 +374,17 @@ export function getCountryFlag(country: string): string {
     'Irlanda': '🇮🇪', 'Ireland': '🇮🇪',
     'Croácia': '🇭🇷', 'Croatia': '🇭🇷',
   };
-  return flags[country] || '🌍';
+  if (flags[country]) return flags[country];
+  // Fuzzy match: try each part of a compound string like "Ilhas Baleares, Espanha"
+  const parts = country.split(',').map((p) => p.trim());
+  for (const part of parts.reverse()) {
+    if (flags[part]) return flags[part];
+    const key = Object.keys(flags).find((k) =>
+      part.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(part.toLowerCase())
+    );
+    if (key) return flags[key];
+  }
+  return '🌍';
 }
 
 // ─── City Transport Mode ──────────────────────────────────────────────────────

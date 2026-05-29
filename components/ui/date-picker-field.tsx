@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   placeholder: {
-    color: 'rgba(245,240,232,0.3)',
+    color: 'rgba(245,240,232,0.65)',
     fontSize: 14,
   },
   hint: {
