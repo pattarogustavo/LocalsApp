@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Linking, ActivityIndicator, Modal, Alert, TextInput, FlatList,
+  Animated, PanResponder,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTripsStore } from '@/store/trips';
@@ -138,6 +139,8 @@ function StopItem({
   onDelete,
   onTimeChange,
   onMove,
+  isDragging,
+  dragHandleProps,
 }: {
   stop: StopLike;
   isLast: boolean;
@@ -146,10 +149,17 @@ function StopItem({
   onDelete?: () => void;
   onTimeChange?: (t: string) => void;
   onMove?: () => void;
+  isDragging?: boolean;
+  dragHandleProps?: any;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingTime, setEditingTime] = useState(false);
   const [timeInput, setTimeInput] = useState(stop.time || '');
+  // Swipe-to-delete state
+  const swipeX = useRef(new Animated.Value(0)).current;
+  const [swiping, setSwiping] = useState(false);
+  const [deleteRevealed, setDeleteRevealed] = useState(false);
+
   const name = stop.placeName || stop.activity || '';
   const desc = stop.description || stop.tip || '';
   const cat  = stop.placeCategory || 'other';
@@ -160,7 +170,6 @@ function StopItem({
     const destCoord = stop.lat && stop.lng ? `${stop.lat},${stop.lng}` : stop.address;
     if (!destCoord) return;
     const travelmode = toDirectionsMode(cityTransportMode);
-    // If we have a previous stop, build a directions URL (origin → destination)
     const originCoord = prevStop
       ? (prevStop.lat && prevStop.lng ? `${prevStop.lat},${prevStop.lng}` : prevStop.address)
       : null;
@@ -169,19 +178,72 @@ function StopItem({
         `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originCoord)}&destination=${encodeURIComponent(destCoord)}&travelmode=${travelmode}`
       );
     } else {
-      // First stop of the day — open just the location
       Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(destCoord)}`);
     }
   };
 
+  // Swipe pan responder (only for real stops with id)
+  const panResponder = useRef(
+    stop.id
+      ? PanResponder.create({
+          onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dy) < 20,
+          onPanResponderGrant: () => { setSwiping(true); },
+          onPanResponderMove: (_, g) => {
+            if (g.dx < 0) swipeX.setValue(Math.max(g.dx, -90));
+          },
+          onPanResponderRelease: (_, g) => {
+            setSwiping(false);
+            if (g.dx < -60) {
+              Animated.spring(swipeX, { toValue: -80, useNativeDriver: true }).start();
+              setDeleteRevealed(true);
+            } else {
+              Animated.spring(swipeX, { toValue: 0, useNativeDriver: true }).start();
+              setDeleteRevealed(false);
+            }
+          },
+        })
+      : PanResponder.create({})
+  ).current;
+
+  const resetSwipe = () => {
+    Animated.spring(swipeX, { toValue: 0, useNativeDriver: true }).start();
+    setDeleteRevealed(false);
+  };
+
   return (
-    <View>
+    <View style={{ overflow: 'hidden' }}>
+      {/* Delete action revealed on swipe */}
+      {stop.id && (
+        <View style={styles.swipeDeleteBg}>
+          <TouchableOpacity
+            onPress={() => { resetSwipe(); onDelete?.(); }}
+            style={styles.swipeDeleteBtn}
+          >
+            <Ionicons name="trash-outline" size={20} color="#fff" />
+            <Text style={styles.swipeDeleteText}>Excluir</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <Animated.View
+        style={{ transform: [{ translateX: swipeX }] }}
+        {...(stop.id ? panResponder.panHandlers : {})}
+      >
       <TouchableOpacity
-        onPress={() => setExpanded(!expanded)}
-        onLongPress={onDelete}
+        onPress={() => { if (deleteRevealed) { resetSwipe(); return; } setExpanded(!expanded); }}
         style={styles.stopRow}
         activeOpacity={0.75}
       >
+        {/* Drag handle — three dots on the far left */}
+        {dragHandleProps ? (
+          <View style={styles.dragHandle} {...dragHandleProps}>
+            <View style={styles.dragDot} />
+            <View style={styles.dragDot} />
+            <View style={styles.dragDot} />
+            <View style={styles.dragDot} />
+            <View style={styles.dragDot} />
+            <View style={styles.dragDot} />
+          </View>
+        ) : null}
         {/* Time — tap to edit */}
         <View style={styles.timeCol}>
           <TouchableOpacity
@@ -244,6 +306,7 @@ function StopItem({
         {/* Content */}
         <View style={styles.stopContent}>
           <Text style={styles.stopName}>{name}</Text>
+          {/* Drag handle — shown on right side */}
           {desc ? (
             <Text style={styles.stopDesc} numberOfLines={expanded ? undefined : 1}>{desc}</Text>
           ) : null}
@@ -318,6 +381,7 @@ function StopItem({
           ) : null}
         </TouchableOpacity>
       ) : null}
+      </Animated.View>
     </View>
   );
 }
@@ -359,11 +423,17 @@ function DayView({
   onGoToPlaces: () => void;
   startDate: string;
 }) {
-  const { removeItineraryStop, updateItineraryStop, moveItineraryStop } = useTripsStore();
+  const { removeItineraryStop, updateItineraryStop, moveItineraryStop, reorderItineraryStops, removeItineraryStopAndPlace } = useTripsStore();
   const batchRoute = trpc.directions.batchRoute.useMutation();
   const [updatingRoutes, setUpdatingRoutes] = useState(false);
   const [stopToMove, setStopToMove] = useState<StopLike | null>(null);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  // Drag-to-reorder state
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragY = useRef(new Animated.Value(0)).current;
+  const dragStartY = useRef(0);
+  const rowHeight = 72; // approximate row height in px
   // Support both new stops[] format and legacy morning/afternoon/evening
   const rawStops: StopLike[] = day
     ? ((day as any).stops && (day as any).stops.length > 0
@@ -404,14 +474,20 @@ function DayView({
 
   const handleDeleteStop = (stop: StopLike) => {
     if (!stop.id) return;
-    Alert.alert('Remover parada', `Deseja remover "${stop.placeName || stop.activity || 'esta parada'}" do roteiro?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Remover',
-        style: 'destructive',
-        onPress: () => removeItineraryStop(tripId, dayIndex, stop.id!),
-      },
-    ]);
+    // Find the placeId to also remove from Places tab
+    const placeId = (stop as any).placeId as string | undefined;
+    Alert.alert(
+      'Remover parada',
+      `Deseja remover "${stop.placeName || stop.activity || 'esta parada'}" do roteiro e da aba Lugares?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: () => removeItineraryStopAndPlace(tripId, dayIndex, stop.id!, placeId),
+        },
+      ]
+    );
   };
 
   const handleTimeChange = (stop: StopLike, newTime: string) => {
@@ -487,18 +563,58 @@ function DayView({
           </Text>
         </TouchableOpacity>
       )}
-      {stops.map((s, i) => (
-        <StopItem
-          key={s.id || `virtual-${i}`}
-          stop={s}
-          isLast={i === stops.length - 1}
-          prevStop={i > 0 ? stops[i - 1] : null}
-          cityTransportMode={cityTransportMode}
-          onDelete={s.id ? () => handleDeleteStop(s) : undefined}
-          onTimeChange={s.id ? (t) => handleTimeChange(s, t) : undefined}
-          onMove={s.id ? () => { setStopToMove(s); setShowMoveModal(true); } : undefined}
-        />
-      ))}
+      {stops.map((s, i) => {
+        // Build a drag pan responder for the handle (only for real stops)
+        const dragPan = s.id ? PanResponder.create({
+          onStartShouldSetPanResponder: () => true,
+          onPanResponderGrant: (_, g) => {
+            dragStartY.current = g.y0;
+            setDraggingIdx(i);
+            dragY.setValue(0);
+          },
+          onPanResponderMove: (_, g) => {
+            dragY.setValue(g.dy);
+            const targetIdx = Math.round(i + g.dy / rowHeight);
+            const clamped = Math.max(0, Math.min(stops.length - 1, targetIdx));
+            setDragOverIdx(clamped);
+          },
+          onPanResponderRelease: (_, g) => {
+            const targetIdx = Math.round(i + g.dy / rowHeight);
+            const clamped = Math.max(0, Math.min(stops.length - 1, targetIdx));
+            setDraggingIdx(null);
+            setDragOverIdx(null);
+            dragY.setValue(0);
+            if (clamped !== i && s.id) {
+              // Reorder the real stops (excluding virtual hotel stop at index 0)
+              const realStops = rawStops as ItineraryStop[];
+              const realFrom = hotelStop ? i - 1 : i;
+              const realTo   = hotelStop ? clamped - 1 : clamped;
+              if (realFrom >= 0 && realTo >= 0 && realFrom !== realTo) {
+                const newStops = [...realStops];
+                const [moved] = newStops.splice(realFrom, 1);
+                newStops.splice(realTo, 0, moved);
+                reorderItineraryStops(tripId, dayIndex, newStops);
+                setTimeout(() => handleUpdateRoutes(), 300);
+              }
+            }
+          },
+        }) : null;
+        return (
+          <View key={s.id || `virtual-${i}`} style={dragOverIdx === i && draggingIdx !== i ? { borderTopWidth: 2, borderTopColor: '#52B788' } : undefined}>
+            <StopItem
+              stop={s}
+              isLast={i === stops.length - 1}
+              prevStop={i > 0 ? stops[i - 1] : null}
+              cityTransportMode={cityTransportMode}
+              onDelete={s.id ? () => handleDeleteStop(s) : undefined}
+              onTimeChange={s.id ? (t) => handleTimeChange(s, t) : undefined}
+              onMove={s.id ? () => { setStopToMove(s); setShowMoveModal(true); } : undefined}
+              isDragging={draggingIdx === i}
+              dragHandleProps={dragPan ? dragPan.panHandlers : undefined}
+            />
+          </View>
+        );
+      })}
       {day?.tips ? (
         <View style={styles.dayTip}>
           <Ionicons name="bulb-outline" size={14} color="#C4A35A" />
@@ -616,6 +732,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const [showCreateModal, setShowCreateModal] = useState(false);
   // Profile questions modal (for AI from scratch)
   const [showProfileModal, setShowProfileModal] = useState(false);
+  // Manual mode: show inline place picker
+  const [showManualPicker, setShowManualPicker] = useState(false);
   // Profile state
   const [profileTravelStyles, setProfileTravelStyles] = useState<string[]>([]);
   const [profileBudget, setProfileBudget] = useState<'econômico' | 'moderado' | 'luxo'>('moderado');
@@ -707,15 +825,17 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         },
       });
       if (result?.days && result.days.length > 0) {
-        await setItinerary(trip.id, result.days);
-        // Also add suggested places to the trip's places list
+        // Build a map of AI place id -> local place id for cross-referencing
+        const placeIdMap: Record<string, string> = {};
         if (result.suggestedPlaces && result.suggestedPlaces.length > 0) {
           for (const sp of result.suggestedPlaces) {
+            const localId = sp.id && sp.id.length > 4 ? sp.id : `sp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            placeIdMap[sp.id || sp.name] = localId;
             const destId = trip.destinations.find(
               (d) => d.name.toLowerCase() === (sp.destinationName || '').toLowerCase()
             )?.id || trip.destinations[0]?.id || '';
             await addPlace(trip.id, {
-              id: `sp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              id: localId,
               name: sp.name,
               category: sp.category || 'attraction',
               destinationId: destId,
@@ -728,6 +848,15 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
             });
           }
         }
+        // Patch placeId in stops to reference the local place id
+        const patchedDays = result.days.map((day: any) => ({
+          ...day,
+          stops: (day.stops || []).map((stop: any) => ({
+            ...stop,
+            placeId: stop.placeId ? (placeIdMap[stop.placeId] || stop.placeId) : undefined,
+          })),
+        }));
+        await setItinerary(trip.id, patchedDays);
         setSelectedDay(0);
       }
     } catch (e) {
@@ -792,6 +921,28 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           onSelect={setSelectedDay}
           startDate={trip.startDate}
         />
+
+        {/* Persistent create/edit button below the calendar */}
+        <TouchableOpacity
+          onPress={() => setShowCreateModal(true)}
+          style={styles.createItineraryBtn}
+          disabled={generating}
+        >
+          {generating ? (
+            <>
+              <ActivityIndicator size="small" color="#0F1F16" />
+              <Text style={styles.createItineraryBtnText}>Criando roteiro...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="sparkles" size={15} color="#0F1F16" />
+              <Text style={styles.createItineraryBtnText}>
+                {hasItinerary ? 'Editar / Recriar Roteiro' : 'Criar Roteiro'}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+
         <DayView
           day={displayDays[selectedDay]}
           dayIndex={selectedDay}
@@ -893,7 +1044,16 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => { setShowCreateModal(false); onGoToPlaces(); }}
+              onPress={() => {
+                setShowCreateModal(false);
+                if (trip.places.length > 0) {
+                  // Has saved places — open inline picker
+                  setShowManualPicker(true);
+                } else {
+                  // No places — redirect to Lugares tab
+                  onGoToPlaces();
+                }
+              }}
               style={styles.createModeOption}
             >
               <View style={[styles.createModeIcon, { backgroundColor: 'rgba(123,159,212,0.15)' }]}>
@@ -901,7 +1061,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.createModeLabel}>Montar manualmente</Text>
-                <Text style={styles.createModeDesc}>Adicione lugares e arraste para os dias</Text>
+                <Text style={styles.createModeDesc}>
+                  {trip.places.length > 0
+                    ? `Adicione seus ${trip.places.length} lugares salvos ao roteiro`
+                    : 'Você será direcionado para a aba Lugares'}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color="rgba(245,240,232,0.3)" />
             </TouchableOpacity>
@@ -1039,6 +1203,68 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           </View>
         </View>
       </Modal>
+
+      {/* ── Manual place picker modal ── */}
+      <Modal visible={showManualPicker} transparent animationType="slide" onRequestClose={() => setShowManualPicker(false)}>
+        <View style={[styles.paceModalOverlay, { justifyContent: 'flex-end', padding: 0 }]}>
+          <View style={[styles.paceModalCard, { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, maxHeight: '85%' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={styles.paceModalTitle}>Adicionar ao Dia {selectedDay + 1}</Text>
+              <TouchableOpacity onPress={() => setShowManualPicker(false)}>
+                <Ionicons name="close" size={22} color="rgba(245,240,232,0.6)" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.paceModalSubtitle}>
+              Toque em + para adicionar o lugar ao dia selecionado
+            </Text>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 8 }}>
+              {trip.places.length === 0 ? (
+                <Text style={[styles.paceModalSubtitle, { textAlign: 'center', marginTop: 24 }]}>
+                  Nenhum lugar salvo. Adicione lugares na aba Lugares primeiro.
+                </Text>
+              ) : (
+                trip.places.map((place) => {
+                  const alreadyScheduled = scheduledPlaceIds.has(place.id);
+                  const cat = place.category || 'other';
+                  const catIcon = CATEGORY_ICONS[cat] || 'location-outline';
+                  const catColor = CATEGORY_COLORS[cat] || '#52B788';
+                  return (
+                    <View key={place.id} style={styles.manualPickerRow}>
+                      <View style={[styles.stopIconBg, { backgroundColor: `${catColor}22`, marginRight: 10 }]}>
+                        <Ionicons name={catIcon as any} size={15} color={catColor} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.stopName}>{place.name}</Text>
+                        {place.address ? <Text style={styles.stopDesc} numberOfLines={1}>{place.address}</Text> : null}
+                      </View>
+                      {alreadyScheduled ? (
+                        <View style={styles.manualPickerScheduled}>
+                          <Ionicons name="checkmark-circle" size={18} color="#52B788" />
+                          <Text style={{ fontSize: 11, color: '#52B788', marginLeft: 4 }}>Agendado</Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          onPress={() => { handleAddUnscheduledPlace(place); }}
+                          style={styles.unscheduledAddBtn}
+                        >
+                          <Ionicons name="add" size={18} color="#0F1F16" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })
+              )}
+              <View style={{ height: 24 }} />
+            </ScrollView>
+            <TouchableOpacity
+              onPress={() => setShowManualPicker(false)}
+              style={[styles.paceModalBtn, { backgroundColor: '#52B788', marginTop: 8 }]}
+            >
+              <Text style={{ color: '#0F1F16', fontWeight: '700' }}>Concluído</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1150,6 +1376,23 @@ const styles = StyleSheet.create({
   profileChipActive: { backgroundColor: '#52B788' },
   profileChipText: { fontSize: 13, fontWeight: '600', color: '#52B788' },
   profileTextInput: { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: 12, fontSize: 14, color: '#F5F0E8', borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)', lineHeight: 20, minHeight: 64 },
+
+  // Manual picker
+  manualPickerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(245,240,232,0.06)' },
+  manualPickerScheduled: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: 'rgba(82,183,136,0.1)' },
+
+  // Drag handle
+  dragHandle: { width: 20, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, flexWrap: 'wrap', flexDirection: 'row', gap: 3, marginRight: 2 },
+  dragDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(245,240,232,0.25)' },
+
+  // Swipe-to-delete
+  swipeDeleteBg: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 80, backgroundColor: '#E74C3C', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  swipeDeleteBtn: { alignItems: 'center', justifyContent: 'center', width: 80, height: '100%' as any, gap: 4 },
+  swipeDeleteText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+
+  // Create itinerary button (below day selector)
+  createItineraryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#52B788', borderRadius: 14, paddingVertical: 11, paddingHorizontal: 16, marginBottom: 16 },
+  createItineraryBtnText: { fontSize: 14, fontWeight: '700', color: '#0F1F16' },
 
   // Unscheduled places panel
   unscheduledPanel: { marginTop: 12, backgroundColor: 'rgba(196,163,90,0.06)', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: 'rgba(196,163,90,0.15)' },

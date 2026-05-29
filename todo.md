@@ -167,3 +167,14 @@
 - [x] Modo 3: Usuário monta manualmente o roteiro com os lugares salvos (via painel de lugares não agendados)
 - [x] Mover paradas entre dias com recálculo automático de trânsito e links Maps
 - [x] Roteiro gerado por IA considera tempo de trânsito e proximidade geográfica
+
+## Fase 15 — Melhorias de Interação no Roteiro
+
+- [x] Botão persistente "Criar / Editar Roteiro" abaixo do calendário de dias
+- [x] IA com meus lugares usa APENAS os lugares selecionados (prompt reforçado)
+- [x] IA do zero adiciona lugares gerados na aba Lugares (com placeId vinculado)
+- [x] Modo manual abre picker inline quando há lugares salvos; redireciona para aba Lugares quando não há
+- [x] Swipe para a esquerda em parada abre botão de excluir (remove do roteiro E da aba Lugares)
+- [x] Pontos de drag na extremidade esquerda de cada parada para reordenar dentro do dia
+- [x] Reordenamento automático recalcula trajetos e links Maps
+- [x] Excluir parada via swipe ou botão remove o lugar da aba Lugares também

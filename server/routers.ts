@@ -584,8 +584,9 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
           .map((d) => `${d.name} (${d.country || ""}) — ${d.days} dias`)
           .join(", ");
 
-        const placesSummary = selectedPlaces && selectedPlaces.length > 0
-          ? `\nLugares selecionados pelo usuário:\n${selectedPlaces.map((p) => `- ${p.name} (${p.category}) em ${p.destinationName}${p.hours ? `, horário: ${p.hours}` : ""}${p.address ? `, endereço: ${p.address}` : ""}${p.lat && p.lng ? `, coordenadas: ${p.lat},${p.lng}` : ""}`).join("\n")}`
+        const hasSelectedPlaces = selectedPlaces && selectedPlaces.length > 0;
+        const placesSummary = hasSelectedPlaces
+          ? `\nLugares OBRIGATÓRIOS selecionados pelo usuário (use APENAS estes lugares nas paradas, não adicione outros):\n${selectedPlaces!.map((p) => `- ${p.name} (${p.category}) em ${p.destinationName}${p.hours ? `, horário: ${p.hours}` : ""}${p.address ? `, endereço: ${p.address}` : ""}${p.lat && p.lng ? `, coordenadas: ${p.lat},${p.lng}` : ""}`).join("\n")}`
           : "\nUse sua expertise para sugerir os melhores lugares para visitar.";
 
         const paceStops = preferences?.pace === 'relaxado' ? 3 : preferences?.pace === 'intenso' ? 6 : 4;
@@ -629,7 +630,7 @@ Importante:
 - Inclua ${paceStops} paradas por dia. Distribua bem os horários ao longo do dia.
 - Para restaurantes, use horários de refeição (08:00 café, 13:00 almoço, 20:00 jantar).
 - Sempre inclua lat/lng reais para cada parada (coordenadas geográficas precisas).
-- O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}.`;
+- O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista. Distribua os lugares selecionados pelos dias de forma ótima considerando proximidade geográfica e tempo de trânsito.' : ''}`;
 
         const response = await invokeLLM({
           messages: [
@@ -718,9 +719,9 @@ Crie o roteiro completo com lugares autênticos que combinem com o perfil acima.
 
 Retorne um JSON com:
 1. "suggestedPlaces": array de todos os lugares usados no roteiro, cada um com:
-   { name, category (attraction|restaurant|cafe|museum|hidden_gem|other), address, hours, description, lat, lng, destinationName }
+   { id (string uuid único), name, category (attraction|restaurant|cafe|museum|hidden_gem|other), address, hours, description, lat, lng, destinationName }
 2. "days": array dia-a-dia, cada dia com:
-   { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, stops: [{ id (uuid), time (HH:MM), placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
+   { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, stops: [{ id (uuid), time (HH:MM), placeId (deve corresponder ao id em suggestedPlaces), placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
 
 Importante:
 - Inclua lat/lng reais para cada lugar.

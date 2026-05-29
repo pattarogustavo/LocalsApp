@@ -63,6 +63,8 @@ interface TripsState {
   // Itinerary stop movement and addition
   moveItineraryStop: (tripId: string, fromDayIndex: number, toDayIndex: number, stopId: string, toPosition?: number) => Promise<void>;
   addItineraryStop: (tripId: string, dayIndex: number, stop: ItineraryStop) => Promise<void>;
+  reorderItineraryStops: (tripId: string, dayIndex: number, newStops: ItineraryStop[]) => Promise<void>;
+  removeItineraryStopAndPlace: (tripId: string, dayIndex: number, stopId: string, placeId?: string) => Promise<void>;
   // Plan
   updateUserPlan: (plan: Partial<UserPlan>) => void;
 }
@@ -445,6 +447,35 @@ export const useTripsStore = create<TripsState>((set, get) => ({
         return { ...day, stops: [...day.stops, stop] };
       });
       return { ...t, itinerary, updatedAt: new Date().toISOString() };
+    });
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  reorderItineraryStops: async (tripId: string, dayIndex: number, newStops: ItineraryStop[]) => {
+    const trips = get().trips.map((t) => {
+      if (t.id !== tripId) return t;
+      const itinerary = t.itinerary.map((day, idx) => {
+        if (idx !== dayIndex) return day;
+        return { ...day, stops: newStops };
+      });
+      return { ...t, itinerary, updatedAt: new Date().toISOString() };
+    });
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  removeItineraryStopAndPlace: async (tripId: string, dayIndex: number, stopId: string, placeId?: string) => {
+    const trips = get().trips.map((t) => {
+      if (t.id !== tripId) return t;
+      // Remove from itinerary
+      const itinerary = t.itinerary.map((day, idx) => {
+        if (idx !== dayIndex) return day;
+        return { ...day, stops: day.stops.filter((s) => s.id !== stopId) };
+      });
+      // Also remove from places if placeId provided
+      const places = placeId ? t.places.filter((p) => p.id !== placeId) : t.places;
+      return { ...t, itinerary, places, updatedAt: new Date().toISOString() };
     });
     set({ trips });
     await saveToStorage(trips);
