@@ -225,7 +225,10 @@ function StopItem({
         </View>
       )}
       <Animated.View
-        style={{ transform: [{ translateX: swipeX }] }}
+        style={[
+          { transform: [{ translateX: swipeX }] },
+          stop.id ? styles.stopAnimatedBg : undefined,
+        ]}
         {...(stop.id ? panResponder.panHandlers : {})}
       >
       <TouchableOpacity
@@ -335,12 +338,6 @@ function StopItem({
                   <TouchableOpacity onPress={() => Linking.openURL(stop.website!)} style={styles.stopActionBtn}>
                     <Ionicons name="globe-outline" size={13} color="#52B788" />
                     <Text style={styles.stopActionText}>Site</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {onMove ? (
-                  <TouchableOpacity onPress={onMove} style={styles.stopActionBtn}>
-                    <Ionicons name="swap-vertical-outline" size={13} color="#C4A35A" />
-                    <Text style={[styles.stopActionText, { color: '#C4A35A' }]}>Mover</Text>
                   </TouchableOpacity>
                 ) : null}
                 {onDelete ? (
@@ -734,6 +731,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const [showProfileModal, setShowProfileModal] = useState(false);
   // Manual mode: show inline place picker
   const [showManualPicker, setShowManualPicker] = useState(false);
+  // Manual mode: selected day for each place (placeId -> dayIndex)
+  const [manualPickerDays, setManualPickerDays] = useState<Record<string, number>>({});
   // Profile state
   const [profileTravelStyles, setProfileTravelStyles] = useState<string[]>([]);
   const [profileBudget, setProfileBudget] = useState<'econômico' | 'moderado' | 'luxo'>('moderado');
@@ -769,6 +768,19 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   );
 
   const handleGenerateFromPlaces = async () => {
+    // If no places selected, redirect to Lugares tab
+    if (trip.places.length === 0) {
+      setShowCreateModal(false);
+      Alert.alert(
+        'Nenhum lugar selecionado',
+        'Adicione lugares na aba Lugares antes de criar o roteiro com IA.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Ir para Lugares', onPress: () => onGoToPlaces() },
+        ]
+      );
+      return;
+    }
     setShowCreateModal(false);
     setGenerating(true);
     try {
@@ -795,7 +807,20 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         },
       });
       if (result?.days && result.days.length > 0) {
-        await setItinerary(trip.id, result.days);
+        // Patch placeId in stops to reference the local place by name match
+        const patchedDays = (result.days as any[]).map((day: any) => ({
+          ...day,
+          stops: (day.stops || []).map((stop: any) => {
+            const matchedPlace = trip.places.find(
+              (p) => p.name.toLowerCase() === (stop.placeName || '').toLowerCase()
+            );
+            return {
+              ...stop,
+              placeId: matchedPlace ? matchedPlace.id : stop.placeId,
+            };
+          }),
+        }));
+        await setItinerary(trip.id, patchedDays);
         setSelectedDay(0);
       }
     } catch (e) {
@@ -872,7 +897,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
     );
   };
 
-  const handleAddUnscheduledPlace = (place: Place) => {
+  const handleAddUnscheduledPlace = (place: Place, targetDay?: number) => {
+    const dayIdx = targetDay !== undefined ? targetDay : selectedDay;
     const newStop: ItineraryStop = {
       id: `stop-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       time: '',
@@ -886,31 +912,17 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
       website: place.website,
       hours: place.hours,
     };
-    addItineraryStop(trip.id, selectedDay, newStop);
+    addItineraryStop(trip.id, dayIdx, newStop);
   };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Header — no Regerar button */}
       <View style={styles.sectionHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Ionicons name="calendar-outline" size={15} color="#52B788" />
           <Text style={styles.sectionTitle}>ROTEIRO DIA-A-DIA</Text>
         </View>
-        <TouchableOpacity
-          onPress={() => setShowCreateModal(true)}
-          style={styles.regenBtn}
-          disabled={generating}
-        >
-          {generating ? (
-            <ActivityIndicator size="small" color="#52B788" />
-          ) : (
-            <>
-              <Ionicons name="sparkles-outline" size={14} color="#52B788" />
-              <Text style={styles.regenBtnText}>{hasItinerary ? 'Regerar' : 'Criar'}</Text>
-            </>
-          )}
-        </TouchableOpacity>
       </View>
 
       {/* Day selector — always visible */}
@@ -922,10 +934,21 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           startDate={trip.startDate}
         />
 
-        {/* Persistent create/edit button below the calendar */}
+        <DayView
+          day={displayDays[selectedDay]}
+          dayIndex={selectedDay}
+          tripId={trip.id}
+          totalDays={totalDays}
+          startDate={trip.startDate}
+          cityTransportMode={cityTransportMode || trip.cityTransportMode}
+          accommodations={trip.accommodations}
+          onGoToPlaces={onGoToPlaces}
+        />
+
+        {/* Create/Edit button — at the BOTTOM of the itinerary content */}
         <TouchableOpacity
           onPress={() => setShowCreateModal(true)}
-          style={styles.createItineraryBtn}
+          style={[styles.createItineraryBtn, { marginTop: 16, marginBottom: 0 }]}
           disabled={generating}
         >
           {generating ? (
@@ -942,23 +965,6 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
             </>
           )}
         </TouchableOpacity>
-
-        <DayView
-          day={displayDays[selectedDay]}
-          dayIndex={selectedDay}
-          tripId={trip.id}
-          totalDays={totalDays}
-          startDate={trip.startDate}
-          cityTransportMode={cityTransportMode || trip.cityTransportMode}
-          accommodations={trip.accommodations}
-          onGoToPlaces={onGoToPlaces}
-        />
-        {generating && (
-          <View style={styles.generatingRow}>
-            <ActivityIndicator size="small" color="#52B788" />
-            <Text style={styles.loadingText}>A IA está criando seu roteiro...</Text>
-          </View>
-        )}
       </View>
 
       {/* Unscheduled places panel */}
@@ -1228,27 +1234,56 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                   const cat = place.category || 'other';
                   const catIcon = CATEGORY_ICONS[cat] || 'location-outline';
                   const catColor = CATEGORY_COLORS[cat] || '#52B788';
+                  const pickerDay = manualPickerDays[place.id] ?? 0;
                   return (
-                    <View key={place.id} style={styles.manualPickerRow}>
-                      <View style={[styles.stopIconBg, { backgroundColor: `${catColor}22`, marginRight: 10 }]}>
-                        <Ionicons name={catIcon as any} size={15} color={catColor} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.stopName}>{place.name}</Text>
-                        {place.address ? <Text style={styles.stopDesc} numberOfLines={1}>{place.address}</Text> : null}
-                      </View>
-                      {alreadyScheduled ? (
-                        <View style={styles.manualPickerScheduled}>
-                          <Ionicons name="checkmark-circle" size={18} color="#52B788" />
-                          <Text style={{ fontSize: 11, color: '#52B788', marginLeft: 4 }}>Agendado</Text>
+                    <View key={place.id} style={[styles.manualPickerRow, { flexDirection: 'column', alignItems: 'stretch', gap: 8 }]}>
+                      {/* Place info row */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={[styles.stopIconBg, { backgroundColor: `${catColor}22`, marginRight: 10 }]}>
+                          <Ionicons name={catIcon as any} size={15} color={catColor} />
                         </View>
-                      ) : (
-                        <TouchableOpacity
-                          onPress={() => { handleAddUnscheduledPlace(place); }}
-                          style={styles.unscheduledAddBtn}
-                        >
-                          <Ionicons name="add" size={18} color="#0F1F16" />
-                        </TouchableOpacity>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.stopName}>{place.name}</Text>
+                          {place.address ? <Text style={styles.stopDesc} numberOfLines={1}>{place.address}</Text> : null}
+                        </View>
+                        {alreadyScheduled && (
+                          <View style={styles.manualPickerScheduled}>
+                            <Ionicons name="checkmark-circle" size={16} color="#52B788" />
+                            <Text style={{ fontSize: 11, color: '#52B788', marginLeft: 3 }}>Agendado</Text>
+                          </View>
+                        )}
+                      </View>
+                      {/* Day selector + add button */}
+                      {!alreadyScheduled && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 6 }}>
+                            {Array.from({ length: totalDays }, (_, di) => {
+                              const base = new Date(trip.startDate);
+                              base.setDate(base.getDate() + di);
+                              const isSelected = pickerDay === di;
+                              return (
+                                <TouchableOpacity
+                                  key={di}
+                                  onPress={() => setManualPickerDays((prev) => ({ ...prev, [place.id]: di }))}
+                                  style={[
+                                    styles.manualDayChip,
+                                    isSelected && styles.manualDayChipActive,
+                                  ]}
+                                >
+                                  <Text style={[styles.manualDayChipText, isSelected && { color: '#0F1F16' }]}>
+                                    Dia {di + 1}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </ScrollView>
+                          <TouchableOpacity
+                            onPress={() => { handleAddUnscheduledPlace(place, pickerDay); }}
+                            style={styles.unscheduledAddBtn}
+                          >
+                            <Ionicons name="add" size={18} color="#0F1F16" />
+                          </TouchableOpacity>
+                        </View>
                       )}
                     </View>
                   );
@@ -1291,6 +1326,7 @@ const styles = StyleSheet.create({
   dayChipMonthActive: { color: 'rgba(15,31,22,0.7)' },
 
   // Stop item
+  stopAnimatedBg: { backgroundColor: '#1A2E22' }, // opaque so swipe-delete bg doesn't show through
   stopRow: { flexDirection: 'row', paddingVertical: 6 },
   timeCol: { width: 44, alignItems: 'flex-end', paddingRight: 10, paddingTop: 6 },
   stopTime: { fontSize: 12, color: 'rgba(245,240,232,0.4)', fontWeight: '500' },
@@ -1378,6 +1414,9 @@ const styles = StyleSheet.create({
   profileTextInput: { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: 12, fontSize: 14, color: '#F5F0E8', borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)', lineHeight: 20, minHeight: 64 },
 
   // Manual picker
+  manualDayChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)' },
+  manualDayChipActive: { backgroundColor: '#52B788', borderColor: '#52B788' },
+  manualDayChipText: { fontSize: 12, fontWeight: '600', color: 'rgba(245,240,232,0.7)' },
   manualPickerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(245,240,232,0.06)' },
   manualPickerScheduled: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: 'rgba(82,183,136,0.1)' },
 

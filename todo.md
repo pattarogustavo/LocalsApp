@@ -178,3 +178,14 @@
 - [x] Pontos de drag na extremidade esquerda de cada parada para reordenar dentro do dia
 - [x] Reordenamento automático recalcula trajetos e links Maps
 - [x] Excluir parada via swipe ou botão remove o lugar da aba Lugares também
+
+## Fase 16 — Ajustes de UX no Roteiro
+
+- [x] IA do zero: lugares gerados adicionados automaticamente na aba Lugares (Minha Viagem)
+- [x] IA com meus lugares: redireciona para aba Lugares com alerta se não houver lugares selecionados
+- [x] IA com meus lugares: vincula placeId das paradas aos lugares salvos por correspondência de nome
+- [x] Modo manual: seletor de dia por lugar no picker (chips Dia 1, Dia 2... antes do botão +)
+- [x] Swipe-delete: fundo opaco no card animado (sem transparência revelando o botão embaixo)
+- [x] Botão "Mover" removido do menu expandido (substituído pelos pontos de drag)
+- [x] Botão "Editar / Recriar Roteiro" movido para o final do conteúdo do dia, abaixo de tudo
+- [x] Botão "Regerar" removido do cabeçalho da seção Roteiro Dia-a-Dia
