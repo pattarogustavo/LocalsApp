@@ -25,7 +25,7 @@ import { PlacesScreen } from '@/components/trip/places-screen';
 import { ItineraryBlock } from '@/components/trip/itinerary-block';
 import { AccommodationBlock } from '@/components/trip/accommodation-block';
 import { TripPhotosBlock } from '@/components/trip/photos-block';
-import { NextTransportCard } from '@/components/trip/next-transport-card';
+import { TransportSummaryCard } from '@/components/trip/next-transport-card';
 import { useColors } from '@/hooks/use-colors';
 import { generateId } from '@/utils/trip-helpers';
 import * as ImagePicker from 'expo-image-picker';
@@ -98,10 +98,69 @@ const DESTINATION_IMAGES: Record<string, string> = {
   bogota: 'https://images.unsplash.com/photo-1597476173484-e8e6c1e4e1e5?w=1200',
   // Africa & Oceania
   sydney: 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=1200',
+  melbourne: 'https://images.unsplash.com/photo-1514395462725-fb4566210144?w=1200',
   'cape town': 'https://images.unsplash.com/photo-1580060839134-75a5edca2e99?w=1200',
   'cidade do cabo': 'https://images.unsplash.com/photo-1580060839134-75a5edca2e99?w=1200',
   marrakech: 'https://images.unsplash.com/photo-1539020140153-e479b8c22e70?w=1200',
   marrakesh: 'https://images.unsplash.com/photo-1539020140153-e479b8c22e70?w=1200',
+  nairobi: 'https://images.unsplash.com/photo-1611348586804-61bf6c080437?w=1200',
+  // Brazil
+  florianopolis: 'https://images.unsplash.com/photo-1598977052544-c5e2a2a3e2e4?w=1200',
+  florianópolis: 'https://images.unsplash.com/photo-1598977052544-c5e2a2a3e2e4?w=1200',
+  'porto alegre': 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=1200',
+  curitiba: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=1200',
+  salvador: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200',
+  recife: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200',
+  fortaleza: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200',
+  manaus: 'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=1200',
+  brasilia: 'https://images.unsplash.com/photo-1589182373726-e4f658ab50f0?w=1200',
+  brasília: 'https://images.unsplash.com/photo-1589182373726-e4f658ab50f0?w=1200',
+  natal: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200',
+  maceio: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200',
+  maceió: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200',
+  belem: 'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=1200',
+  belém: 'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=1200',
+  // Latin America
+  medellin: 'https://images.unsplash.com/photo-1598977052544-c5e2a2a3e2e4?w=1200',
+  medellín: 'https://images.unsplash.com/photo-1598977052544-c5e2a2a3e2e4?w=1200',
+  cartagena: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200',
+  'mexico city': 'https://images.unsplash.com/photo-1518105779142-d975f22f1b0a?w=1200',
+  'cidade do mexico': 'https://images.unsplash.com/photo-1518105779142-d975f22f1b0a?w=1200',
+  havana: 'https://images.unsplash.com/photo-1500759285222-a95626359a05?w=1200',
+  habana: 'https://images.unsplash.com/photo-1500759285222-a95626359a05?w=1200',
+  santiago: 'https://images.unsplash.com/photo-1518509562904-e7ef99cdcc86?w=1200',
+  montevideo: 'https://images.unsplash.com/photo-1589182373726-e4f658ab50f0?w=1200',
+  quito: 'https://images.unsplash.com/photo-1531968455001-5c5272a41129?w=1200',
+  // More Europe
+  porto: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=1200',
+  milan: 'https://images.unsplash.com/photo-1513581166391-887a96ddeafd?w=1200',
+  milao: 'https://images.unsplash.com/photo-1513581166391-887a96ddeafd?w=1200',
+  milão: 'https://images.unsplash.com/photo-1513581166391-887a96ddeafd?w=1200',
+  naples: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=1200',
+  napoles: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=1200',
+  nápoles: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=1200',
+  brussels: 'https://images.unsplash.com/photo-1559113202-c916b8e44373?w=1200',
+  bruxelas: 'https://images.unsplash.com/photo-1559113202-c916b8e44373?w=1200',
+  copenhagen: 'https://images.unsplash.com/photo-1513622470522-26c3c8a854bc?w=1200',
+  copenhague: 'https://images.unsplash.com/photo-1513622470522-26c3c8a854bc?w=1200',
+  stockholm: 'https://images.unsplash.com/photo-1509356843151-3e7d96241e11?w=1200',
+  estocolmo: 'https://images.unsplash.com/photo-1509356843151-3e7d96241e11?w=1200',
+  oslo: 'https://images.unsplash.com/photo-1513622470522-26c3c8a854bc?w=1200',
+  helsinki: 'https://images.unsplash.com/photo-1513622470522-26c3c8a854bc?w=1200',
+  edinburgh: 'https://images.unsplash.com/photo-1506377585622-bedcbb027afc?w=1200',
+  edimburgo: 'https://images.unsplash.com/photo-1506377585622-bedcbb027afc?w=1200',
+  // Middle East & Asia
+  'abu dhabi': 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1200',
+  doha: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=1200',
+  'hong kong': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200',
+  'hongkong': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200',
+  taipei: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=1200',
+  hanoi: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=1200',
+  'ho chi minh': 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=1200',
+  'kuala lumpur': 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=1200',
+  jakarta: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=1200',
+  mumbai: 'https://images.unsplash.com/photo-1529253355930-ddbe423a2ac7?w=1200',
+  delhi: 'https://images.unsplash.com/photo-1587474260584-136574528ed5?w=1200',
   default: 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1200',
 };
 
@@ -113,7 +172,12 @@ function getHeroImage(trip: any): string {
   // 3. Fall back to curated Unsplash map by destination name
   const destName = trip?.destinations?.[0]?.name?.toLowerCase() || '';
   for (const [key, url] of Object.entries(DESTINATION_IMAGES)) {
-    if (destName.includes(key)) return url;
+    if (key !== 'default' && destName.includes(key)) return url;
+  }
+  // 4. Dynamic Unsplash query for any city not in the curated map
+  if (destName) {
+    const query = encodeURIComponent(`${destName} city travel landmark`);
+    return `https://source.unsplash.com/1200x800/?${query}`;
   }
   return DESTINATION_IMAGES.default;
 }
@@ -659,10 +723,48 @@ export default function TripDetailScreen() {
 // ─── Geral Tab ────────────────────────────────────────────────────────────────
 
 function GeralTab({ trip, onGoToPlaces, onGoToTransport }: { trip: any; onGoToPlaces: () => void; onGoToTransport: () => void }) {
+  // Aggregate all documents from all sources with source labels
+  const allDocs = React.useMemo(() => {
+    const docs: any[] = [];
+
+    // Trip-level documents
+    (trip.documents || []).forEach((d: any) => docs.push(d));
+
+    // Transport boarding passes / contracts / tickets
+    (trip.transport || []).forEach((t: any) => {
+      const label = t.flight?.flightNumber || t.leg || 'Transporte';
+      if (t.boardingPassUri) {
+        docs.push({ id: `bp-${t.id}`, name: `Passagem — ${label}`, type: 'image', url: t.boardingPassUri, _source: 'transport' });
+      }
+      if (t.carContractUri) {
+        docs.push({ id: `cc-${t.id}`, name: `Contrato de Carro — ${label}`, type: 'image', url: t.carContractUri, _source: 'transport' });
+      }
+      if (t.trainBusFerry?.ticketDocUri) {
+        docs.push({ id: `tk-${t.id}`, name: `Passagem — ${label}`, type: 'image', url: t.trainBusFerry.ticketDocUri, _source: 'transport' });
+      }
+    });
+
+    // Accommodation confirmations
+    (trip.accommodations || []).forEach((acc: any) => {
+      if (acc.confirmationDocUri) {
+        docs.push({ id: `acc-${acc.id}`, name: `Confirmação — ${acc.name || 'Hotel'}`, type: 'image', url: acc.confirmationDocUri, _source: 'accommodation' });
+      }
+    });
+
+    // Place attachments
+    (trip.places || []).forEach((p: any) => {
+      (p.attachments || []).forEach((att: any) => {
+        docs.push({ ...att, id: `pl-${p.id}-${att.id}`, name: `${att.name} — ${p.name}`, _source: 'place' });
+      });
+    });
+
+    return docs;
+  }, [trip.documents, trip.transport, trip.accommodations, trip.places]);
+
   return (
     <View>
-      {/* Next Transport Card */}
-      <NextTransportCard
+      {/* Transport Summary Card */}
+      <TransportSummaryCard
         transports={trip.transport || []}
         destinations={trip.destinations || []}
         startDate={trip.startDate}
@@ -672,8 +774,8 @@ function GeralTab({ trip, onGoToPlaces, onGoToTransport }: { trip: any; onGoToPl
       {/* Itinerary Block (AI Day-by-Day) */}
       <ItineraryBlock trip={trip} onGoToPlaces={onGoToPlaces} />
 
-      {/* Documents Block */}
-      <DocumentsBlock tripId={trip.id} documents={trip.documents} />
+      {/* Documents Block — aggregated from all sources */}
+      <DocumentsBlock tripId={trip.id} documents={allDocs} />
 
       {/* Playlist Block */}
       <View style={styles.playlistBlock}>
@@ -687,7 +789,7 @@ function GeralTab({ trip, onGoToPlaces, onGoToTransport }: { trip: any; onGoToPl
       </View>
 
       {/* Expenses Block */}
-      <ExpensesBlock tripId={trip.id} expenses={trip.expenses} currency={trip.currency} />
+      <ExpensesBlock tripId={trip.id} expenses={trip.expenses} currency={trip.currency} travelers={trip.travelers || []} />
 
       {/* Travelers Block */}
       <TravelersBlock tripId={trip.id} travelers={trip.travelers} />

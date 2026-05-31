@@ -208,3 +208,17 @@
 - [x] Botão X (fechar) no modal "Como criar o roteiro?"
 - [x] Confirmação antes de recriar roteiro existente
 - [x] Horário automático sugerido (+1h30 da última parada) ao adicionar lugar manualmente
+
+## Fase 18 — Múltiplos Ajustes de UX
+
+- [x] Card de transporte na aba Geral igual ao card detalhado da aba Transporte (TransportSummaryCard)
+- [x] Corrigir drag-and-drop: substituído PanResponder por Swipeable do gesture-handler
+- [x] Corrigir swipe-delete: fundo opaco, sem transparência revelando botão embaixo
+- [x] KeyboardAvoidingView global no root layout (_layout.tsx)
+- [x] Detalhes do lugar: link do site original com botão de abrir no browser
+- [x] Detalhes do lugar: opção de anexar documento (ticket, reserva, etc.) com updatePlace
+- [x] Aba Geral > Documentos: agrega documentos de trip + transport + hospedagem + lugares com rótulo de origem
+- [x] Despesas: campo "Quem pagou?" e "Quem participou?" no modal de adição
+- [x] Despesas: resumo de acerto de contas (quem paga quanto para quem)
+- [x] Botão "Montar Roteiro" removido da aba Lugares
+- [x] Fotos genéricas: mapa expandido com 50+ cidades + fallback dinâmico Unsplash para cidades não mapeadas

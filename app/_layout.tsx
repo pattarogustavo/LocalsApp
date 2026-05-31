@@ -5,7 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
-import { Platform } from "react-native";
+import { Platform, KeyboardAvoidingView } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import * as Notifications from "expo-notifications";
@@ -94,6 +94,11 @@ export default function RootLayout() {
 
   const content = (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
@@ -104,6 +109,7 @@ export default function RootLayout() {
           <StatusBar style="light" />
         </QueryClientProvider>
       </trpc.Provider>
+      </KeyboardAvoidingView>
     </GestureHandlerRootView>
   );
 

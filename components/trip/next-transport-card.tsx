@@ -432,3 +432,353 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+// ─── Transport Summary Card (for Geral tab) ───────────────────────────────────
+// Shows ALL transports using the same detailed card style as the Transport tab.
+
+import { Linking } from 'react-native';
+
+const FLIGHT_STATUS_COLORS: Record<string, string> = {
+  scheduled: '#52B788', delayed: '#F59E0B', boarding: '#3B82F6',
+  departed: '#8B5CF6', arrived: '#10B981', cancelled: '#EF4444',
+};
+const FLIGHT_STATUS_LABELS: Record<string, string> = {
+  scheduled: 'No horário', delayed: 'Atrasado', boarding: 'Embarcando',
+  departed: 'Partiu', arrived: 'Chegou', cancelled: 'Cancelado',
+};
+
+function SummaryFlightCard({ transport }: { transport: Transport }) {
+  const f = transport.flight!;
+  const statusColor = FLIGHT_STATUS_COLORS[f.status || 'scheduled'];
+  const statusLabel = FLIGHT_STATUS_LABELS[f.status || 'scheduled'];
+  const depTime = f.departureActual && f.departureActual !== f.departureTime ? f.departureActual : f.departureTime;
+  const arrTime = f.arrivalActual && f.arrivalActual !== f.arrivalTime ? f.arrivalActual : f.arrivalTime;
+
+  return (
+    <View style={summaryStyles.flightCard}>
+      <View style={summaryStyles.flightTopRow}>
+        <Text style={summaryStyles.airlineName}>{f.airline || ''}</Text>
+        <Text style={summaryStyles.flightNum}>{f.flightNumber}</Text>
+      </View>
+      <View style={summaryStyles.routeRow}>
+        <View style={summaryStyles.endpoint}>
+          <Text style={summaryStyles.cityName} numberOfLines={1}>{f.originCity || f.origin || '---'}</Text>
+          <Text style={summaryStyles.iata}>{f.origin || '---'}</Text>
+          <Text style={summaryStyles.time}>{formatTime(depTime)}</Text>
+        </View>
+        <View style={summaryStyles.middle}>
+          <View style={summaryStyles.lineRow}>
+            <View style={summaryStyles.dot} />
+            <View style={summaryStyles.bar} />
+            <Ionicons name="airplane" size={13} color="rgba(245,240,232,0.5)" />
+            <View style={summaryStyles.bar} />
+            <View style={summaryStyles.dot} />
+          </View>
+          {f.duration ? <Text style={summaryStyles.duration}>{f.duration}</Text> : null}
+        </View>
+        <View style={[summaryStyles.endpoint, { alignItems: 'flex-end' }]}>
+          <Text style={summaryStyles.cityName} numberOfLines={1}>{f.destinationCity || f.destination || '---'}</Text>
+          <Text style={summaryStyles.iata}>{f.destination || '---'}</Text>
+          <Text style={summaryStyles.time}>{formatTime(arrTime)}</Text>
+        </View>
+      </View>
+      <View style={summaryStyles.footer}>
+        <View style={[summaryStyles.statusBadge, { backgroundColor: `${statusColor}22` }]}>
+          <View style={[summaryStyles.statusDot, { backgroundColor: statusColor }]} />
+          <Text style={[summaryStyles.statusText, { color: statusColor }]}>{statusLabel}</Text>
+        </View>
+        {f.terminal ? <Text style={summaryStyles.gateText}>T{f.terminal}</Text> : null}
+        {f.gate ? <Text style={summaryStyles.gateText}>Gate {f.gate}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
+function SummaryCarCard({ transport }: { transport: Transport }) {
+  const c = transport.car!;
+  const fmt = (iso: string) => {
+    if (!iso) return '--:--';
+    const d = new Date(iso);
+    return d.toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+  return (
+    <View style={summaryStyles.flightCard}>
+      <View style={summaryStyles.flightTopRow}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="car-outline" size={14} color="#52B788" />
+          <Text style={summaryStyles.airlineName}>{transport.leg || 'Carro'}</Text>
+        </View>
+      </View>
+      <View style={summaryStyles.routeRow}>
+        <View style={summaryStyles.endpoint}>
+          <Text style={summaryStyles.labelSmall}>SAÍDA</Text>
+          <Text style={summaryStyles.time}>{fmt(c.departureTime || '')}</Text>
+          <Text style={summaryStyles.address} numberOfLines={2}>{c.originAddress}</Text>
+        </View>
+        <View style={summaryStyles.middle}>
+          <View style={summaryStyles.lineRow}>
+            <View style={summaryStyles.dot} />
+            <View style={summaryStyles.bar} />
+            <Ionicons name="car" size={13} color="rgba(245,240,232,0.5)" />
+            <View style={summaryStyles.bar} />
+            <View style={summaryStyles.dot} />
+          </View>
+          {c.travelDuration ? <Text style={summaryStyles.duration}>{c.travelDuration}</Text> : null}
+        </View>
+        <View style={[summaryStyles.endpoint, { alignItems: 'flex-end' }]}>
+          <Text style={summaryStyles.labelSmall}>CHEGADA</Text>
+          <Text style={summaryStyles.time}>{fmt(c.desiredArrivalTime || '')}</Text>
+          <Text style={[summaryStyles.address, { textAlign: 'right' }]} numberOfLines={2}>{c.destinationAddress}</Text>
+        </View>
+      </View>
+      {c.mapsUrl ? (
+        <TouchableOpacity style={summaryStyles.mapsBtn} onPress={() => Linking.openURL(c.mapsUrl!)}>
+          <Ionicons name="map-outline" size={12} color="#52B788" />
+          <Text style={summaryStyles.mapsBtnText}>Abrir no Google Maps</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
+function SummaryGenericCard({ transport }: { transport: Transport }) {
+  const modeIcons: Record<string, string> = {
+    flight: 'airplane-outline', car: 'car-outline', train: 'train-outline',
+    bus: 'bus-outline', ferry: 'boat-outline', other: 'navigate-outline',
+  };
+  const modeLabels: Record<string, string> = {
+    flight: 'Voo', car: 'Carro', train: 'Trem', bus: 'Ônibus', ferry: 'Barco', other: 'Transporte',
+  };
+  return (
+    <View style={summaryStyles.flightCard}>
+      <View style={summaryStyles.flightTopRow}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name={modeIcons[transport.mode] as any || 'navigate-outline'} size={14} color="#52B788" />
+          <Text style={summaryStyles.airlineName}>{modeLabels[transport.mode] || 'Transporte'}</Text>
+        </View>
+        {transport.travelTime ? <Text style={summaryStyles.duration}>{transport.travelTime}</Text> : null}
+      </View>
+      {transport.leg ? <Text style={summaryStyles.legLabel}>{transport.leg}</Text> : null}
+    </View>
+  );
+}
+
+export function TransportSummaryCard({ transports, destinations, startDate, onPress }: Props) {
+  const hasTransports = transports && transports.length > 0;
+
+  return (
+    <View style={summaryStyles.wrapper}>
+      {/* Header */}
+      <TouchableOpacity style={summaryStyles.header} onPress={onPress} activeOpacity={0.8}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="airplane-outline" size={15} color="#52B788" />
+          <Text style={summaryStyles.sectionTitle}>TRANSPORTE</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={summaryStyles.addHintText}>Gerenciar</Text>
+          <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.3)" />
+        </View>
+      </TouchableOpacity>
+
+      {!hasTransports ? (
+        <TouchableOpacity style={summaryStyles.emptyRow} onPress={onPress} activeOpacity={0.8}>
+          <Ionicons name="airplane-outline" size={20} color="rgba(245,240,232,0.2)" />
+          <Text style={summaryStyles.emptyText}>Nenhum transporte cadastrado ainda.</Text>
+          <Text style={summaryStyles.emptyCta}>Toque para adicionar →</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={{ gap: 10 }}>
+          {transports.map((t) =>
+            t.mode === 'flight' && t.flight ? (
+              <SummaryFlightCard key={t.id} transport={t} />
+            ) : t.mode === 'car' && t.car ? (
+              <SummaryCarCard key={t.id} transport={t} />
+            ) : (
+              <SummaryGenericCard key={t.id} transport={t} />
+            )
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const summaryStyles = StyleSheet.create({
+  wrapper: {
+    backgroundColor: 'rgba(28,61,46,0.85)',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(82,183,136,0.15)',
+    gap: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    color: 'rgba(245,240,232,0.6)',
+  },
+  addHintText: {
+    fontSize: 12,
+    color: 'rgba(82,183,136,0.7)',
+    fontWeight: '600',
+  },
+  emptyRow: {
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 12,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: 'rgba(245,240,232,0.4)',
+  },
+  emptyCta: {
+    fontSize: 12,
+    color: 'rgba(82,183,136,0.6)',
+  },
+  flightCard: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 14,
+    padding: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(82,183,136,0.08)',
+  },
+  flightTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  airlineName: {
+    fontSize: 12,
+    color: 'rgba(245,240,232,0.5)',
+    fontWeight: '500',
+  },
+  flightNum: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(245,240,232,0.6)',
+    letterSpacing: 0.5,
+  },
+  routeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  endpoint: {
+    alignItems: 'flex-start',
+    minWidth: 60,
+  },
+  cityName: {
+    fontSize: 11,
+    color: 'rgba(245,240,232,0.4)',
+    marginBottom: 1,
+  },
+  iata: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#F5F0E8',
+    letterSpacing: 0.5,
+  },
+  time: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(245,240,232,0.7)',
+    marginTop: 2,
+  },
+  middle: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    gap: 4,
+  },
+  lineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    gap: 2,
+  },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#52B788',
+  },
+  bar: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(82,183,136,0.35)',
+  },
+  duration: {
+    fontSize: 10,
+    color: 'rgba(245,240,232,0.35)',
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  statusDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  gateText: {
+    fontSize: 10,
+    color: 'rgba(245,240,232,0.4)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  labelSmall: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: 'rgba(245,240,232,0.35)',
+    marginBottom: 2,
+  },
+  address: {
+    fontSize: 10,
+    color: 'rgba(245,240,232,0.35)',
+    marginTop: 2,
+    maxWidth: 90,
+  },
+  mapsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(82,183,136,0.1)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  mapsBtnText: {
+    fontSize: 11,
+    color: '#52B788',
+    fontWeight: '600',
+  },
+  legLabel: {
+    fontSize: 12,
+    color: 'rgba(245,240,232,0.45)',
+  },
+});

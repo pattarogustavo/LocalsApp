@@ -29,6 +29,7 @@ interface TripsState {
   addPlace: (tripId: string, place: Place) => Promise<void>;
   removePlace: (tripId: string, placeId: string) => Promise<void>;
   setPlaces: (tripId: string, places: Place[]) => Promise<void>;
+  updatePlace: (tripId: string, placeId: string, updates: Partial<Place>) => Promise<void>;
   // Documents
   addDocument: (tripId: string, doc: Document) => Promise<void>;
   removeDocument: (tripId: string, docId: string) => Promise<void>;
@@ -153,6 +154,16 @@ export const useTripsStore = create<TripsState>((set, get) => ({
       }));
       return { ...t, places, itinerary, updatedAt: new Date().toISOString() };
     });
+    set({ trips });
+    await saveToStorage(trips);
+  },
+
+  updatePlace: async (tripId: string, placeId: string, updates: Partial<Place>) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId
+        ? { ...t, places: t.places.map((p) => p.id === placeId ? { ...p, ...updates } : p), updatedAt: new Date().toISOString() }
+        : t
+    );
     set({ trips });
     await saveToStorage(trips);
   },

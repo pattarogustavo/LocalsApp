@@ -7,8 +7,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTripsStore } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
-import type { Place, Destination } from '@/types/voyage';
+import type { Place, Destination, PlaceAttachment } from '@/types/voyage';
 import { generateId } from '@/utils/trip-helpers';
+import { DocAttachField } from '@/components/ui/doc-attach-field';
+import { useState as useLocalState } from 'react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -44,17 +46,39 @@ const CATEGORY_ICONS: Record<string, string> = {
 
 function PlaceDetailModal({
   place,
+  tripId,
   onClose,
   isAdded,
   onAdd,
   onRemove,
 }: {
   place: Place;
+  tripId: string;
   onClose: () => void;
   isAdded: boolean;
   onAdd: () => void;
   onRemove: () => void;
 }) {
+  const { updatePlace } = useTripsStore();
+  const [docPickerIdx, setDocPickerIdx] = useLocalState<number | null>(null);
+
+  const handleAddAttachment = async (uri: string) => {
+    const newAtt: PlaceAttachment = {
+      id: generateId(),
+      name: uri.split('/').pop() || 'Documento',
+      url: uri,
+      type: uri.endsWith('.pdf') ? 'pdf' : 'image',
+    };
+    const current = place.attachments || [];
+    await updatePlace(tripId, place.id, { attachments: [...current, newAtt] });
+    setDocPickerIdx(null);
+  };
+
+  const handleRemoveAttachment = async (attId: string) => {
+    const updated = (place.attachments || []).filter((a) => a.id !== attId);
+    await updatePlace(tripId, place.id, { attachments: updated });
+  };
+
   const openMaps = () => {
     if (place.lat && place.lng) {
       Linking.openURL(`https://maps.google.com/?q=${place.lat},${place.lng}`);
@@ -134,6 +158,31 @@ function PlaceDetailModal({
                     <Text style={styles.detailActionText}>Maps</Text>
                   </TouchableOpacity>
                 ) : null}
+              </View>
+            ) : null}
+
+            {/* Attachments section */}
+            {isAdded ? (
+              <View style={styles.attachSection}>
+                <Text style={styles.attachSectionLabel}>DOCUMENTOS ANEXADOS</Text>
+                {(place.attachments || []).map((att, idx) => (
+                  <View key={att.id} style={styles.attachRow}>
+                    <Ionicons
+                      name={att.type === 'pdf' ? 'document-text-outline' : 'image-outline'}
+                      size={16} color="rgba(245,240,232,0.5)"
+                    />
+                    <Text style={styles.attachName} numberOfLines={1}>{att.name}</Text>
+                    <TouchableOpacity onPress={() => handleRemoveAttachment(att.id)} style={styles.attachRemove}>
+                      <Ionicons name="trash-outline" size={14} color="#E74C3C" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                <DocAttachField
+                  label="Adicionar documento"
+                  uri={null}
+                  onPick={handleAddAttachment}
+                  onRemove={() => {}}
+                />
               </View>
             ) : null}
 
@@ -339,6 +388,7 @@ function AIPanel({
       {selectedPlace && (
         <PlaceDetailModal
           place={selectedPlace}
+          tripId=""
           onClose={() => setSelectedPlace(null)}
           isAdded={isAdded(selectedPlace)}
           onAdd={() => {
@@ -442,25 +492,9 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
     <View>
       {/* ── MINHA VIAGEM ── */}
       <View style={styles.sectionBlock}>
-        {/* Header row: label + IA button */}
+        {/* Header row: label */}
         <View style={styles.myViagemHeader}>
           <Text style={styles.sectionLabel}>MINHA VIAGEM</Text>
-          {places.length > 0 && (
-            <TouchableOpacity
-              onPress={handleGenerateItinerary}
-              style={styles.iaHeaderBtn}
-              disabled={generatingItinerary}
-            >
-              {generatingItinerary ? (
-                <ActivityIndicator size="small" color="#0F1F16" />
-              ) : (
-                <>
-                  <Ionicons name="sparkles-outline" size={13} color="#0F1F16" />
-                  <Text style={styles.iaHeaderBtnText}>Montar Roteiro</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* Destination filter */}
@@ -586,6 +620,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
       {selectedPlace && (
         <PlaceDetailModal
           place={selectedPlace}
+          tripId={tripId}
           onClose={() => setSelectedPlace(null)}
           isAdded={places.some((p) => p.id === selectedPlace.id)}
           onAdd={() => handleAddPlace({ ...selectedPlace, id: generateId() })}
@@ -785,4 +820,22 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(231,76,60,0.3)',
   },
   removeActionText: { fontSize: 15, fontWeight: '700', color: '#E74C3C' },
+
+  // Attachments
+  attachSection: {
+    marginTop: 12, marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 12, padding: 12, gap: 8,
+  },
+  attachSectionLabel: {
+    fontSize: 10, fontWeight: '700', letterSpacing: 1,
+    color: 'rgba(245,240,232,0.4)', textTransform: 'uppercase', marginBottom: 4,
+  },
+  attachRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+  },
+  attachName: { flex: 1, fontSize: 13, color: 'rgba(245,240,232,0.7)' },
+  attachRemove: { padding: 4 },
 });

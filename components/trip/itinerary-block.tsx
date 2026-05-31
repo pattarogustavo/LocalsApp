@@ -2,11 +2,11 @@ import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Linking, ActivityIndicator, Modal, Alert, TextInput, FlatList,
-  Animated, PanResponder, Platform,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useTripsStore } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
 import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop } from '@/types/voyage';
@@ -157,10 +157,7 @@ function StopItem({
   const [expanded, setExpanded] = useState(false);
   const [editingTime, setEditingTime] = useState(false);
   const [timeInput, setTimeInput] = useState(stop.time || '');
-  // Swipe-to-delete state
-  const swipeX = useRef(new Animated.Value(0)).current;
-  const [swiping, setSwiping] = useState(false);
-  const [deleteRevealed, setDeleteRevealed] = useState(false);
+  const swipeableRef = useRef<Swipeable>(null);
 
   const name = stop.placeName || stop.activity || '';
   const desc = stop.description || stop.tip || '';
@@ -184,57 +181,23 @@ function StopItem({
     }
   };
 
-  // Swipe pan responder (only for real stops with id)
-  const panResponder = useRef(
-    stop.id
-      ? PanResponder.create({
-          onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dy) < 20,
-          onPanResponderGrant: () => { setSwiping(true); },
-          onPanResponderMove: (_, g) => {
-            if (g.dx < 0) swipeX.setValue(Math.max(g.dx, -90));
-          },
-          onPanResponderRelease: (_, g) => {
-            setSwiping(false);
-            if (g.dx < -60) {
-              Animated.spring(swipeX, { toValue: -80, useNativeDriver: true }).start();
-              setDeleteRevealed(true);
-            } else {
-              Animated.spring(swipeX, { toValue: 0, useNativeDriver: true }).start();
-              setDeleteRevealed(false);
-            }
-          },
-        })
-      : PanResponder.create({})
-  ).current;
+  const renderRightActions = () => (
+    <TouchableOpacity
+      onPress={() => {
+        swipeableRef.current?.close();
+        onDelete?.();
+      }}
+      style={styles.swipeDeleteAction}
+    >
+      <Ionicons name="trash-outline" size={20} color="#fff" />
+      <Text style={styles.swipeDeleteText}>Excluir</Text>
+    </TouchableOpacity>
+  );
 
-  const resetSwipe = () => {
-    Animated.spring(swipeX, { toValue: 0, useNativeDriver: true }).start();
-    setDeleteRevealed(false);
-  };
-
-  return (
-    <View style={{ overflow: 'hidden' }}>
-      {/* Delete action revealed on swipe */}
-      {stop.id && (
-        <View style={styles.swipeDeleteBg}>
-          <TouchableOpacity
-            onPress={() => { resetSwipe(); onDelete?.(); }}
-            style={styles.swipeDeleteBtn}
-          >
-            <Ionicons name="trash-outline" size={20} color="#fff" />
-            <Text style={styles.swipeDeleteText}>Excluir</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      <Animated.View
-        style={[
-          { transform: [{ translateX: swipeX }] },
-          stop.id ? styles.stopAnimatedBg : undefined,
-        ]}
-        {...(stop.id ? panResponder.panHandlers : {})}
-      >
+  const stopContent = (
+    <View style={styles.stopAnimatedBg}>
       <TouchableOpacity
-        onPress={() => { if (deleteRevealed) { resetSwipe(); return; } setExpanded(!expanded); }}
+        onPress={() => setExpanded(!expanded)}
         style={styles.stopRow}
         activeOpacity={0.75}
       >
@@ -385,8 +348,24 @@ function StopItem({
           ) : null}
         </TouchableOpacity>
       ) : null}
-      </Animated.View>
     </View>
+  );
+
+  // Virtual stops (hotel) are not swipeable
+  if (!stop.id || !onDelete) {
+    return stopContent;
+  }
+
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      rightThreshold={40}
+      overshootRight={false}
+      friction={2}
+    >
+      {stopContent}
+    </Swipeable>
   );
 }
 
@@ -573,8 +552,7 @@ function DayView({
 
       {/* Real stops — draggable list */}
       {rawStops.length > 0 && (
-        <GestureHandlerRootView>
-          <DraggableFlatList
+        <DraggableFlatList
             data={rawStops as ItineraryStop[]}
             keyExtractor={(item) => item.id || `stop-${Math.random()}`}
             onDragEnd={({ data }) => {
@@ -603,7 +581,6 @@ function DayView({
               );
             }}
           />
-        </GestureHandlerRootView>
       )}
       {day?.tips ? (
         <View style={styles.dayTip}>
@@ -1475,8 +1452,7 @@ const styles = StyleSheet.create({
   dragDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(245,240,232,0.25)' },
 
   // Swipe-to-delete
-  swipeDeleteBg: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 80, backgroundColor: '#E74C3C', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  swipeDeleteBtn: { alignItems: 'center', justifyContent: 'center', width: 80, height: '100%' as any, gap: 4 },
+  swipeDeleteAction: { backgroundColor: '#E74C3C', alignItems: 'center', justifyContent: 'center', width: 80, borderRadius: 12, gap: 4 },
   swipeDeleteText: { fontSize: 11, fontWeight: '700', color: '#fff' },
 
   // Create itinerary button (below day selector)
