@@ -2,9 +2,11 @@ import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Linking, ActivityIndicator, Modal, Alert, TextInput, FlatList,
-  Animated, PanResponder,
+  Animated, PanResponder, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTripsStore } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
 import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop } from '@/types/voyage';
@@ -236,16 +238,21 @@ function StopItem({
         style={styles.stopRow}
         activeOpacity={0.75}
       >
-        {/* Drag handle — three dots on the far left */}
+        {/* Drag handle — six dots on the far left, long-press to drag */}
         {dragHandleProps ? (
-          <View style={styles.dragHandle} {...dragHandleProps}>
+          <TouchableOpacity
+            style={styles.dragHandle}
+            onLongPress={dragHandleProps.onLongPress}
+            delayLongPress={300}
+            activeOpacity={0.6}
+          >
             <View style={styles.dragDot} />
             <View style={styles.dragDot} />
             <View style={styles.dragDot} />
             <View style={styles.dragDot} />
             <View style={styles.dragDot} />
             <View style={styles.dragDot} />
-          </View>
+          </TouchableOpacity>
         ) : null}
         {/* Time — tap to edit */}
         <View style={styles.timeCol}>
@@ -425,12 +432,6 @@ function DayView({
   const [updatingRoutes, setUpdatingRoutes] = useState(false);
   const [stopToMove, setStopToMove] = useState<StopLike | null>(null);
   const [showMoveModal, setShowMoveModal] = useState(false);
-  // Drag-to-reorder state
-  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
-  const dragY = useRef(new Animated.Value(0)).current;
-  const dragStartY = useRef(0);
-  const rowHeight = 72; // approximate row height in px
   // Support both new stops[] format and legacy morning/afternoon/evening
   const rawStops: StopLike[] = day
     ? ((day as any).stops && (day as any).stops.length > 0
@@ -560,58 +561,50 @@ function DayView({
           </Text>
         </TouchableOpacity>
       )}
-      {stops.map((s, i) => {
-        // Build a drag pan responder for the handle (only for real stops)
-        const dragPan = s.id ? PanResponder.create({
-          onStartShouldSetPanResponder: () => true,
-          onPanResponderGrant: (_, g) => {
-            dragStartY.current = g.y0;
-            setDraggingIdx(i);
-            dragY.setValue(0);
-          },
-          onPanResponderMove: (_, g) => {
-            dragY.setValue(g.dy);
-            const targetIdx = Math.round(i + g.dy / rowHeight);
-            const clamped = Math.max(0, Math.min(stops.length - 1, targetIdx));
-            setDragOverIdx(clamped);
-          },
-          onPanResponderRelease: (_, g) => {
-            const targetIdx = Math.round(i + g.dy / rowHeight);
-            const clamped = Math.max(0, Math.min(stops.length - 1, targetIdx));
-            setDraggingIdx(null);
-            setDragOverIdx(null);
-            dragY.setValue(0);
-            if (clamped !== i && s.id) {
-              // Reorder the real stops (excluding virtual hotel stop at index 0)
-              const realStops = rawStops as ItineraryStop[];
-              const realFrom = hotelStop ? i - 1 : i;
-              const realTo   = hotelStop ? clamped - 1 : clamped;
-              if (realFrom >= 0 && realTo >= 0 && realFrom !== realTo) {
-                const newStops = [...realStops];
-                const [moved] = newStops.splice(realFrom, 1);
-                newStops.splice(realTo, 0, moved);
-                reorderItineraryStops(tripId, dayIndex, newStops);
-                setTimeout(() => handleUpdateRoutes(), 300);
-              }
-            }
-          },
-        }) : null;
-        return (
-          <View key={s.id || `virtual-${i}`} style={dragOverIdx === i && draggingIdx !== i ? { borderTopWidth: 2, borderTopColor: '#52B788' } : undefined}>
-            <StopItem
-              stop={s}
-              isLast={i === stops.length - 1}
-              prevStop={i > 0 ? stops[i - 1] : null}
-              cityTransportMode={cityTransportMode}
-              onDelete={s.id ? () => handleDeleteStop(s) : undefined}
-              onTimeChange={s.id ? (t) => handleTimeChange(s, t) : undefined}
-              onMove={s.id ? () => { setStopToMove(s); setShowMoveModal(true); } : undefined}
-              isDragging={draggingIdx === i}
-              dragHandleProps={dragPan ? dragPan.panHandlers : undefined}
-            />
-          </View>
-        );
-      })}
+      {/* Hotel stop (virtual, not draggable) */}
+      {hotelStop && (
+        <StopItem
+          stop={hotelStop}
+          isLast={rawStops.length === 0}
+          prevStop={null}
+          cityTransportMode={cityTransportMode}
+        />
+      )}
+
+      {/* Real stops — draggable list */}
+      {rawStops.length > 0 && (
+        <GestureHandlerRootView>
+          <DraggableFlatList
+            data={rawStops as ItineraryStop[]}
+            keyExtractor={(item) => item.id || `stop-${Math.random()}`}
+            onDragEnd={({ data }) => {
+              reorderItineraryStops(tripId, dayIndex, data);
+              setTimeout(() => handleUpdateRoutes(), 300);
+            }}
+            scrollEnabled={false}
+            activationDistance={10}
+            renderItem={({ item: s, getIndex, drag, isActive }: RenderItemParams<ItineraryStop>) => {
+              const i = (getIndex() ?? 0) + (hotelStop ? 1 : 0);
+              const prevS = i > 0 ? stops[i - 1] : null;
+              return (
+                <ScaleDecorator activeScale={1.02}>
+                  <StopItem
+                    stop={s}
+                    isLast={!hotelStop ? (getIndex() ?? 0) === rawStops.length - 1 : (getIndex() ?? 0) === rawStops.length - 1}
+                    prevStop={prevS}
+                    cityTransportMode={cityTransportMode}
+                    onDelete={s.id ? () => handleDeleteStop(s) : undefined}
+                    onTimeChange={s.id ? (t) => handleTimeChange(s, t) : undefined}
+                    onMove={s.id ? () => { setStopToMove(s); setShowMoveModal(true); } : undefined}
+                    isDragging={isActive}
+                    dragHandleProps={{ onLongPress: drag }}
+                  />
+                </ScaleDecorator>
+              );
+            }}
+          />
+        </GestureHandlerRootView>
+      )}
       {day?.tips ? (
         <View style={styles.dayTip}>
           <Ionicons name="bulb-outline" size={14} color="#C4A35A" />
@@ -808,18 +801,42 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
       });
       if (result?.days && result.days.length > 0) {
         // Patch placeId in stops to reference the local place by name match
-        const patchedDays = (result.days as any[]).map((day: any) => ({
+        // Also add any AI-generated stops that don't match an existing place to the Places tab
+        const patchedDays = await Promise.all((result.days as any[]).map(async (day: any) => ({
           ...day,
-          stops: (day.stops || []).map((stop: any) => {
-            const matchedPlace = trip.places.find(
+          stops: await Promise.all((day.stops || []).map(async (stop: any) => {
+            // Try exact name match first
+            let matchedPlace = trip.places.find(
               (p) => p.name.toLowerCase() === (stop.placeName || '').toLowerCase()
             );
-            return {
-              ...stop,
-              placeId: matchedPlace ? matchedPlace.id : stop.placeId,
-            };
-          }),
-        }));
+            // If no match, try partial match
+            if (!matchedPlace) {
+              matchedPlace = trip.places.find(
+                (p) => (stop.placeName || '').toLowerCase().includes(p.name.toLowerCase()) ||
+                        p.name.toLowerCase().includes((stop.placeName || '').toLowerCase())
+              );
+            }
+            if (matchedPlace) {
+              return { ...stop, placeId: matchedPlace.id };
+            }
+            // No match: add this place to the Places tab so delete cascade works
+            const newPlaceId = `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            const destId = trip.destinations[0]?.id || '';
+            await addPlace(trip.id, {
+              id: newPlaceId,
+              name: stop.placeName || stop.activity || 'Lugar',
+              category: stop.placeCategory || 'attraction',
+              destinationId: destId,
+              address: stop.address,
+              hours: stop.hours,
+              description: stop.description,
+              lat: stop.lat,
+              lng: stop.lng,
+              addedByAI: true,
+            });
+            return { ...stop, placeId: newPlaceId };
+          })),
+        })));
         await setItinerary(trip.id, patchedDays);
         setSelectedDay(0);
       }
@@ -899,9 +916,20 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
 
   const handleAddUnscheduledPlace = (place: Place, targetDay?: number) => {
     const dayIdx = targetDay !== undefined ? targetDay : selectedDay;
+    // Auto-suggest time: last stop time + 1h30, or 09:00 if no stops
+    const dayStops: ItineraryStop[] = (trip.itinerary?.[dayIdx] as any)?.stops || [];
+    let suggestedTime = '09:00';
+    if (dayStops.length > 0) {
+      const lastTime = dayStops[dayStops.length - 1].time || '09:00';
+      const [hStr, mStr] = lastTime.split(':');
+      const totalMins = parseInt(hStr || '9', 10) * 60 + parseInt(mStr || '0', 10) + 90;
+      const h = Math.min(Math.floor(totalMins / 60), 22);
+      const m = totalMins % 60;
+      suggestedTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
     const newStop: ItineraryStop = {
       id: `stop-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      time: '',
+      time: suggestedTime,
       placeId: place.id,
       placeName: place.name,
       placeCategory: place.category as any,
@@ -947,7 +975,20 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
 
         {/* Create/Edit button — at the BOTTOM of the itinerary content */}
         <TouchableOpacity
-          onPress={() => setShowCreateModal(true)}
+          onPress={() => {
+            if (hasItinerary) {
+              Alert.alert(
+                'Recriar roteiro',
+                'Isso vai substituir o roteiro atual. Deseja continuar?',
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Continuar', onPress: () => setShowCreateModal(true) },
+                ]
+              );
+            } else {
+              setShowCreateModal(true);
+            }
+          }}
           style={[styles.createItineraryBtn, { marginTop: 16, marginBottom: 0 }]}
           disabled={generating}
         >
@@ -990,7 +1031,16 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
       <Modal visible={showCreateModal} transparent animationType="fade" onRequestClose={() => setShowCreateModal(false)}>
         <View style={styles.paceModalOverlay}>
           <View style={styles.paceModalCard}>
-            <Text style={styles.paceModalTitle}>Como criar o roteiro?</Text>
+            {/* Header with close button */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+              <Text style={styles.paceModalTitle}>Como criar o roteiro?</Text>
+              <TouchableOpacity
+                onPress={() => setShowCreateModal(false)}
+                style={{ padding: 4, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)' }}
+              >
+                <Ionicons name="close" size={18} color="rgba(245,240,232,0.7)" />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.paceModalSubtitle}>Escolha como a IA vai montar seu dia-a-dia</Text>
 
             {/* Pace selector (shared by all AI modes) */}

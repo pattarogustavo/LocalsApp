@@ -189,3 +189,22 @@
 - [x] Botão "Mover" removido do menu expandido (substituído pelos pontos de drag)
 - [x] Botão "Editar / Recriar Roteiro" movido para o final do conteúdo do dia, abaixo de tudo
 - [x] Botão "Regerar" removido do cabeçalho da seção Roteiro Dia-a-Dia
+
+## Fase 17 — Edição Completa do Roteiro
+
+- [ ] IA do zero e IA com meus lugares: todos os lugares gerados sincronizados com aba Lugares
+- [ ] Swipe-delete em TODAS as paradas (IA e manual) com cascade para aba Lugares
+- [ ] Drag-and-drop (long-press 2s + arrastar) para reordenar paradas dentro e entre dias
+- [ ] Botão de fechar (X) no modal "Editar / Recriar Roteiro"
+- [ ] Confirmação antes de recriar roteiro existente
+- [ ] Horário automático sugerido ao adicionar lugar manualmente
+
+## Fase 17 — Edição Completa do Roteiro (v2)
+
+- [x] IA do zero e IA com meus lugares: todos os lugares gerados sincronizados com aba Lugares (com placeId vinculado)
+- [x] Swipe-delete em TODAS as paradas (IA e manual) com cascade para aba Lugares
+- [x] Drag-and-drop com DraggableFlatList (long-press 300ms + arrastar) para reordenar paradas dentro do dia
+- [x] Mover parada para outro dia via modal (botão "Mover" no menu expandido)
+- [x] Botão X (fechar) no modal "Como criar o roteiro?"
+- [x] Confirmação antes de recriar roteiro existente
+- [x] Horário automático sugerido (+1h30 da última parada) ao adicionar lugar manualmente
