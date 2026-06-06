@@ -141,8 +141,6 @@ function StopItem({
   onDelete,
   onTimeChange,
   onMove,
-  isDragging,
-  dragHandleProps,
 }: {
   stop: StopLike;
   isLast: boolean;
@@ -151,8 +149,6 @@ function StopItem({
   onDelete?: () => void;
   onTimeChange?: (t: string) => void;
   onMove?: () => void;
-  isDragging?: boolean;
-  dragHandleProps?: any;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingTime, setEditingTime] = useState(false);
@@ -181,6 +177,7 @@ function StopItem({
     }
   };
 
+  // Swipe-left reveals the delete button on the right
   const renderRightActions = () => (
     <TouchableOpacity
       onPress={() => {
@@ -196,90 +193,23 @@ function StopItem({
 
   const stopContent = (
     <View style={styles.stopAnimatedBg}>
+      {/* ── Main row: icon-col | content-col | time+move-col ── */}
       <TouchableOpacity
         onPress={() => setExpanded(!expanded)}
-        style={styles.stopRow}
         activeOpacity={0.75}
+        style={styles.stopRow}
       >
-        {/* Drag handle — six dots on the far left, long-press to drag */}
-        {dragHandleProps ? (
-          <TouchableOpacity
-            style={styles.dragHandle}
-            onLongPress={dragHandleProps.onLongPress}
-            delayLongPress={300}
-            activeOpacity={0.6}
-          >
-            <View style={styles.dragDot} />
-            <View style={styles.dragDot} />
-            <View style={styles.dragDot} />
-            <View style={styles.dragDot} />
-            <View style={styles.dragDot} />
-            <View style={styles.dragDot} />
-          </TouchableOpacity>
-        ) : null}
-        {/* Time — tap to edit */}
-        <View style={styles.timeCol}>
-          <TouchableOpacity
-            onPress={() => { setTimeInput(stop.time || ''); setEditingTime(true); }}
-            style={styles.timeBtn}
-          >
-            <Text style={styles.stopTime}>{stop.time || '--:--'}</Text>
-          </TouchableOpacity>
+        {/* Left: icon circle + thin vertical line */}
+        <View style={styles.gmIconCol}>
+          <View style={[styles.gmIconCircle, { backgroundColor: `${catColor}20`, borderColor: `${catColor}50` }]}>
+            <Ionicons name={catIcon as any} size={15} color={catColor} />
+          </View>
+          {!isLast && <View style={styles.gmVertLine} />}
         </View>
 
-        {/* Time Edit Modal */}
-        <Modal visible={editingTime} transparent animationType="fade" onRequestClose={() => setEditingTime(false)}>
-          <View style={styles.timeModalOverlay}>
-            <View style={styles.timeModalSheet}>
-              <Text style={styles.timeModalTitle}>Editar horário</Text>
-              <TextInput
-                style={styles.timeModalInput}
-                value={timeInput}
-                onChangeText={setTimeInput}
-                placeholder="09:30"
-                placeholderTextColor="rgba(245,240,232,0.3)"
-                keyboardType="numbers-and-punctuation"
-                maxLength={5}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={() => {
-                  if (onTimeChange && timeInput.match(/^\d{1,2}:\d{2}$/)) {
-                    onTimeChange(timeInput);
-                  }
-                  setEditingTime(false);
-                }}
-              />
-              <Text style={styles.timeModalHint}>Formato: HH:MM (ex: 09:30)</Text>
-              <View style={styles.timeModalActions}>
-                <TouchableOpacity style={styles.timeModalCancel} onPress={() => setEditingTime(false)}>
-                  <Text style={styles.timeModalCancelText}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.timeModalConfirm}
-                  onPress={() => {
-                    if (onTimeChange && timeInput.trim()) {
-                      onTimeChange(timeInput.trim());
-                    }
-                    setEditingTime(false);
-                  }}
-                >
-                  <Text style={styles.timeModalConfirmText}>Salvar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-        {/* Icon + vertical line */}
-        <View style={styles.iconCol}>
-          <View style={[styles.stopIconBg, { backgroundColor: `${catColor}22` }]}>
-            <Ionicons name={catIcon as any} size={16} color={catColor} />
-          </View>
-          {!isLast && <View style={styles.vertLine} />}
-        </View>
-        {/* Content */}
-        <View style={styles.stopContent}>
+        {/* Center: name + description */}
+        <View style={styles.gmContent}>
           <Text style={styles.stopName}>{name}</Text>
-          {/* Drag handle — shown on right side */}
           {desc ? (
             <Text style={styles.stopDesc} numberOfLines={expanded ? undefined : 1}>{desc}</Text>
           ) : null}
@@ -310,39 +240,100 @@ function StopItem({
                     <Text style={styles.stopActionText}>Site</Text>
                   </TouchableOpacity>
                 ) : null}
-                {onDelete ? (
-                  <TouchableOpacity onPress={onDelete} style={styles.stopActionBtn}>
-                    <Ionicons name="trash-outline" size={13} color="#E74C3C" />
-                    <Text style={[styles.stopActionText, { color: '#E74C3C' }]}>Remover</Text>
-                  </TouchableOpacity>
-                ) : null}
               </View>
             </View>
           )}
         </View>
+
+        {/* Right: time (tap to edit) + move button */}
+        <View style={styles.gmRightCol}>
+          {/* Time — tap to edit */}
+          {stop.time ? (
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation?.(); setTimeInput(stop.time || ''); setEditingTime(true); }}
+              style={styles.gmTimeBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.gmTimeText}>{stop.time}</Text>
+            </TouchableOpacity>
+          ) : null}
+          {/* Move button — only for real stops */}
+          {onMove ? (
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation?.(); onMove(); }}
+              style={styles.gmMoveBtn}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="swap-vertical-outline" size={16} color="rgba(245,240,232,0.45)" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </TouchableOpacity>
 
-      {/* Travel to next */}
+      {/* Time Edit Modal */}
+      <Modal visible={editingTime} transparent animationType="fade" onRequestClose={() => setEditingTime(false)}>
+        <View style={styles.timeModalOverlay}>
+          <View style={styles.timeModalSheet}>
+            <Text style={styles.timeModalTitle}>Editar horário</Text>
+            <TextInput
+              style={styles.timeModalInput}
+              value={timeInput}
+              onChangeText={setTimeInput}
+              placeholder="09:30"
+              placeholderTextColor="rgba(245,240,232,0.3)"
+              keyboardType="numbers-and-punctuation"
+              maxLength={5}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                if (onTimeChange && timeInput.match(/^\d{1,2}:\d{2}$/)) {
+                  onTimeChange(timeInput);
+                }
+                setEditingTime(false);
+              }}
+            />
+            <Text style={styles.timeModalHint}>Formato: HH:MM (ex: 09:30)</Text>
+            <View style={styles.timeModalActions}>
+              <TouchableOpacity style={styles.timeModalCancel} onPress={() => setEditingTime(false)}>
+                <Text style={styles.timeModalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.timeModalConfirm}
+                onPress={() => {
+                  if (onTimeChange && timeInput.trim()) {
+                    onTimeChange(timeInput.trim());
+                  }
+                  setEditingTime(false);
+                }}
+              >
+                <Text style={styles.timeModalConfirmText}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Transit connector to next stop */}
       {!isLast && stop.travelTimeToNext ? (
         <TouchableOpacity
-          style={styles.travelRow}
+          style={styles.gmTransitRow}
           onPress={() => {
             const url = (stop as any).mapsUrlToNext;
             if (url) Linking.openURL(url);
           }}
           activeOpacity={(stop as any).mapsUrlToNext ? 0.7 : 1}
         >
-          <View style={styles.timeCol} />
-          <View style={styles.iconCol}>
-            <View style={styles.travelIconBg}>
+          {/* Align with the vertical line */}
+          <View style={styles.gmTransitIconWrap}>
+            <View style={styles.gmTransitIconBg}>
               <Ionicons
                 name={travelModeIcon(stop.travelModeToNext) as any}
                 size={11}
-                color="rgba(245,240,232,0.4)"
+                color="rgba(245,240,232,0.5)"
               />
             </View>
           </View>
-          <Text style={styles.travelText}>{stop.travelTimeToNext}</Text>
+          <Text style={styles.gmTransitText}>{stop.travelTimeToNext}</Text>
           {(stop as any).mapsUrlToNext ? (
             <Ionicons name="open-outline" size={10} color="rgba(82,183,136,0.5)" style={{ marginLeft: 4 }} />
           ) : null}
@@ -411,6 +402,8 @@ function DayView({
   const [updatingRoutes, setUpdatingRoutes] = useState(false);
   const [stopToMove, setStopToMove] = useState<StopLike | null>(null);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  // 'position' = move within same day (before/after), 'day' = move to another day
+  const [moveMode, setMoveMode] = useState<'position' | 'day'>('position');
   // Support both new stops[] format and legacy morning/afternoon/evening
   const rawStops: StopLike[] = day
     ? ((day as any).stops && (day as any).stops.length > 0
@@ -550,38 +543,23 @@ function DayView({
         />
       )}
 
-      {/* Real stops — draggable list */}
-      {rawStops.length > 0 && (
-        <DraggableFlatList
-            data={rawStops as ItineraryStop[]}
-            keyExtractor={(item) => item.id || `stop-${Math.random()}`}
-            onDragEnd={({ data }) => {
-              reorderItineraryStops(tripId, dayIndex, data);
-              setTimeout(() => handleUpdateRoutes(), 300);
-            }}
-            scrollEnabled={false}
-            activationDistance={10}
-            renderItem={({ item: s, getIndex, drag, isActive }: RenderItemParams<ItineraryStop>) => {
-              const i = (getIndex() ?? 0) + (hotelStop ? 1 : 0);
-              const prevS = i > 0 ? stops[i - 1] : null;
-              return (
-                <ScaleDecorator activeScale={1.02}>
-                  <StopItem
-                    stop={s}
-                    isLast={!hotelStop ? (getIndex() ?? 0) === rawStops.length - 1 : (getIndex() ?? 0) === rawStops.length - 1}
-                    prevStop={prevS}
-                    cityTransportMode={cityTransportMode}
-                    onDelete={s.id ? () => handleDeleteStop(s) : undefined}
-                    onTimeChange={s.id ? (t) => handleTimeChange(s, t) : undefined}
-                    onMove={s.id ? () => { setStopToMove(s); setShowMoveModal(true); } : undefined}
-                    isDragging={isActive}
-                    dragHandleProps={{ onLongPress: drag }}
-                  />
-                </ScaleDecorator>
-              );
-            }}
+      {/* Real stops — simple list (no drag) */}
+      {rawStops.map((s, idx) => {
+        const i = idx + (hotelStop ? 1 : 0);
+        const prevS = i > 0 ? stops[i - 1] : null;
+        return (
+          <StopItem
+            key={s.id || `stop-${idx}`}
+            stop={s}
+            isLast={idx === rawStops.length - 1}
+            prevStop={prevS}
+            cityTransportMode={cityTransportMode}
+            onDelete={s.id ? () => handleDeleteStop(s) : undefined}
+            onTimeChange={s.id ? (t) => handleTimeChange(s, t) : undefined}
+            onMove={s.id ? () => { setStopToMove(s); setMoveMode('position'); setShowMoveModal(true); } : undefined}
           />
-      )}
+        );
+      })}
       {day?.tips ? (
         <View style={styles.dayTip}>
           <Ionicons name="bulb-outline" size={14} color="#C4A35A" />
@@ -589,39 +567,118 @@ function DayView({
         </View>
       ) : null}
 
-      {/* Move stop between days modal */}
-      <Modal visible={showMoveModal} transparent animationType="fade" onRequestClose={() => setShowMoveModal(false)}>
+      {/* Move stop modal — position (before/after) or change day */}
+      <Modal visible={showMoveModal} transparent animationType="fade" onRequestClose={() => { setShowMoveModal(false); setStopToMove(null); }}>
         <View style={styles.paceModalOverlay}>
           <View style={styles.paceModalCard}>
-            <Text style={styles.paceModalTitle}>Mover para qual dia?</Text>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={[styles.paceModalTitle, { flex: 1 }]}>Mover parada</Text>
+              <TouchableOpacity onPress={() => { setShowMoveModal(false); setStopToMove(null); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color="rgba(245,240,232,0.6)" />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.paceModalSubtitle}>
               {stopToMove ? `"${stopToMove.placeName || stopToMove.activity || 'Parada'}"` : ''}
             </Text>
-            <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
-              {Array.from({ length: totalDays }, (_, i) => {
-                if (i === dayIndex) return null;
-                const base = new Date(startDate);
-                base.setDate(base.getDate() + i);
-                const label = `Dia ${i + 1} — ${DAY_NAMES[base.getDay()]}, ${base.getDate()} ${MONTH_NAMES[base.getMonth()]}`;
-                return (
-                  <TouchableOpacity
-                    key={i}
-                    onPress={() => handleMoveStop(i)}
-                    style={[styles.paceModalOption, { marginBottom: 8 }]}
-                  >
-                    <Ionicons name="calendar-outline" size={16} color="#52B788" />
-                    <Text style={styles.paceModalOptionLabel}>{label}</Text>
-                    <Ionicons name="chevron-forward" size={16} color="rgba(245,240,232,0.3)" />
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-            <TouchableOpacity
-              onPress={() => { setShowMoveModal(false); setStopToMove(null); }}
-              style={[styles.paceModalBtn, { backgroundColor: 'rgba(255,255,255,0.08)', marginTop: 8 }]}
-            >
-              <Text style={{ color: 'rgba(245,240,232,0.7)', fontWeight: '600' }}>Cancelar</Text>
-            </TouchableOpacity>
+
+            {/* Mode tabs */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={() => setMoveMode('position')}
+                style={[styles.paceModalBtn, { flex: 1, backgroundColor: moveMode === 'position' ? 'rgba(82,183,136,0.2)' : 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: moveMode === 'position' ? '#52B788' : 'transparent' }]}
+              >
+                <Ionicons name="swap-vertical-outline" size={14} color={moveMode === 'position' ? '#52B788' : 'rgba(245,240,232,0.5)'} />
+                <Text style={{ color: moveMode === 'position' ? '#52B788' : 'rgba(245,240,232,0.5)', fontWeight: '600', fontSize: 13 }}>Posição</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setMoveMode('day')}
+                style={[styles.paceModalBtn, { flex: 1, backgroundColor: moveMode === 'day' ? 'rgba(82,183,136,0.2)' : 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: moveMode === 'day' ? '#52B788' : 'transparent' }]}
+              >
+                <Ionicons name="calendar-outline" size={14} color={moveMode === 'day' ? '#52B788' : 'rgba(245,240,232,0.5)'} />
+                <Text style={{ color: moveMode === 'day' ? '#52B788' : 'rgba(245,240,232,0.5)', fontWeight: '600', fontSize: 13 }}>Outro dia</Text>
+              </TouchableOpacity>
+            </View>
+
+            {moveMode === 'position' ? (
+              // Position options: move before/after within the same day
+              <View style={{ gap: 8 }}>
+                {(() => {
+                  const idx = rawStops.findIndex((s) => s.id === stopToMove?.id);
+                  const canUp   = idx > 0;
+                  const canDown = idx < rawStops.length - 1;
+                  return (
+                    <>
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (!stopToMove?.id || !canUp) return;
+                          const newOrder = [...rawStops] as ItineraryStop[];
+                          const [item] = newOrder.splice(idx, 1);
+                          newOrder.splice(idx - 1, 0, item);
+                          reorderItineraryStops(tripId, dayIndex, newOrder);
+                          setTimeout(() => handleUpdateRoutes(), 300);
+                          setShowMoveModal(false);
+                          setStopToMove(null);
+                        }}
+                        style={[styles.paceModalOption, { opacity: canUp ? 1 : 0.35 }]}
+                        disabled={!canUp}
+                      >
+                        <Ionicons name="arrow-up-outline" size={18} color="#52B788" />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.paceModalOptionLabel}>Mover para antes</Text>
+                          {canUp && rawStops[idx - 1] && (
+                            <Text style={styles.paceModalOptionDesc}>Antes de "{rawStops[idx - 1].placeName || rawStops[idx - 1].activity}"</Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (!stopToMove?.id || !canDown) return;
+                          const newOrder = [...rawStops] as ItineraryStop[];
+                          const [item] = newOrder.splice(idx, 1);
+                          newOrder.splice(idx + 1, 0, item);
+                          reorderItineraryStops(tripId, dayIndex, newOrder);
+                          setTimeout(() => handleUpdateRoutes(), 300);
+                          setShowMoveModal(false);
+                          setStopToMove(null);
+                        }}
+                        style={[styles.paceModalOption, { opacity: canDown ? 1 : 0.35 }]}
+                        disabled={!canDown}
+                      >
+                        <Ionicons name="arrow-down-outline" size={18} color="#52B788" />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.paceModalOptionLabel}>Mover para depois</Text>
+                          {canDown && rawStops[idx + 1] && (
+                            <Text style={styles.paceModalOptionDesc}>Depois de "{rawStops[idx + 1].placeName || rawStops[idx + 1].activity}"</Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    </>
+                  );
+                })()}
+              </View>
+            ) : (
+              // Day options: move to another day
+              <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
+                {Array.from({ length: totalDays }, (_, i) => {
+                  if (i === dayIndex) return null;
+                  const base = new Date(startDate);
+                  base.setDate(base.getDate() + i);
+                  const label = `Dia ${i + 1} — ${DAY_NAMES[base.getDay()]}, ${base.getDate()} ${MONTH_NAMES[base.getMonth()]}`;
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => handleMoveStop(i)}
+                      style={[styles.paceModalOption, { marginBottom: 8 }]}
+                    >
+                      <Ionicons name="calendar-outline" size={16} color="#52B788" />
+                      <Text style={[styles.paceModalOptionLabel, { flex: 1 }]}>{label}</Text>
+                      <Ionicons name="chevron-forward" size={16} color="rgba(245,240,232,0.3)" />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
@@ -1352,15 +1409,30 @@ const styles = StyleSheet.create({
   dayChipMonth: { fontSize: 10, color: 'rgba(245,240,232,0.4)', marginTop: 1 },
   dayChipMonthActive: { color: 'rgba(15,31,22,0.7)' },
 
-  // Stop item
+  // Stop item — Google Maps-style
   stopAnimatedBg: { backgroundColor: '#1A2E22' }, // opaque so swipe-delete bg doesn't show through
-  stopRow: { flexDirection: 'row', paddingVertical: 6 },
+  stopRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 6, paddingHorizontal: 4 },
+  // Legacy (kept for fallback references)
   timeCol: { width: 44, alignItems: 'flex-end', paddingRight: 10, paddingTop: 6 },
   stopTime: { fontSize: 12, color: 'rgba(245,240,232,0.4)', fontWeight: '500' },
   iconCol: { width: 36, alignItems: 'center' },
   stopIconBg: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   vertLine: { flex: 1, width: 1, backgroundColor: 'rgba(82,183,136,0.2)', marginTop: 4, minHeight: 16 },
   stopContent: { flex: 1, paddingLeft: 10, paddingBottom: 8 },
+  // Google Maps-style columns
+  gmIconCol: { width: 32, alignItems: 'center', paddingTop: 2 },
+  gmIconCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
+  gmVertLine: { width: 1.5, flex: 1, backgroundColor: 'rgba(82,183,136,0.25)', marginTop: 3, minHeight: 20 },
+  gmContent: { flex: 1, paddingLeft: 10, paddingBottom: 10, paddingTop: 3 },
+  gmRightCol: { alignItems: 'flex-end', paddingLeft: 6, paddingTop: 3, gap: 6, minWidth: 52 },
+  gmTimeBtn: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, backgroundColor: 'rgba(82,183,136,0.1)', borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)' },
+  gmTimeText: { fontSize: 12, color: '#52B788', fontWeight: '600', letterSpacing: 0.3 },
+  gmMoveBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)' },
+  // Transit connector (Google Maps style)
+  gmTransitRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 4, paddingVertical: 2, paddingBottom: 4 },
+  gmTransitIconWrap: { width: 32, alignItems: 'center' },
+  gmTransitIconBg: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(82,183,136,0.15)' },
+  gmTransitText: { fontSize: 11, color: 'rgba(245,240,232,0.4)', paddingLeft: 10, flex: 1 },
   stopName: { fontSize: 15, fontWeight: '700', color: '#F5F0E8', lineHeight: 20 },
   stopDesc: { fontSize: 13, color: 'rgba(245,240,232,0.55)', marginTop: 2, lineHeight: 18 },
   stopExpanded: { marginTop: 8, gap: 6 },

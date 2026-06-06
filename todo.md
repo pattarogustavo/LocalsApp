@@ -222,3 +222,14 @@
 - [x] Despesas: resumo de acerto de contas (quem paga quanto para quem)
 - [x] Botão "Montar Roteiro" removido da aba Lugares
 - [x] Fotos genéricas: mapa expandido com 50+ cidades + fallback dinâmico Unsplash para cidades não mapeadas
+
+## Fase 19 — Redesign Visual do Roteiro (Google Maps Style)
+
+- [x] Horário no canto direito de cada parada (verde, toque para editar)
+- [x] Ícone circular com borda colorida por categoria (estilo Google Maps)
+- [x] Linha vertical fina (1.5px) conectando as paradas
+- [x] Conector de trânsito com ícone de modal de transporte + tempo
+- [x] Botão de mover (⇅) no canto direito de cada parada
+- [x] Modal de mover com abas: "Posição" (antes/depois no mesmo dia) e "Outro dia"
+- [x] Swipe-left para excluir (botão vermelho aparece no canto direito)
+- [x] Removido drag-and-drop (DraggableFlatList substituído por map simples)
