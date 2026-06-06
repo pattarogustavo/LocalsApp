@@ -318,20 +318,6 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                   />
                 </View>
 
-                {/* AI Button */}
-                <TouchableOpacity
-                  onPress={handleAIPress}
-                  style={[styles.aiBtn, { backgroundColor: colors.surface }]}
-                >
-                  <Ionicons name="sparkles" size={18} color="#3D5A47" />
-                  <Text style={[styles.aiBtnText, { color: colors.foreground }]}>Criar com IA</Text>
-                  {userPlan.tier === 'free' && (
-                    <View style={styles.aiBadge}>
-                      <Text style={styles.aiBadgeText}>PRO</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-
                 {/* Create button */}
                 <TouchableOpacity
                   onPress={canCreate ? handleCreate : undefined}
