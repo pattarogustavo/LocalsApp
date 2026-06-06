@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Linking, ActivityIndicator, Modal, Alert, TextInput, FlatList,
-  Platform, Animated,
+  Platform, Animated, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -128,6 +128,8 @@ interface StopLike {
   website?: string;
   lat?: number;
   lng?: number;
+  imageUrl?: string;
+  placeId?: string;
   travelTimeToNext?: string;
   travelModeToNext?: string;
 }
@@ -142,6 +144,7 @@ function StopItem({
   onMove,
   onEdit,
   animIndex = 0,
+  linkedPlace,
 }: {
   stop: StopLike;
   isLast: boolean;
@@ -152,6 +155,7 @@ function StopItem({
   onMove?: () => void;
   onEdit?: (updates: Partial<ItineraryStop>) => void;
   animIndex?: number;
+  linkedPlace?: Place | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingTime, setEditingTime] = useState(false);
@@ -233,6 +237,15 @@ function StopItem({
           ) : null}
           {expanded && (
             <View style={styles.stopExpanded}>
+              {/* Place photo — from stop or linked Place */}
+              {(stop.imageUrl || linkedPlace?.imageUrl) ? (
+                <Image
+                  source={{ uri: stop.imageUrl || linkedPlace?.imageUrl }}
+                  style={styles.stopPhoto}
+                  resizeMode="cover"
+                />
+              ) : null}
+
               {stop.hours ? (
                 <View style={styles.stopDetail}>
                   <Ionicons name="time-outline" size={12} color="rgba(245,240,232,0.4)" />
@@ -245,6 +258,27 @@ function StopItem({
                   <Text style={styles.stopDetailText}>{stop.address}</Text>
                 </View>
               ) : null}
+
+              {/* Attachments from linked Place */}
+              {(linkedPlace?.attachments && linkedPlace.attachments.length > 0) ? (
+                <View style={styles.stopAttachList}>
+                  {linkedPlace.attachments.map((att) => (
+                    <TouchableOpacity
+                      key={att.id}
+                      style={styles.stopAttachChip}
+                      onPress={() => att.url ? Linking.openURL(att.url) : null}
+                    >
+                      <Ionicons
+                        name={att.type === 'pdf' ? 'document-text-outline' : 'image-outline'}
+                        size={12}
+                        color="rgba(196,163,90,0.8)"
+                      />
+                      <Text style={styles.stopAttachChipText} numberOfLines={1}>{att.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
+
               <View style={styles.stopActions}>
                 {(stop.lat || stop.address) ? (
                   <TouchableOpacity onPress={openMaps} style={styles.stopActionBtn}>
@@ -252,8 +286,12 @@ function StopItem({
                     <Text style={styles.stopActionText}>Maps</Text>
                   </TouchableOpacity>
                 ) : null}
-                {stop.website ? (
-                  <TouchableOpacity onPress={() => Linking.openURL(stop.website!)} style={styles.stopActionBtn}>
+                {/* Website — from stop or linked Place */}
+                {(stop.website || linkedPlace?.website) ? (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(stop.website || linkedPlace?.website || '')}
+                    style={styles.stopActionBtn}
+                  >
                     <Ionicons name="globe-outline" size={13} color="#52B788" />
                     <Text style={styles.stopActionText}>Site</Text>
                   </TouchableOpacity>
@@ -515,6 +553,7 @@ function DayView({
   accommodations,
   onGoToPlaces,
   startDate,
+  places,
 }: {
   day: DayItinerary | undefined;
   dayIndex: number;
@@ -524,6 +563,7 @@ function DayView({
   accommodations?: Accommodation[];
   onGoToPlaces: () => void;
   startDate: string;
+  places?: Place[];
 }) {
   const { removeItineraryStop, updateItineraryStop, moveItineraryStop, reorderItineraryStops, removeItineraryStopAndPlace } = useTripsStore();
   const batchRoute = trpc.directions.batchRoute.useMutation();
@@ -700,6 +740,7 @@ function DayView({
           prevStop={null}
           cityTransportMode={cityTransportMode}
           animIndex={0}
+          linkedPlace={places?.find((p) => (p.category as string) === 'hotel') ?? null}
         />
       )}
 
@@ -707,6 +748,7 @@ function DayView({
       {rawStops.map((s, idx) => {
         const i = idx + (hotelStop ? 1 : 0);
         const prevS = i > 0 ? stops[i - 1] : null;
+        const linked = s.placeId ? (places?.find((p) => p.id === s.placeId) ?? null) : null;
         return (
           <StopItem
             key={s.id || `stop-${idx}`}
@@ -719,6 +761,7 @@ function DayView({
             onMove={s.id ? () => { setStopToMove(s); setMoveMode('position'); setShowMoveModal(true); } : undefined}
             onEdit={s.id ? (updates) => updateItineraryStop(tripId, dayIndex, s.id!, updates) : undefined}
             animIndex={hotelStop ? idx + 1 : idx}
+            linkedPlace={linked}
           />
         );
       })}
@@ -1168,6 +1211,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           cityTransportMode={cityTransportMode || trip.cityTransportMode}
           accommodations={trip.accommodations}
           onGoToPlaces={onGoToPlaces}
+          places={trip.places}
         />
 
         {/* Create/Edit button — at the BOTTOM of the itinerary content */}
@@ -1725,4 +1769,10 @@ const styles = StyleSheet.create({
   daySummaryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4, marginBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(82,183,136,0.1)' },
   daySummaryStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   daySummaryStatText: { fontSize: 12, color: 'rgba(245,240,232,0.5)', fontWeight: '500' },
+
+  // Stop photo & attachments
+  stopPhoto: { width: '100%', height: 130, borderRadius: 12, marginBottom: 10, marginTop: 4 },
+  stopAttachList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  stopAttachChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: 'rgba(196,163,90,0.1)', borderWidth: 1, borderColor: 'rgba(196,163,90,0.25)' },
+  stopAttachChipText: { fontSize: 11, fontWeight: '600', color: 'rgba(196,163,90,0.85)', maxWidth: 120 },
 });

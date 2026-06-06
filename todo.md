@@ -241,3 +241,12 @@
 - [x] Animação de entrada das paradas (fade + slide-in sequencial com delay por índice)
 - [x] DayView com key dinâmica para re-executar animações ao recriar roteiro
 - [x] Botao "Editar" no menu expandido de cada parada
+
+## Fase 21 — Fotos e Anexos no Roteiro e Lugares
+
+- [x] Foto real do lugar (130px de altura) exibida ao expandir parada no roteiro dia-a-dia
+- [x] Fallback: usa imageUrl do Place vinculado via placeId se a parada não tiver foto própria
+- [x] Link do site oficial na parada expandida (do stop ou do Place vinculado)
+- [x] Anexos do Place vinculado exibidos como chips clicáveis ao expandir a parada
+- [x] Dados sincronizados: alterações na aba Lugares refletem automaticamente no roteiro
+- [x] StopLike interface atualizada com imageUrl e placeId
