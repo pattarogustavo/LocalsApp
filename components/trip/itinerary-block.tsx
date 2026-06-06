@@ -1,11 +1,10 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Linking, ActivityIndicator, Modal, Alert, TextInput, FlatList,
-  Platform,
+  Platform, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useTripsStore } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
@@ -141,6 +140,8 @@ function StopItem({
   onDelete,
   onTimeChange,
   onMove,
+  onEdit,
+  animIndex = 0,
 }: {
   stop: StopLike;
   isLast: boolean;
@@ -149,11 +150,28 @@ function StopItem({
   onDelete?: () => void;
   onTimeChange?: (t: string) => void;
   onMove?: () => void;
+  onEdit?: (updates: Partial<ItineraryStop>) => void;
+  animIndex?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingTime, setEditingTime] = useState(false);
   const [timeInput, setTimeInput] = useState(stop.time || '');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState(stop.placeName || stop.activity || '');
+  const [editDesc, setEditDesc] = useState(stop.description || stop.tip || '');
+  const [editCat, setEditCat] = useState(stop.placeCategory || 'other');
+  const [editNotes, setEditNotes] = useState((stop as any).notes || '');
   const swipeableRef = useRef<Swipeable>(null);
+
+  // Animated entry: fade + slide-in from right
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 280, delay: animIndex * 80, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 280, delay: animIndex * 80, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   const name = stop.placeName || stop.activity || '';
   const desc = stop.description || stop.tip || '';
@@ -192,7 +210,7 @@ function StopItem({
   );
 
   const stopContent = (
-    <View style={styles.stopAnimatedBg}>
+    <Animated.View style={[styles.stopAnimatedBg, { opacity: fadeAnim, transform: [{ translateX: slideAnim }] }]}>
       {/* ── Main row: icon-col | content-col | time+move-col ── */}
       <TouchableOpacity
         onPress={() => setExpanded(!expanded)}
@@ -238,6 +256,15 @@ function StopItem({
                   <TouchableOpacity onPress={() => Linking.openURL(stop.website!)} style={styles.stopActionBtn}>
                     <Ionicons name="globe-outline" size={13} color="#52B788" />
                     <Text style={styles.stopActionText}>Site</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {onEdit ? (
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation?.(); setShowEditModal(true); }}
+                    style={[styles.stopActionBtn, { borderColor: 'rgba(196,163,90,0.4)', backgroundColor: 'rgba(196,163,90,0.1)' }]}
+                  >
+                    <Ionicons name="pencil-outline" size={13} color="#C4A35A" />
+                    <Text style={[styles.stopActionText, { color: '#C4A35A' }]}>Editar</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -339,7 +366,108 @@ function StopItem({
           ) : null}
         </TouchableOpacity>
       ) : null}
-    </View>
+
+      {/* ── Edit Stop Modal ── */}
+      {onEdit ? (
+        <Modal visible={showEditModal} transparent animationType="slide" onRequestClose={() => setShowEditModal(false)}>
+          <View style={styles.editStopOverlay}>
+            <View style={styles.editStopSheet}>
+              {/* Header */}
+              <View style={styles.editStopHeader}>
+                <Text style={styles.editStopTitle}>Editar parada</Text>
+                <TouchableOpacity onPress={() => setShowEditModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close" size={22} color="rgba(245,240,232,0.6)" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                {/* Name */}
+                <Text style={styles.editStopLabel}>Nome do lugar</Text>
+                <TextInput
+                  style={styles.editStopInput}
+                  value={editName}
+                  onChangeText={setEditName}
+                  placeholder="Ex: Torre Eiffel"
+                  placeholderTextColor="rgba(245,240,232,0.3)"
+                  returnKeyType="next"
+                />
+
+                {/* Category */}
+                <Text style={styles.editStopLabel}>Categoria</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {Object.entries(CATEGORY_ICONS).map(([key, icon]) => {
+                      const color = CATEGORY_COLORS[key] || '#52B788';
+                      const isActive = editCat === key;
+                      return (
+                        <TouchableOpacity
+                          key={key}
+                          onPress={() => setEditCat(key)}
+                          style={[styles.editCatChip, { borderColor: isActive ? color : 'rgba(255,255,255,0.12)', backgroundColor: isActive ? `${color}20` : 'transparent' }]}
+                        >
+                          <Ionicons name={icon as any} size={14} color={isActive ? color : 'rgba(245,240,232,0.4)'} />
+                          <Text style={[styles.editCatChipText, { color: isActive ? color : 'rgba(245,240,232,0.4)' }]}>
+                            {key === 'attraction' ? 'Atração' : key === 'restaurant' ? 'Restaurante' : key === 'cafe' ? 'Café' : key === 'museum' ? 'Museu' : key === 'hidden_gem' ? 'Joia' : key === 'hotel' ? 'Hotel' : 'Outro'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+
+                {/* Description */}
+                <Text style={styles.editStopLabel}>Descrição</Text>
+                <TextInput
+                  style={[styles.editStopInput, { height: 72, textAlignVertical: 'top' }]}
+                  value={editDesc}
+                  onChangeText={setEditDesc}
+                  placeholder="Breve descrição do lugar..."
+                  placeholderTextColor="rgba(245,240,232,0.3)"
+                  multiline
+                  numberOfLines={3}
+                />
+
+                {/* Notes */}
+                <Text style={styles.editStopLabel}>Notas pessoais</Text>
+                <TextInput
+                  style={[styles.editStopInput, { height: 72, textAlignVertical: 'top' }]}
+                  value={editNotes}
+                  onChangeText={setEditNotes}
+                  placeholder="Dicas, lembretes, observações..."
+                  placeholderTextColor="rgba(245,240,232,0.3)"
+                  multiline
+                  numberOfLines={3}
+                />
+              </ScrollView>
+
+              {/* Actions */}
+              <View style={styles.editStopActions}>
+                <TouchableOpacity
+                  style={styles.editStopCancel}
+                  onPress={() => setShowEditModal(false)}
+                >
+                  <Text style={styles.editStopCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.editStopSave}
+                  onPress={() => {
+                    onEdit({
+                      placeName: editName.trim() || undefined,
+                      placeCategory: editCat as any,
+                      description: editDesc.trim() || undefined,
+                    });
+                    setShowEditModal(false);
+                  }}
+                >
+                  <Ionicons name="checkmark" size={16} color="#0F1F16" />
+                  <Text style={styles.editStopSaveText}>Salvar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+    </Animated.View>
   );
 
   // Virtual stops (hotel) are not swipeable
@@ -533,6 +661,37 @@ function DayView({
           </Text>
         </TouchableOpacity>
       )}
+      {/* Day summary header */}
+      {rawStops.length > 0 && (
+        <View style={styles.daySummaryRow}>
+          <View style={styles.daySummaryStat}>
+            <Ionicons name="location-outline" size={13} color="rgba(82,183,136,0.7)" />
+            <Text style={styles.daySummaryStatText}>{rawStops.length} parada{rawStops.length !== 1 ? 's' : ''}</Text>
+          </View>
+          {rawStops.some(s => s.travelTimeToNext) && (
+            <View style={styles.daySummaryStat}>
+              <Ionicons name="time-outline" size={13} color="rgba(82,183,136,0.7)" />
+              <Text style={styles.daySummaryStatText}>
+                {rawStops.reduce((acc, s) => {
+                  if (!s.travelTimeToNext) return acc;
+                  const m = s.travelTimeToNext.match(/(\d+)\s*h/i);
+                  const min = s.travelTimeToNext.match(/(\d+)\s*min/i);
+                  return acc + (m ? parseInt(m[1]) * 60 : 0) + (min ? parseInt(min[1]) : 0);
+                }, 0)} min em trânsito
+              </Text>
+            </View>
+          )}
+          {rawStops.some(s => (s as any).estimatedCost) && (
+            <View style={styles.daySummaryStat}>
+              <Ionicons name="wallet-outline" size={13} color="rgba(196,163,90,0.7)" />
+              <Text style={styles.daySummaryStatText}>
+                ~{rawStops.reduce((acc, s) => acc + ((s as any).estimatedCost || 0), 0).toFixed(0)}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Hotel stop (virtual, not draggable) */}
       {hotelStop && (
         <StopItem
@@ -540,6 +699,7 @@ function DayView({
           isLast={rawStops.length === 0}
           prevStop={null}
           cityTransportMode={cityTransportMode}
+          animIndex={0}
         />
       )}
 
@@ -557,6 +717,8 @@ function DayView({
             onDelete={s.id ? () => handleDeleteStop(s) : undefined}
             onTimeChange={s.id ? (t) => handleTimeChange(s, t) : undefined}
             onMove={s.id ? () => { setStopToMove(s); setMoveMode('position'); setShowMoveModal(true); } : undefined}
+            onEdit={s.id ? (updates) => updateItineraryStop(tripId, dayIndex, s.id!, updates) : undefined}
+            animIndex={hotelStop ? idx + 1 : idx}
           />
         );
       })}
@@ -997,6 +1159,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         />
 
         <DayView
+          key={`day-${selectedDay}-${(displayDays[selectedDay] as any)?.stops?.length ?? 0}-${displayDays[selectedDay]?.date ?? ''}`}
           day={displayDays[selectedDay]}
           dayIndex={selectedDay}
           tripId={trip.id}
@@ -1542,4 +1705,24 @@ const styles = StyleSheet.create({
   unscheduledName: { fontSize: 14, fontWeight: '600', color: '#F5F0E8' },
   unscheduledCat: { fontSize: 11, color: 'rgba(245,240,232,0.4)', marginTop: 1 },
   unscheduledAddBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(82,183,136,0.15)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(82,183,136,0.3)' },
+
+  // Edit stop modal
+  editStopOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  editStopSheet: { backgroundColor: '#1A2E22', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 },
+  editStopHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  editStopTitle: { fontSize: 18, fontWeight: '700', color: '#F5F0E8' },
+  editStopLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8, color: 'rgba(245,240,232,0.5)', marginBottom: 6, marginTop: 4 },
+  editStopInput: { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: 12, fontSize: 14, color: '#F5F0E8', borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)', marginBottom: 12 },
+  editCatChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  editCatChipText: { fontSize: 12, fontWeight: '600' },
+  editStopActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  editStopCancel: { flex: 1, paddingVertical: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center' },
+  editStopCancelText: { fontSize: 14, fontWeight: '600', color: 'rgba(245,240,232,0.6)' },
+  editStopSave: { flex: 2, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 14, backgroundColor: '#52B788', alignItems: 'center', justifyContent: 'center' },
+  editStopSaveText: { fontSize: 14, fontWeight: '700', color: '#0F1F16' },
+
+  // Day summary header
+  daySummaryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4, marginBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(82,183,136,0.1)' },
+  daySummaryStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  daySummaryStatText: { fontSize: 12, color: 'rgba(245,240,232,0.5)', fontWeight: '500' },
 });

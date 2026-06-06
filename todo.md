@@ -233,3 +233,11 @@
 - [x] Modal de mover com abas: "Posição" (antes/depois no mesmo dia) e "Outro dia"
 - [x] Swipe-left para excluir (botão vermelho aparece no canto direito)
 - [x] Removido drag-and-drop (DraggableFlatList substituído por map simples)
+
+## Fase 20 — Melhorias no Roteiro Dia-a-Dia
+
+- [x] Editar detalhes de uma parada (nome, categoria, descrição, notas) via modal bottom-sheet
+- [x] Resumo do dia no topo: total de paradas, tempo em trânsito, custo estimado
+- [x] Animação de entrada das paradas (fade + slide-in sequencial com delay por índice)
+- [x] DayView com key dinâmica para re-executar animações ao recriar roteiro
+- [x] Botao "Editar" no menu expandido de cada parada
