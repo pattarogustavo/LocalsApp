@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   TextInput, Image, Modal, Linking, ActivityIndicator,
-  FlatList,
+  FlatList, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTripsStore } from '@/store/trips';
@@ -166,16 +166,30 @@ function PlaceDetailModal({
               <View style={styles.attachSection}>
                 <Text style={styles.attachSectionLabel}>DOCUMENTOS ANEXADOS</Text>
                 {(place.attachments || []).map((att, idx) => (
-                  <View key={att.id} style={styles.attachRow}>
+                  <TouchableOpacity
+                    key={att.id}
+                    style={styles.attachRow}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      if (att.url) {
+                        Linking.openURL(att.url).catch(() =>
+                          Alert.alert('Erro', 'Não foi possível abrir o documento.')
+                        );
+                      }
+                    }}
+                  >
                     <Ionicons
                       name={att.type === 'pdf' ? 'document-text-outline' : 'image-outline'}
                       size={16} color="rgba(245,240,232,0.5)"
                     />
                     <Text style={styles.attachName} numberOfLines={1}>{att.name}</Text>
-                    <TouchableOpacity onPress={() => handleRemoveAttachment(att.id)} style={styles.attachRemove}>
+                    {att.url ? (
+                      <Ionicons name="open-outline" size={13} color="rgba(82,183,136,0.6)" style={{ marginRight: 4 }} />
+                    ) : null}
+                    <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleRemoveAttachment(att.id); }} style={styles.attachRemove}>
                       <Ionicons name="trash-outline" size={14} color="#E74C3C" />
                     </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 ))}
                 <DocAttachField
                   label="Adicionar documento"

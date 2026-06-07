@@ -11,6 +11,8 @@ import {
   TextInput,
   ScrollView,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -217,6 +219,10 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
         animationType="slide"
         onRequestClose={() => setShowCaptionModal(false)}
       >
+        <KeyboardAvoidingView
+          style={{ flex: 1, justifyContent: 'flex-end' }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <View style={styles.captionModalOverlay}>
           <View style={styles.captionModalSheet}>
             <Text style={styles.captionModalTitle}>Adicionar legenda</Text>
@@ -246,6 +252,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Linking, ActivityIndicator, Modal, Alert, TextInput, FlatList,
-  Platform, Animated, Image,
+  Platform, Animated, Image, KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -408,6 +408,10 @@ function StopItem({
       {/* ── Edit Stop Modal ── */}
       {onEdit ? (
         <Modal visible={showEditModal} transparent animationType="slide" onRequestClose={() => setShowEditModal(false)}>
+          <KeyboardAvoidingView
+            style={{ flex: 1, justifyContent: 'flex-end' }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          >
           <View style={styles.editStopOverlay}>
             <View style={styles.editStopSheet}>
               {/* Header */}
@@ -418,7 +422,7 @@ function StopItem({
                 </TouchableOpacity>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ maxHeight: 420 }}>
                 {/* Name */}
                 <Text style={styles.editStopLabel}>Nome do lugar</Text>
                 <TextInput
@@ -503,6 +507,7 @@ function StopItem({
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </Modal>
       ) : null}
     </Animated.View>
@@ -1379,9 +1384,13 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
 
       {/* ── Profile questions modal (AI from scratch) ── */}
       <Modal visible={showProfileModal} transparent animationType="slide" onRequestClose={() => setShowProfileModal(false)}>
+        <KeyboardAvoidingView
+          style={{ flex: 1, justifyContent: 'flex-end' }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <View style={[styles.paceModalOverlay, { justifyContent: 'flex-end', padding: 0 }]}>
           <View style={[styles.paceModalCard, { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, maxHeight: '90%' }]}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={styles.paceModalTitle}>Seu perfil de viajante</Text>
               <Text style={styles.paceModalSubtitle}>A IA vai personalizar o roteiro com base nas suas respostas</Text>
 
@@ -1499,6 +1508,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
             </ScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Manual place picker modal ── */}

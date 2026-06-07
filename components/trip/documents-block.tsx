@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, Linking, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTripsStore } from '@/store/trips';
@@ -41,6 +41,16 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
     setDocType('other');
   };
 
+  const handleOpenDoc = (doc: Document) => {
+    if (doc.url) {
+      Linking.openURL(doc.url).catch(() =>
+        Alert.alert('Erro', 'Não foi possível abrir o documento.')
+      );
+    } else {
+      Alert.alert('Sem arquivo', 'Este documento não possui um arquivo anexado.');
+    }
+  };
+
   return (
     <View
       style={{
@@ -72,24 +82,32 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
         documents.slice(0, 3).map((doc) => {
           const typeInfo = DOC_TYPES.find((t) => t.key === doc.type) || DOC_TYPES[5];
           return (
-            <View
+            <TouchableOpacity
               key={doc.id}
+              onPress={() => handleOpenDoc(doc)}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}
+              activeOpacity={0.7}
             >
               <Ionicons name={typeInfo.icon as any} size={16} color="rgba(245,240,232,0.6)" />
               <Text style={{ color: '#F5F0E8', fontSize: 14, flex: 1 }}>{doc.name}</Text>
-              <TouchableOpacity onPress={() => removeDocument(tripId, doc.id)}>
+              {doc.url ? (
+                <Ionicons name="open-outline" size={13} color="rgba(82,183,136,0.6)" />
+              ) : null}
+              <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); removeDocument(tripId, doc.id); }}>
                 <Ionicons name="trash-outline" size={14} color="rgba(245,240,232,0.4)" />
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           );
         })
       )}
 
       {/* Add Document Modal */}
       <Modal visible={showModal} transparent animationType="slide">
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView
+          style={{ flex: 1, justifyContent: 'flex-end' }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
             <View
               style={{
                 backgroundColor: '#F5F0E8',
@@ -97,6 +115,7 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
                 borderTopRightRadius: 28,
                 padding: 24,
                 paddingBottom: insets.bottom + 24,
+                maxHeight: '90%',
               }}
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -108,12 +127,15 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
                 </TouchableOpacity>
               </View>
 
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* Existing docs */}
               {documents.map((doc) => {
                 const typeInfo = DOC_TYPES.find((t) => t.key === doc.type) || DOC_TYPES[5];
                 return (
-                  <View
+                  <TouchableOpacity
                     key={doc.id}
+                    onPress={() => handleOpenDoc(doc)}
+                    activeOpacity={0.7}
                     style={{
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -126,10 +148,13 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
                   >
                     <Ionicons name={typeInfo.icon as any} size={18} color="#3D5A47" />
                     <Text style={{ color: '#1C3D2E', flex: 1, fontWeight: '500' }}>{doc.name}</Text>
-                    <TouchableOpacity onPress={() => removeDocument(tripId, doc.id)}>
+                    {doc.url ? (
+                      <Ionicons name="open-outline" size={14} color="#3D5A47" />
+                    ) : null}
+                    <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); removeDocument(tripId, doc.id); }}>
                       <Ionicons name="trash-outline" size={16} color="#C0392B" />
                     </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
 
@@ -184,9 +209,10 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
               >
                 <Text style={{ color: '#F5F0E8', fontWeight: '600', fontSize: 16 }}>Adicionar Arquivo</Text>
               </TouchableOpacity>
+              </ScrollView>
             </View>
-          </KeyboardAvoidingView>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

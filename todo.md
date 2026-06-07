@@ -250,3 +250,14 @@
 - [x] Anexos do Place vinculado exibidos como chips clicáveis ao expandir a parada
 - [x] Dados sincronizados: alterações na aba Lugares refletem automaticamente no roteiro
 - [x] StopLike interface atualizada com imageUrl e placeId
+
+## Fase 22 — Abertura de Documentos e Ajuste de Teclado
+
+- [x] Documentos clicáveis: abrir arquivo com Linking.openURL em todos os locais (DocumentsBlock, PlaceDetailModal, itinerary-block, accommodation-block, transport-block)
+- [x] Teclado: cada Modal com TextInput deve ter seu próprio KeyboardAvoidingView interno
+- [x] Teclado: ScrollView dentro de modais deve ter keyboardShouldPersistTaps="handled"
+- [x] Teclado: EditStopModal no itinerary-block precisa de KeyboardAvoidingView
+- [x] Teclado: DocumentsBlock modal precisa de KeyboardAvoidingView (já tem, verificar se funciona)
+- [x] Teclado: PlaceDetailModal no places-screen precisa de KeyboardAvoidingView
+- [x] Teclado: AccommodationBlock modal precisa de KeyboardAvoidingView
+- [x] Teclado: TransportBlock modal precisa de KeyboardAvoidingView

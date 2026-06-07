@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, StyleSheet,
   ScrollView, TextInput, Alert, Image, Platform, ActivityIndicator,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -349,6 +350,19 @@ function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: 
           )}
         </View>
       )}
+      {transport.trainBusFerry?.ticketDocUri ? (
+        <TouchableOpacity
+          style={styles.boardingPassBtn}
+          activeOpacity={0.7}
+          onPress={() => Linking.openURL(transport.trainBusFerry!.ticketDocUri!).catch(() =>
+            Alert.alert('Erro', 'Não foi possível abrir o documento.')
+          )}
+        >
+          <Ionicons name="document-attach-outline" size={12} color="#52B788" />
+          <Text style={styles.boardingPassText}>Bilhete anexado</Text>
+          <Ionicons name="open-outline" size={11} color="rgba(82,183,136,0.7)" />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -804,6 +818,10 @@ function AddTransportModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1, justifyContent: 'flex-end' }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <View style={styles.modalOverlay}>
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
@@ -1343,6 +1361,7 @@ function AddTransportModal({
           </ScrollView>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

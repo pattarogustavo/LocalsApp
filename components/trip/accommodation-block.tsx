@@ -8,6 +8,10 @@ import {
   TextInput,
   ScrollView,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Linking,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/use-colors';
@@ -135,6 +139,10 @@ function AddAccommodationModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1, justifyContent: 'flex-end' }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <View style={styles.overlay}>
         <View style={[styles.addSheet, { backgroundColor: colors.background }]}>
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
@@ -310,6 +318,7 @@ function AddAccommodationModal({
           </ScrollView>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -365,10 +374,19 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
                           <Text style={styles.accAddress} numberOfLines={1}>{acc.address}</Text>
                         )}
                         {acc.confirmationDocUri && (
-                          <View style={styles.docBadge}>
+                          <TouchableOpacity
+                            style={styles.docBadge}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              Linking.openURL(acc.confirmationDocUri!).catch(() =>
+                                Alert.alert('Erro', 'Não foi possível abrir o documento.')
+                              );
+                            }}
+                          >
                             <Ionicons name="document-attach-outline" size={11} color="#52B788" />
                             <Text style={styles.docBadgeText}>Confirmação anexada</Text>
-                          </View>
+                            <Ionicons name="open-outline" size={10} color="rgba(82,183,136,0.7)" />
+                          </TouchableOpacity>
                         )}
                       </View>
                       <Pressable
