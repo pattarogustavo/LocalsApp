@@ -1,10 +1,13 @@
 import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { z } from "zod";
 import { searchIslands } from "../constants/islands-regions";
+import * as db from "./db";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
@@ -214,6 +217,246 @@ Responda APENAS com JSON válido neste formato exato:
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+
+    /**
+     * Register a new user with email/password.
+     * Automatically starts a 7-day free trial.
+     */
+    register: publicProcedure
+      .input(z.object({
+        name: z.string().min(1).max(100),
+        email: z.string().email(),
+        password: z.string().min(8),
+      }))
+      .mutation(async ({ input }) => {
+        const existing = await db.getUserByEmail(input.email);
+        if (existing) {
+          throw new Error('EMAIL_TAKEN');
+        }
+        const passwordHash = await bcrypt.hash(input.password, 12);
+        const { openId } = await db.createEmailUser({
+          name: input.name,
+          email: input.email,
+          passwordHash,
+        });
+        const user = await db.getUserByEmail(input.email);
+        if (!user) throw new Error('USER_NOT_FOUND');
+        return {
+          success: true,
+          user: {
+            id: user.id,
+            openId: user.openId,
+            name: user.name,
+            email: user.email,
+            subscriptionStatus: user.subscriptionStatus,
+            trialEndsAt: user.trialEndsAt,
+          },
+        };
+      }),
+
+    /**
+     * Login with email and password.
+     */
+    loginEmail: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const user = await db.getUserByEmail(input.email);
+        if (!user || !user.passwordHash) {
+          throw new Error('INVALID_CREDENTIALS');
+        }
+        const valid = await bcrypt.compare(input.password, user.passwordHash);
+        if (!valid) throw new Error('INVALID_CREDENTIALS');
+        await db.updateUser(user.id, { lastSignedIn: new Date() });
+        // Check and update subscription status
+        const status = await db.getSubscriptionStatus(user.id);
+        return {
+          success: true,
+          user: {
+            id: user.id,
+            openId: user.openId,
+            name: user.name,
+            email: user.email,
+            subscriptionStatus: status?.subscriptionStatus ?? user.subscriptionStatus,
+            subscriptionPlan: status?.subscriptionPlan,
+            subscriptionExpiresAt: status?.subscriptionExpiresAt,
+            trialEndsAt: user.trialEndsAt,
+          },
+        };
+      }),
+
+    /**
+     * Send password reset email.
+     */
+    forgotPassword: publicProcedure
+      .input(z.object({ email: z.string().email() }))
+      .mutation(async ({ input }) => {
+        const user = await db.getUserByEmail(input.email);
+        // Always return success to prevent email enumeration
+        if (!user) return { success: true };
+        const token = crypto.randomBytes(32).toString('hex');
+        await db.createPasswordResetToken(user.id, token);
+        // In production, send email here. For now, log the token.
+        console.log(`[Password Reset] Token for ${input.email}: ${token}`);
+        return { success: true };
+      }),
+
+    /**
+     * Reset password using a valid token.
+     */
+    resetPassword: publicProcedure
+      .input(z.object({
+        token: z.string(),
+        newPassword: z.string().min(8),
+      }))
+      .mutation(async ({ input }) => {
+        const resetToken = await db.getValidPasswordResetToken(input.token);
+        if (!resetToken) throw new Error('INVALID_OR_EXPIRED_TOKEN');
+        const passwordHash = await bcrypt.hash(input.newPassword, 12);
+        await db.updateUser(resetToken.userId, { passwordHash });
+        await db.markPasswordResetTokenUsed(input.token);
+        return { success: true };
+      }),
+
+    /**
+     * Get current authenticated user with subscription status.
+     */
+    profile: protectedProcedure.query(async ({ ctx }) => {
+      const status = await db.getSubscriptionStatus(ctx.user.id);
+      return {
+        ...ctx.user,
+        subscriptionStatus: status?.subscriptionStatus ?? ctx.user.subscriptionStatus,
+        subscriptionPlan: status?.subscriptionPlan,
+        subscriptionExpiresAt: status?.subscriptionExpiresAt,
+        trialEndsAt: ctx.user.trialEndsAt,
+      };
+    }),
+
+    /**
+     * Update user profile (name, email).
+     */
+    updateProfile: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1).max(100).optional(),
+        email: z.string().email().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await db.updateUser(ctx.user.id, input);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Subscription ─────────────────────────────────────────────────────────
+  subscription: router({
+    /**
+     * Get current subscription status for the authenticated user.
+     */
+    status: protectedProcedure.query(async ({ ctx }) => {
+      const status = await db.getSubscriptionStatus(ctx.user.id);
+      if (!status) return null;
+      const now = new Date();
+      let daysLeftInTrial: number | null = null;
+      if (status.subscriptionStatus === 'trial' && status.trialEndsAt) {
+        daysLeftInTrial = Math.max(0, Math.ceil((status.trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+      }
+      return {
+        status: status.subscriptionStatus,
+        plan: status.subscriptionPlan,
+        expiresAt: status.subscriptionExpiresAt,
+        trialEndsAt: status.trialEndsAt,
+        daysLeftInTrial,
+        hasAccess: status.subscriptionStatus === 'trial' || status.subscriptionStatus === 'active',
+      };
+    }),
+
+    /**
+     * Mock purchase endpoint for local testing.
+     * In production, this would be handled by RevenueCat webhooks.
+     */
+    mockPurchase: protectedProcedure
+      .input(z.object({
+        plan: z.enum(['monthly', 'annual']),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const now = new Date();
+        const expiresAt = new Date(now);
+        if (input.plan === 'monthly') {
+          expiresAt.setMonth(expiresAt.getMonth() + 1);
+        } else {
+          expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+        }
+        await db.updateSubscriptionStatus(ctx.user.id, {
+          subscriptionStatus: 'active',
+          subscriptionPlan: input.plan,
+          subscriptionExpiresAt: expiresAt,
+        });
+        return {
+          success: true,
+          status: 'active',
+          plan: input.plan,
+          expiresAt,
+        };
+      }),
+
+    /**
+     * Cancel subscription (marks as cancelled, access until expiry).
+     */
+    cancel: protectedProcedure.mutation(async ({ ctx }) => {
+      await db.updateSubscriptionStatus(ctx.user.id, {
+        subscriptionStatus: 'cancelled',
+      });
+      return { success: true };
+    }),
+
+    /**
+     * RevenueCat webhook handler.
+     * Receives subscription events and updates user status.
+     */
+    webhook: publicProcedure
+      .input(z.object({
+        event: z.object({
+          type: z.string(),
+          app_user_id: z.string(),
+          product_id: z.string().optional(),
+          expiration_at_ms: z.number().optional(),
+        }),
+      }))
+      .mutation(async ({ input }) => {
+        const { event } = input;
+        const user = await db.getUserByOpenId(event.app_user_id);
+        if (!user) return { success: false, reason: 'USER_NOT_FOUND' };
+
+        const plan = event.product_id?.includes('annual') ? 'annual' as const
+          : event.product_id?.includes('monthly') ? 'monthly' as const
+          : null;
+
+        const expiresAt = event.expiration_at_ms ? new Date(event.expiration_at_ms) : null;
+
+        switch (event.type) {
+          case 'INITIAL_PURCHASE':
+          case 'RENEWAL':
+            await db.updateSubscriptionStatus(user.id, {
+              subscriptionStatus: 'active',
+              subscriptionPlan: plan ?? undefined,
+              subscriptionExpiresAt: expiresAt ?? undefined,
+              revenuecatUserId: event.app_user_id,
+            });
+            break;
+          case 'CANCELLATION':
+            await db.updateSubscriptionStatus(user.id, {
+              subscriptionStatus: 'cancelled',
+            });
+            break;
+          case 'EXPIRATION':
+            await db.updateSubscriptionStatus(user.id, {
+              subscriptionStatus: 'expired',
+            });
+            break;
+        }
+        return { success: true };
+      }),
   }),
 
   // ─── AeroDataBox ─────────────────────────────────────────────────────────

@@ -1,0 +1,407 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { trpc } from '@/lib/trpc';
+import { useAuthStore } from '@/store/auth';
+import { startOAuthLogin } from '@/constants/oauth';
+
+function validate(name: string, email: string, password: string, confirm: string) {
+  const errors: Record<string, string> = {};
+  if (!name.trim()) errors.name = 'Full name is required';
+  if (!email.trim()) errors.email = 'Email is required';
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email address';
+  if (!password) errors.password = 'Password is required';
+  else if (password.length < 8) errors.password = 'At least 8 characters required';
+  if (!confirm) errors.confirm = 'Please confirm your password';
+  else if (confirm !== password) errors.confirm = 'Passwords do not match';
+  return errors;
+}
+
+export default function RegisterScreen() {
+  const insets = useSafeAreaInsets();
+  const { setUser } = useAuthStore();
+
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(false);
+
+  const errors = validate(name, email, password, confirm);
+  const canSubmit = Object.keys(errors).length === 0 && agreed && !loading;
+
+  const registerMutation = trpc.auth.register.useMutation();
+
+  const handleRegister = async () => {
+    // Mark all fields as touched to show errors
+    setTouched({ name: true, email: true, password: true, confirm: true });
+    if (!canSubmit) return;
+    setLoading(true);
+    try {
+      const result = await registerMutation.mutateAsync({ name, email, password });
+      setUser({
+        id: result.user.id,
+        openId: result.user.openId,
+        name: result.user.name,
+        email: result.user.email,
+        subscriptionStatus: result.user.subscriptionStatus,
+        subscriptionPlan: null,
+        subscriptionExpiresAt: null,
+        trialEndsAt: result.user.trialEndsAt ? result.user.trialEndsAt.toISOString() : null,
+      });
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg.includes('EMAIL_TAKEN')) {
+        Alert.alert('Email already in use', 'Please use a different email or log in.');
+      } else {
+        Alert.alert('Registration failed', 'Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      await startOAuthLogin();
+    } catch {
+      Alert.alert('Error', 'Could not start Google login.');
+    }
+  };
+
+  const field = (key: string) => ({
+    onBlur: () => setTouched((t) => ({ ...t, [key]: true })),
+  });
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#0F1F16' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={22} color="rgba(245,240,232,0.8)" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Create account</Text>
+          <Text style={styles.subtitle}>Start your 7-day free trial today</Text>
+        </View>
+
+        {/* Google button */}
+        <TouchableOpacity style={styles.googleBtn} activeOpacity={0.85} onPress={handleGoogleLogin}>
+          <Ionicons name="logo-google" size={18} color="#F5F0E8" />
+          <Text style={styles.googleBtnText}>Continue with Google</Text>
+        </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Full name */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Full name</Text>
+          <TextInput
+            style={[styles.input, touched.name && errors.name ? styles.inputError : null]}
+            placeholder="Your full name"
+            placeholderTextColor="rgba(245,240,232,0.25)"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+            returnKeyType="next"
+            {...field('name')}
+          />
+          {touched.name && errors.name ? <Text style={styles.errorText}>{errors.name}</Text> : null}
+        </View>
+
+        {/* Email */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={[styles.input, touched.email && errors.email ? styles.inputError : null]}
+            placeholder="you@example.com"
+            placeholderTextColor="rgba(245,240,232,0.25)"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="next"
+            {...field('email')}
+          />
+          {touched.email && errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
+        </View>
+
+        {/* Password */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Password</Text>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[styles.inputFlex, touched.password && errors.password ? styles.inputError : null]}
+              placeholder="Min. 8 characters"
+              placeholderTextColor="rgba(245,240,232,0.25)"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              returnKeyType="next"
+              {...field('password')}
+            />
+            <TouchableOpacity onPress={() => setShowPassword((v) => !v)} style={styles.eyeBtn}>
+              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="rgba(245,240,232,0.4)" />
+            </TouchableOpacity>
+          </View>
+          {touched.password && errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
+        </View>
+
+        {/* Confirm password */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Confirm password</Text>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[styles.inputFlex, touched.confirm && errors.confirm ? styles.inputError : null]}
+              placeholder="Repeat your password"
+              placeholderTextColor="rgba(245,240,232,0.25)"
+              value={confirm}
+              onChangeText={setConfirm}
+              secureTextEntry={!showConfirm}
+              returnKeyType="done"
+              onSubmitEditing={handleRegister}
+              {...field('confirm')}
+            />
+            <TouchableOpacity onPress={() => setShowConfirm((v) => !v)} style={styles.eyeBtn}>
+              <Ionicons name={showConfirm ? 'eye-off-outline' : 'eye-outline'} size={18} color="rgba(245,240,232,0.4)" />
+            </TouchableOpacity>
+          </View>
+          {touched.confirm && errors.confirm ? <Text style={styles.errorText}>{errors.confirm}</Text> : null}
+        </View>
+
+        {/* Terms checkbox */}
+        <TouchableOpacity style={styles.checkRow} activeOpacity={0.8} onPress={() => setAgreed((v) => !v)}>
+          <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
+            {agreed && <Ionicons name="checkmark" size={12} color="#0F1F16" />}
+          </View>
+          <Text style={styles.checkText}>
+            I agree to the{' '}
+            <Text style={styles.link}>Terms of Use</Text>
+            {' '}and{' '}
+            <Text style={styles.link}>Privacy Policy</Text>
+          </Text>
+        </TouchableOpacity>
+
+        {/* Submit */}
+        <TouchableOpacity
+          style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
+          activeOpacity={0.85}
+          onPress={handleRegister}
+          disabled={!canSubmit}
+        >
+          {loading ? (
+            <ActivityIndicator color="#0F1F16" />
+          ) : (
+            <Text style={styles.submitBtnText}>Create account</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Login link */}
+        <View style={styles.loginRow}>
+          <Text style={styles.loginText}>Already have an account? </Text>
+          <TouchableOpacity onPress={() => router.replace('/auth/login' as any)}>
+            <Text style={styles.loginLink}>Log in</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  scroll: {
+    paddingHorizontal: 24,
+    gap: 0,
+  },
+  header: {
+    marginBottom: 28,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    marginLeft: -4,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#F5F0E8',
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: 'rgba(245,240,232,0.5)',
+  },
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(245,240,232,0.08)',
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(245,240,232,0.12)',
+    marginBottom: 20,
+  },
+  googleBtnText: {
+    color: '#F5F0E8',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(245,240,232,0.1)',
+  },
+  dividerText: {
+    color: 'rgba(245,240,232,0.3)',
+    fontSize: 12,
+  },
+  fieldGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(245,240,232,0.5)',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  input: {
+    backgroundColor: 'rgba(245,240,232,0.06)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(245,240,232,0.1)',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 15,
+    color: '#F5F0E8',
+  },
+  inputError: {
+    borderColor: '#E74C3C',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245,240,232,0.06)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(245,240,232,0.1)',
+    paddingRight: 8,
+  },
+  inputFlex: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 15,
+    color: '#F5F0E8',
+  },
+  eyeBtn: {
+    padding: 8,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#E74C3C',
+    marginTop: 4,
+  },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 24,
+    marginTop: 4,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: 'rgba(245,240,232,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    backgroundColor: '#52B788',
+    borderColor: '#52B788',
+  },
+  checkText: {
+    flex: 1,
+    fontSize: 13,
+    color: 'rgba(245,240,232,0.55)',
+    lineHeight: 20,
+  },
+  link: {
+    color: '#52B788',
+    fontWeight: '600',
+  },
+  submitBtn: {
+    backgroundColor: '#52B788',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  submitBtnDisabled: {
+    opacity: 0.4,
+  },
+  submitBtnText: {
+    color: '#0F1F16',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  loginRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loginText: {
+    fontSize: 14,
+    color: 'rgba(245,240,232,0.45)',
+  },
+  loginLink: {
+    fontSize: 14,
+    color: '#52B788',
+    fontWeight: '600',
+  },
+});

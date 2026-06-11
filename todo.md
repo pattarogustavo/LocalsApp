@@ -261,3 +261,22 @@
 - [x] Teclado: PlaceDetailModal no places-screen precisa de KeyboardAvoidingView
 - [x] Teclado: AccommodationBlock modal precisa de KeyboardAvoidingView
 - [x] Teclado: TransportBlock modal precisa de KeyboardAvoidingView
+
+## Fase 23 — Autenticação e Monetização
+
+- [x] Schema: adicionar campos de trial e assinatura à tabela users
+- [x] Schema: criar tabela password_reset_tokens
+- [x] Backend: endpoints /auth/register, /auth/login, /auth/logout, /auth/me, /auth/forgot-password, /auth/reset-password
+- [x] Backend: endpoints /subscription/status, /subscription/webhook
+- [x] RevenueCat: instalar SDK e criar config/revenuecat.ts com placeholders
+- [x] RevenueCat: mock de compra para testes locais
+- [x] Tela: Onboarding (primeira abertura)
+- [x] Tela: Register (cadastro com validação em tempo real)
+- [x] Tela: Login (email/senha + Google OAuth)
+- [x] Tela: ForgotPassword (recuperação de senha)
+- [x] Proteção de rotas: redirecionar não autenticados para Onboarding
+- [x] Hook useSubscription centralizado
+- [x] Banner de trial no app principal
+- [x] Tela Paywall (bloqueante pós-trial, fechável durante trial)
+- [x] Tela Profile/Settings atualizada com status de assinatura
+- [x] Notificações push: D-3, D-1, expirado, confirmado, renovação

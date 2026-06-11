@@ -22,6 +22,9 @@ import { TripCard, TripCardStacked } from '@/components/trip-card';
 import { CreateTripSheet } from '@/components/create-trip-sheet';
 import { isTripUpcoming, isTripPast, isTripOngoing } from '@/utils/trip-helpers';
 import type { Trip, CuratedGuide } from '@/types/voyage';
+import { TrialBanner } from '@/components/trial-banner';
+import { useAuthStore } from '@/store/auth';
+import { useSubscription } from '@/hooks/use-subscription';
 
 const { width } = Dimensions.get('window');
 
@@ -69,6 +72,8 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const { user } = useAuthStore();
+  const { isExpired } = useSubscription();
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -107,6 +112,7 @@ export default function HomeScreen() {
     <View style={{ flex: 1, backgroundColor: '#F5F0E8' }}>
       {/* Status bar background - extends bg color behind iPhone status bar */}
       <View style={{ height: insets.top, backgroundColor: '#F5F0E8' }} />
+      <TrialBanner />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -140,8 +146,11 @@ export default function HomeScreen() {
             >
               <Ionicons name="search" size={18} color="#F5F0E8" />
             </TouchableOpacity>
-            <TouchableOpacity className="w-10 h-10 rounded-full bg-primary items-center justify-center">
-              <Ionicons name="ellipsis-horizontal" size={18} color="#F5F0E8" />
+            <TouchableOpacity
+              onPress={() => router.push('/profile' as any)}
+              className="w-10 h-10 rounded-full bg-primary items-center justify-center"
+            >
+              <Ionicons name="person-outline" size={18} color="#F5F0E8" />
             </TouchableOpacity>
           </View>
         </View>

@@ -1,6 +1,7 @@
+"use client";
 import "@/global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -9,6 +10,8 @@ import { Platform, KeyboardAvoidingView } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import * as Notifications from "expo-notifications";
+import { useAuthStore } from "@/store/auth";
+import { scheduleTrialNotifications } from "@/lib/subscription-notifications";
 
 // Configure how notifications are presented when the app is in the foreground
 Notifications.setNotificationHandler({
@@ -37,20 +40,58 @@ export const unstable_settings = {
   anchor: "(tabs)",
 };
 
+// Auth guard: redirects unauthenticated users to onboarding
+function AuthGuard() {
+  const { user, initialized } = useAuthStore();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!initialized) return;
+
+    const inAuthGroup = segments[0] === 'auth';
+    const inOauthGroup = segments[0] === 'oauth';
+
+    if (!user && !inAuthGroup && !inOauthGroup) {
+      // Not logged in, redirect to onboarding
+      router.replace('/auth/onboarding' as any);
+    } else if (user && inAuthGroup) {
+      // Already logged in, redirect to main app
+      router.replace('/(tabs)');
+    }
+  }, [user, initialized, segments]);
+
+  return null;
+}
+
 export default function RootLayout() {
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
   const initialFrame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
   const [frame, setFrame] = useState<Rect>(initialFrame);
+  const { loadFromStorage } = useAuthStore();
 
   useEffect(() => {
     initManusRuntime();
+    // Load auth state from storage on startup
+    loadFromStorage().then(() => {
+      // Schedule trial notifications after loading auth state
+      const { user } = useAuthStore.getState();
+      if (user?.trialEndsAt && user.subscriptionStatus === 'trial') {
+        scheduleTrialNotifications(user).catch(() => {});
+      }
+    });
     // Create Android notification channel for flight reminders
     if (Platform.OS === 'android') {
       Notifications.setNotificationChannelAsync('flight-reminders', {
         name: 'Lembretes de Voo',
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
+        sound: 'default',
+      });
+      Notifications.setNotificationChannelAsync('subscription', {
+        name: 'Assinatura',
+        importance: Notifications.AndroidImportance.DEFAULT,
         sound: 'default',
       });
     }
@@ -101,10 +142,16 @@ export default function RootLayout() {
       >
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
+          <AuthGuard />
           <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="trip/[id]" options={{ presentation: 'card' }} />
             <Stack.Screen name="oauth/callback" />
+            <Stack.Screen name="auth/onboarding" options={{ animation: 'fade' }} />
+            <Stack.Screen name="auth/login" />
+            <Stack.Screen name="auth/register" />
+            <Stack.Screen name="auth/forgot-password" />
+            <Stack.Screen name="paywall" />
           </Stack>
           <StatusBar style="light" />
         </QueryClientProvider>
