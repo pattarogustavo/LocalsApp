@@ -427,6 +427,7 @@ function AddTransportModal({
   const [routeDestResults, setRouteDestResults] = useState<any[]>([]);
   const [showDestDropdown, setShowDestDropdown] = useState(false);
   const [routeDate, setRouteDate] = useState<Date | null>(null);
+  const [routeAirline, setRouteAirline] = useState(''); // optional airline filter
   const [routeResults, setRouteResults] = useState<any[]>([]);
   const [routeSearched, setRouteSearched] = useState(false);
   const [airportSearchTimer, setAirportSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -555,7 +556,7 @@ function AddTransportModal({
   const reset = () => {
     setMode('flight'); setSelectedLeg(legs[0] || '');
     setSearchMode('route');
-    setRouteOrigin(''); setRouteDest(''); setRouteDate(null); setRouteResults([]); setRouteSearched(false);
+    setRouteOrigin(''); setRouteDest(''); setRouteDate(null); setRouteAirline(''); setRouteResults([]); setRouteSearched(false);
     setFlightNumber(''); setFlightDate(null);
     setSelectedFlight(null); setSearchError('');
     setEnableNotifs(true);
@@ -626,10 +627,24 @@ function AddTransportModal({
     setRouteSearched(false);
     try {
       const result = await searchByRouteMutation.mutateAsync({ origin: o, destination: d, date: dt });
-      setRouteResults(result.flights || []);
+      let flights = result.flights || [];
+      // Client-side airline filter (optional)
+      const airlineFilter = routeAirline.trim().toLowerCase();
+      if (airlineFilter.length >= 2) {
+        flights = flights.filter((f: any) =>
+          (f.airline || '').toLowerCase().includes(airlineFilter) ||
+          (f.flightNumber || '').toLowerCase().includes(airlineFilter)
+        );
+      }
+      setRouteResults(flights);
       setRouteSearched(true);
-      if ((result.flights || []).length === 0) {
-        setSearchError('Nenhum voo encontrado para essa rota e data. Tente digitar o código IATA (ex: GRU, LHR) ou use o modo "Número do voo".');
+      if (flights.length === 0) {
+        const total = result.flights?.length ?? 0;
+        if (total > 0 && airlineFilter.length >= 2) {
+          setSearchError(`${total} voo${total > 1 ? 's' : ''} encontrado${total > 1 ? 's' : ''} nessa rota, mas nenhum da companhia "${routeAirline.trim()}". Tente outro nome ou deixe o campo em branco.`);
+        } else {
+          setSearchError('Nenhum voo encontrado. Certifique-se de selecionar um aeroporto da lista suspensa ou use o código IATA (ex: GRU, LHR).');
+        }
       }
     } catch {
       setSearchError('Erro ao buscar voos. Tente novamente.');
@@ -1007,6 +1022,30 @@ function AddTransportModal({
                             value={routeDate}
                             onChange={(d) => { setRouteDate(d); setSearchError(''); }}
                           />
+                        </View>
+
+                        {/* Airline filter (optional) */}
+                        <View style={{ marginTop: 10 }}>
+                          <Text style={styles.inputLabel}>COMPANHIA AÉREA <Text style={{ color: 'rgba(245,240,232,0.3)', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</Text></Text>
+                          <View style={[styles.textInput, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 0, height: 48 }]}>
+                            <Ionicons name="business-outline" size={16} color="rgba(82,183,136,0.6)" />
+                            <TextInput
+                              value={routeAirline}
+                              onChangeText={(v) => { setRouteAirline(v); setSearchError(''); }}
+                              placeholder="LATAM, Gol, Azul, TAP..."
+                              placeholderTextColor="rgba(245,240,232,0.25)"
+                              style={{ flex: 1, color: '#F5F0E8', fontSize: 14 }}
+                              returnKeyType="search"
+                            />
+                            {routeAirline.length > 0 && (
+                              <TouchableOpacity onPress={() => setRouteAirline('')}>
+                                <Ionicons name="close-circle" size={16} color="rgba(245,240,232,0.3)" />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                          <Text style={{ fontSize: 11, color: 'rgba(245,240,232,0.3)', marginTop: 4 }}>
+                            Filtra os resultados por companhia. Deixe em branco para ver todos.
+                          </Text>
                         </View>
                       </>
                     ) : (
