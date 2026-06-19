@@ -777,17 +777,6 @@ function GeralTab({ trip, onGoToPlaces, onGoToTransport }: { trip: any; onGoToPl
       {/* Documents Block — aggregated from all sources */}
       <DocumentsBlock tripId={trip.id} documents={allDocs} />
 
-      {/* Playlist Block */}
-      <View style={styles.playlistBlock}>
-        <View style={styles.playlistHeader}>
-          <Ionicons name="musical-notes-outline" size={16} color="#52B788" />
-          <Text style={styles.playlistTitle}>PLAYLIST DO DESTINO</Text>
-        </View>
-        <Text style={styles.playlistSubtitle}>
-          Sons mais tocados em {trip.destinations[0]?.name || 'seu destino'}
-        </Text>
-      </View>
-
       {/* Expenses Block */}
       <ExpensesBlock tripId={trip.id} expenses={trip.expenses} currency={trip.currency} travelers={trip.travelers || []} />
 
@@ -1179,30 +1168,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   tabBtnText: {
-    fontSize: 13,
-  },
-  // Geral tab
-  playlistBlock: {
-    backgroundColor: 'rgba(28,61,46,0.85)',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  },
-  playlistHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  playlistTitle: {
-    color: '#F5F0E8',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-  playlistSubtitle: {
-    color: 'rgba(245,240,232,0.5)',
     fontSize: 13,
   },
   emptyState: {

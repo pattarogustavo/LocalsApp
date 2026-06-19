@@ -346,6 +346,28 @@ Responda APENAS com JSON válido neste formato exato:
         await db.updateUser(ctx.user.id, input);
         return { success: true };
       }),
+
+    /**
+     * Change password for authenticated user.
+     */
+    changePassword: protectedProcedure
+      .input(z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(6),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const user = await db.getUserById(ctx.user.id);
+        if (!user || !user.passwordHash) {
+          throw new Error('Conta sem senha definida. Use o login social.');
+        }
+        const valid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+        if (!valid) {
+          throw new Error('Senha atual incorreta.');
+        }
+        const newHash = await bcrypt.hash(input.newPassword, 12);
+        await db.updateUser(ctx.user.id, { passwordHash: newHash });
+        return { success: true };
+      }),
   }),
 
   // ─── Subscription ─────────────────────────────────────────────────────────
@@ -468,33 +490,54 @@ Responda APENAS com JSON válido neste formato exato:
      */
     searchByRoute: publicProcedure
       .input(z.object({
-        origin: z.string().min(2).max(4),
-        destination: z.string().min(2).max(4),
+        origin: z.string().min(2).max(10),
+        destination: z.string().min(2).max(10),
         date: z.string(), // YYYY-MM-DD
       }))
       .mutation(async ({ input }) => {
         if (!AERODATABOX_KEY) return { flights: [] };
-        const orig = input.origin.toUpperCase();
-        const dest = input.destination.toUpperCase();
+        const orig = input.origin.toUpperCase().trim();
+        const dest = input.destination.toUpperCase().trim();
         const date = input.date;
-        // AeroDataBox: GET /flights/airports/iata/{iata}/{fromDateTime}/{toDateTime}/Departure
-        const from = `${date}T00:00`;
-        const to   = `${date}T23:59`;
-        const url = `https://${AERODATABOX_HOST}/flights/airports/iata/${orig}/${from}/${to}/Departure?withLeg=true&withCancelled=false&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
-        try {
-          const res = await fetch(url, { headers: adbHeaders() });
-          if (!res.ok) return { flights: [] };
-          const json = (await res.json()) as any;
-          const departures: any[] = json?.departures || [];
-          // Filter by destination IATA
-          const filtered = departures
-            .filter((f: any) => (f.arrival?.airport?.iata || '').toUpperCase() === dest)
-            .slice(0, 6)
-            .map((f: any) => mapAdbFlight(f, orig, dest));
-          return { flights: filtered };
-        } catch {
-          return { flights: [] };
-        }
+
+        // Helper: resolve IATA codes from a query (may be IATA code or city name)
+        const resolveIatas = async (query: string): Promise<string[]> => {
+          // If it looks like a 3-letter IATA code, use directly
+          if (/^[A-Z]{3}$/.test(query)) return [query];
+          // Otherwise search airports by term and return all matching IATAs
+          try {
+            const url = `https://${AERODATABOX_HOST}/airports/search/term?q=${encodeURIComponent(query)}&limit=5`;
+            const res = await fetch(url, { headers: adbHeaders() });
+            if (!res.ok) return [];
+            const json = (await res.json()) as any;
+            const items: any[] = json.items || [];
+            return items.map((a: any) => a.iata).filter(Boolean).map((s: string) => s.toUpperCase());
+          } catch { return []; }
+        };
+
+        const [origIatas, destIatas] = await Promise.all([resolveIatas(orig), resolveIatas(dest)]);
+        if (origIatas.length === 0 || destIatas.length === 0) return { flights: [] };
+
+        // Fetch departures for each origin airport and filter by any destination IATA
+        const destSet = new Set(destIatas);
+        const allFlights: any[] = [];
+        await Promise.all(origIatas.slice(0, 3).map(async (iata) => {
+          const from = `${date}T00:00`;
+          const to   = `${date}T23:59`;
+          const url = `https://${AERODATABOX_HOST}/flights/airports/iata/${iata}/${from}/${to}/Departure?withLeg=true&withCancelled=false&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
+          try {
+            const res = await fetch(url, { headers: adbHeaders() });
+            if (!res.ok) return;
+            const json = (await res.json()) as any;
+            const departures: any[] = json?.departures || [];
+            const filtered = departures.filter((f: any) =>
+              destSet.has((f.arrival?.airport?.iata || '').toUpperCase())
+            );
+            allFlights.push(...filtered.map((f: any) => mapAdbFlight(f, iata, '')));
+          } catch { /* skip */ }
+        }));
+
+        return { flights: allFlights.slice(0, 8) };
       }),
     lookup: publicProcedure
       .input(z.object({ flightNumber: z.string().min(2), date: z.string() }))
@@ -723,6 +766,64 @@ Responda APENAS com JSON válido neste formato exato:
                 const country = countryComponent?.long_name || "";
         const address = result?.formatted_address || "";
         return { lat, lng, imageUrl, country, address };
+      }),
+
+    /**
+     * Text search for places within a destination (for manual place search in Lugares tab).
+     * Uses Google Places Text Search API.
+     * Returns up to 8 places with name, address, category, lat, lng, imageUrl.
+     */
+    textSearch: publicProcedure
+      .input(z.object({
+        query: z.string().min(1),
+        locationBias: z.string().optional(), // e.g. "Paris, France"
+      }))
+      .query(async ({ input }) => {
+        if (!GOOGLE_PLACES_KEY) return { places: [] };
+        const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
+        const q = input.locationBias
+          ? `${input.query} em ${input.locationBias}`
+          : input.query;
+        url.searchParams.set("query", q);
+        url.searchParams.set("language", "pt-BR");
+        url.searchParams.set("key", GOOGLE_PLACES_KEY);
+        try {
+          const res = await fetch(url.toString());
+          const data = (await res.json()) as any;
+          if (data.status !== "OK" && data.status !== "ZERO_RESULTS") return { places: [] };
+          const results: any[] = (data.results || []).slice(0, 8);
+          const places = results.map((r: any) => {
+            // Map Google types to app categories
+            const types: string[] = r.types || [];
+            let category = 'other';
+            if (types.some((t: string) => ['restaurant', 'food', 'meal_takeaway', 'bakery'].includes(t))) category = 'restaurant';
+            else if (types.some((t: string) => ['cafe', 'coffee_shop'].includes(t))) category = 'cafe';
+            else if (types.some((t: string) => ['museum', 'art_gallery'].includes(t))) category = 'museum';
+            else if (types.some((t: string) => ['tourist_attraction', 'amusement_park', 'park', 'natural_feature', 'landmark'].includes(t))) category = 'attraction';
+
+            let imageUrl: string | undefined;
+            if (r.photos?.[0]?.photo_reference) {
+              const photoUrl = new URL("https://maps.googleapis.com/maps/api/place/photo");
+              photoUrl.searchParams.set("maxwidth", "800");
+              photoUrl.searchParams.set("photo_reference", r.photos[0].photo_reference);
+              photoUrl.searchParams.set("key", GOOGLE_PLACES_KEY);
+              imageUrl = photoUrl.toString();
+            }
+            return {
+              placeId: r.place_id,
+              name: r.name,
+              address: r.formatted_address || '',
+              category,
+              lat: r.geometry?.location?.lat,
+              lng: r.geometry?.location?.lng,
+              imageUrl,
+              rating: r.rating,
+            };
+          });
+          return { places };
+        } catch {
+          return { places: [] };
+        }
       }),
   }),
 

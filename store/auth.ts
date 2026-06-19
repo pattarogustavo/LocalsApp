@@ -13,6 +13,8 @@ export interface AuthUser {
   subscriptionPlan: 'monthly' | 'annual' | null;
   subscriptionExpiresAt: string | null; // ISO string
   trialEndsAt: string | null; // ISO string
+  avatarUri?: string | null;         // local URI of profile photo
+  preferredLanguage?: string | null; // e.g. 'pt', 'en', 'es'
 }
 
 interface AuthState {
@@ -25,6 +27,7 @@ interface AuthState {
   logout: () => Promise<void>;
   loadFromStorage: () => Promise<void>;
   updateSubscription: (data: Partial<AuthUser>) => void;
+  updateProfile: (data: Partial<AuthUser>) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -67,6 +70,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       set({ user: null, token: null, loading: false, initialized: true });
     }
+  },
+
+  updateProfile: (data) => {
+    const current = get().user;
+    if (!current) return;
+    const updated = { ...current, ...data };
+    set({ user: updated });
+    AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
   },
 
   updateSubscription: (data) => {

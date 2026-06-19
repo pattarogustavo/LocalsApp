@@ -280,3 +280,13 @@
 - [x] Tela Paywall (bloqueante pós-trial, fechável durante trial)
 - [x] Tela Profile/Settings atualizada com status de assinatura
 - [x] Notificações push: D-3, D-1, expirado, confirmado, renovação
+
+## Fase 24 — Melhorias de UX e Funcionalidades
+
+- [x] Remover campo de playlist do Spotify do app
+- [x] Corrigir busca de voos por Origem/Destino (não retorna resultados)
+- [x] Lugares: adicionar busca manual via Google Places para destinos grandes
+- [x] Despesas: campo de viajantes participantes e quem pagou já estava implementado (verificado)
+- [x] Perfil: adicionar foto de perfil com upload de imagem
+- [x] Perfil: adicionar seletor de idioma (PT-BR, EN, ES, FR, DE, IT)
+- [x] Perfil: fazer funcionar botões (Alterar senha, Privacidade, Ajuda, Contato, Avaliar)

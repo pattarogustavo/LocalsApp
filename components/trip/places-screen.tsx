@@ -428,6 +428,48 @@ interface PlacesScreenProps {
   destinations: Destination[];
 }
 
+// ─── Custom Place Search Result Row ─────────────────────────────────────────
+
+function CustomSearchResultRow({
+  result,
+  onAdd,
+  isAdded,
+}: {
+  result: any;
+  onAdd: () => void;
+  isAdded: boolean;
+}) {
+  return (
+    <View style={styles.customResultRow}>
+      {result.imageUrl ? (
+        <Image source={{ uri: result.imageUrl }} style={styles.customResultImg} />
+      ) : (
+        <View style={[styles.customResultImg, { backgroundColor: 'rgba(82,183,136,0.1)', alignItems: 'center', justifyContent: 'center' }]}>
+          <Ionicons name="location-outline" size={20} color="rgba(82,183,136,0.5)" />
+        </View>
+      )}
+      <View style={{ flex: 1 }}>
+        <Text style={styles.customResultName} numberOfLines={1}>{result.name}</Text>
+        <Text style={styles.customResultAddr} numberOfLines={1}>{result.address}</Text>
+        {result.rating ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
+            <Ionicons name="star" size={10} color="#C4A35A" />
+            <Text style={{ fontSize: 11, color: '#C4A35A' }}>{result.rating.toFixed(1)}</Text>
+          </View>
+        ) : null}
+      </View>
+      <TouchableOpacity
+        onPress={onAdd}
+        style={[styles.customResultAddBtn, isAdded && { backgroundColor: 'rgba(82,183,136,0.15)' }]}
+      >
+        <Ionicons name={isAdded ? 'checkmark' : 'add'} size={16} color={isAdded ? '#52B788' : '#0F1F16'} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps) {
   const { addPlace, removePlace, setItinerary } = useTripsStore();
   const [activeCategory, setActiveCategory] = useState('all');
@@ -435,6 +477,42 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
   const [availSearch, setAvailSearch] = useState('');
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
+
+  // Custom place search
+  const [showCustomSearch, setShowCustomSearch] = useState(false);
+  const [customQuery, setCustomQuery] = useState('');
+  const [customDestId, setCustomDestId] = useState(destinations[0]?.id || '');
+  const [customSearchEnabled, setCustomSearchEnabled] = useState(false);
+  const customSearchQuery = trpc.places.textSearch.useQuery(
+    {
+      query: customQuery,
+      locationBias: destinations.find((d) => d.id === customDestId)?.name || undefined,
+    },
+    { enabled: customSearchEnabled && customQuery.length >= 2 }
+  );
+  const customResults = customSearchQuery.data?.places || [];
+
+  const handleCustomSearch = () => {
+    if (customQuery.trim().length < 2) return;
+    setCustomSearchEnabled(true);
+  };
+
+  const handleAddCustomPlace = async (result: any, destId: string) => {
+    const place: Place = {
+      id: generateId(),
+      name: result.name,
+      category: result.category as any,
+      destinationId: destId,
+      address: result.address,
+      lat: result.lat,
+      lng: result.lng,
+      imageUrl: result.imageUrl,
+      placeId: result.placeId,
+      rating: result.rating,
+      addedByAI: false,
+    };
+    await addPlace(tripId, place);
+  };
 
   const generateItinerary = trpc.ai.generateItinerary.useMutation();
 
@@ -628,6 +706,82 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
             />
           </View>
         ))}
+
+        {/* ── Pesquisa personalizada via Google Places ── */}
+        <TouchableOpacity
+          style={styles.customSearchToggleBtn}
+          onPress={() => setShowCustomSearch(!showCustomSearch)}
+        >
+          <Ionicons name={showCustomSearch ? 'chevron-up' : 'add-circle-outline'} size={16} color="#52B788" />
+          <Text style={styles.customSearchToggleText}>
+            {showCustomSearch ? 'Fechar pesquisa' : 'Pesquisar lugar que não aparece aqui'}
+          </Text>
+        </TouchableOpacity>
+
+        {showCustomSearch && (
+          <View style={styles.customSearchSection}>
+            <View style={styles.customSearchHeader}>
+              <Text style={styles.customSearchTitle}>PESQUISA PERSONALIZADA</Text>
+              <Ionicons name="search" size={14} color="#52B788" />
+            </View>
+
+            {/* Destination selector (if multiple) */}
+            {destinations.length > 1 && (
+              <View style={styles.customDestPicker}>
+                {destinations.map((d) => (
+                  <TouchableOpacity
+                    key={d.id}
+                    style={[styles.customDestChip, customDestId === d.id && styles.customDestChipActive]}
+                    onPress={() => { setCustomDestId(d.id); setCustomSearchEnabled(false); }}
+                  >
+                    <Text style={[styles.customDestChipText, customDestId === d.id && styles.customDestChipTextActive]}>
+                      {d.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* Search input + button */}
+            <View style={styles.customSearchRow}>
+              <TextInput
+                style={styles.customSearchInput}
+                placeholder="Ex: Museu do Louvre, restaurante italiano..."
+                placeholderTextColor="rgba(245,240,232,0.3)"
+                value={customQuery}
+                onChangeText={(t) => { setCustomQuery(t); setCustomSearchEnabled(false); }}
+                returnKeyType="search"
+                onSubmitEditing={handleCustomSearch}
+              />
+              <TouchableOpacity
+                style={[styles.customSearchBtn, customQuery.trim().length < 2 && { opacity: 0.4 }]}
+                onPress={handleCustomSearch}
+                disabled={customQuery.trim().length < 2}
+              >
+                {customSearchQuery.isFetching ? (
+                  <ActivityIndicator size="small" color="#0F1F16" />
+                ) : (
+                  <Text style={styles.customSearchBtnText}>Buscar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Results */}
+            {customSearchEnabled && !customSearchQuery.isFetching && customResults.length === 0 && customQuery.trim().length >= 2 && (
+              <Text style={{ color: 'rgba(245,240,232,0.4)', fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
+                Nenhum resultado encontrado. Tente outros termos.
+              </Text>
+            )}
+            {customResults.map((result: any) => (
+              <CustomSearchResultRow
+                key={result.placeId}
+                result={result}
+                isAdded={places.some((p) => p.placeId === result.placeId || p.name === result.name)}
+                onAdd={() => handleAddCustomPlace(result, customDestId)}
+              />
+            ))}
+          </View>
+        )}
       </View>
 
       {/* My place detail modal */}
@@ -852,4 +1006,67 @@ const styles = StyleSheet.create({
   },
   attachName: { flex: 1, fontSize: 13, color: 'rgba(245,240,232,0.7)' },
   attachRemove: { padding: 4 },
+
+  // Custom search
+  customSearchSection: {
+    marginBottom: 16,
+    backgroundColor: 'rgba(82,183,136,0.06)',
+    borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: 'rgba(82,183,136,0.15)',
+  },
+  customSearchHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10,
+  },
+  customSearchTitle: {
+    fontSize: 12, fontWeight: '700', letterSpacing: 0.5, color: '#52B788',
+  },
+  customSearchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8,
+  },
+  customSearchInput: {
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+    color: '#F5F0E8', fontSize: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
+  customSearchBtn: {
+    backgroundColor: '#52B788', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  customSearchBtnText: { fontSize: 13, fontWeight: '700', color: '#0F1F16' },
+  customDestPicker: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10,
+  },
+  customDestChip: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+  },
+  customDestChipActive: {
+    backgroundColor: 'rgba(82,183,136,0.2)',
+    borderColor: 'rgba(82,183,136,0.5)',
+  },
+  customDestChipText: { fontSize: 12, color: 'rgba(245,240,232,0.6)' },
+  customDestChipTextActive: { color: '#52B788', fontWeight: '600' },
+  customResultRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.07)',
+  },
+  customResultImg: { width: 44, height: 44, borderRadius: 8 },
+  customResultName: { fontSize: 14, fontWeight: '500', color: '#F5F0E8' },
+  customResultAddr: { fontSize: 12, color: 'rgba(245,240,232,0.45)', marginTop: 1 },
+  customResultAddBtn: {
+    width: 32, height: 32, borderRadius: 8,
+    backgroundColor: '#52B788',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  customSearchToggleBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 10, paddingHorizontal: 4,
+  },
+  customSearchToggleText: {
+    fontSize: 13, color: '#52B788', fontWeight: '600',
+  },
 });

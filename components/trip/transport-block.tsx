@@ -605,10 +605,15 @@ function AddTransportModal({
   const toApiDate = (d: Date) => d.toISOString().split('T')[0];
 
   const handleRouteSearch = async () => {
-    const o = routeOrigin.trim().toUpperCase();
-    const d = routeDest.trim().toUpperCase();
-    if (o.length < 2 || d.length < 2) {
-      setSearchError('Informe a origem e o destino (código IATA, ex: GRU, LHR).');
+    // Use selected IATA code, or fall back to typed text (user may type IATA directly)
+    const o = (routeOrigin.trim() || routeOriginQuery.trim()).toUpperCase();
+    const d = (routeDest.trim() || routeDestQuery.trim()).toUpperCase();
+    if (o.length < 2) {
+      setSearchError('Selecione ou digite o aeroporto de origem (ex: GRU, São Paulo).');
+      return;
+    }
+    if (d.length < 2) {
+      setSearchError('Selecione ou digite o aeroporto de destino (ex: LHR, Londres).');
       return;
     }
     if (!routeDate) {
@@ -624,7 +629,7 @@ function AddTransportModal({
       setRouteResults(result.flights || []);
       setRouteSearched(true);
       if ((result.flights || []).length === 0) {
-        setSearchError('Nenhum voo encontrado para essa rota e data. Tente o modo "Número do voo".');
+        setSearchError('Nenhum voo encontrado para essa rota e data. Tente digitar o código IATA (ex: GRU, LHR) ou use o modo "Número do voo".');
       }
     } catch {
       setSearchError('Erro ao buscar voos. Tente novamente.');
