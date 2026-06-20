@@ -9,6 +9,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { useTripsStore } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
 import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop } from '@/types/voyage';
+import { useTranslation } from '@/hooks/use-translation';
 
 // ─── Category helpers ─────────────────────────────────────────────────────────
 
@@ -157,6 +158,7 @@ function StopItem({
   animIndex?: number;
   linkedPlace?: Place | null;
 }) {
+  const t = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [editingTime, setEditingTime] = useState(false);
   const [timeInput, setTimeInput] = useState(stop.time || '');
@@ -209,7 +211,7 @@ function StopItem({
       style={styles.swipeDeleteAction}
     >
       <Ionicons name="trash-outline" size={20} color="#fff" />
-      <Text style={styles.swipeDeleteText}>Excluir</Text>
+      <Text style={styles.swipeDeleteText}>{t.common.delete}</Text>
     </TouchableOpacity>
   );
 
@@ -302,7 +304,7 @@ function StopItem({
                     style={[styles.stopActionBtn, { borderColor: 'rgba(196,163,90,0.4)', backgroundColor: 'rgba(196,163,90,0.1)' }]}
                   >
                     <Ionicons name="pencil-outline" size={13} color="#C4A35A" />
-                    <Text style={[styles.stopActionText, { color: '#C4A35A' }]}>Editar</Text>
+                    <Text style={[styles.stopActionText, { color: '#C4A35A' }]}>{t.common.edit}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -339,7 +341,7 @@ function StopItem({
       <Modal visible={editingTime} transparent animationType="fade" onRequestClose={() => setEditingTime(false)}>
         <View style={styles.timeModalOverlay}>
           <View style={styles.timeModalSheet}>
-            <Text style={styles.timeModalTitle}>Editar horário</Text>
+            <Text style={styles.timeModalTitle}>{t.itinerary.stopTime}</Text>
             <TextInput
               style={styles.timeModalInput}
               value={timeInput}
@@ -357,10 +359,10 @@ function StopItem({
                 setEditingTime(false);
               }}
             />
-            <Text style={styles.timeModalHint}>Formato: HH:MM (ex: 09:30)</Text>
+            <Text style={styles.timeModalHint}>{t.itinerary.stopTime}: HH:MM</Text>
             <View style={styles.timeModalActions}>
               <TouchableOpacity style={styles.timeModalCancel} onPress={() => setEditingTime(false)}>
-                <Text style={styles.timeModalCancelText}>Cancelar</Text>
+                <Text style={styles.timeModalCancelText}>{t.common.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.timeModalConfirm}
@@ -371,7 +373,7 @@ function StopItem({
                   setEditingTime(false);
                 }}
               >
-                <Text style={styles.timeModalConfirmText}>Salvar</Text>
+                <Text style={styles.timeModalConfirmText}>{t.common.save}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -416,7 +418,7 @@ function StopItem({
             <View style={styles.editStopSheet}>
               {/* Header */}
               <View style={styles.editStopHeader}>
-                <Text style={styles.editStopTitle}>Editar parada</Text>
+                <Text style={styles.editStopTitle}>{t.itinerary.editStop}</Text>
                 <TouchableOpacity onPress={() => setShowEditModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name="close" size={22} color="rgba(245,240,232,0.6)" />
                 </TouchableOpacity>
@@ -424,18 +426,18 @@ function StopItem({
 
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ maxHeight: 420 }}>
                 {/* Name */}
-                <Text style={styles.editStopLabel}>Nome do lugar</Text>
+                <Text style={styles.editStopLabel}>{t.itinerary.stopName}</Text>
                 <TextInput
                   style={styles.editStopInput}
                   value={editName}
                   onChangeText={setEditName}
-                  placeholder="Ex: Torre Eiffel"
+                  placeholder={t.itinerary.stopNamePlaceholder}
                   placeholderTextColor="rgba(245,240,232,0.3)"
                   returnKeyType="next"
                 />
 
                 {/* Category */}
-                <Text style={styles.editStopLabel}>Categoria</Text>
+                <Text style={styles.editStopLabel}>{t.expenses.category}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {Object.entries(CATEGORY_ICONS).map(([key, icon]) => {
@@ -449,7 +451,7 @@ function StopItem({
                         >
                           <Ionicons name={icon as any} size={14} color={isActive ? color : 'rgba(245,240,232,0.4)'} />
                           <Text style={[styles.editCatChipText, { color: isActive ? color : 'rgba(245,240,232,0.4)' }]}>
-                            {key === 'attraction' ? 'Atração' : key === 'restaurant' ? 'Restaurante' : key === 'cafe' ? 'Café' : key === 'museum' ? 'Museu' : key === 'hidden_gem' ? 'Joia' : key === 'hotel' ? 'Hotel' : 'Outro'}
+                            {key === 'attraction' ? t.places.categories.attraction : key === 'restaurant' ? t.places.categories.restaurant : key === 'cafe' ? 'Café' : key === 'museum' ? 'Museu' : key === 'hidden_gem' ? 'Joia' : key === 'hotel' ? t.places.categories.hotel : t.places.categories.all}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -458,24 +460,24 @@ function StopItem({
                 </ScrollView>
 
                 {/* Description */}
-                <Text style={styles.editStopLabel}>Descrição</Text>
+                <Text style={styles.editStopLabel}>{t.places.details.description}</Text>
                 <TextInput
                   style={[styles.editStopInput, { height: 72, textAlignVertical: 'top' }]}
                   value={editDesc}
                   onChangeText={setEditDesc}
-                  placeholder="Breve descrição do lugar..."
+                  placeholder={t.places.details.description + '...'}
                   placeholderTextColor="rgba(245,240,232,0.3)"
                   multiline
                   numberOfLines={3}
                 />
 
                 {/* Notes */}
-                <Text style={styles.editStopLabel}>Notas pessoais</Text>
+                <Text style={styles.editStopLabel}>{t.itinerary.stopNotes}</Text>
                 <TextInput
                   style={[styles.editStopInput, { height: 72, textAlignVertical: 'top' }]}
                   value={editNotes}
                   onChangeText={setEditNotes}
-                  placeholder="Dicas, lembretes, observações..."
+                  placeholder={t.itinerary.stopNotesPlaceholder}
                   placeholderTextColor="rgba(245,240,232,0.3)"
                   multiline
                   numberOfLines={3}
@@ -488,7 +490,7 @@ function StopItem({
                   style={styles.editStopCancel}
                   onPress={() => setShowEditModal(false)}
                 >
-                  <Text style={styles.editStopCancelText}>Cancelar</Text>
+                  <Text style={styles.editStopCancelText}>{t.common.cancel}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.editStopSave}
@@ -502,7 +504,7 @@ function StopItem({
                   }}
                 >
                   <Ionicons name="checkmark" size={16} color="#0F1F16" />
-                  <Text style={styles.editStopSaveText}>Salvar</Text>
+                  <Text style={styles.editStopSaveText}>{t.common.save}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -570,6 +572,7 @@ function DayView({
   startDate: string;
   places?: Place[];
 }) {
+  const t = useTranslation();
   const { removeItineraryStop, updateItineraryStop, moveItineraryStop, reorderItineraryStops, removeItineraryStopAndPlace } = useTripsStore();
   const batchRoute = trpc.directions.batchRoute.useMutation();
   const [updatingRoutes, setUpdatingRoutes] = useState(false);
@@ -606,10 +609,10 @@ function DayView({
   if (stops.length === 0) {
     return (
       <View style={styles.emptyDay}>
-        <Text style={styles.emptyDayText}>Nenhuma atividade para este dia</Text>
+        <Text style={styles.emptyDayText}>{t.itinerary.noStops}</Text>
         <TouchableOpacity onPress={onGoToPlaces} style={styles.goToPlacesBtn}>
           <Ionicons name="location-outline" size={14} color="#0F1F16" />
-          <Text style={styles.goToPlacesBtnText}>Adicionar lugares</Text>
+          <Text style={styles.goToPlacesBtnText}>{t.itinerary.addStop}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -620,12 +623,12 @@ function DayView({
     // Find the placeId to also remove from Places tab
     const placeId = (stop as any).placeId as string | undefined;
     Alert.alert(
-      'Remover parada',
-      `Deseja remover "${stop.placeName || stop.activity || 'esta parada'}" do roteiro e da aba Lugares?`,
+      t.itinerary.deleteStop,
+      `${t.itinerary.deleteStop} "${stop.placeName || stop.activity || ''}"?`,
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t.common.cancel, style: 'cancel' },
         {
-          text: 'Remover',
+          text: t.common.delete,
           style: 'destructive',
           onPress: () => removeItineraryStopAndPlace(tripId, dayIndex, stop.id!, placeId),
         },
@@ -702,7 +705,7 @@ function DayView({
             <Ionicons name="navigate-outline" size={13} color="#52B788" />
           )}
           <Text style={styles.updateRoutesBtnText}>
-            {updatingRoutes ? 'Calculando...' : 'Atualizar trajetos'}
+            {updatingRoutes ? t.common.loading : t.itinerary.title}
           </Text>
         </TouchableOpacity>
       )}
@@ -711,7 +714,7 @@ function DayView({
         <View style={styles.daySummaryRow}>
           <View style={styles.daySummaryStat}>
             <Ionicons name="location-outline" size={13} color="rgba(82,183,136,0.7)" />
-            <Text style={styles.daySummaryStatText}>{rawStops.length} parada{rawStops.length !== 1 ? 's' : ''}</Text>
+            <Text style={styles.daySummaryStatText}>{rawStops.length} {rawStops.length !== 1 ? t.itinerary.addStop : t.itinerary.addStop}</Text>
           </View>
           {rawStops.some(s => s.travelTimeToNext) && (
             <View style={styles.daySummaryStat}>
@@ -957,6 +960,7 @@ const PROFILE_OPTIONS = [
 ];
 
 export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: ItineraryBlockProps) {
+  const t = useTranslation();
   const { setItinerary, addPlace, addItineraryStop } = useTripsStore();
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
@@ -1009,11 +1013,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
     if (trip.places.length === 0) {
       setShowCreateModal(false);
       Alert.alert(
-        'Nenhum lugar selecionado',
-        'Adicione lugares na aba Lugares antes de criar o roteiro com IA.',
+        t.itinerary.noPlacesTitle,
+        t.itinerary.noPlacesMsg,
         [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Ir para Lugares', onPress: () => onGoToPlaces() },
+          { text: t.common.cancel, style: 'cancel' },
+          { text: t.itinerary.goToPlaces, onPress: () => onGoToPlaces() },
         ]
       );
       return;
@@ -1224,11 +1228,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           onPress={() => {
             if (hasItinerary) {
               Alert.alert(
-                'Recriar roteiro',
-                'Isso vai substituir o roteiro atual. Deseja continuar?',
+                t.itinerary.recreateTitle,
+                t.itinerary.recreateMsg,
                 [
-                  { text: 'Cancelar', style: 'cancel' },
-                  { text: 'Continuar', onPress: () => setShowCreateModal(true) },
+                  { text: t.common.cancel, style: 'cancel' },
+                  { text: t.common.confirm, onPress: () => setShowCreateModal(true) },
                 ]
               );
             } else {
@@ -1241,13 +1245,13 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           {generating ? (
             <>
               <ActivityIndicator size="small" color="#0F1F16" />
-              <Text style={styles.createItineraryBtnText}>Criando roteiro...</Text>
+              <Text style={styles.createItineraryBtnText}>{t.ai.generatingItinerary}</Text>
             </>
           ) : (
             <>
               <Ionicons name="sparkles" size={15} color="#0F1F16" />
               <Text style={styles.createItineraryBtnText}>
-                {hasItinerary ? 'Editar / Recriar Roteiro' : 'Criar Roteiro'}
+                {hasItinerary ? t.itinerary.editItinerary : t.itinerary.createItinerary}
               </Text>
             </>
           )}
@@ -1259,10 +1263,10 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         <View style={styles.unscheduledPanel}>
           <View style={styles.unscheduledHeader}>
             <Ionicons name="location-outline" size={14} color="#C4A35A" />
-            <Text style={styles.unscheduledTitle}>LUGARES NÃO AGENDADOS</Text>
+            <Text style={styles.unscheduledTitle}>{t.itinerary.unscheduled.toUpperCase()}</Text>
             <Text style={styles.unscheduledCount}>{unscheduledPlaces.length}</Text>
           </View>
-          <Text style={styles.unscheduledSubtitle}>Toque em + para adicionar ao dia selecionado</Text>
+          <Text style={styles.unscheduledSubtitle}>{t.itinerary.unscheduledHint}</Text>
           {unscheduledPlaces.map((place) => (
             <UnscheduledPlaceRow
               key={place.id}
@@ -1279,7 +1283,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           <View style={styles.paceModalCard}>
             {/* Header with close button */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-              <Text style={styles.paceModalTitle}>Como criar o roteiro?</Text>
+              <Text style={styles.paceModalTitle}>{t.itinerary.createTitle}</Text>
               <TouchableOpacity
                 onPress={() => setShowCreateModal(false)}
                 style={{ padding: 4, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)' }}
@@ -1287,11 +1291,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 <Ionicons name="close" size={18} color="rgba(245,240,232,0.7)" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.paceModalSubtitle}>Escolha como a IA vai montar seu dia-a-dia</Text>
+            <Text style={styles.paceModalSubtitle}>{t.itinerary.createSubtitle}</Text>
 
             {/* Pace selector (shared by all AI modes) */}
             <View style={{ marginBottom: 4 }}>
-              <Text style={styles.unscheduledSubtitle}>Ritmo da viagem</Text>
+              <Text style={styles.unscheduledSubtitle}>{t.itinerary.pace}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
                 {PACE_OPTIONS.map((p) => (
                   <TouchableOpacity

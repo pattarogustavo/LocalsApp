@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useTripsStore } from '@/store/trips';
 import { generateId } from '@/utils/trip-helpers';
 import type { TripPhoto } from '@/types/voyage';
+import { useTranslation } from '@/hooks/use-translation';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3; // 3 columns with padding
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
+  const t = useTranslation();
   const { trips, addPhoto, removePhoto } = useTripsStore();
   const trip = trips.find((t) => t.id === tripId);
   const photos = trip?.photos || [];
@@ -42,7 +44,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos de acesso à sua galeria para adicionar fotos.');
+      Alert.alert(t.photos.permissionTitle ?? 'Permissão', t.photos.galleryPermission ?? 'Precisamos de acesso à galeria.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -62,7 +64,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
           const photo: TripPhoto = {
             id: generateId(),
             url: asset.uri,
-            uploadedBy: 'Eu',
+            uploadedBy: t.travelers.you ?? 'Eu',
             uploadedAt: new Date().toISOString(),
           };
           await addPhoto(tripId, photo);
@@ -74,7 +76,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos de acesso à câmera para tirar fotos.');
+      Alert.alert(t.photos.permissionTitle ?? 'Permissão', t.photos.cameraPermission ?? 'Precisamos de acesso à câmera.');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -93,7 +95,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
       id: generateId(),
       url: pendingUri,
       caption: captionInput.trim() || undefined,
-      uploadedBy: 'Eu',
+      uploadedBy: t.travelers.you ?? 'Eu',
       uploadedAt: new Date().toISOString(),
     };
     await addPhoto(tripId, photo);
@@ -103,10 +105,10 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
   };
 
   const handleDelete = (photo: TripPhoto) => {
-    Alert.alert('Remover foto', 'Deseja remover esta foto do álbum?', [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t.photos.deletePhoto, t.photos.deleteConfirm, [
+      { text: t.common.cancel, style: 'cancel' },
       {
-        text: 'Remover',
+        text: t.common.delete,
         style: 'destructive',
         onPress: () => removePhoto(tripId, photo.id),
       },
@@ -114,10 +116,10 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
   };
 
   const showOptions = () => {
-    Alert.alert('Adicionar foto', 'Escolha uma opção', [
-      { text: 'Câmera', onPress: takePhoto },
-      { text: 'Galeria', onPress: pickImage },
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t.photos.addPhoto, t.photos.chooseOption ?? 'Escolha uma opção', [
+      { text: t.photos.camera ?? 'Câmera', onPress: takePhoto },
+      { text: t.photos.gallery ?? 'Galeria', onPress: pickImage },
+      { text: t.common.cancel, style: 'cancel' },
     ]);
   };
 
@@ -127,7 +129,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Ionicons name="images-outline" size={16} color="#4CAF7D" />
-          <Text style={styles.headerTitle}>{fullPage ? 'FOTOS DA VIAGEM' : 'ÁLBUM DA VIAGEM'}</Text>
+          <Text style={styles.headerTitle}>{fullPage ? (t.photos.tripPhotos ?? 'FOTOS DA VIAGEM') : (t.photos.tripAlbum ?? 'ÁLBUM DA VIAGEM')}</Text>
           {photos.length > 0 && (
             <View style={styles.countBadge}>
               <Text style={styles.countText}>{photos.length}</Text>
@@ -136,15 +138,15 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={showOptions}>
           <Ionicons name="add" size={16} color="#4CAF7D" />
-          <Text style={styles.addBtnText}>Adicionar</Text>
+          <Text style={styles.addBtnText}>{t.common.add}</Text>
         </TouchableOpacity>
       </View>
 
       {photos.length === 0 ? (
         <TouchableOpacity style={styles.emptyState} onPress={showOptions}>
           <Ionicons name="camera-outline" size={28} color="rgba(255,255,255,0.3)" />
-          <Text style={styles.emptyText}>Adicione fotos da sua viagem</Text>
-          <Text style={styles.emptySubtext}>Compartilhadas com todos os viajantes</Text>
+          <Text style={styles.emptyText}>{t.photos.emptyText ?? 'Adicione fotos da sua viagem'}</Text>
+          <Text style={styles.emptySubtext}>{t.photos.emptySubtext ?? 'Compartilhadas com todos os viajantes'}</Text>
         </TouchableOpacity>
       ) : (
         <View style={styles.grid}>
@@ -193,8 +195,8 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
                   <Text style={styles.photoCaption}>{selectedPhoto.caption}</Text>
                 ) : null}
                 <Text style={styles.photoBy}>
-                  Adicionado por {selectedPhoto.uploadedBy} •{' '}
-                  {new Date(selectedPhoto.uploadedAt).toLocaleDateString('pt-BR')}
+                  {t.photos.addedBy ?? 'Adicionado por'} {selectedPhoto.uploadedBy} •{' '}
+                  {new Date(selectedPhoto.uploadedAt).toLocaleDateString()}
                 </Text>
                 <TouchableOpacity
                   style={styles.deletePhotoBtn}
@@ -204,7 +206,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
                   }}
                 >
                   <Ionicons name="trash-outline" size={16} color="#ff6b6b" />
-                  <Text style={styles.deletePhotoText}>Remover foto</Text>
+                  <Text style={styles.deletePhotoText}>{t.photos.deletePhoto}</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -225,13 +227,13 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
         >
         <View style={styles.captionModalOverlay}>
           <View style={styles.captionModalSheet}>
-            <Text style={styles.captionModalTitle}>Adicionar legenda</Text>
+            <Text style={styles.captionModalTitle}>{t.photos.addCaption ?? 'Adicionar legenda'}</Text>
             {pendingUri && (
               <Image source={{ uri: pendingUri }} style={styles.captionPreview} resizeMode="cover" />
             )}
             <TextInput
               style={styles.captionInput}
-              placeholder="Escreva uma legenda (opcional)..."
+              placeholder={t.photos.captionPlaceholder}
               placeholderTextColor="rgba(255,255,255,0.3)"
               value={captionInput}
               onChangeText={setCaptionInput}
@@ -244,10 +246,10 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
                 style={styles.captionCancelBtn}
                 onPress={() => { setShowCaptionModal(false); setPendingUri(null); }}
               >
-                <Text style={styles.captionCancelText}>Cancelar</Text>
+                <Text style={styles.captionCancelText}>{t.common.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.captionConfirmBtn} onPress={confirmAddPhoto}>
-                <Text style={styles.captionConfirmText}>Adicionar</Text>
+                <Text style={styles.captionConfirmText}>{t.common.add}</Text>
               </TouchableOpacity>
             </View>
           </View>

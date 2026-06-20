@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTripsStore } from '@/store/trips';
 import { generateId, getCurrencySymbol } from '@/utils/trip-helpers';
 import type { Expense } from '@/types/voyage';
+import { useTranslation } from '@/hooks/use-translation';
 
 interface Traveler {
   id: string;
@@ -77,6 +78,7 @@ function computeSettlement(expenses: Expense[], travelers: Traveler[]) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: ExpensesBlockProps) {
+  const t = useTranslation();
   const addExpense = useTripsStore((s) => s.addExpense);
   const removeExpense = useTripsStore((s) => s.removeExpense);
   const [showModal, setShowModal] = useState(false);
@@ -84,14 +86,15 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<Expense['category']>('other');
-  const [paidBy, setPaidBy] = useState('Você');
+  const [paidBy, setPaidBy] = useState('');  // will be set in useMemo below
   const [splitWith, setSplitWith] = useState<string[]>([]);
   const insets = useSafeAreaInsets();
 
+  const selfName = t.expenses.self;
   const allParticipants = useMemo(() => {
-    const names = ['Você', ...travelers.map((t) => t.name)];
+    const names = [selfName, ...travelers.map((tr) => tr.name)];
     return Array.from(new Set(names));
-  }, [travelers]);
+  }, [travelers, selfName]);
 
   const total = expenses.reduce((sum, e) => sum + e.amount, 0);
   const symbol = getCurrencySymbol(currency);
@@ -124,7 +127,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
     setDescription('');
     setAmount('');
     setCategory('other');
-    setPaidBy('Você');
+    setPaidBy(selfName);
     setSplitWith([]);
   };
 
@@ -136,16 +139,16 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
       <View style={row}>
         <View style={rowLeft}>
           <Ionicons name="cash-outline" size={16} color="#52B788" />
-          <Text style={sectionTitle}>DESPESAS</Text>
+          <Text style={sectionTitle}>{t.expenses.title.toUpperCase()}</Text>
         </View>
         <TouchableOpacity onPress={() => setShowModal(true)} style={addBtn}>
           <Ionicons name="add" size={14} color="#52B788" />
-          <Text style={addBtnText}>Adicionar</Text>
+          <Text style={addBtnText}>{t.common.add}</Text>
         </TouchableOpacity>
       </View>
 
       {expenses.length === 0 ? (
-        <Text style={emptyText}>Nenhuma despesa registrada</Text>
+        <Text style={emptyText}>{t.expenses.empty}</Text>
       ) : (
         <>
           {/* Expense list */}
@@ -159,9 +162,9 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                 <View style={{ flex: 1 }}>
                   <Text style={expenseDesc} numberOfLines={1}>{expense.description}</Text>
                   <Text style={expenseMeta}>
-                    {expense.paidBy || 'Você'}
+                    {expense.paidBy || selfName}
                     {expense.splitWith && expense.splitWith.length > 0
-                      ? ` · dividido com ${expense.splitWith.filter((n) => n !== expense.paidBy).join(', ') || 'todos'}`
+                      ? ` · ${t.expenses.splitWith} ${expense.splitWith.filter((n) => n !== expense.paidBy).join(', ') || t.expenses.everyone}`
                       : ''}
                   </Text>
                 </View>
@@ -175,28 +178,28 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
 
           {expenses.length > 3 && (
             <TouchableOpacity onPress={() => setShowAll((v) => !v)} style={showMoreBtn}>
-              <Text style={showMoreText}>{showAll ? 'Ver menos' : `Ver mais ${expenses.length - 3} despesas`}</Text>
+              <Text style={showMoreText}>{showAll ? t.common.close : `${t.expenses.showMore} ${expenses.length - 3}`}</Text>
             </TouchableOpacity>
           )}
 
           {/* Total */}
           <View style={totalRow}>
-            <Text style={totalLabel}>Total</Text>
+            <Text style={totalLabel}>{t.expenses.total}</Text>
             <Text style={totalValue}>{symbol}{total.toFixed(2)}</Text>
           </View>
 
           {/* Settlement summary */}
           {transactions.length > 0 && (
             <View style={settlementBox}>
-              <Text style={settlementTitle}>ACERTO DE CONTAS</Text>
+              <Text style={settlementTitle}>{t.expenses.settlement.toUpperCase()}</Text>
               {transactions.map((tx, i) => (
                 <View key={i} style={settlementRow}>
                   <Ionicons name="arrow-forward" size={12} color="#52B788" />
                   <Text style={settlementText}>
                     <Text style={{ fontWeight: '700', color: '#F5F0E8' }}>{tx.from}</Text>
-                    {' paga '}
+                    {` ${t.expenses.pays} `}
                     <Text style={{ fontWeight: '700', color: '#52B788' }}>{symbol}{tx.amount.toFixed(2)}</Text>
-                    {' para '}
+                    {` ${t.expenses.to} `}
                     <Text style={{ fontWeight: '700', color: '#F5F0E8' }}>{tx.to}</Text>
                   </Text>
                 </View>
@@ -216,7 +219,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: '#1C3D2E' }}>
-                  Nova Despesa
+                  {t.expenses.newExpense}
                 </Text>
                 <TouchableOpacity onPress={() => setShowModal(false)}>
                   <Ionicons name="close-circle" size={26} color="#1C3D2E" />
@@ -224,7 +227,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
               </View>
 
               {/* Category */}
-              <Text style={formLabel}>Categoria</Text>
+              <Text style={formLabel}>{t.expenses.category}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {CATEGORIES.map((c) => (
                   <TouchableOpacity
@@ -243,17 +246,17 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
               </View>
 
               {/* Description */}
-              <Text style={formLabel}>Descrição</Text>
+              <Text style={formLabel}>{t.expenses.description}</Text>
               <TextInput
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Ex: Jantar no restaurante"
+                placeholder={t.expenses.descriptionPlaceholder}
                 placeholderTextColor="#9BA1A6"
                 style={formInput}
               />
 
               {/* Amount */}
-              <Text style={formLabel}>Valor ({symbol})</Text>
+              <Text style={formLabel}>{t.expenses.amount} ({symbol})</Text>
               <TextInput
                 value={amount}
                 onChangeText={setAmount}
@@ -266,7 +269,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
               {/* Paid by */}
               {allParticipants.length > 1 && (
                 <>
-                  <Text style={formLabel}>Quem pagou?</Text>
+                  <Text style={formLabel}>{t.expenses.paidBy}</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                     {allParticipants.map((name) => (
                       <TouchableOpacity
@@ -285,7 +288,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                   </View>
 
                   {/* Split with */}
-                  <Text style={formLabel}>Quem participou? (deixe vazio = todos)</Text>
+                  <Text style={formLabel}>{t.expenses.splitWith} ({t.expenses.emptyMeansAll})</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                     {allParticipants.map((name) => (
                       <TouchableOpacity
@@ -311,7 +314,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                 onPress={handleAdd}
                 style={{ backgroundColor: '#1C3D2E', borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
               >
-                <Text style={{ color: '#F5F0E8', fontWeight: '600', fontSize: 16 }}>Adicionar</Text>
+                <Text style={{ color: '#F5F0E8', fontWeight: '600', fontSize: 16 }}>{t.common.add}</Text>
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>

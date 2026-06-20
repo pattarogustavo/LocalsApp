@@ -21,6 +21,7 @@ import { trpc } from '@/lib/trpc';
 import type { Trip, Destination } from '@/types/voyage';
 import { useColors } from '@/hooks/use-colors';
 import { DatePickerField } from '@/components/ui/date-picker-field';
+import { useTranslation } from '@/hooks/use-translation';
 
 interface CreateTripSheetProps {
   visible: boolean;
@@ -37,6 +38,7 @@ function formatDateDisplay(date: Date): string {
 export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheetProps) {
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const t = useTranslation();
   const addTrip = useTripsStore((s) => s.addTrip);
   const userPlan = useTripsStore((s) => s.userPlan);
 
@@ -159,7 +161,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
       places: [],
       documents: [],
       expenses: [],
-      travelers: [{ id: generateId(), name: 'Você', initials: 'V', color: '#1C3D2E' }],
+      travelers: [{ id: generateId(), name: t.travelers.you, initials: t.travelers.you.charAt(0).toUpperCase(), color: '#1C3D2E' }],
       accommodations: [],
       itinerary: [],
       currency: 'BRL',
@@ -211,7 +213,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
               >
                 {/* Header */}
                 <View style={styles.header}>
-                  <Text style={[styles.title, { color: '#1C3D2E' }]}>Criar Roteiro</Text>
+                  <Text style={[styles.title, { color: '#1C3D2E' }]}>{t.createTrip.title}</Text>
                   <TouchableOpacity
                     onPress={handleClose}
                     style={[styles.closeBtn, { backgroundColor: colors.surface }]}
@@ -221,7 +223,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                 </View>
 
                 {/* Start Date + Days */}
-                <Text style={[styles.sectionLabel, { color: colors.muted }]}>INÍCIO DA VIAGEM</Text>
+                <Text style={[styles.sectionLabel, { color: colors.muted }]}>{t.createTrip.startDate.toUpperCase()}</Text>
                 <View style={styles.dateRow}>
                   <View style={{ flex: 1 }}>
                     <DatePickerField
@@ -241,7 +243,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                     </TouchableOpacity>
                     <View style={styles.stepperCenter}>
                       <Text style={[styles.stepperNum, { color: colors.foreground }]}>{totalDays}</Text>
-                      <Text style={[styles.stepperLabel, { color: colors.muted }]}>DIAS</Text>
+                      <Text style={[styles.stepperLabel, { color: colors.muted }]}>{t.common.days.toUpperCase()}</Text>
                     </View>
                     <TouchableOpacity
                       onPress={() => setTotalDays(totalDays + 1)}
@@ -253,7 +255,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                 </View>
 
                 {/* Destinations */}
-                <Text style={[styles.sectionLabel, { color: colors.muted }]}>DESTINOS</Text>
+                <Text style={[styles.sectionLabel, { color: colors.muted }]}>{t.createTrip.destination.toUpperCase()}</Text>
 
                 {destinations.length > 0 && (
                   <View style={[styles.destList, { backgroundColor: colors.surface }]}>
@@ -275,7 +277,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                               <Ionicons name="remove" size={12} color="#1C3D2E" />
                             </TouchableOpacity>
                             <Text style={[styles.destDaysNum, { color: colors.foreground }]}>{dest.days}</Text>
-                            <Text style={[styles.destDaysLabel, { color: colors.muted }]}>dias</Text>
+                            <Text style={[styles.destDaysLabel, { color: colors.muted }]}>{t.common.days}</Text>
                             <TouchableOpacity
                               onPress={() => handleUpdateDestDays(dest.id, 1)}
                               style={[styles.miniBtn, { backgroundColor: colors.background }]}
@@ -297,7 +299,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                     ))}
                     {/* Days distributed */}
                     <View style={[styles.daysDistRow, { borderTopColor: colors.border }]}>
-                      <Text style={[styles.daysDistLabel, { color: colors.muted }]}>Dias distribuídos</Text>
+                      <Text style={[styles.daysDistLabel, { color: colors.muted }]}>{t.common.days} distribuídos</Text>
                       <Text
                         style={[
                           styles.daysDistValue,
@@ -314,7 +316,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                 <View style={styles.autocompleteWrapper}>
                   <DestinationAutocomplete
                     onSelect={handleSelectDestination}
-                    placeholder="Adicionar destino"
+                    placeholder={t.createTrip.destinationPlaceholder}
                   />
                 </View>
 
@@ -329,12 +331,12 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                 >
                   <Text style={[styles.createBtnText, { color: canCreate ? '#fff' : colors.muted }]}>
                     {!startDate
-                      ? 'Selecione a data de início'
+                      ? t.createTrip.startDate
                       : destinations.length === 0
-                      ? 'Adicione um destino'
+                      ? t.createTrip.destinationPlaceholder
                       : isCreating
-                      ? 'Criando...'
-                      : 'Criar Roteiro'}
+                      ? t.createTrip.generating
+                      : t.createTrip.createBtn}
                   </Text>
                 </TouchableOpacity>
 

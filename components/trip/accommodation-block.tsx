@@ -22,6 +22,7 @@ import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/place
 import { DatePickerField } from '@/components/ui/date-picker-field';
 import { DocAttachField } from '@/components/ui/doc-attach-field';
 import { trpc } from '@/lib/trpc';
+import { useTranslation } from '@/hooks/use-translation';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ function AddAccommodationModal({
   tripId,
   tripStartDate,
 }: AddAccommodationModalProps) {
+  const t = useTranslation();
   const colors = useColors();
   const { addAccommodation } = useTripsStore();
 
@@ -149,7 +151,7 @@ function AddAccommodationModal({
 
           <View style={styles.addHeader}>
             <Text style={[styles.addTitle, { color: '#1C3D2E' }]}>
-              Hospedagem em {destination.name}
+              {t.accommodation.addTitle} {destination.name}
             </Text>
             <Pressable onPress={handleClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
               <Ionicons name="close" size={16} color="#1C3D2E" />
@@ -162,7 +164,7 @@ function AddAccommodationModal({
             keyboardShouldPersistTaps="handled"
           >
             {/* 1. Type */}
-            <Text style={[styles.fieldLabel, { color: colors.muted }]}>TIPO</Text>
+            <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.type.toUpperCase()}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeRow}>
               {TYPE_OPTIONS.map((t) => (
                 <Pressable
@@ -189,7 +191,7 @@ function AddAccommodationModal({
             <View style={styles.dateRow}>
               <View style={{ flex: 1 }}>
                 <DatePickerField
-                  label="CHECK-IN"
+                  label={t.accommodation.checkIn.toUpperCase()}
                   value={checkIn}
                   onChange={(d) => {
                     setCheckIn(d);
@@ -205,11 +207,11 @@ function AddAccommodationModal({
                 <Text style={styles.nightsNum}>
                   {nightsBetween(checkIn.toISOString(), checkOut.toISOString())}
                 </Text>
-                <Text style={styles.nightsLabel}>noites</Text>
+                <Text style={styles.nightsLabel}>{t.accommodation.nights}</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <DatePickerField
-                  label="CHECK-OUT"
+                  label={t.accommodation.checkOut.toUpperCase()}
                   value={checkOut}
                   onChange={(d) => {
                     if (d > checkIn) setCheckOut(d);
@@ -221,9 +223,9 @@ function AddAccommodationModal({
             {/* 3a. Hotel / Other: name via Google Places */}
             {isHotelOrOther && type === 'hotel' && (
               <View style={{ marginBottom: 14 }}>
-                <Text style={[styles.fieldLabel, { color: colors.muted }]}>NOME DO HOTEL *</Text>
+                <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.hotelName.toUpperCase()} *</Text>
                 <PlacesAutocompleteInput
-                  placeholder="Buscar hotel..."
+                  placeholder={t.accommodation.hotelSearchPlaceholder}
                   value={hotelPlace?.name || ''}
                   onSelect={(p) => {
                     setHotelPlace(p);
@@ -238,10 +240,10 @@ function AddAccommodationModal({
             {/* 3b. Other type: free text name */}
             {type === 'other' && (
               <View style={{ marginBottom: 14 }}>
-                <Text style={[styles.fieldLabel, { color: colors.muted }]}>NOME DO LOCAL *</Text>
+                <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.localName.toUpperCase()} *</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: colors.surface, color: colors.foreground }]}
-                  placeholder="Ex: Pousada, Glamping, Resort..."
+                  placeholder={t.accommodation.localNamePlaceholder}
                   placeholderTextColor={colors.muted}
                   value={otherName}
                   onChangeText={setOtherName}
@@ -252,15 +254,15 @@ function AddAccommodationModal({
             {/* 3c. Hotel: address auto-filled from Google, editable */}
             {type === 'hotel' && (
               <View style={{ marginBottom: 14 }}>
-                <Text style={[styles.fieldLabel, { color: colors.muted }]}>ENDEREÇO</Text>
+                <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.address.toUpperCase()}</Text>
                 {detailsQuery.isFetching ? (
                   <View style={[styles.input, { backgroundColor: colors.surface, justifyContent: 'center' }]}>
-                    <Text style={{ color: colors.muted, fontSize: 13 }}>Buscando endereço...</Text>
+                    <Text style={{ color: colors.muted, fontSize: 13 }}>{t.accommodation.fetchingAddress}</Text>
                   </View>
                 ) : (
                   <TextInput
                     style={[styles.input, { backgroundColor: colors.surface, color: colors.foreground }]}
-                    placeholder="Endereço preenchido automaticamente"
+                    placeholder={t.accommodation.addressAutoFilled}
                     placeholderTextColor={colors.muted}
                     value={hotelAddress}
                     onChangeText={setHotelAddress}
@@ -272,9 +274,9 @@ function AddAccommodationModal({
             {/* 3d. House/Apt: only address via Google Places */}
             {isHouse && (
               <View style={{ marginBottom: 14 }}>
-                <Text style={[styles.fieldLabel, { color: colors.muted }]}>ENDEREÇO *</Text>
+                <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.address.toUpperCase()} *</Text>
                 <PlacesAutocompleteInput
-                  placeholder="Buscar endereço..."
+                  placeholder={t.accommodation.addressSearchPlaceholder}
                   value={houseAddressPlace?.fullDescription || ''}
                   onSelect={(p) => {
                     setHouseAddressPlace(p);
@@ -286,10 +288,10 @@ function AddAccommodationModal({
             )}
 
             {/* 4. Confirmation code */}
-            <Text style={[styles.fieldLabel, { color: colors.muted }]}>CÓDIGO DE RESERVA</Text>
+            <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.confirmationCode.toUpperCase()}</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.surface, color: colors.foreground }]}
-              placeholder="Ex: ABC123"
+              placeholder={t.accommodation.confirmationCodePlaceholder}
               placeholderTextColor={colors.muted}
               value={confirmationCode}
               onChangeText={setConfirmationCode}
@@ -298,7 +300,7 @@ function AddAccommodationModal({
 
             {/* 5. Confirmation document */}
             <DocAttachField
-              label="CONFIRMAÇÃO DA RESERVA (OPCIONAL)"
+              label={`${t.accommodation.confirmationDoc.toUpperCase()} (${t.common.optional.toUpperCase()})`}
               uri={confirmationDocUri}
               onPick={setConfirmationDocUri}
               onRemove={() => setConfirmationDocUri(null)}
@@ -310,7 +312,7 @@ function AddAccommodationModal({
               style={[styles.saveBtn, { backgroundColor: canSave ? '#1C3D2E' : colors.border }]}
             >
               <Text style={[styles.saveBtnText, { color: canSave ? '#fff' : colors.muted }]}>
-                Salvar Hospedagem
+                {t.accommodation.save}
               </Text>
             </TouchableOpacity>
 
@@ -330,6 +332,7 @@ interface AccommodationBlockProps {
 }
 
 export function AccommodationBlock({ trip }: AccommodationBlockProps) {
+  const t = useTranslation();
   const colors = useColors();
   const { removeAccommodation } = useTripsStore();
   const [addingForDest, setAddingForDest] = useState<Destination | null>(null);
@@ -339,7 +342,7 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
       <View style={styles.blockHeader}>
         <View style={styles.blockTitleRow}>
           <Ionicons name="bed-outline" size={16} color="#A8D5B5" />
-          <Text style={styles.blockTitle}>HOSPEDAGEM</Text>
+          <Text style={styles.blockTitle}>{t.accommodation.title.toUpperCase()}</Text>
         </View>
       </View>
 
@@ -349,11 +352,11 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
           <View key={dest.id} style={styles.destSection}>
             <View style={styles.destHeaderRow}>
               <Text style={styles.destName}>{dest.name}</Text>
-              <Text style={styles.destDays}>{dest.days} dia{dest.days !== 1 ? 's' : ''}</Text>
+              <Text style={styles.destDays}>{dest.days} {dest.days !== 1 ? t.common.days : t.common.day}</Text>
             </View>
 
             {destAccommodations.length === 0 ? (
-              <Text style={styles.noAccText}>Nenhuma hospedagem adicionada</Text>
+              <Text style={styles.noAccText}>{t.accommodation.noAccommodation}</Text>
             ) : (
               destAccommodations.map((acc) => {
                 const typeInfo = TYPE_OPTIONS.find((t) => t.id === acc.type);
@@ -365,7 +368,7 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
                       <View style={styles.accInfo}>
                         <Text style={styles.accName}>{acc.name}</Text>
                         <Text style={styles.accDates}>
-                          {formatDate(acc.checkIn)} → {formatDate(acc.checkOut)} · {nights} noite{nights !== 1 ? 's' : ''}
+                          {formatDate(acc.checkIn)} → {formatDate(acc.checkOut)} ·                           {nights} {t.accommodation.nights}
                         </Text>
                         {acc.confirmationCode && (
                           <Text style={styles.accCode}>Reserva: {acc.confirmationCode}</Text>
@@ -379,12 +382,12 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
                             activeOpacity={0.7}
                             onPress={() => {
                               Linking.openURL(acc.confirmationDocUri!).catch(() =>
-                                Alert.alert('Erro', 'Não foi possível abrir o documento.')
+                                Alert.alert(t.common.error, t.documentsExtra.openError)
                               );
                             }}
                           >
                             <Ionicons name="document-attach-outline" size={11} color="#52B788" />
-                            <Text style={styles.docBadgeText}>Confirmação anexada</Text>
+                            <Text style={styles.docBadgeText}>{t.accommodation.confirmationAttached}</Text>
                             <Ionicons name="open-outline" size={10} color="rgba(82,183,136,0.7)" />
                           </TouchableOpacity>
                         )}
@@ -406,7 +409,7 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
               style={({ pressed }) => [styles.addAccBtn, { opacity: pressed ? 0.8 : 1 }]}
             >
               <Ionicons name="add" size={14} color="#A8D5B5" />
-              <Text style={styles.addAccBtnText}>Adicionar hospedagem</Text>
+              <Text style={styles.addAccBtnText}>{t.accommodation.addAccommodation}</Text>
             </Pressable>
           </View>
         );

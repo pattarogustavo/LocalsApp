@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useColors } from '@/hooks/use-colors';
 import { trpc } from '@/lib/trpc';
+import { useTranslation } from '@/hooks/use-translation';
 import type { TravelStyle, TravelBudget, TravelPace, TravelPreferences, Destination } from '@/types/voyage';
 
 interface AIPreferencesModalProps {
@@ -54,6 +55,8 @@ export function AIPreferencesModal({
   onDestinationsSelected,
 }: AIPreferencesModalProps) {
   const colors = useColors();
+  const t = useTranslation();
+  const ai = t.ai;
   const [step, setStep] = useState<'preferences' | 'results'>('preferences');
   const [selectedStyles, setSelectedStyles] = useState<TravelStyle[]>([]);
   const [budget, setBudget] = useState<TravelBudget>('moderado');
@@ -126,7 +129,7 @@ export function AIPreferencesModal({
 
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.foreground }]}>
-              {step === 'preferences' ? 'Criar com IA ✦' : 'Roteiros Sugeridos'}
+              {step === 'preferences' ? (ai.createWithAI || 'Criar com IA ✦') : (ai.suggestedRoutes || 'Roteiros Sugeridos')}
             </Text>
             <Pressable onPress={handleClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
               <Text style={[styles.closeText, { color: colors.muted }]}>✕</Text>
@@ -141,7 +144,7 @@ export function AIPreferencesModal({
             {step === 'preferences' ? (
               <>
                 {/* Travel Styles */}
-                <Text style={[styles.sectionLabel, { color: colors.muted }]}>ESTILO DE VIAGEM</Text>
+                <Text style={[styles.sectionLabel, { color: colors.muted }]}>{(ai.travelStyle || 'ESTILO DE VIAGEM').toUpperCase()}</Text>
                 <View style={styles.stylesGrid}>
                   {STYLE_OPTIONS.map((s) => {
                     const active = selectedStyles.includes(s.id);
@@ -168,7 +171,7 @@ export function AIPreferencesModal({
                 </View>
 
                 {/* Budget */}
-                <Text style={[styles.sectionLabel, { color: colors.muted }]}>ORÇAMENTO</Text>
+                <Text style={[styles.sectionLabel, { color: colors.muted }]}>{(ai.budget || 'ORÇAMENTO').toUpperCase()}</Text>
                 {BUDGET_OPTIONS.map((b) => {
                   const active = budget === b.id;
                   return (
@@ -198,7 +201,7 @@ export function AIPreferencesModal({
                 })}
 
                 {/* Pace */}
-                <Text style={[styles.sectionLabel, { color: colors.muted }]}>RITMO DA VIAGEM</Text>
+                <Text style={[styles.sectionLabel, { color: colors.muted }]}>{(ai.tripPace || 'RITMO DA VIAGEM').toUpperCase()}</Text>
                 {PACE_OPTIONS.map((p) => {
                   const active = pace === p.id;
                   return (
@@ -228,7 +231,7 @@ export function AIPreferencesModal({
                 })}
 
                 {/* Origin city */}
-                <Text style={[styles.sectionLabel, { color: colors.muted }]}>CIDADE DE ORIGEM (opcional)</Text>
+                <Text style={[styles.sectionLabel, { color: colors.muted }]}>{(ai.originCity || 'CIDADE DE ORIGEM (opcional)').toUpperCase()}</Text>
                 <View style={[styles.textInputRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <TextInput
                     style={[styles.textInput, { color: colors.foreground }]}
@@ -247,7 +250,7 @@ export function AIPreferencesModal({
                     { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
                   ]}
                 >
-                  <Text style={[styles.toggleLabel, { color: colors.foreground }]}>Evitar voos longos (+10h)</Text>
+                  <Text style={[styles.toggleLabel, { color: colors.foreground }]}>{ai.avoidLongFlights || 'Evitar voos longos (+10h)'}</Text>
                   <View style={[styles.toggle, { backgroundColor: avoidLongFlights ? '#2D5A3D' : colors.border }]}>
                     <View style={[styles.toggleThumb, { left: avoidLongFlights ? 18 : 2 }]} />
                   </View>
@@ -268,14 +271,14 @@ export function AIPreferencesModal({
                   {suggestMutation.isPending ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={styles.generateBtnText}>✦ Gerar Sugestões de Destinos</Text>
+                    <Text style={styles.generateBtnText}>✦ {ai.generateSuggestions || 'Gerar Sugestões de Destinos'}</Text>
                   )}
                 </Pressable>
               </>
             ) : (
               <>
                 <Text style={[styles.resultsSubtitle, { color: colors.muted }]}>
-                  Escolha um roteiro sugerido pela IA para {totalDays} dias
+                  {(ai.chooseRoute || 'Escolha um roteiro sugerido pela IA para {n} dias').replace('{n}', String(totalDays))}
                 </Text>
 
                 {suggestedOptions.map((option, idx) => (
@@ -318,7 +321,7 @@ export function AIPreferencesModal({
                       { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
                     ]}
                   >
-                    <Text style={[styles.backBtnText, { color: colors.foreground }]}>← Voltar</Text>
+                    <Text style={[styles.backBtnText, { color: colors.foreground }]}>← {t.common.back}</Text>
                   </Pressable>
                   <Pressable
                     onPress={handleConfirm}
@@ -331,7 +334,7 @@ export function AIPreferencesModal({
                       },
                     ]}
                   >
-                    <Text style={styles.confirmBtnText}>Usar este roteiro</Text>
+                    <Text style={styles.confirmBtnText}>{ai.useThisRoute || 'Usar este roteiro'}</Text>
                   </Pressable>
                 </View>
               </>

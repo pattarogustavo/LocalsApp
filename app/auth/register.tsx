@@ -17,22 +17,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
 import { useAuthStore } from '@/store/auth';
 import { startOAuthLogin } from '@/constants/oauth';
+import { useTranslation } from '@/hooks/use-translation';
 
-function validate(name: string, email: string, password: string, confirm: string) {
-  const errors: Record<string, string> = {};
-  if (!name.trim()) errors.name = 'Full name is required';
-  if (!email.trim()) errors.email = 'Email is required';
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email address';
-  if (!password) errors.password = 'Password is required';
-  else if (password.length < 8) errors.password = 'At least 8 characters required';
-  if (!confirm) errors.confirm = 'Please confirm your password';
-  else if (confirm !== password) errors.confirm = 'Passwords do not match';
-  return errors;
-}
+// Validation is now done inside the component so it can use translations
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { setUser } = useAuthStore();
+  const t = useTranslation();
+
+  function validate(n: string, e: string, p: string, c: string) {
+    const errors: Record<string, string> = {};
+    if (!n.trim()) errors.name = t.auth.register.nameValidation;
+    if (!e.trim()) errors.email = t.auth.register.emailValidation;
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) errors.email = t.auth.register.emailValidation;
+    if (!p) errors.password = t.auth.register.fillFields;
+    else if (p.length < 6) errors.password = t.auth.register.passwordTooShort;
+    if (!c) errors.confirm = t.auth.register.fillFields;
+    else if (c !== p) errors.confirm = t.auth.register.passwordMismatch;
+    return errors;
+  }
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -70,9 +74,9 @@ export default function RegisterScreen() {
     } catch (err: any) {
       const msg = err?.message ?? '';
       if (msg.includes('EMAIL_TAKEN')) {
-        Alert.alert('Email already in use', 'Please use a different email or log in.');
+        Alert.alert(t.auth.register.errorTitle, t.auth.register.emailValidation);
       } else {
-        Alert.alert('Registration failed', 'Please try again.');
+        Alert.alert(t.auth.register.errorTitle, t.common.tryAgain);
       }
     } finally {
       setLoading(false);
@@ -83,7 +87,7 @@ export default function RegisterScreen() {
     try {
       await startOAuthLogin();
     } catch {
-      Alert.alert('Error', 'Could not start Google login.');
+      Alert.alert(t.common.error, t.common.tryAgain);
     }
   };
 
@@ -106,28 +110,28 @@ export default function RegisterScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color="rgba(245,240,232,0.8)" />
           </TouchableOpacity>
-          <Text style={styles.title}>Create account</Text>
-          <Text style={styles.subtitle}>Start your 7-day free trial today</Text>
+          <Text style={styles.title}>{t.auth.register.title}</Text>
+          <Text style={styles.subtitle}>{t.auth.register.trialInfo}</Text>
         </View>
 
         {/* Google button */}
         <TouchableOpacity style={styles.googleBtn} activeOpacity={0.85} onPress={handleGoogleLogin}>
           <Ionicons name="logo-google" size={18} color="#F5F0E8" />
-          <Text style={styles.googleBtnText}>Continue with Google</Text>
+          <Text style={styles.googleBtnText}>{t.auth.register.continueWithGoogle}</Text>
         </TouchableOpacity>
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
+          <Text style={styles.dividerText}>{t.common.or}</Text>
           <View style={styles.dividerLine} />
         </View>
 
         {/* Full name */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Full name</Text>
+          <Text style={styles.label}>{t.auth.register.name}</Text>
           <TextInput
             style={[styles.input, touched.name && errors.name ? styles.inputError : null]}
-            placeholder="Your full name"
+            placeholder={t.auth.register.namePlaceholder}
             placeholderTextColor="rgba(245,240,232,0.25)"
             value={name}
             onChangeText={setName}
@@ -140,10 +144,10 @@ export default function RegisterScreen() {
 
         {/* Email */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>{t.auth.register.email}</Text>
           <TextInput
             style={[styles.input, touched.email && errors.email ? styles.inputError : null]}
-            placeholder="you@example.com"
+            placeholder={t.auth.register.emailPlaceholder}
             placeholderTextColor="rgba(245,240,232,0.25)"
             value={email}
             onChangeText={setEmail}
@@ -158,11 +162,11 @@ export default function RegisterScreen() {
 
         {/* Password */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>{t.auth.register.password}</Text>
           <View style={styles.inputRow}>
             <TextInput
               style={[styles.inputFlex, touched.password && errors.password ? styles.inputError : null]}
-              placeholder="Min. 8 characters"
+              placeholder={t.auth.register.passwordPlaceholder}
               placeholderTextColor="rgba(245,240,232,0.25)"
               value={password}
               onChangeText={setPassword}
@@ -179,11 +183,11 @@ export default function RegisterScreen() {
 
         {/* Confirm password */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Confirm password</Text>
+          <Text style={styles.label}>{t.auth.register.confirmPassword}</Text>
           <View style={styles.inputRow}>
             <TextInput
               style={[styles.inputFlex, touched.confirm && errors.confirm ? styles.inputError : null]}
-              placeholder="Repeat your password"
+              placeholder={t.auth.register.confirmPasswordPlaceholder}
               placeholderTextColor="rgba(245,240,232,0.25)"
               value={confirm}
               onChangeText={setConfirm}
@@ -222,15 +226,15 @@ export default function RegisterScreen() {
           {loading ? (
             <ActivityIndicator color="#0F1F16" />
           ) : (
-            <Text style={styles.submitBtnText}>Create account</Text>
+            <Text style={styles.submitBtnText}>{t.auth.register.registerBtn}</Text>
           )}
         </TouchableOpacity>
 
         {/* Login link */}
         <View style={styles.loginRow}>
-          <Text style={styles.loginText}>Already have an account? </Text>
+          <Text style={styles.loginText}>{t.auth.register.haveAccount} </Text>
           <TouchableOpacity onPress={() => router.replace('/auth/login' as any)}>
-            <Text style={styles.loginLink}>Log in</Text>
+            <Text style={styles.loginLink}>{t.auth.register.login}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

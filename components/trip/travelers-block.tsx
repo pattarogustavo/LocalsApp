@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTripsStore } from '@/store/trips';
 import { generateId, getInitials } from '@/utils/trip-helpers';
 import type { Traveler } from '@/types/voyage';
+import { useTranslation } from '@/hooks/use-translation';
 
 interface TravelersBlockProps {
   tripId: string;
@@ -27,6 +28,7 @@ const AVATAR_COLORS = [
 ];
 
 export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
+  const t = useTranslation();
   const addTraveler = useTripsStore((s) => s.addTraveler);
   const removeTraveler = useTripsStore((s) => s.removeTraveler);
   const insets = useSafeAreaInsets();
@@ -56,21 +58,21 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
 
     if (emailInput.trim()) {
       Alert.alert(
-        'Convite enviado',
-        `Um convite foi enviado para ${emailInput.trim()}. Quando aceito, ${name} terá acesso completo ao roteiro no Voyage.`,
-        [{ text: 'OK' }]
+        t.travelers.inviteSent ?? 'Convite enviado',
+        `${t.travelers.inviteMsg ?? 'Um convite foi enviado para'} ${emailInput.trim()}.`,
+        [{ text: t.common.ok }]
       );
     }
   };
 
   const handleRemove = (traveler: Traveler) => {
     Alert.alert(
-      'Remover viajante',
-      `Deseja remover ${traveler.name} do roteiro?`,
+      t.travelers.deleteTraveler,
+      `${t.travelers.deleteConfirm} ${traveler.name}?`,
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t.common.cancel, style: 'cancel' },
         {
-          text: 'Remover',
+          text: t.common.delete,
           style: 'destructive',
           onPress: () => removeTraveler(tripId, traveler.id),
         },
@@ -84,11 +86,11 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Ionicons name="people-outline" size={16} color="#4CAF7D" />
-          <Text style={styles.headerTitle}>VIAJANTES</Text>
+          <Text style={styles.headerTitle}>{(t.travelers.title ?? 'VIAJANTES').toUpperCase()}</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => setShowModal(true)}>
           <Ionicons name="person-add-outline" size={14} color="#4CAF7D" />
-          <Text style={styles.addBtnText}>Adicionar</Text>
+          <Text style={styles.addBtnText}>{t.common.add}</Text>
         </TouchableOpacity>
       </View>
 
@@ -96,7 +98,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
       <View style={styles.avatarRow}>
         {/* "Me" avatar always first */}
         <View style={[styles.avatar, { backgroundColor: '#2D5A3D' }]}>
-          <Text style={styles.avatarText}>EU</Text>
+          <Text style={styles.avatarText}>{(t.travelers.you ?? 'EU').toUpperCase()}</Text>
         </View>
 
         {travelers.map((traveler) => (
@@ -134,11 +136,11 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
               <View style={styles.travelerStatus}>
                 {traveler.inviteStatus === 'pending' ? (
                   <View style={styles.pendingBadge}>
-                    <Text style={styles.pendingText}>Pendente</Text>
+                    <Text style={styles.pendingText}>{t.travelers.pending ?? 'Pendente'}</Text>
                   </View>
                 ) : traveler.isRegistered ? (
                   <View style={styles.activeBadge}>
-                    <Text style={styles.activeText}>Ativo</Text>
+                    <Text style={styles.activeText}>{t.travelers.active ?? 'Ativo'}</Text>
                   </View>
                 ) : null}
                 <TouchableOpacity onPress={() => handleRemove(traveler)} style={styles.removeBtn}>
@@ -162,20 +164,20 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
             <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 24 }]}>
               <View style={styles.modalHandle} />
               <View style={styles.modalTitleRow}>
-                <Text style={styles.modalTitle}>Adicionar Viajante</Text>
+                <Text style={styles.modalTitle}>{t.travelers.addTraveler}</Text>
                 <TouchableOpacity onPress={() => setShowModal(false)}>
                   <Ionicons name="close-circle" size={24} color="rgba(255,255,255,0.4)" />
                 </TouchableOpacity>
               </View>
               <Text style={styles.modalSubtitle}>
-                Se o viajante tiver uma conta no Voyage, ele receberá o roteiro completo e poderá acompanhar em tempo real.
+                {t.travelers.inviteHint ?? 'Se o viajante tiver uma conta no Voyage, ele receberá o roteiro completo.'}
               </Text>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>NOME</Text>
+                <Text style={styles.inputLabel}>{(t.travelers.name ?? 'NOME').toUpperCase()}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Nome do viajante"
+                  placeholder={t.travelers.namePlaceholder}
                   placeholderTextColor="rgba(255,255,255,0.3)"
                   value={nameInput}
                   onChangeText={setNameInput}
@@ -186,10 +188,10 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>E-MAIL (OPCIONAL)</Text>
+                <Text style={styles.inputLabel}>{`${(t.travelers.email ?? 'E-MAIL').toUpperCase()} (${(t.common.optional ?? 'opcional').toUpperCase()})`}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="email@exemplo.com"
+                  placeholder={t.travelers.emailPlaceholder}
                   placeholderTextColor="rgba(255,255,255,0.3)"
                   value={emailInput}
                   onChangeText={setEmailInput}
@@ -199,7 +201,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
                   onSubmitEditing={handleAdd}
                 />
                 <Text style={styles.inputHint}>
-                  Se informado, um convite será enviado para acesso ao roteiro.
+                  {t.travelers.emailHint ?? 'Se informado, um convite será enviado para acesso ao roteiro.'}
                 </Text>
               </View>
 
@@ -208,14 +210,14 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
                   style={styles.cancelBtn}
                   onPress={() => { setShowModal(false); setNameInput(''); setEmailInput(''); }}
                 >
-                  <Text style={styles.cancelText}>Cancelar</Text>
+                  <Text style={styles.cancelText}>{t.common.cancel}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.confirmBtn, !nameInput.trim() && styles.confirmBtnDisabled]}
                   onPress={handleAdd}
                   disabled={!nameInput.trim()}
                 >
-                  <Text style={styles.confirmText}>Adicionar</Text>
+                  <Text style={styles.confirmText}>{t.common.add}</Text>
                 </TouchableOpacity>
               </View>
             </View>

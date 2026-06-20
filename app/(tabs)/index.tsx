@@ -25,6 +25,7 @@ import type { Trip, CuratedGuide } from '@/types/voyage';
 import { TrialBanner } from '@/components/trial-banner';
 import { useAuthStore } from '@/store/auth';
 import { useSubscription } from '@/hooks/use-subscription';
+import { useTranslation } from '@/hooks/use-translation';
 
 const { width } = Dimensions.get('window');
 
@@ -74,6 +75,7 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const { user } = useAuthStore();
   const { isExpired } = useSubscription();
+  const t = useTranslation();
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -159,7 +161,7 @@ export default function HomeScreen() {
         {upcomingTrips.length > 0 ? (
           <View className="mb-6">
             <Text className="text-muted text-xs tracking-widest font-semibold uppercase px-6 mb-3">
-              Por Vir
+              {t.home.upcoming}
             </Text>
             <TripCardStacked trips={upcomingTrips} onPressTrip={handleTripPress} />
           </View>
@@ -176,17 +178,17 @@ export default function HomeScreen() {
                 style={{ flex: 1, borderRadius: 24, justifyContent: 'flex-end', padding: 20 }}
               >
                 <Text style={{ color: '#F5F0E8', fontSize: 20, fontFamily: 'serif', fontStyle: 'italic', fontWeight: '600', marginBottom: 4 }}>
-                  Crie seu primeiro roteiro
+                  {t.home.noTrips}
                 </Text>
                 <View className="flex-row items-center justify-between">
                   <Text style={{ color: 'rgba(245,240,232,0.8)', fontSize: 14 }}>
-                    Viagens curadas e planejadas.
+                    {t.home.noTripsSubtitle}
                   </Text>
                   <TouchableOpacity
                     onPress={() => setShowCreate(true)}
                     className="bg-background rounded-full px-5 py-2"
                   >
-                    <Text className="text-foreground font-semibold text-sm">Criar</Text>
+                    <Text className="text-foreground font-semibold text-sm">{t.common.add}</Text>
                   </TouchableOpacity>
                 </View>
               </LinearGradient>
@@ -198,7 +200,7 @@ export default function HomeScreen() {
         {pastTrips.length > 0 && (
           <View className="mb-6">
             <Text className="text-muted text-xs tracking-widest font-semibold uppercase px-6 mb-3">
-              Já Aconteceram
+              {t.home.past}
             </Text>
             <TripCardStacked trips={pastTrips} onPressTrip={handleTripPress} />
           </View>
@@ -209,7 +211,7 @@ export default function HomeScreen() {
           <Text
             style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: '#1C3D2E', paddingHorizontal: 24, marginBottom: 12 }}
           >
-            Guias Curados
+            {t.home.all === 'All' ? 'Curated Guides' : 'Guias Curados'}
           </Text>
           <FlatList
             data={CURATED_GUIDES}
@@ -265,7 +267,7 @@ export default function HomeScreen() {
               <Ionicons name="search" size={18} color="rgba(28,61,46,0.5)" />
               <TextInput
                 style={searchStyles.input}
-                placeholder="Buscar roteiros..."
+                placeholder={t.home.searchPlaceholder}
                 placeholderTextColor="rgba(28,61,46,0.4)"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -279,19 +281,19 @@ export default function HomeScreen() {
               )}
             </View>
             <TouchableOpacity onPress={() => setShowSearch(false)} style={searchStyles.cancelBtn}>
-              <Text style={searchStyles.cancelText}>Cancelar</Text>
+              <Text style={searchStyles.cancelText}>{t.common.cancel}</Text>
             </TouchableOpacity>
           </View>
 
           {searchQuery.trim().length === 0 ? (
             <View style={searchStyles.emptyState}>
               <Ionicons name="search-outline" size={40} color="rgba(28,61,46,0.2)" />
-              <Text style={searchStyles.emptyText}>Digite para buscar seus roteiros</Text>
+              <Text style={searchStyles.emptyText}>{t.home.searchPlaceholder}</Text>
             </View>
           ) : searchResults.length === 0 ? (
             <View style={searchStyles.emptyState}>
               <Ionicons name="alert-circle-outline" size={40} color="rgba(28,61,46,0.2)" />
-              <Text style={searchStyles.emptyText}>Nenhum roteiro encontrado para "{searchQuery}"</Text>
+              <Text style={searchStyles.emptyText}>{t.common.noResults}</Text>
             </View>
           ) : (
             <FlatList

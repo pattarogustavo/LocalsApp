@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
 import { useColors } from '@/hooks/use-colors';
+import { useTranslation } from '@/hooks/use-translation';
 
 export interface PlaceResult {
   placeId: string;
@@ -38,7 +39,7 @@ interface PlacesAutocompleteInputProps {
  */
 export function PlacesAutocompleteInput({
   label,
-  placeholder = 'Buscar local...',
+  placeholder,
   value,
   onSelect,
   icon = 'location-outline',
@@ -46,6 +47,8 @@ export function PlacesAutocompleteInput({
   searchTypes,
 }: PlacesAutocompleteInputProps) {
   const colors = useColors();
+  const t = useTranslation();
+  const defaultPlaceholder = placeholder || t.common.search + '...';
   const [modalVisible, setModalVisible] = useState(false);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -98,7 +101,7 @@ export function PlacesAutocompleteInput({
           style={[styles.triggerText, { color: value ? textColor : mutedColor }]}
           numberOfLines={1}
         >
-          {value || placeholder}
+          {value || defaultPlaceholder}
         </Text>
         {value ? (
           <Ionicons name="checkmark-circle" size={16} color="#52B788" />
@@ -117,10 +120,10 @@ export function PlacesAutocompleteInput({
           {/* Header */}
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <Pressable onPress={handleClose} style={styles.cancelBtn}>
-              <Text style={[styles.cancelText, { color: colors.primary }]}>Cancelar</Text>
+              <Text style={[styles.cancelText, { color: colors.primary }]}>{t.common.cancel}</Text>
             </Pressable>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>
-              {label || 'Buscar local'}
+              {label || t.common.search}
             </Text>
             <View style={{ width: 70 }} />
           </View>
@@ -130,7 +133,7 @@ export function PlacesAutocompleteInput({
             <Ionicons name="search" size={16} color={colors.muted} style={styles.searchIcon} />
             <TextInput
               style={[styles.searchInput, { color: colors.foreground }]}
-              placeholder={placeholder}
+              placeholder={defaultPlaceholder}
               placeholderTextColor={colors.muted}
               value={query}
               onChangeText={handleChangeText}
@@ -158,7 +161,7 @@ export function PlacesAutocompleteInput({
                 !isFetching ? (
                   <View style={styles.emptyRow}>
                     <Text style={[styles.emptyText, { color: colors.muted }]}>
-                      Nenhum resultado encontrado
+                      {t.common.noResults}
                     </Text>
                   </View>
                 ) : null
@@ -190,7 +193,7 @@ export function PlacesAutocompleteInput({
           ) : (
             <View style={styles.hintRow}>
               <Text style={[styles.hintText, { color: colors.muted }]}>
-                Digite pelo menos 2 caracteres para buscar
+                {t.common.typeToSearch || 'Digite pelo menos 2 caracteres para buscar'}
               </Text>
             </View>
           )}

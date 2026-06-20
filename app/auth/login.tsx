@@ -17,10 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
 import { useAuthStore } from '@/store/auth';
 import { startOAuthLogin } from '@/constants/oauth';
+import { useTranslation } from '@/hooks/use-translation';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { setUser } = useAuthStore();
+  const t = useTranslation();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,7 +33,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Missing fields', 'Please enter your email and password.');
+      Alert.alert(t.common.error, t.auth.login.fillFields);
       return;
     }
     setLoading(true);
@@ -55,9 +57,9 @@ export default function LoginScreen() {
     } catch (err: any) {
       const msg = err?.message ?? '';
       if (msg.includes('INVALID_CREDENTIALS')) {
-        Alert.alert('Incorrect email or password', 'Please check your credentials and try again.');
+        Alert.alert(t.auth.login.errorTitle, t.auth.login.fillFields);
       } else {
-        Alert.alert('Login failed', 'Please try again.');
+        Alert.alert(t.auth.login.errorTitle, t.common.tryAgain);
       }
     } finally {
       setLoading(false);
@@ -68,7 +70,7 @@ export default function LoginScreen() {
     try {
       await startOAuthLogin();
     } catch {
-      Alert.alert('Error', 'Could not start Google login.');
+      Alert.alert(t.common.error, t.common.tryAgain);
     }
   };
 
@@ -87,28 +89,28 @@ export default function LoginScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color="rgba(245,240,232,0.8)" />
           </TouchableOpacity>
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Log in to continue your journey</Text>
+          <Text style={styles.title}>{t.auth.login.subtitle}</Text>
+          <Text style={styles.subtitle}>{t.auth.login.title}</Text>
         </View>
 
         {/* Google button */}
         <TouchableOpacity style={styles.googleBtn} activeOpacity={0.85} onPress={handleGoogleLogin}>
           <Ionicons name="logo-google" size={18} color="#F5F0E8" />
-          <Text style={styles.googleBtnText}>Continue with Google</Text>
+          <Text style={styles.googleBtnText}>{t.auth.login.continueWithGoogle}</Text>
         </TouchableOpacity>
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
+          <Text style={styles.dividerText}>{t.common.or}</Text>
           <View style={styles.dividerLine} />
         </View>
 
         {/* Email */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>{t.auth.login.email}</Text>
           <TextInput
             style={styles.input}
-            placeholder="you@example.com"
+            placeholder={t.auth.login.emailPlaceholder}
             placeholderTextColor="rgba(245,240,232,0.25)"
             value={email}
             onChangeText={setEmail}
@@ -122,15 +124,15 @@ export default function LoginScreen() {
         {/* Password */}
         <View style={styles.fieldGroup}>
           <View style={styles.labelRow}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>{t.auth.login.password}</Text>
             <TouchableOpacity onPress={() => router.push('/auth/forgot-password' as any)}>
-              <Text style={styles.forgotLink}>Forgot password?</Text>
+              <Text style={styles.forgotLink}>{t.auth.login.forgotPassword}</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.inputRow}>
             <TextInput
               style={styles.inputFlex}
-              placeholder="Your password"
+              placeholder={t.auth.login.passwordPlaceholder}
               placeholderTextColor="rgba(245,240,232,0.25)"
               value={password}
               onChangeText={setPassword}
@@ -154,15 +156,15 @@ export default function LoginScreen() {
           {loading ? (
             <ActivityIndicator color="#0F1F16" />
           ) : (
-            <Text style={styles.submitBtnText}>Log in</Text>
+            <Text style={styles.submitBtnText}>{t.auth.login.loginBtn}</Text>
           )}
         </TouchableOpacity>
 
         {/* Register link */}
         <View style={styles.registerRow}>
-          <Text style={styles.registerText}>Don't have an account? </Text>
+          <Text style={styles.registerText}>{t.auth.login.noAccount} </Text>
           <TouchableOpacity onPress={() => router.replace('/auth/register' as any)}>
-            <Text style={styles.registerLink}>Sign up free</Text>
+            <Text style={styles.registerLink}>{t.auth.login.register}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

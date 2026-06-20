@@ -11,9 +11,11 @@ import {
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from '@/hooks/use-translation';
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
+  const t = useTranslation();
 
   return (
     <View style={styles.container}>
@@ -35,16 +37,16 @@ export default function OnboardingScreen() {
 
         {/* Title */}
         <View style={styles.titleBlock}>
-          <Text style={styles.appName}>Voyage</Text>
-          <Text style={styles.tagline}>Plan your perfect trips,{'\n'}curated just for you.</Text>
+          <Text style={styles.appName}>{t.auth.onboarding.title}</Text>
+          <Text style={styles.tagline}>{t.auth.onboarding.subtitle}</Text>
         </View>
 
         {/* Feature highlights */}
         <View style={styles.features}>
           {[
-            { icon: 'map-outline', text: 'AI-powered itineraries' },
-            { icon: 'document-text-outline', text: 'Organize all your trip docs' },
-            { icon: 'airplane-outline', text: 'Track flights & transport' },
+            { icon: 'map-outline', text: t.auth.onboarding.feature1 },
+            { icon: 'document-text-outline', text: t.auth.onboarding.feature2 },
+            { icon: 'airplane-outline', text: t.auth.onboarding.feature3 },
           ].map((f) => (
             <View key={f.text} style={styles.featureRow}>
               <View style={styles.featureIconBg}>
@@ -62,7 +64,7 @@ export default function OnboardingScreen() {
             activeOpacity={0.85}
             onPress={() => router.push('/auth/register' as any)}
           >
-            <Text style={styles.primaryBtnText}>Create account</Text>
+            <Text style={styles.primaryBtnText}>{t.auth.onboarding.getStarted}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -70,11 +72,11 @@ export default function OnboardingScreen() {
             activeOpacity={0.85}
             onPress={() => router.push('/auth/login' as any)}
           >
-            <Text style={styles.secondaryBtnText}>I already have an account</Text>
+            <Text style={styles.secondaryBtnText}>{t.auth.onboarding.alreadyHaveAccount}</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.trialNote}>7-day free trial · No credit card required</Text>
+        <Text style={styles.trialNote}>{t.auth.onboarding.trialInfo}</Text>
       </View>
     </View>
   );

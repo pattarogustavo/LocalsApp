@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTripsStore } from '@/store/trips';
 import { generateId } from '@/utils/trip-helpers';
 import type { Document } from '@/types/voyage';
+import { useTranslation } from '@/hooks/use-translation';
 
 interface DocumentsBlockProps {
   tripId: string;
@@ -21,6 +22,7 @@ const DOC_TYPES = [
 ];
 
 export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
+  const t = useTranslation();
   const addDocument = useTripsStore((s) => s.addDocument);
   const removeDocument = useTripsStore((s) => s.removeDocument);
   const [showModal, setShowModal] = useState(false);
@@ -44,10 +46,10 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
   const handleOpenDoc = (doc: Document) => {
     if (doc.url) {
       Linking.openURL(doc.url).catch(() =>
-        Alert.alert('Erro', 'Não foi possível abrir o documento.')
+        Alert.alert(t.common.error, t.documentsExtra.openError)
       );
     } else {
-      Alert.alert('Sem arquivo', 'Este documento não possui um arquivo anexado.');
+      Alert.alert(t.documents.noUrl, t.documents.noUrl);
     }
   };
 
@@ -64,18 +66,18 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Ionicons name="document-text-outline" size={16} color="#52B788" />
           <Text style={{ color: '#F5F0E8', fontSize: 12, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
-            Documentos
+            {t.documents.title}
           </Text>
         </View>
         <TouchableOpacity onPress={() => setShowModal(true)}>
-          <Text style={{ color: '#52B788', fontSize: 13 }}>Ver todos</Text>
+          <Text style={{ color: '#52B788', fontSize: 13 }}>{t.documents.openDocument}</Text>
         </TouchableOpacity>
       </View>
 
       {documents.length === 0 ? (
         <TouchableOpacity onPress={() => setShowModal(true)}>
           <Text style={{ color: 'rgba(245,240,232,0.5)', fontSize: 13, marginTop: 4 }}>
-            Nenhum documento adicionado
+            {t.documents.noDocuments}
           </Text>
         </TouchableOpacity>
       ) : (
@@ -120,7 +122,7 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: '#1C3D2E' }}>
-                  Documentos
+                  {t.documents.title}
                 </Text>
                 <TouchableOpacity onPress={() => setShowModal(false)}>
                   <Ionicons name="close-circle" size={26} color="#1C3D2E" />
@@ -159,7 +161,7 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
               })}
 
               <Text style={{ color: '#6B7C72', fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 8 }}>
-                Tipo
+                {t.common.type ?? 'Tipo'}
               </Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                 {DOC_TYPES.map((t) => (
@@ -185,7 +187,7 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
               <TextInput
                 value={docName}
                 onChangeText={setDocName}
-                placeholder="Nome do documento"
+                placeholder={t.documents.namePlaceholder}
                 placeholderTextColor="#9BA1A6"
                 style={{
                   backgroundColor: '#EDE8DC',
@@ -207,7 +209,7 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
                   alignItems: 'center',
                 }}
               >
-                <Text style={{ color: '#F5F0E8', fontWeight: '600', fontSize: 16 }}>Adicionar Arquivo</Text>
+                <Text style={{ color: '#F5F0E8', fontWeight: '600', fontSize: 16 }}>{t.documents.addDocument}</Text>
               </TouchableOpacity>
               </ScrollView>
             </View>

@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from '@/hooks/use-translation';
 
 interface DateTimePickerFieldProps {
   label?: string;
@@ -13,9 +14,13 @@ interface DateTimePickerFieldProps {
   hint?: string;
 }
 
-function formatDisplay(date: Date | null): string {
-  if (!date) return 'Selecionar data e hora';
-  return date.toLocaleString('pt-BR', {
+const LOCALE_MAP: Record<string, string> = {
+  pt: 'pt-BR', en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT',
+};
+
+function formatDisplay(date: Date | null, locale: string): string {
+  if (!date) return '';
+  return date.toLocaleString(locale, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -31,11 +36,16 @@ export function DateTimePickerField({
   minimumDate,
   hint,
 }: DateTimePickerFieldProps) {
+  const t = useTranslation();
+  const lang = t.common.today === 'Hoje' ? 'pt' : t.common.today === 'Today' ? 'en' : t.common.today === 'Hoy' ? 'es' : 'pt';
+  const locale = LOCALE_MAP[lang] || 'pt-BR';
+
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempDate, setTempDate] = useState<Date>(value || new Date());
 
   const hasValue = value !== null;
+  const placeholder = t.common.selectDateTime;
 
   if (Platform.OS === 'web') {
     return (
@@ -44,7 +54,7 @@ export function DateTimePickerField({
         <View style={styles.field}>
           <Ionicons name="calendar-outline" size={16} color="rgba(245,240,232,0.4)" />
           <Text style={[styles.fieldText, !hasValue && styles.placeholder]}>
-            {hasValue ? formatDisplay(value) : 'Selecionar data e hora'}
+            {hasValue ? formatDisplay(value, locale) : placeholder}
           </Text>
         </View>
         {hint ? <Text style={styles.hint}>{hint}</Text> : null}
@@ -60,7 +70,7 @@ export function DateTimePickerField({
         <TouchableOpacity style={styles.field} onPress={() => { setTempDate(value || new Date()); setShowDatePicker(true); }}>
           <Ionicons name="calendar-outline" size={16} color="rgba(245,240,232,0.4)" />
           <Text style={[styles.fieldText, !hasValue && styles.placeholder]}>
-            {hasValue ? formatDisplay(value) : 'Selecionar data e hora'}
+            {hasValue ? formatDisplay(value, locale) : placeholder}
           </Text>
           <Ionicons name="chevron-down" size={14} color="rgba(245,240,232,0.3)" />
         </TouchableOpacity>
@@ -71,7 +81,7 @@ export function DateTimePickerField({
           <View style={styles.sheetOverlay}>
             <View style={styles.sheet}>
               <View style={styles.sheetHandle} />
-              <Text style={styles.sheetTitle}>Selecionar Data</Text>
+              <Text style={styles.sheetTitle}>{t.common.selectDate}</Text>
               <DateTimePicker
                 value={tempDate}
                 mode="date"
@@ -83,13 +93,13 @@ export function DateTimePickerField({
               />
               <View style={styles.sheetBtns}>
                 <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowDatePicker(false)}>
-                  <Text style={styles.cancelText}>Cancelar</Text>
+                  <Text style={styles.cancelText}>{t.common.cancel}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.confirmBtn}
                   onPress={() => { setShowDatePicker(false); setShowTimePicker(true); }}
                 >
-                  <Text style={styles.confirmText}>Próximo →</Text>
+                  <Text style={styles.confirmText}>{t.common.next || 'Próximo →'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -101,7 +111,7 @@ export function DateTimePickerField({
           <View style={styles.sheetOverlay}>
             <View style={styles.sheet}>
               <View style={styles.sheetHandle} />
-              <Text style={styles.sheetTitle}>Horário de Chegada</Text>
+              <Text style={styles.sheetTitle}>{t.common.selectTime || 'Horário'}</Text>
               <DateTimePicker
                 value={tempDate}
                 mode="time"
@@ -112,13 +122,13 @@ export function DateTimePickerField({
               />
               <View style={styles.sheetBtns}>
                 <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowTimePicker(false); setShowDatePicker(true); }}>
-                  <Text style={styles.cancelText}>← Voltar</Text>
+                  <Text style={styles.cancelText}>{t.common.back}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.confirmBtn}
                   onPress={() => { setShowTimePicker(false); onChange(tempDate); }}
                 >
-                  <Text style={styles.confirmText}>Confirmar</Text>
+                  <Text style={styles.confirmText}>{t.common.confirm}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -135,7 +145,7 @@ export function DateTimePickerField({
       <TouchableOpacity style={styles.field} onPress={() => { setTempDate(value || new Date()); setShowDatePicker(true); }}>
         <Ionicons name="calendar-outline" size={16} color="rgba(245,240,232,0.4)" />
         <Text style={[styles.fieldText, !hasValue && styles.placeholder]}>
-          {hasValue ? formatDisplay(value) : 'Selecionar data e hora'}
+          {hasValue ? formatDisplay(value, locale) : placeholder}
         </Text>
         <Ionicons name="chevron-down" size={14} color="rgba(245,240,232,0.3)" />
       </TouchableOpacity>

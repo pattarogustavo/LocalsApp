@@ -16,6 +16,7 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
+import { useTranslation } from '@/hooks/use-translation';
 import {
   Modal,
   Platform,
@@ -38,9 +39,13 @@ interface DatePickerFieldProps {
   compact?: boolean;
 }
 
-function formatDisplay(date: Date | null): string {
+const LOCALE_MAP: Record<string, string> = {
+  pt: 'pt-BR', en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT',
+};
+
+function formatDisplay(date: Date | null, locale: string): string {
   if (!date) return '';
-  return date.toLocaleDateString('pt-BR', {
+  return date.toLocaleDateString(locale, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -56,6 +61,9 @@ export function DatePickerField({
   hint,
   compact = false,
 }: DatePickerFieldProps) {
+  const t = useTranslation();
+  const lang = t.common.today === 'Hoje' ? 'pt' : t.common.today === 'Today' ? 'en' : t.common.today === 'Hoy' ? 'es' : 'pt';
+  const locale = LOCALE_MAP[lang] || 'pt-BR';
   const [showPicker, setShowPicker] = useState(false);
   // Temporary date while the iOS spinner is open (confirm on "Done")
   const [tempDate, setTempDate] = useState<Date>(value ?? new Date());
@@ -95,7 +103,7 @@ export function DatePickerField({
         >
           <Ionicons name="calendar-outline" size={15} color="rgba(82,183,136,0.7)" />
           <Text style={[styles.fieldText, !value && styles.placeholder]}>
-            {value ? formatDisplay(value) : 'Selecionar data'}
+            {value ? formatDisplay(value, locale) : t.common.selectDate || 'Selecionar data'}
           </Text>
         </TouchableOpacity>
         {hint ? <Text style={styles.hint}>{hint}</Text> : null}
@@ -106,7 +114,7 @@ export function DatePickerField({
           <View style={styles.iosSheet}>
             <View style={styles.iosSheetHeader}>
               <TouchableOpacity onPress={() => setShowPicker(false)}>
-                <Text style={styles.iosCancelText}>Cancelar</Text>
+                <Text style={styles.iosCancelText}>{t.common.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
@@ -114,7 +122,7 @@ export function DatePickerField({
                   setShowPicker(false);
                 }}
               >
-                <Text style={styles.iosDoneText}>Confirmar</Text>
+                <Text style={styles.iosDoneText}>{t.common.confirm}</Text>
               </TouchableOpacity>
             </View>
             <DateTimePicker
@@ -124,7 +132,7 @@ export function DatePickerField({
               onChange={(_, d) => { if (d) setTempDate(d); }}
               minimumDate={minimumDate}
               maximumDate={maximumDate}
-              locale="pt-BR"
+              locale={locale}
               style={styles.iosPicker}
               textColor="#F5F0E8"
             />
@@ -145,7 +153,7 @@ export function DatePickerField({
       >
         <Ionicons name="calendar-outline" size={15} color="rgba(82,183,136,0.7)" />
         <Text style={[styles.fieldText, !value && styles.placeholder]}>
-          {value ? formatDisplay(value) : 'Selecionar data'}
+          {value ? formatDisplay(value, locale) : t.common.selectDate || 'Selecionar data'}
         </Text>
       </TouchableOpacity>
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}

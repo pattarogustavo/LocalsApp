@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Transport, Destination } from '@/types/voyage';
+import { useTranslation } from '@/hooks/use-translation';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -14,15 +15,6 @@ const MODE_ICONS: Record<string, string> = {
   other: 'navigate',
 };
 
-const MODE_LABELS: Record<string, string> = {
-  flight: 'Voo',
-  train: 'Trem',
-  bus: 'Ônibus',
-  ferry: 'Barco',
-  car: 'Carro',
-  other: 'Transporte',
-};
-
 const STATUS_COLORS: Record<string, string> = {
   scheduled: '#52B788',
   delayed: '#F59E0B',
@@ -30,15 +22,6 @@ const STATUS_COLORS: Record<string, string> = {
   departed: '#8B5CF6',
   arrived: '#10B981',
   cancelled: '#EF4444',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  scheduled: 'No horário',
-  delayed: 'Atrasado',
-  boarding: 'Embarcando',
-  departed: 'Partiu',
-  arrived: 'Chegou',
-  cancelled: 'Cancelado',
 };
 
 function formatTime(iso: string): string {
@@ -69,7 +52,7 @@ function getDaysUntil(iso: string): number | null {
 
 // ─── Build ordered legs from destinations ─────────────────────────────────────
 
-function buildLegs(destinations: Destination[], originLabel = 'Origem'): string[] {
+function buildLegs(destinations: Destination[], originLabel: string): string[] {
   if (destinations.length === 0) return [];
   const names = destinations.map((d) => d.name);
   const legs: string[] = [];
@@ -110,7 +93,7 @@ function getNextTransport(
   }
 
   // 2. Fall back: use leg ordering based on destination sequence
-  const legs = buildLegs(destinations);
+  const legs = buildLegs(destinations, '');
   for (const leg of legs) {
     const match = transports.find((t) => t.leg === leg);
     if (match) return match;
@@ -130,6 +113,23 @@ interface Props {
 }
 
 export function NextTransportCard({ transports, destinations, startDate, onPress }: Props) {
+  const t = useTranslation();
+  const MODE_LABELS: Record<string, string> = {
+    flight: t.transport.flight,
+    train: t.transport.train,
+    bus: t.transport.bus,
+    ferry: t.transport.ferry,
+    car: t.transport.car,
+    other: t.transport.other,
+  };
+  const STATUS_LABELS: Record<string, string> = {
+    scheduled: t.transport.statusScheduled,
+    delayed: t.transport.statusDelayed,
+    boarding: t.transport.statusBoarding,
+    departed: t.transport.statusDeparted,
+    arrived: t.transport.statusArrived,
+    cancelled: t.transport.statusCancelled,
+  };
   const next = getNextTransport(transports, destinations, startDate);
 
   // ── Empty state: no transports added yet ──────────────────────────────────
@@ -139,15 +139,15 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Ionicons name="airplane-outline" size={15} color="#52B788" />
-            <Text style={styles.sectionTitle}>PRÓXIMO TRANSPORTE</Text>
+            <Text style={styles.sectionTitle}>{t.common.nextTransport}</Text>
           </View>
           <View style={styles.addHint}>
             <Ionicons name="add-circle-outline" size={14} color="rgba(82,183,136,0.7)" />
-            <Text style={styles.addHintText}>Adicionar</Text>
+            <Text style={styles.addHintText}>{t.common.add}</Text>
           </View>
         </View>
-        <Text style={styles.emptyText}>Nenhum transporte cadastrado ainda.</Text>
-        <Text style={styles.emptySubText}>Toque para adicionar voos, trens ou outros meios.</Text>
+        <Text style={styles.emptyText}>{t.transport.noTransport}</Text>
+        <Text style={styles.emptySubText}>{t.transport.tapToConfigure}</Text>
       </TouchableOpacity>
     );
   }
@@ -163,10 +163,10 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
   const daysUntil = f?.departureTime ? getDaysUntil(f.departureTime) : null;
   let countdownLabel = '';
   if (daysUntil !== null) {
-    if (daysUntil < 0) countdownLabel = 'Concluído';
-    else if (daysUntil === 0) countdownLabel = 'Hoje';
-    else if (daysUntil === 1) countdownLabel = 'Amanhã';
-    else countdownLabel = `em ${daysUntil} dias`;
+    if (daysUntil < 0) countdownLabel = t.common.done;
+    else if (daysUntil === 0) countdownLabel = t.common.today;
+    else if (daysUntil === 1) countdownLabel = t.common.tomorrow;
+    else countdownLabel = t.common.inDays.replace('{n}', String(daysUntil));
   }
 
   // Origin / destination labels
@@ -179,7 +179,7 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Ionicons name={`${modeIcon}-outline` as any} size={15} color="#52B788" />
-          <Text style={styles.sectionTitle}>PRÓXIMO TRANSPORTE</Text>
+          <Text style={styles.sectionTitle}>{t.transport.saida.replace('SAÍDA', 'PRÓXIMO TRANSPORTE')}</Text>
         </View>
         <View style={styles.headerRight}>
           {countdownLabel ? (
@@ -438,19 +438,24 @@ const styles = StyleSheet.create({
 
 import { Linking } from 'react-native';
 
-const FLIGHT_STATUS_COLORS: Record<string, string> = {
+const FLIGHT_STATUS_COLORS_SUMMARY: Record<string, string> = {
   scheduled: '#52B788', delayed: '#F59E0B', boarding: '#3B82F6',
   departed: '#8B5CF6', arrived: '#10B981', cancelled: '#EF4444',
 };
-const FLIGHT_STATUS_LABELS: Record<string, string> = {
-  scheduled: 'No horário', delayed: 'Atrasado', boarding: 'Embarcando',
-  departed: 'Partiu', arrived: 'Chegou', cancelled: 'Cancelado',
-};
 
 function SummaryFlightCard({ transport }: { transport: Transport }) {
+  const t = useTranslation();
   const f = transport.flight!;
-  const statusColor = FLIGHT_STATUS_COLORS[f.status || 'scheduled'];
-  const statusLabel = FLIGHT_STATUS_LABELS[f.status || 'scheduled'];
+  const statusColor = FLIGHT_STATUS_COLORS_SUMMARY[f.status || 'scheduled'];
+  const FLIGHT_STATUS_LABELS_LOCAL: Record<string, string> = {
+    scheduled: t.transport.statusScheduled,
+    delayed: t.transport.statusDelayed,
+    boarding: t.transport.statusBoarding,
+    departed: t.transport.statusDeparted,
+    arrived: t.transport.statusArrived,
+    cancelled: t.transport.statusCancelled,
+  };
+  const statusLabel = FLIGHT_STATUS_LABELS_LOCAL[f.status || 'scheduled'];
   const depTime = f.departureActual && f.departureActual !== f.departureTime ? f.departureActual : f.departureTime;
   const arrTime = f.arrivalActual && f.arrivalActual !== f.arrivalTime ? f.arrivalActual : f.arrivalTime;
 
@@ -495,6 +500,7 @@ function SummaryFlightCard({ transport }: { transport: Transport }) {
 }
 
 function SummaryCarCard({ transport }: { transport: Transport }) {
+  const t = useTranslation();
   const c = transport.car!;
   const fmt = (iso: string) => {
     if (!iso) return '--:--';
@@ -506,12 +512,12 @@ function SummaryCarCard({ transport }: { transport: Transport }) {
       <View style={summaryStyles.flightTopRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Ionicons name="car-outline" size={14} color="#52B788" />
-          <Text style={summaryStyles.airlineName}>{transport.leg || 'Carro'}</Text>
+          <Text style={summaryStyles.airlineName}>{transport.leg || t.transport.car}</Text>
         </View>
       </View>
       <View style={summaryStyles.routeRow}>
         <View style={summaryStyles.endpoint}>
-          <Text style={summaryStyles.labelSmall}>SAÍDA</Text>
+          <Text style={summaryStyles.labelSmall}>{t.transport.saida}</Text>
           <Text style={summaryStyles.time}>{fmt(c.departureTime || '')}</Text>
           <Text style={summaryStyles.address} numberOfLines={2}>{c.originAddress}</Text>
         </View>
@@ -526,7 +532,7 @@ function SummaryCarCard({ transport }: { transport: Transport }) {
           {c.travelDuration ? <Text style={summaryStyles.duration}>{c.travelDuration}</Text> : null}
         </View>
         <View style={[summaryStyles.endpoint, { alignItems: 'flex-end' }]}>
-          <Text style={summaryStyles.labelSmall}>CHEGADA</Text>
+          <Text style={summaryStyles.labelSmall}>{t.transport.chegada}</Text>
           <Text style={summaryStyles.time}>{fmt(c.desiredArrivalTime || '')}</Text>
           <Text style={[summaryStyles.address, { textAlign: 'right' }]} numberOfLines={2}>{c.destinationAddress}</Text>
         </View>
@@ -534,7 +540,7 @@ function SummaryCarCard({ transport }: { transport: Transport }) {
       {c.mapsUrl ? (
         <TouchableOpacity style={summaryStyles.mapsBtn} onPress={() => Linking.openURL(c.mapsUrl!)}>
           <Ionicons name="map-outline" size={12} color="#52B788" />
-          <Text style={summaryStyles.mapsBtnText}>Abrir no Google Maps</Text>
+          <Text style={summaryStyles.mapsBtnText}>{t.transport.openMaps}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -542,12 +548,14 @@ function SummaryCarCard({ transport }: { transport: Transport }) {
 }
 
 function SummaryGenericCard({ transport }: { transport: Transport }) {
+  const t = useTranslation();
   const modeIcons: Record<string, string> = {
     flight: 'airplane-outline', car: 'car-outline', train: 'train-outline',
     bus: 'bus-outline', ferry: 'boat-outline', other: 'navigate-outline',
   };
   const modeLabels: Record<string, string> = {
-    flight: 'Voo', car: 'Carro', train: 'Trem', bus: 'Ônibus', ferry: 'Barco', other: 'Transporte',
+    flight: t.transport.flight, car: t.transport.car, train: t.transport.train,
+    bus: t.transport.bus, ferry: t.transport.ferry, other: t.transport.other,
   };
   return (
     <View style={summaryStyles.flightCard}>
@@ -564,6 +572,7 @@ function SummaryGenericCard({ transport }: { transport: Transport }) {
 }
 
 export function TransportSummaryCard({ transports, destinations, startDate, onPress }: Props) {
+  const t = useTranslation();
   const hasTransports = transports && transports.length > 0;
 
   return (
@@ -572,10 +581,10 @@ export function TransportSummaryCard({ transports, destinations, startDate, onPr
       <TouchableOpacity style={summaryStyles.header} onPress={onPress} activeOpacity={0.8}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Ionicons name="airplane-outline" size={15} color="#52B788" />
-          <Text style={summaryStyles.sectionTitle}>TRANSPORTE</Text>
+          <Text style={summaryStyles.sectionTitle}>{t.transport.title.toUpperCase()}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Text style={summaryStyles.addHintText}>Gerenciar</Text>
+          <Text style={summaryStyles.addHintText}>{t.common.manage}</Text>
           <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.3)" />
         </View>
       </TouchableOpacity>
@@ -583,8 +592,8 @@ export function TransportSummaryCard({ transports, destinations, startDate, onPr
       {!hasTransports ? (
         <TouchableOpacity style={summaryStyles.emptyRow} onPress={onPress} activeOpacity={0.8}>
           <Ionicons name="airplane-outline" size={20} color="rgba(245,240,232,0.2)" />
-          <Text style={summaryStyles.emptyText}>Nenhum transporte cadastrado ainda.</Text>
-          <Text style={summaryStyles.emptyCta}>Toque para adicionar →</Text>
+          <Text style={summaryStyles.emptyText}>{t.transport.noTransport}</Text>
+          <Text style={summaryStyles.emptyCta}>{t.transport.tapToConfigure}</Text>
         </TouchableOpacity>
       ) : (
         <View style={{ gap: 10 }}>

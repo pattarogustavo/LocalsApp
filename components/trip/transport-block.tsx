@@ -17,34 +17,31 @@ import type { Transport, TransportMode, CityTransportMode, Destination, Accommod
 import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
 import { DocAttachField } from '@/components/ui/doc-attach-field';
 import { getApiBaseUrl } from '@/constants/oauth';
+import { useTranslation } from '@/hooks/use-translation';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BETWEEN_MODES: Array<{ key: TransportMode; label: string; icon: string }> = [
-  { key: 'flight', label: 'Voo', icon: 'airplane-outline' },
-  { key: 'car', label: 'Carro', icon: 'car-outline' },
-  { key: 'train', label: 'Trem', icon: 'train-outline' },
-  { key: 'bus', label: 'Ônibus', icon: 'bus-outline' },
-  { key: 'ferry', label: 'Barco', icon: 'boat-outline' },
-  { key: 'other', label: 'Outro', icon: 'navigate-outline' },
+const BETWEEN_MODE_KEYS: Array<{ key: TransportMode; icon: string }> = [
+  { key: 'flight', icon: 'airplane-outline' },
+  { key: 'car', icon: 'car-outline' },
+  { key: 'train', icon: 'train-outline' },
+  { key: 'bus', icon: 'bus-outline' },
+  { key: 'ferry', icon: 'boat-outline' },
+  { key: 'other', icon: 'navigate-outline' },
 ];
 
-const CITY_MODES: Array<{ key: CityTransportMode; label: string; icon: string; desc: string }> = [
-  { key: 'public', label: 'Transporte Público', icon: 'subway-outline', desc: 'Metrô, ônibus, tram' },
-  { key: 'uber', label: 'Uber / Táxi', icon: 'car-outline', desc: 'Aplicativo ou táxi' },
-  { key: 'walk', label: 'A pé', icon: 'walk-outline', desc: 'Explorar caminhando' },
-  { key: 'bike', label: 'Bicicleta', icon: 'bicycle-outline', desc: 'Bike compartilhada' },
-  { key: 'car', label: 'Carro Próprio', icon: 'car-sport-outline', desc: 'Carro alugado ou próprio' },
-  { key: 'taxi', label: 'Táxi', icon: 'car-outline', desc: 'Táxi convencional' },
+const CITY_MODE_KEYS: Array<{ key: CityTransportMode; icon: string }> = [
+  { key: 'public', icon: 'subway-outline' },
+  { key: 'uber', icon: 'car-outline' },
+  { key: 'walk', icon: 'walk-outline' },
+  { key: 'bike', icon: 'bicycle-outline' },
+  { key: 'car', icon: 'car-sport-outline' },
+  { key: 'taxi', icon: 'car-outline' },
 ];
 
 const FLIGHT_STATUS_COLORS: Record<string, string> = {
   scheduled: '#52B788', delayed: '#F59E0B', boarding: '#3B82F6',
   departed: '#8B5CF6', arrived: '#10B981', cancelled: '#EF4444',
-};
-const FLIGHT_STATUS_LABELS: Record<string, string> = {
-  scheduled: 'No horário', delayed: 'Atrasado', boarding: 'Embarcando',
-  departed: 'Partiu', arrived: 'Chegou', cancelled: 'Cancelado',
 };
 
 function formatTime(time: string): string {
@@ -142,8 +139,17 @@ function FlightCard({
   onAddBoardingPass: () => void;
   onViewBoardingPass: () => void;
 }) {
+  const t = useTranslation();
   const f = transport.flight!;
   const statusColor = FLIGHT_STATUS_COLORS[f.status || 'scheduled'];
+  const FLIGHT_STATUS_LABELS: Record<string, string> = {
+    scheduled: t.transport.statusScheduled,
+    delayed: t.transport.statusDelayed,
+    boarding: t.transport.statusBoarding,
+    departed: t.transport.statusDeparted,
+    arrived: t.transport.statusArrived,
+    cancelled: t.transport.statusCancelled,
+  };
   const statusLabel = FLIGHT_STATUS_LABELS[f.status || 'scheduled'];
   const hasNotifs = (transport.notificationIds?.length ?? 0) > 0;
 
@@ -308,7 +314,12 @@ function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () =
 }
 
 function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: () => void }) {
-  const modeInfo = BETWEEN_MODES.find((m) => m.key === transport.mode);
+  const t = useTranslation();
+  const BETWEEN_MODES_LOCAL = BETWEEN_MODE_KEYS.map((m) => ({
+    ...m,
+    label: (t.transport as any)[m.key] as string || m.key,
+  }));
+  const modeInfo = BETWEEN_MODES_LOCAL.find((m) => m.key === transport.mode);
   return (
     <View style={styles.transportCard}>
       <View style={styles.cardHeader}>
@@ -410,6 +421,14 @@ function AddTransportModal({
   legs: string[];
   accommodations: Accommodation[];
 }) {
+  const t = useTranslation();
+
+  // Build translated mode arrays
+  const BETWEEN_MODES = BETWEEN_MODE_KEYS.map((m) => ({
+    ...m,
+    label: t.transport[`${m.key}` as 'flight' | 'car' | 'train' | 'bus' | 'ferry' | 'other'] as string || m.key,
+  }));
+
   // Transport type
   const [mode, setMode] = useState<TransportMode>('flight');
   const [selectedLeg, setSelectedLeg] = useState(legs[0] || '');
@@ -1459,17 +1478,22 @@ function BoardingPassModal({
 
 function CityTransportSection({ tripId, cityMode }: { tripId: string; cityMode?: CityTransportMode }) {
   const { updateCityTransportMode } = useTripsStore();
+  const t = useTranslation();
   const selected = cityMode;
+
+  const CITY_MODES = CITY_MODE_KEYS.map((m) => ({
+    ...m,
+    label: (t.transport as any)[`mode${m.key.charAt(0).toUpperCase() + m.key.slice(1)}`] as string || m.key,
+    desc: (t.transport as any)[`mode${m.key.charAt(0).toUpperCase() + m.key.slice(1)}Desc`] as string || '',
+  }));
 
   return (
     <View style={styles.citySection}>
       <View style={styles.citySectionHeader}>
         <Ionicons name="map-outline" size={14} color="#52B788" />
-        <Text style={styles.citySectionTitle}>DENTRO DA CIDADE</Text>
+        <Text style={styles.citySectionTitle}>{t.transport.cityTitle}</Text>
       </View>
-      <Text style={styles.citySectionDesc}>
-        Como você vai se locomover nos destinos? A IA usará essa informação para calcular trajetos no roteiro.
-      </Text>
+      <Text style={styles.citySectionDesc}>{t.transport.cityDesc}</Text>
       <View style={styles.cityModeGrid}>
         {CITY_MODES.map((m) => {
           const isActive = selected === m.key;

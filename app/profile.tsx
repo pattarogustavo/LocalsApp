@@ -1,4 +1,3 @@
-'use client';
 import { useState, useCallback } from 'react';
 import {
   View,
@@ -22,6 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/store/auth';
 import { useSubscription } from '@/hooks/use-subscription';
 import { trpc } from '@/lib/trpc';
+import { useTranslation } from '@/hooks/use-translation';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -34,14 +34,23 @@ const LANGUAGES = [
   { code: 'it', label: 'Italiano', flag: '🇮🇹' },
 ];
 
+const LOCALE_MAP: Record<string, string> = {
+  pt: 'pt-BR',
+  en: 'en-US',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  it: 'it-IT',
+};
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SubscriptionBadge({ status }: { status: string | null }) {
+function SubscriptionBadge({ status, t }: { status: string | null; t: ReturnType<typeof useTranslation> }) {
   const config = {
     trial: { label: 'Trial', bg: 'rgba(82,183,136,0.15)', color: '#52B788', icon: 'time-outline' },
     active: { label: 'Pro', bg: 'rgba(82,183,136,0.15)', color: '#52B788', icon: 'checkmark-circle-outline' },
-    expired: { label: 'Expirado', bg: 'rgba(239,68,68,0.12)', color: '#EF4444', icon: 'close-circle-outline' },
-    cancelled: { label: 'Cancelado', bg: 'rgba(156,163,175,0.15)', color: '#9CA3AF', icon: 'ban-outline' },
+    expired: { label: t.profile.expiredStatus, bg: 'rgba(239,68,68,0.12)', color: '#EF4444', icon: 'close-circle-outline' },
+    cancelled: { label: t.common.cancel, bg: 'rgba(156,163,175,0.15)', color: '#9CA3AF', icon: 'ban-outline' },
   }[status ?? 'expired'] ?? { label: 'Free', bg: 'rgba(156,163,175,0.15)', color: '#9CA3AF', icon: 'person-outline' };
 
   return (
@@ -59,11 +68,13 @@ function LanguageModal({
   current,
   onSelect,
   onClose,
+  t,
 }: {
   visible: boolean;
   current: string;
   onSelect: (code: string) => void;
   onClose: () => void;
+  t: ReturnType<typeof useTranslation>;
 }) {
   const insets = useSafeAreaInsets();
   return (
@@ -71,10 +82,8 @@ function LanguageModal({
       <View style={styles.modalOverlay}>
         <View style={[styles.langSheet, { paddingBottom: insets.bottom + 24 }]}>
           <View style={styles.langHandle} />
-          <Text style={styles.langTitle}>Idioma do Aplicativo</Text>
-          <Text style={styles.langSubtitle}>
-            Selecione o idioma de exibição do Voyage
-          </Text>
+          <Text style={styles.langTitle}>{t.profile.languageTitle}</Text>
+          <Text style={styles.langSubtitle}>{t.profile.languageSubtitle}</Text>
           {LANGUAGES.map((lang) => (
             <TouchableOpacity
               key={lang.code}
@@ -91,7 +100,7 @@ function LanguageModal({
             </TouchableOpacity>
           ))}
           <TouchableOpacity style={styles.langCancelBtn} onPress={onClose}>
-            <Text style={styles.langCancelText}>Cancelar</Text>
+            <Text style={styles.langCancelText}>{t.profile.languageCancel}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -104,9 +113,11 @@ function LanguageModal({
 function ChangePasswordModal({
   visible,
   onClose,
+  t,
 }: {
   visible: boolean;
   onClose: () => void;
+  t: ReturnType<typeof useTranslation>;
 }) {
   const insets = useSafeAreaInsets();
   const [current, setCurrent] = useState('');
@@ -117,25 +128,25 @@ function ChangePasswordModal({
 
   const handleSubmit = async () => {
     if (!current || !next || !confirm) {
-      Alert.alert('Campos obrigatórios', 'Preencha todos os campos.');
+      Alert.alert(t.common.error, t.profile.fillAllFields);
       return;
     }
     if (next !== confirm) {
-      Alert.alert('Senhas diferentes', 'A nova senha e a confirmação não coincidem.');
+      Alert.alert(t.common.error, t.profile.passwordMismatch);
       return;
     }
     if (next.length < 6) {
-      Alert.alert('Senha fraca', 'A nova senha deve ter pelo menos 6 caracteres.');
+      Alert.alert(t.common.error, t.profile.passwordTooShort);
       return;
     }
     setLoading(true);
     try {
       await changePwMutation.mutateAsync({ currentPassword: current, newPassword: next });
-      Alert.alert('Senha alterada', 'Sua senha foi alterada com sucesso.');
+      Alert.alert(t.common.success, t.profile.passwordChanged);
       setCurrent(''); setNext(''); setConfirm('');
       onClose();
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Não foi possível alterar a senha.');
+      Alert.alert(t.common.error, e?.message ?? t.profile.passwordError);
     } finally {
       setLoading(false);
     }
@@ -153,12 +164,12 @@ function ChangePasswordModal({
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.pwHeader}>
-            <Text style={styles.pwTitle}>Alterar Senha</Text>
+            <Text style={styles.pwTitle}>{t.profile.changePasswordTitle}</Text>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close-circle" size={26} color="rgba(245,240,232,0.6)" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.pwLabel}>Senha atual</Text>
+          <Text style={styles.pwLabel}>{t.profile.currentPassword}</Text>
           <TextInput
             style={styles.pwInput}
             value={current}
@@ -167,22 +178,22 @@ function ChangePasswordModal({
             placeholder="••••••••"
             placeholderTextColor="rgba(245,240,232,0.3)"
           />
-          <Text style={styles.pwLabel}>Nova senha</Text>
+          <Text style={styles.pwLabel}>{t.profile.newPassword}</Text>
           <TextInput
             style={styles.pwInput}
             value={next}
             onChangeText={setNext}
             secureTextEntry
-            placeholder="Mínimo 6 caracteres"
+            placeholder={t.profile.newPasswordPlaceholder}
             placeholderTextColor="rgba(245,240,232,0.3)"
           />
-          <Text style={styles.pwLabel}>Confirmar nova senha</Text>
+          <Text style={styles.pwLabel}>{t.profile.confirmPassword}</Text>
           <TextInput
             style={styles.pwInput}
             value={confirm}
             onChangeText={setConfirm}
             secureTextEntry
-            placeholder="Repita a nova senha"
+            placeholder={t.profile.confirmPasswordPlaceholder}
             placeholderTextColor="rgba(245,240,232,0.3)"
           />
           <TouchableOpacity
@@ -193,7 +204,7 @@ function ChangePasswordModal({
             {loading ? (
               <ActivityIndicator color="#0F1F16" />
             ) : (
-              <Text style={styles.pwSaveBtnText}>Salvar nova senha</Text>
+              <Text style={styles.pwSaveBtnText}>{t.profile.savePassword}</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -206,6 +217,7 @@ function ChangePasswordModal({
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const t = useTranslation();
   const { user, logout, updateProfile } = useAuthStore();
   const { status, isTrial, isActive, isExpired, daysLeftInTrial, trialEndsAt, subscriptionExpiresAt, plan } = useSubscription();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -219,6 +231,7 @@ export default function ProfileScreen() {
 
   const currentLang = user?.preferredLanguage ?? 'pt';
   const currentLangLabel = LANGUAGES.find((l) => l.code === currentLang)?.label ?? 'Português';
+  const locale = LOCALE_MAP[currentLang] ?? 'pt-BR';
 
   // ── Avatar picker ──────────────────────────────────────────────────────────
   const handlePickAvatar = useCallback(async () => {
@@ -237,16 +250,16 @@ export default function ProfileScreen() {
       }
     } catch {
       setUploadingAvatar(false);
-      Alert.alert('Erro', 'Não foi possível selecionar a foto.');
+      Alert.alert(t.common.error, 'Não foi possível selecionar a foto.');
     }
-  }, [updateProfile]);
+  }, [updateProfile, t]);
 
   // ── Logout ─────────────────────────────────────────────────────────────────
   const handleLogout = () => {
-    Alert.alert('Sair', 'Deseja realmente sair da sua conta?', [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t.profile.logoutConfirmTitle, t.profile.logoutConfirmMsg, [
+      { text: t.common.cancel, style: 'cancel' },
       {
-        text: 'Sair',
+        text: t.profile.logout,
         style: 'destructive',
         onPress: async () => {
           setLoggingOut(true);
@@ -260,21 +273,21 @@ export default function ProfileScreen() {
   // ── Cancel subscription ────────────────────────────────────────────────────
   const handleCancelSubscription = () => {
     Alert.alert(
-      'Cancelar assinatura',
-      'Você perderá acesso aos recursos Pro ao final do período atual. Confirmar?',
+      t.profile.cancelConfirmTitle,
+      t.profile.cancelConfirmMsg,
       [
-        { text: 'Manter assinatura', style: 'cancel' },
+        { text: t.profile.keepSubscription, style: 'cancel' },
         {
-          text: 'Cancelar assinatura',
+          text: t.profile.cancelSubscription,
           style: 'destructive',
           onPress: async () => {
             setCancelling(true);
             try {
               await cancelMutation.mutateAsync();
               updateSubscription({ subscriptionStatus: 'cancelled' });
-              Alert.alert('Assinatura cancelada', 'Você terá acesso até o final do período atual.');
+              Alert.alert(t.common.success, t.profile.cancelSubscription);
             } catch {
-              Alert.alert('Erro', 'Não foi possível cancelar. Tente novamente.');
+              Alert.alert(t.common.error, t.common.tryAgain);
             } finally {
               setCancelling(false);
             }
@@ -286,7 +299,7 @@ export default function ProfileScreen() {
 
   const formatDate = (date: Date | null) => {
     if (!date) return '—';
-    return date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+    return date.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
   return (
@@ -296,7 +309,7 @@ export default function ProfileScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color="rgba(245,240,232,0.8)" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Perfil & Configurações</Text>
+        <Text style={styles.headerTitle}>{t.profile.title}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -328,8 +341,8 @@ export default function ProfileScreen() {
 
           <View style={styles.userInfo}>
             <View style={styles.userNameRow}>
-              <Text style={styles.userName}>{user?.name ?? 'Viajante'}</Text>
-              <SubscriptionBadge status={status} />
+              <Text style={styles.userName}>{user?.name ?? t.profile.traveler}</Text>
+              <SubscriptionBadge status={status} t={t} />
             </View>
             <Text style={styles.userEmail}>{user?.email ?? '—'}</Text>
           </View>
@@ -337,23 +350,23 @@ export default function ProfileScreen() {
 
         {/* ── Subscription ── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Assinatura</Text>
+          <Text style={styles.sectionTitle}>{t.profile.subscription}</Text>
           <View style={styles.card}>
             {isTrial && (
               <>
                 <View style={styles.cardRow}>
                   <Text style={styles.cardLabel}>Status</Text>
-                  <Text style={styles.cardValue}>Trial gratuito</Text>
+                  <Text style={styles.cardValue}>{t.profile.trialStatus}</Text>
                 </View>
                 <View style={styles.cardRow}>
-                  <Text style={styles.cardLabel}>Dias restantes</Text>
+                  <Text style={styles.cardLabel}>{t.profile.daysLeft}</Text>
                   <Text style={[styles.cardValue, (daysLeftInTrial ?? 0) <= 2 && styles.cardValueWarning]}>
-                    {daysLeftInTrial ?? 0} dia{daysLeftInTrial !== 1 ? 's' : ''}
+                    {daysLeftInTrial ?? 0} {(daysLeftInTrial ?? 0) !== 1 ? t.common.days : t.common.day}
                   </Text>
                 </View>
                 {trialEndsAt && (
                   <View style={styles.cardRow}>
-                    <Text style={styles.cardLabel}>Trial termina em</Text>
+                    <Text style={styles.cardLabel}>{t.profile.trialEnds}</Text>
                     <Text style={styles.cardValue}>{formatDate(trialEndsAt)}</Text>
                   </View>
                 )}
@@ -363,7 +376,7 @@ export default function ProfileScreen() {
                   onPress={() => router.push('/paywall' as any)}
                 >
                   <Ionicons name="sparkles-outline" size={14} color="#0F1F16" />
-                  <Text style={styles.upgradeBtnText}>Fazer upgrade para Pro</Text>
+                  <Text style={styles.upgradeBtnText}>{t.profile.upgradeBtn}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -371,12 +384,12 @@ export default function ProfileScreen() {
             {isActive && (
               <>
                 <View style={styles.cardRow}>
-                  <Text style={styles.cardLabel}>Plano</Text>
-                  <Text style={styles.cardValue}>{plan === 'annual' ? 'Anual' : 'Mensal'}</Text>
+                  <Text style={styles.cardLabel}>{t.profile.plan}</Text>
+                  <Text style={styles.cardValue}>{plan === 'annual' ? t.profile.annual : t.profile.monthly}</Text>
                 </View>
                 {subscriptionExpiresAt && (
                   <View style={styles.cardRow}>
-                    <Text style={styles.cardLabel}>Renova em</Text>
+                    <Text style={styles.cardLabel}>{t.profile.renewsOn}</Text>
                     <Text style={styles.cardValue}>{formatDate(subscriptionExpiresAt)}</Text>
                   </View>
                 )}
@@ -389,7 +402,7 @@ export default function ProfileScreen() {
                   {cancelling ? (
                     <ActivityIndicator size="small" color="#EF4444" />
                   ) : (
-                    <Text style={styles.cancelBtnText}>Cancelar assinatura</Text>
+                    <Text style={styles.cancelBtnText}>{t.profile.cancelSubscription}</Text>
                   )}
                 </TouchableOpacity>
               </>
@@ -399,7 +412,7 @@ export default function ProfileScreen() {
               <>
                 <View style={styles.cardRow}>
                   <Text style={styles.cardLabel}>Status</Text>
-                  <Text style={[styles.cardValue, { color: '#EF4444' }]}>Expirado</Text>
+                  <Text style={[styles.cardValue, { color: '#EF4444' }]}>{t.profile.expiredStatus}</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.upgradeBtn}
@@ -407,7 +420,7 @@ export default function ProfileScreen() {
                   onPress={() => router.push('/paywall' as any)}
                 >
                   <Ionicons name="refresh-outline" size={14} color="#0F1F16" />
-                  <Text style={styles.upgradeBtnText}>Reativar assinatura</Text>
+                  <Text style={styles.upgradeBtnText}>{t.profile.renewBtn}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -416,11 +429,11 @@ export default function ProfileScreen() {
               <>
                 <View style={styles.cardRow}>
                   <Text style={styles.cardLabel}>Status</Text>
-                  <Text style={[styles.cardValue, { color: '#9CA3AF' }]}>Cancelado</Text>
+                  <Text style={[styles.cardValue, { color: '#9CA3AF' }]}>{t.common.cancel}</Text>
                 </View>
                 {subscriptionExpiresAt && (
                   <View style={styles.cardRow}>
-                    <Text style={styles.cardLabel}>Acesso até</Text>
+                    <Text style={styles.cardLabel}>{t.profile.expiresOn}</Text>
                     <Text style={styles.cardValue}>{formatDate(subscriptionExpiresAt)}</Text>
                   </View>
                 )}
@@ -430,7 +443,7 @@ export default function ProfileScreen() {
                   onPress={() => router.push('/paywall' as any)}
                 >
                   <Ionicons name="refresh-outline" size={14} color="#0F1F16" />
-                  <Text style={styles.upgradeBtnText}>Assinar novamente</Text>
+                  <Text style={styles.upgradeBtnText}>{t.profile.upgradeBtn}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -439,7 +452,7 @@ export default function ProfileScreen() {
 
         {/* ── Preferences ── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferências</Text>
+          <Text style={styles.sectionTitle}>{t.profile.preferences}</Text>
           <View style={styles.card}>
             <TouchableOpacity
               style={styles.menuRow}
@@ -449,7 +462,7 @@ export default function ProfileScreen() {
               <View style={styles.menuIconBg}>
                 <Ionicons name="language-outline" size={16} color="rgba(245,240,232,0.6)" />
               </View>
-              <Text style={styles.menuLabel}>Idioma</Text>
+              <Text style={styles.menuLabel}>{t.profile.language}</Text>
               <Text style={styles.menuValue}>{currentLangLabel}</Text>
               <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
             </TouchableOpacity>
@@ -458,7 +471,7 @@ export default function ProfileScreen() {
 
         {/* ── Account ── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Conta</Text>
+          <Text style={styles.sectionTitle}>{t.profile.account}</Text>
           <View style={styles.card}>
             <TouchableOpacity
               style={[styles.menuRow, styles.menuRowBorder]}
@@ -468,19 +481,19 @@ export default function ProfileScreen() {
               <View style={styles.menuIconBg}>
                 <Ionicons name="lock-closed-outline" size={16} color="rgba(245,240,232,0.6)" />
               </View>
-              <Text style={styles.menuLabel}>Alterar senha</Text>
+              <Text style={styles.menuLabel}>{t.profile.changePassword}</Text>
               <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.menuRow}
               activeOpacity={0.7}
-              onPress={() => Alert.alert('Privacidade', 'Seus dados são armazenados localmente no dispositivo e não são compartilhados com terceiros sem sua autorização.')}
+              onPress={() => Alert.alert(t.profile.privacy, t.profile.privacyDesc)}
             >
               <View style={styles.menuIconBg}>
                 <Ionicons name="shield-checkmark-outline" size={16} color="rgba(245,240,232,0.6)" />
               </View>
-              <Text style={styles.menuLabel}>Privacidade & Segurança</Text>
+              <Text style={styles.menuLabel}>{t.profile.privacy}</Text>
               <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
             </TouchableOpacity>
           </View>
@@ -488,24 +501,24 @@ export default function ProfileScreen() {
 
         {/* ── Support ── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Suporte</Text>
+          <Text style={styles.sectionTitle}>{t.profile.support}</Text>
           <View style={styles.card}>
             <TouchableOpacity
               style={[styles.menuRow, styles.menuRowBorder]}
               activeOpacity={0.7}
               onPress={() => Alert.alert(
-                'Ajuda & FAQ',
-                'Para dúvidas frequentes, acesse nossa central de ajuda ou entre em contato pelo suporte.',
+                t.profile.help,
+                t.profile.notificationsDesc,
                 [
-                  { text: 'Fechar', style: 'cancel' },
-                  { text: 'Abrir central de ajuda', onPress: () => Linking.openURL('https://voyage.app/help') },
+                  { text: t.common.close, style: 'cancel' },
+                  { text: t.profile.help, onPress: () => Linking.openURL('https://voyage.app/help') },
                 ]
               )}
             >
               <View style={styles.menuIconBg}>
                 <Ionicons name="help-circle-outline" size={16} color="rgba(245,240,232,0.6)" />
               </View>
-              <Text style={styles.menuLabel}>Ajuda & FAQ</Text>
+              <Text style={styles.menuLabel}>{t.profile.help}</Text>
               <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
             </TouchableOpacity>
 
@@ -517,7 +530,7 @@ export default function ProfileScreen() {
               <View style={styles.menuIconBg}>
                 <Ionicons name="chatbubble-outline" size={16} color="rgba(245,240,232,0.6)" />
               </View>
-              <Text style={styles.menuLabel}>Falar com suporte</Text>
+              <Text style={styles.menuLabel}>{t.profile.contact}</Text>
               <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
             </TouchableOpacity>
 
@@ -534,7 +547,7 @@ export default function ProfileScreen() {
               <View style={styles.menuIconBg}>
                 <Ionicons name="star-outline" size={16} color="rgba(245,240,232,0.6)" />
               </View>
-              <Text style={styles.menuLabel}>Avaliar o Voyage</Text>
+              <Text style={styles.menuLabel}>{t.profile.rate}</Text>
               <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
             </TouchableOpacity>
           </View>
@@ -552,7 +565,7 @@ export default function ProfileScreen() {
           ) : (
             <>
               <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-              <Text style={styles.logoutText}>Sair da conta</Text>
+              <Text style={styles.logoutText}>{t.profile.logout}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -566,10 +579,12 @@ export default function ProfileScreen() {
         current={currentLang}
         onSelect={(code) => updateProfile({ preferredLanguage: code })}
         onClose={() => setShowLangModal(false)}
+        t={t}
       />
       <ChangePasswordModal
         visible={showPwModal}
         onClose={() => setShowPwModal(false)}
+        t={t}
       />
     </View>
   );
@@ -580,124 +595,221 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0F1F16' },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(245,240,232,0.06)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(245,240,232,0.08)',
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 16, fontWeight: '600', color: '#F5F0E8' },
-  scroll: { paddingHorizontal: 16, paddingTop: 20 },
+  headerTitle: { fontSize: 17, fontWeight: '600', color: '#F5F0E8', letterSpacing: 0.2 },
+  scroll: { padding: 20, gap: 20 },
 
   // User card
-  userCard: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 28, paddingHorizontal: 4 },
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: 'rgba(245,240,232,0.04)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 0.5,
+    borderColor: 'rgba(245,240,232,0.08)',
+  },
   avatarWrapper: { position: 'relative' },
   avatarCircle: {
-    width: 64, height: 64, borderRadius: 32,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: 'rgba(82,183,136,0.15)',
-    borderWidth: 2, borderColor: 'rgba(82,183,136,0.3)',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  avatarImage: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: 'rgba(82,183,136,0.3)' },
-  avatarText: { fontSize: 26, fontWeight: '700', color: '#52B788' },
+  avatarImage: { width: 64, height: 64, borderRadius: 32 },
+  avatarText: { fontSize: 24, fontWeight: '700', color: '#52B788' },
   avatarEditBadge: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 22, height: 22, borderRadius: 11,
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#52B788',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#0F1F16',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#0F1F16',
   },
   userInfo: { flex: 1, gap: 4 },
   userNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  userName: { fontSize: 18, fontWeight: '700', color: '#F5F0E8' },
-  userEmail: { fontSize: 13, color: 'rgba(245,240,232,0.45)' },
+  userName: { fontSize: 17, fontWeight: '700', color: '#F5F0E8' },
+  userEmail: { fontSize: 13, color: 'rgba(245,240,232,0.5)' },
 
   // Badge
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  badgeText: { fontSize: 11, fontWeight: '700' },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  badgeText: { fontSize: 11, fontWeight: '600' },
 
   // Section
-  section: { marginBottom: 20 },
-  sectionTitle: {
-    fontSize: 11, fontWeight: '700', color: 'rgba(245,240,232,0.35)',
-    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10, paddingHorizontal: 4,
-  },
-  card: {
-    backgroundColor: 'rgba(245,240,232,0.05)', borderRadius: 14,
-    borderWidth: 1, borderColor: 'rgba(245,240,232,0.08)',
-    overflow: 'hidden', paddingHorizontal: 16, paddingVertical: 12, gap: 10,
-  },
-  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardLabel: { fontSize: 14, color: 'rgba(245,240,232,0.5)' },
-  cardValue: { fontSize: 14, fontWeight: '600', color: '#F5F0E8' },
-  cardValueWarning: { color: '#F59E0B' },
+  section: { gap: 10 },
+  sectionTitle: { fontSize: 13, fontWeight: '600', color: 'rgba(245,240,232,0.45)', letterSpacing: 0.8, textTransform: 'uppercase' },
 
-  // Subscription buttons
-  upgradeBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: '#52B788', borderRadius: 10, paddingVertical: 12, marginTop: 4,
+  // Card
+  card: {
+    backgroundColor: 'rgba(245,240,232,0.04)',
+    borderRadius: 14,
+    borderWidth: 0.5,
+    borderColor: 'rgba(245,240,232,0.08)',
+    overflow: 'hidden',
   },
-  upgradeBtnText: { color: '#0F1F16', fontSize: 14, fontWeight: '700' },
-  cancelBtn: { alignItems: 'center', paddingVertical: 10, marginTop: 4 },
-  cancelBtnText: { fontSize: 13, color: '#EF4444', textDecorationLine: 'underline' },
+  cardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(245,240,232,0.06)',
+  },
+  cardLabel: { fontSize: 14, color: 'rgba(245,240,232,0.55)' },
+  cardValue: { fontSize: 14, fontWeight: '500', color: '#F5F0E8' },
+  cardValueWarning: { color: '#EF4444' },
+
+  // Upgrade / Cancel buttons
+  upgradeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    margin: 12,
+    backgroundColor: '#52B788',
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  upgradeBtnText: { fontSize: 14, fontWeight: '700', color: '#0F1F16' },
+  cancelBtn: {
+    alignItems: 'center',
+    margin: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  cancelBtnText: { fontSize: 14, fontWeight: '600', color: '#EF4444' },
 
   // Menu rows
-  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
-  menuRowBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(245,240,232,0.06)' },
-  menuIconBg: {
-    width: 32, height: 32, borderRadius: 8,
-    backgroundColor: 'rgba(245,240,232,0.06)',
-    alignItems: 'center', justifyContent: 'center',
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
   },
-  menuLabel: { flex: 1, fontSize: 14, color: 'rgba(245,240,232,0.8)', fontWeight: '500' },
+  menuRowBorder: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(245,240,232,0.06)',
+  },
+  menuIconBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(245,240,232,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuLabel: { flex: 1, fontSize: 15, color: '#F5F0E8' },
   menuValue: { fontSize: 13, color: 'rgba(245,240,232,0.45)', marginRight: 4 },
 
   // Logout
   logoutBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 14, paddingVertical: 14,
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.15)', marginTop: 8, marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderRadius: 14,
+    paddingVertical: 16,
+    borderWidth: 0.5,
+    borderColor: 'rgba(239,68,68,0.2)',
   },
-  logoutText: { fontSize: 15, fontWeight: '600', color: '#EF4444' },
-  versionText: { textAlign: 'center', fontSize: 11, color: 'rgba(245,240,232,0.2)', marginBottom: 8 },
+  logoutText: { fontSize: 16, fontWeight: '600', color: '#EF4444' },
+  versionText: { textAlign: 'center', fontSize: 12, color: 'rgba(245,240,232,0.2)', marginTop: 4 },
 
   // Language modal
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
   langSheet: {
-    backgroundColor: '#1A2E22', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 20, paddingTop: 16,
+    backgroundColor: '#1A2E22',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 16,
   },
   langHandle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center', marginBottom: 16,
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(245,240,232,0.2)',
+    alignSelf: 'center',
+    marginBottom: 20,
   },
-  langTitle: { fontSize: 18, fontWeight: '700', color: '#F5F0E8', marginBottom: 4 },
-  langSubtitle: { fontSize: 13, color: 'rgba(245,240,232,0.45)', marginBottom: 16 },
+  langTitle: { fontSize: 18, fontWeight: '700', color: '#F5F0E8', marginBottom: 6 },
+  langSubtitle: { fontSize: 13, color: 'rgba(245,240,232,0.5)', marginBottom: 20 },
   langRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 12, paddingHorizontal: 4,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 4,
+    gap: 12,
   },
-  langRowActive: { backgroundColor: 'rgba(82,183,136,0.08)', borderRadius: 10, paddingHorizontal: 8 },
+  langRowActive: { backgroundColor: 'rgba(82,183,136,0.12)' },
   langFlag: { fontSize: 22 },
-  langLabel: { flex: 1, fontSize: 15, color: 'rgba(245,240,232,0.7)' },
+  langLabel: { flex: 1, fontSize: 16, color: 'rgba(245,240,232,0.7)' },
   langLabelActive: { color: '#F5F0E8', fontWeight: '600' },
-  langCancelBtn: { alignItems: 'center', paddingVertical: 16, marginTop: 8 },
-  langCancelText: { fontSize: 15, color: 'rgba(245,240,232,0.4)', fontWeight: '500' },
+  langCancelBtn: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(245,240,232,0.08)',
+  },
+  langCancelText: { fontSize: 16, color: 'rgba(245,240,232,0.5)' },
 
   // Change password modal
-  pwSheet: { backgroundColor: '#1A2E22', borderTopLeftRadius: 24, borderTopRightRadius: 24 },
-  pwHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  pwSheet: {
+    backgroundColor: '#1A2E22',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+  },
+  pwHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   pwTitle: { fontSize: 20, fontWeight: '700', color: '#F5F0E8' },
-  pwLabel: { fontSize: 12, fontWeight: '700', color: 'rgba(245,240,232,0.5)', marginBottom: 6, letterSpacing: 0.5 },
+  pwLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(245,240,232,0.6)', marginBottom: 8, marginTop: 16 },
   pwInput: {
-    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12,
-    color: '#F5F0E8', fontSize: 15, marginBottom: 14,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(245,240,232,0.06)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#F5F0E8',
+    borderWidth: 0.5,
+    borderColor: 'rgba(245,240,232,0.12)',
   },
   pwSaveBtn: {
-    backgroundColor: '#52B788', borderRadius: 14,
-    paddingVertical: 14, alignItems: 'center', marginTop: 8,
+    backgroundColor: '#52B788',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 28,
   },
-  pwSaveBtnText: { color: '#0F1F16', fontWeight: '700', fontSize: 15 },
+  pwSaveBtnText: { fontSize: 16, fontWeight: '700', color: '#0F1F16' },
 });

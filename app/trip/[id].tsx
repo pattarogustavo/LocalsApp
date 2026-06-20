@@ -35,6 +35,7 @@ import { useTripsStore as useTripsStoreForDuration } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
 import { ActivityIndicator } from 'react-native';
 import { getCountryFlag } from '@/utils/trip-helpers';
+import { useTranslation } from '@/hooks/use-translation';
 
 const { height } = Dimensions.get('window');
 const HERO_HEIGHT = height * 0.38;
@@ -184,14 +185,7 @@ function getHeroImage(trip: any): string {
 
 type TabKey = 'geral' | 'transporte' | 'hospedagem' | 'lugares' | 'fotos' | 'historia';
 
-const TABS: { key: TabKey; label: string; icon: string }[] = [
-  { key: 'geral', label: 'Geral', icon: 'location' },
-  { key: 'transporte', label: 'Transporte', icon: 'airplane' },
-  { key: 'hospedagem', label: 'Hospedagem', icon: 'bed' },
-  { key: 'lugares', label: 'Lugares', icon: 'map' },
-  { key: 'fotos', label: 'Fotos', icon: 'images' },
-  { key: 'historia', label: 'Informações', icon: 'information-circle' },
-];
+// TABS are now built dynamically inside the component using translations
 
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -499,9 +493,19 @@ export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const t = useTranslation();
   const { getTripById, deleteTrip, updateStartDate, updateCoverImage, updateTrip } = useTripsStore();
   const trip = getTripById(id);
   const [activeTab, setActiveTab] = useState<TabKey>('geral');
+
+  const TABS: { key: TabKey; label: string; icon: string }[] = [
+    { key: 'geral', label: t.trip.tabs.overview, icon: 'location' },
+    { key: 'transporte', label: t.transport.title, icon: 'airplane' },
+    { key: 'hospedagem', label: t.accommodation.title, icon: 'bed' },
+    { key: 'lugares', label: t.places.title, icon: 'map' },
+    { key: 'fotos', label: t.photos.title, icon: 'images' },
+    { key: 'historia', label: 'Info', icon: 'information-circle' },
+  ];
   const [showEditDate, setShowEditDate] = useState(false);
   const [showEditDests, setShowEditDests] = useState(false);
 
@@ -523,9 +527,9 @@ export default function TripDetailScreen() {
   if (!trip) {
     return (
       <View style={{ flex: 1, backgroundColor: '#F5F0E8', alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: '#1C3D2E', fontSize: 18 }}>Viagem não encontrada</Text>
+        <Text style={{ color: '#1C3D2E', fontSize: 18 }}>{t.common.noResults}</Text>
         <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 16 }}>
-          <Text style={{ color: '#3D5A47', fontSize: 16 }}>Voltar</Text>
+          <Text style={{ color: '#3D5A47', fontSize: 16 }}>{t.common.back}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -537,12 +541,12 @@ export default function TripDetailScreen() {
 
   const handleDelete = () => {
     Alert.alert(
-      'Excluir Viagem',
-      `Tem certeza que deseja excluir "${tripName}"?`,
+      t.trip.deleteTrip,
+      t.trip.deleteTripConfirm,
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t.common.cancel, style: 'cancel' },
         {
-          text: 'Excluir',
+          text: t.common.delete,
           style: 'destructive',
           onPress: async () => {
             await deleteTrip(trip.id);
@@ -628,7 +632,7 @@ export default function TripDetailScreen() {
               style={styles.actionBtn}
             >
               <Ionicons name="calendar-outline" size={14} color="#A8D5B5" />
-              <Text style={styles.actionBtnText}>Data</Text>
+              <Text style={styles.actionBtnText}>{t.trip.overview.dates}</Text>
               <Text style={styles.actionBtnValue} numberOfLines={1}>{formatDateDisplay(trip.startDate)}</Text>
             </TouchableOpacity>
 
@@ -639,7 +643,7 @@ export default function TripDetailScreen() {
               style={styles.actionBtn}
             >
               <Ionicons name="location-outline" size={14} color="#A8D5B5" />
-              <Text style={styles.actionBtnText}>Destinos</Text>
+              <Text style={styles.actionBtnText}>{t.trip.overview.destination}</Text>
               <Text style={styles.actionBtnValue} numberOfLines={1}>
                 {trip.destinations.map((d) => d.name).join(', ')}
               </Text>
@@ -795,6 +799,7 @@ function FotosTab({ trip }: { trip: any }) {
 }
 
 function TransportTab({ trip }: { trip: any }) {
+  const t = useTranslation();
   return (
     <View>
       <TransportBlock
@@ -807,8 +812,8 @@ function TransportTab({ trip }: { trip: any }) {
       {trip.transport.length === 0 && (
         <View style={styles.emptyState}>
           <Ionicons name="airplane-outline" size={48} color="rgba(245,240,232,0.2)" />
-          <Text style={styles.emptyStateTitle}>Nenhum transporte adicionado</Text>
-          <Text style={styles.emptyStateSubtitle}>Adicione voos, carros ou trens à sua viagem</Text>
+          <Text style={styles.emptyStateTitle}>{t.transport.noTransport}</Text>
+          <Text style={styles.emptyStateSubtitle}>{t.transport.addTransport}</Text>
         </View>
       )}
     </View>

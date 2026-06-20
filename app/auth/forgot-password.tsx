@@ -14,9 +14,11 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
+import { useTranslation } from '@/hooks/use-translation';
 
 export default function ForgotPasswordScreen() {
   const insets = useSafeAreaInsets();
+  const t = useTranslation();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -25,7 +27,7 @@ export default function ForgotPasswordScreen() {
 
   const handleSubmit = async () => {
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      Alert.alert(t.common.error, t.auth.forgotPassword.fillEmail);
       return;
     }
     setLoading(true);
@@ -33,7 +35,7 @@ export default function ForgotPasswordScreen() {
       await forgotMutation.mutateAsync({ email });
       setSent(true);
     } catch {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert(t.common.error, t.common.tryAgain);
     } finally {
       setLoading(false);
     }
@@ -56,31 +58,29 @@ export default function ForgotPasswordScreen() {
             <View style={styles.successIcon}>
               <Ionicons name="mail-outline" size={36} color="#52B788" />
             </View>
-            <Text style={styles.title}>Check your inbox</Text>
+            <Text style={styles.title}>{t.auth.forgotPassword.successTitle}</Text>
             <Text style={styles.successText}>
-              If an account exists for <Text style={styles.emailHighlight}>{email}</Text>, you'll receive a password reset link shortly.
+              {t.auth.forgotPassword.successMsg} <Text style={styles.emailHighlight}>{email}</Text>
             </Text>
             <TouchableOpacity
               style={styles.submitBtn}
               activeOpacity={0.85}
               onPress={() => router.replace('/auth/login' as any)}
             >
-              <Text style={styles.submitBtnText}>Back to login</Text>
+              <Text style={styles.submitBtnText}>{t.auth.forgotPassword.backToLogin}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           /* Form state */
           <View style={styles.formContainer}>
-            <Text style={styles.title}>Reset password</Text>
-            <Text style={styles.subtitle}>
-              Enter your email address and we'll send you a link to reset your password.
-            </Text>
+            <Text style={styles.title}>{t.auth.forgotPassword.title}</Text>
+            <Text style={styles.subtitle}>{t.auth.forgotPassword.subtitle}</Text>
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email address</Text>
+              <Text style={styles.label}>{t.auth.forgotPassword.email}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="you@example.com"
+                placeholder={t.auth.forgotPassword.emailPlaceholder}
                 placeholderTextColor="rgba(245,240,232,0.25)"
                 value={email}
                 onChangeText={setEmail}
@@ -102,14 +102,14 @@ export default function ForgotPasswordScreen() {
               {loading ? (
                 <ActivityIndicator color="#0F1F16" />
               ) : (
-                <Text style={styles.submitBtnText}>Send reset link</Text>
+                <Text style={styles.submitBtnText}>{t.auth.forgotPassword.sendBtn}</Text>
               )}
             </TouchableOpacity>
 
             <View style={styles.loginRow}>
-              <Text style={styles.loginText}>Remember your password? </Text>
+              <Text style={styles.loginText}>{t.auth.login.noAccount} </Text>
               <TouchableOpacity onPress={() => router.replace('/auth/login' as any)}>
-                <Text style={styles.loginLink}>Log in</Text>
+                <Text style={styles.loginLink}>{t.auth.forgotPassword.backToLogin}</Text>
               </TouchableOpacity>
             </View>
           </View>
