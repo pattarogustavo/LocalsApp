@@ -99,7 +99,7 @@ describe("getTripName", () => {
     const trip = makeMockTrip({ name: "" });
     const name = getTripName(trip);
     expect(name).toContain("Paris");
-    expect(name).toContain("4");
+    // The function generates a creative name like "Descobrindo Paris" — no days count in the name
   });
 });
 

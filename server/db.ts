@@ -1,6 +1,6 @@
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, InsertPasswordResetToken, passwordResetTokens, users, trips, InsertTripRow } from "../drizzle/schema";
+import { InsertUser, InsertPasswordResetToken, passwordResetTokens, users, trips, tripShares, InsertTripRow } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -214,4 +214,79 @@ export async function deleteTripByClientId(userId: number, clientId: string) {
   if (found) {
     await db.delete(trips).where(eq(trips.id, found.id));
   }
+}
+
+// ─── Trip Sharing helpers ─────────────────────────────────────────────────────
+
+export async function createTripShare(data: {
+  tripId: number;
+  ownerId: number;
+  inviteeEmail: string;
+  role: "viewer" | "editor";
+  token: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(tripShares).values({ ...data, status: "pending" });
+}
+
+export async function getTripSharesByTripId(tripId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(tripShares).where(eq(tripShares.tripId, tripId));
+}
+
+export async function getTripSharesByInviteeEmail(email: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(tripShares).where(eq(tripShares.inviteeEmail, email));
+}
+
+export async function getTripShareByToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(tripShares).where(eq(tripShares.token, token)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function acceptTripShare(token: string, inviteeUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(tripShares)
+    .set({ status: "accepted", inviteeUserId, updatedAt: new Date() })
+    .where(eq(tripShares.token, token));
+}
+
+export async function revokeTripShare(shareId: number, ownerId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(tripShares)
+    .set({ status: "revoked", updatedAt: new Date() })
+    .where(eq(tripShares.id, shareId));
+}
+
+export async function getSharedTripsForUser(userId: number, email: string) {
+  const db = await getDb();
+  if (!db) return [];
+  // Get accepted shares for this user by userId or email
+  const sharesByUserId = await db.select().from(tripShares)
+    .where(eq(tripShares.inviteeUserId, userId));
+  const sharesByEmail = await db.select().from(tripShares)
+    .where(eq(tripShares.inviteeEmail, email));
+  // Merge unique shares
+  const allShares = [...sharesByUserId, ...sharesByEmail];
+  const seen = new Set<number>();
+  const uniqueShares = allShares.filter((s) => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return s.status === "accepted";
+  });
+  if (uniqueShares.length === 0) return [];
+  // Fetch the actual trip data for each share
+  const tripIds = uniqueShares.map((s) => s.tripId);
+  const sharedTrips = await db.select().from(trips).where(inArray(trips.id, tripIds));
+  return sharedTrips.map((trip) => {
+    const share = uniqueShares.find((s) => s.tripId === trip.id)!;
+    return { ...trip, shareRole: share.role };
+  });
 }

@@ -26,6 +26,7 @@ import { TrialBanner } from '@/components/trial-banner';
 import { useAuthStore } from '@/store/auth';
 import { useSubscription } from '@/hooks/use-subscription';
 import { useTranslation } from '@/hooks/use-translation';
+import { trpc } from '@/lib/trpc';
 
 const { width } = Dimensions.get('window');
 
@@ -109,6 +110,12 @@ export default function HomeScreen() {
   const handleTripCreated = (trip: Trip) => {
     router.push(`/trip/${trip.id}`);
   };
+
+  // Shared trips (trips other users invited me to)
+  const sharedTripsQuery = trpc.sharing.listSharedWithMe.useQuery(undefined, {
+    enabled: !!user,
+    staleTime: 60_000,
+  });
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F5F0E8' }}>
@@ -203,6 +210,55 @@ export default function HomeScreen() {
               {t.home.past}
             </Text>
             <TripCardStacked trips={pastTrips} onPressTrip={handleTripPress} />
+          </View>
+        )}
+
+        {/* Viagens Compartilhadas comigo */}
+        {sharedTripsQuery.data && sharedTripsQuery.data.length > 0 && (
+          <View className="mb-6">
+            <Text className="text-muted text-xs tracking-widest font-semibold uppercase px-6 mb-3">
+              Compartilhadas Comigo
+            </Text>
+            {sharedTripsQuery.data.map((s) => {
+              let tripData: Trip | null = null;
+              try { tripData = JSON.parse(s.tripData); } catch {}
+              if (!tripData) return null;
+              return (
+                <TouchableOpacity
+                  key={s.shareId}
+                  onPress={() => router.push(`/trip/${tripData!.id}`)}
+                  style={{
+                    marginHorizontal: 16,
+                    marginBottom: 10,
+                    borderRadius: 16,
+                    overflow: 'hidden',
+                    backgroundColor: '#fff',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 14,
+                    gap: 12,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.06,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
+                >
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#1C3D2E18', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="airplane-outline" size={22} color="#1C3D2E" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#1C3D2E' }} numberOfLines={1}>
+                      {tripData.destinations?.[0]?.name ?? 'Viagem'}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: '#687076', marginTop: 2 }}>
+                      {s.shareRole === 'editor' ? '✏️ Editor' : '👁 Visualizador'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#9BA1A6" />
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 

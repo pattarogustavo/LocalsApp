@@ -13,6 +13,7 @@ const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
 const AERODATABOX_HOST = 'aerodatabox.p.rapidapi.com';
 const GOOGLE_DIRECTIONS_KEY = process.env.GOOGLE_DIRECTIONS_API_KEY || "";
+const OPENWEATHER_KEY = process.env.OPENWEATHERMAP_API_KEY || "";
 
 // ─── Google Directions helper ─────────────────────────────────────────────────
 
@@ -1136,6 +1137,135 @@ Cada lugar deve ter: { name (string), category (attraction|restaurant|cafe|museu
         }
       }),
     }),
+
+  // ─── Weather ─────────────────────────────────────────────────────────────────────────────────────
+  weather: router({
+    /**
+     * Get weather forecast for a specific location and date range.
+     * Uses OpenWeatherMap 5-day/3-hour forecast API.
+     * Returns one entry per day with min/max temp, description, icon, and rain probability.
+     */
+    forecast: publicProcedure
+      .input(z.object({
+        lat: z.number(),
+        lon: z.number(),
+        days: z.number().min(1).max(5).default(5),
+      }))
+      .query(async ({ input }) => {
+        if (!OPENWEATHER_KEY) {
+          return { days: [], available: false };
+        }
+        try {
+          const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${input.lat}&lon=${input.lon}&appid=${OPENWEATHER_KEY}&units=metric&cnt=40`;
+          const res = await fetch(url);
+          if (!res.ok) return { days: [], available: false };
+          const json = (await res.json()) as any;
+          // Group by day
+          const byDay: Record<string, any[]> = {};
+          for (const item of json.list ?? []) {
+            const day = item.dt_txt.split(' ')[0];
+            if (!byDay[day]) byDay[day] = [];
+            byDay[day].push(item);
+          }
+          const days = Object.entries(byDay)
+            .slice(0, input.days)
+            .map(([date, items]) => {
+              const temps = items.map((i: any) => i.main.temp);
+              const rains = items.map((i: any) => i.pop ?? 0);
+              // Pick midday entry or first available
+              const midday = items.find((i: any) => i.dt_txt.includes('12:00')) ?? items[0];
+              return {
+                date,
+                tempMin: Math.round(Math.min(...temps)),
+                tempMax: Math.round(Math.max(...temps)),
+                description: midday.weather[0].description as string,
+                icon: midday.weather[0].icon as string,
+                rainProbability: Math.round(Math.max(...rains) * 100),
+              };
+            });
+          return { days, available: true };
+        } catch {
+          return { days: [], available: false };
+        }
+      }),
+  }),
+
+  // ─── Trip Sharing ─────────────────────────────────────────────────────────────────────────────────
+  sharing: router({
+    /** Invite a traveler by email to access a trip */
+    invite: protectedProcedure
+      .input(z.object({
+        tripClientId: z.string().min(1),
+        email: z.string().email(),
+        role: z.enum(['viewer', 'editor']).default('viewer'),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Check the trip belongs to the inviting user
+        const trips = await db.getUserTrips(ctx.user.id);
+        const trip = trips.find((t) => t.clientId === input.tripClientId);
+        if (!trip) throw new Error('Trip not found or not owned by you');
+        // Create the share record
+        const token = crypto.randomBytes(24).toString('hex');
+        await db.createTripShare({
+          tripId: trip.id,
+          ownerId: ctx.user.id,
+          inviteeEmail: input.email,
+          role: input.role,
+          token,
+        });
+        return { ok: true, token };
+      }),
+
+    /** Accept a trip share invite via token */
+    accept: protectedProcedure
+      .input(z.object({ token: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const share = await db.getTripShareByToken(input.token);
+        if (!share) throw new Error('Invite not found or already used');
+        // Accept the share
+        await db.acceptTripShare(share.token, ctx.user.id);
+        // Get the trip clientId
+        const userTrips = await db.getUserTrips(share.ownerId);
+        const trip = userTrips.find((t) => t.id === share.tripId);
+        return { ok: true, tripClientId: trip?.clientId ?? '' };
+      }),
+
+    /** List all trips shared with the current user */
+    listSharedWithMe: protectedProcedure.query(async ({ ctx }) => {
+      const email = ctx.user.email ?? '';
+      const sharedTrips = await db.getSharedTripsForUser(ctx.user.id, email);
+      return sharedTrips.map((s) => ({
+        shareId: s.id,
+        tripClientId: s.clientId ?? '',
+        tripData: s.data ?? '',
+        shareRole: (s as { shareRole?: string }).shareRole ?? 'viewer',
+      }));
+    }),
+
+    /** List all shares the current user has sent (as owner) */
+    listSentByMe: protectedProcedure
+      .input(z.object({ tripClientId: z.string().min(1) }))
+      .query(async ({ ctx, input }) => {
+        const trips = await db.getUserTrips(ctx.user.id);
+        const trip = trips.find((t) => t.clientId === input.tripClientId);
+        if (!trip) return [];
+        const shares = await db.getTripSharesByTripId(trip.id);
+        return shares.map((s) => ({
+          shareId: s.id,
+          inviteeEmail: s.inviteeEmail,
+          role: s.role,
+          status: s.status,
+        }));
+      }),
+
+    /** Revoke a share */
+    revoke: protectedProcedure
+      .input(z.object({ shareId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.revokeTripShare(ctx.user.id, input.shareId);
+        return { ok: true };
+      }),
+  }),
 
   // ─── Cloud Trip Sync ──────────────────────────────────────────────────────────────────────────────
   cloudTrips: router({

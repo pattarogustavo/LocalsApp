@@ -599,6 +599,9 @@ export default function TripDetailScreen() {
                   <TouchableOpacity onPress={handlePickCoverPhoto} style={[styles.heroBtn, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
                     <Ionicons name="camera-outline" size={16} color="#fff" />
                   </TouchableOpacity>
+                  <TouchableOpacity onPress={() => router.push({ pathname: '/trip/share', params: { tripId: trip.id } } as any)} style={[styles.heroBtn, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
+                    <Ionicons name="person-add-outline" size={16} color="#fff" />
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={handleDelete} style={[styles.heroBtn, { backgroundColor: 'rgba(192,57,43,0.5)' }]}>
                     <Ionicons name="trash-outline" size={16} color="#fff" />
                   </TouchableOpacity>

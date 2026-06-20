@@ -984,6 +984,14 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const generateItinerary = trpc.ai.generateItinerary.useMutation();
   const generateFromScratch = trpc.ai.generateFromScratch.useMutation();
 
+  // ── Weather forecast ────────────────────────────────────────────────────────
+  const destLat = trip.destinations?.[0]?.lat;
+  const destLng = trip.destinations?.[0]?.lng;
+  const weatherQuery = trpc.weather.forecast.useQuery(
+    { lat: destLat ?? 0, lon: destLng ?? 0, days: Math.min(trip.totalDays || 1, 5) },
+    { enabled: !!(destLat && destLng), staleTime: 1000 * 60 * 30 }
+  );
+
   const hasItinerary = trip.itinerary && trip.itinerary.length > 0;
   const totalDays = trip.totalDays || 1;
 
@@ -1209,6 +1217,35 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           onSelect={setSelectedDay}
           startDate={trip.startDate}
         />
+
+        {/* ── Weather strip ── */}
+        {weatherQuery.data?.available && weatherQuery.data.days.length > 0 && (() => {
+          const currentDay = displayDays[selectedDay];
+          const dayDate = currentDay?.date ?? (() => {
+            const d = new Date(trip.startDate);
+            d.setDate(d.getDate() + selectedDay);
+            return d.toISOString().split('T')[0];
+          })();
+          const weatherDay = weatherQuery.data.days.find((d: any) => d.date === dayDate) ?? weatherQuery.data.days[Math.min(selectedDay, weatherQuery.data.days.length - 1)];
+          if (!weatherDay) return null;
+          return (
+            <View style={styles.weatherStrip}>
+              <Image
+                source={{ uri: `https://openweathermap.org/img/wn/${weatherDay.icon}@2x.png` }}
+                style={styles.weatherIcon}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.weatherDesc} numberOfLines={1}>
+                  {weatherDay.description.charAt(0).toUpperCase() + weatherDay.description.slice(1)}
+                </Text>
+                <Text style={styles.weatherTemp}>
+                  {weatherDay.tempMin}° – {weatherDay.tempMax}°C
+                  {weatherDay.rainProbability > 0 ? `  💧 ${weatherDay.rainProbability}%` : ''}
+                </Text>
+              </View>
+            </View>
+          );
+        })()}
 
         <DayView
           key={`day-${selectedDay}-${(displayDays[selectedDay] as any)?.stops?.length ?? 0}-${displayDays[selectedDay]?.date ?? ''}`}
@@ -1783,6 +1820,12 @@ const styles = StyleSheet.create({
   daySummaryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4, marginBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(82,183,136,0.1)' },
   daySummaryStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   daySummaryStatText: { fontSize: 12, color: 'rgba(245,240,232,0.5)', fontWeight: '500' },
+
+  // Weather strip
+  weatherStrip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(82,183,136,0.08)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(82,183,136,0.15)' },
+  weatherIcon: { width: 40, height: 40 },
+  weatherDesc: { fontSize: 13, color: 'rgba(245,240,232,0.8)', fontWeight: '500', lineHeight: 17 },
+  weatherTemp: { fontSize: 12, color: 'rgba(245,240,232,0.5)', marginTop: 2 },
 
   // Stop photo & attachments
   stopPhoto: { width: '100%', height: 130, borderRadius: 12, marginBottom: 10, marginTop: 4 },

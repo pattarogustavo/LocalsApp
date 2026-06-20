@@ -15,10 +15,11 @@
   ],
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/310419663029664606/W4ReyjxDyzrfQdpLmkcvHo",
-    "access_key_id": "ASIAZV3A2ECZDQWYFC76",
-    "secret_access_key": "gnLBx5BX/iccqzaNQMAQzeX573+qEnHNC8jmUo0A",
-    "session_token": "IQoJb3JpZ2luX2VjEP7//////////wEaCXVzLWVhc3QtMSJHMEUCIQCsOgyYPGY+F+cxjywteayuT0IPfXn4k8HiwuhxQF/nxwIgHGAAdqUL24hRz1wzxTqQU04/zZL0pWbs0FdQTnEUO7gq/gMIxv//////////ARAEGgw2NjUzODYwOTg4NjYiDOgqivl0sQuZgQ0GWSrSAyb9pBBmEAV54JqLjK7YBBFsd/wsWKfK8/sJ1SVf2Zoy4XQnv4iO8TMIuNodHFQL+ulpS5vEkwbQ9j8um6c9b7vuEA1gyZJoOgorn60JyY+Lzq7Y3SzexMr9GxZF0YvqoKBJKa3DHEhLB0dk46jndG4pX+9WTiKj4NKf+mvgvhV75UzQ9US4tbkOKhc0fura0hxGIq9ToFHI8+M13uhSfJrkVbD3GfSUh248mglV57EFuk1DqSnAnsmvBPB3Vtvl7FbwL+Lm8fuDYq45oHUAxItlpcv7MyooR8y5Ga++9VRwbCU7cr+CG9cwdB5HfQdqjSzA+KCsUznha7ABu6yJO5IwOSzryz3leGyG9qBDqUcJNi6JZ+PrVJsMObScxUSuIOElBWQbrm5uk5oSBVktJ7elrKV8BRqpEdAbZLijfQtTyJEiWvxDOefwyNSlMPraryxxJMFT8Z5B6ND5Evg3YovnI4aArvPUbt8S9dOoWNc5dDKln9BCIWQ+ezB1Fl85NXtoPE02wfc8czEHPBUzi8PuihCd8XJWiLo+bNdQk4iFGK6PGA4XTaNVuXZCgEww3AItkur7yCpGYs3RA6TV+1KSuPVP0bq/mV04SqMok1N7lMMwzZ/m0AY6nQH4QfsT2ty/WJW4qmycsFf/2uu/LTzf7TPtSfeyVQMDe0jyVrFqZZgcfGMu98aCwtyuwqqcC5VtjwrRp6Ya8uMUXOJRgv2DXKERVEUOblLWESs6K9nCgluo6WkLkxCC6lKe8iF1PhkQdXN/jTyuX4rV1ltTagKRRYCq4b+AssjaQNB+gCmHJLJZqMVNW8zRHSluTR2XE+QaSaFC7cYo",
-    "expiration": "2026-05-30T01:08:29.000Z"
+    "access_key_id": "ASIAZV3A2ECZCGLOZBQC",
+    "secret_access_key": "4NrN36pTWckx3UttOHABbZWpnjl3ModFJ/1qtSX+",
+    "session_token": "IQoJb3JpZ2luX2VjEBAaCXVzLWVhc3QtMSJHMEUCIQCh5zXUP/niZVpqgfHGyRwKdEEeD6HFPrZC0Sz2VGiNugIgeQO/Bo/QWByvy76egfLjm7PHhDeLHEx+Y9RK556HD10q/gMI2f//////////ARAEGgw2NjUzODYwOTg4NjYiDFrz9a5OqmywHI/0MCrSA3cPgYU83T73PgK8TwOYaXkZWMvuw6cybiuxBhCBDlOyt5fjl2ahs7HKFrXb67GyLx14GZRA4YxVYuiYENXNWqH7IqpuswX/tayhmcf7ZW+7yjtxGWbR3BxLU5kEBrTJt3ZmnFK37Pk7BYZgCYkryM02XWoXqfFXKNqHegEMspuwNkjysg5JIUo1xy3Ab3rgNV/y6u622N/It3ksXd2RwdPpxoMkl6ZQNRZRZNkSF53iE6Ulvq98E2AfOIwYSfVU7Jz4QzTrnbTNR99Gk00dpmFaK89i9K5D5c8PgEiv97MF2VzyG+lcLGifFBgypqnqSHrIafDg3WwhHdGVY1OxMPMeVZX4VG0WVPVIWv9g4JqrTuzXqN4Awf4oWg9hzIkQ5d7+/F04htldcAe2bG8CSurUNRPRpTX+2DjHotoGtBhr61vKHjXQSecQxLQL7VKHnyfkKULCC/CpxzQgSzhF+zmfnk6ogyV4ImQi0BVrWtlmYn7UrxaroOVakLXpa8mTuFCrBF2lhzl5sYWR64u/78ZN6J2Jh9fbSGYIWdoqmBZoGTJvEa1B/jh50Z0fiPd/wfke64G7zY8DJfbr+ig9uFodZb5QrJKRtCUEvXhLgAYDhr0wjOna0QY6nQElwjvgyEaxxMrhGCOjyr91y4D5x9BVkTN907iaAOJ+v0gmFZYCIt3vBN3jnw448v+8qAz86aY3VETQkIU7Wyx+QwYjsCJBXphn8FnvCLTXtwNLR3HVzH5g5IGkdq2RsubV5iWsqu7U7/Ft3FoeoQv/hRJS5/CjHtQPRwO4yTK/EbQPjaWke4UF3yr3OMlsHnBxggq+B6CjXiYF+G0X",
+    "expiration": "2026-06-21T03:41:00.000Z",
+    "backend": "GIT_BACKEND_S3"
   },
   "name": "voyage-app",
   "path": "/home/ubuntu/voyage-app",
@@ -39,6 +40,7 @@
     "GOOGLE_PLACES_API_KEY": "AIzaSyDAX8R2ZAx9dSJPRYfaAEW1v8soiEMbaHw",
     "JWT_SECRET": "JJr9X7jjvMA2SYEBpHCftm",
     "OAUTH_SERVER_URL": "https://api.manus.im",
+    "OPENWEATHERMAP_API_KEY": "bc5f662a618cdcbbe08422a5eea720bf",
     "OWNER_NAME": "Gustavo Pattaro",
     "OWNER_OPEN_ID": "3wS655SqUDXWqFd5ky9AbF",
     "REACT_NATIVE_PACKAGER_HOSTNAME": "8081-i9suu11jz75qwyk825n00-2c82bc1d.us2.manus.computer",

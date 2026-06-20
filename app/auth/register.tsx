@@ -70,7 +70,8 @@ export default function RegisterScreen() {
         subscriptionExpiresAt: null,
         trialEndsAt: result.user.trialEndsAt ? result.user.trialEndsAt.toISOString() : null,
       });
-      router.replace('/(tabs)');
+      // Redirect to preferences onboarding after registration
+      router.replace('/auth/preferences' as any);
     } catch (err: any) {
       const msg = err?.message ?? '';
       if (msg.includes('EMAIL_TAKEN')) {

@@ -304,3 +304,19 @@
 - [x] Store: sincronizar exclusão de viagem com servidor
 - [x] Store: carregar viagens do servidor ao fazer login
 - [x] Fallback offline: usar AsyncStorage quando sem conexão
+
+## Fase 26 — Clima, Onboarding Personalizado e Compartilhamento de Viagem
+
+- [x] OpenWeatherMap: configurar API key como secret (aguardando ativação da chave pelo usuário)
+- [x] OpenWeatherMap: endpoint tRPC para previsão do tempo por localização e data
+- [x] Widget de clima: exibir previsão por dia no roteiro (temperatura, ícone, chuva)
+- [x] Widget de clima: staleTime de 30min para evitar excesso de chamadas à API
+- [x] Onboarding: etapa de preferências após cadastro (destinos favoritos, estilo de viagem, ritmo)
+- [x] Onboarding: salvar preferências no AsyncStorage do dispositivo
+- [x] Compartilhamento: schema de tabela trip_shares (tripId, email, status, role)
+- [x] Compartilhamento: endpoint para convidar viajante por e-mail
+- [x] Compartilhamento: endpoint para aceitar convite (deep link)
+- [x] Compartilhamento: viajante convidado acessa viagem compartilhada na tela inicial
+- [x] Compartilhamento: botão "Compartilhar viagem" na tela de detalhes da viagem
+- [x] Fix TypeScript: destinations[0].city → destinations[0].name na tela inicial
+- [ ] RevenueCat: solicitar chaves de produção ao usuário e substituir placeholders

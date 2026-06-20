@@ -69,3 +69,22 @@ export const trips = mysqlTable("trips", {
 
 export type TripRow = typeof trips.$inferSelect;
 export type InsertTripRow = typeof trips.$inferInsert;
+
+/**
+ * Trip shares table — tracks who has been invited to access a trip.
+ */
+export const tripShares = mysqlTable("trip_shares", {
+  id: int("id").autoincrement().primaryKey(),
+  tripId: int("tripId").notNull(),
+  ownerId: int("ownerId").notNull(),
+  inviteeEmail: varchar("inviteeEmail", { length: 320 }).notNull(),
+  inviteeUserId: int("inviteeUserId"),
+  role: mysqlEnum("role", ["viewer", "editor"]).default("viewer").notNull(),
+  status: mysqlEnum("status", ["pending", "accepted", "revoked"]).default("pending").notNull(),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TripShare = typeof tripShares.$inferSelect;
+export type InsertTripShare = typeof tripShares.$inferInsert;
