@@ -139,8 +139,8 @@ export default function HomeScreen() {
               Voyage
             </Text>
             <Text className="text-muted text-xs tracking-widest font-semibold uppercase" style={{ marginTop: -2 }}>
-              Curated Routes
-            </Text>
+            {t.home.curatedRoutes}
+          </Text>
           </View>
           <View className="flex-row gap-2">
             <TouchableOpacity
@@ -217,7 +217,7 @@ export default function HomeScreen() {
         {sharedTripsQuery.data && sharedTripsQuery.data.length > 0 && (
           <View className="mb-6">
             <Text className="text-muted text-xs tracking-widest font-semibold uppercase px-6 mb-3">
-              Compartilhadas Comigo
+              {t.sharing.sharedWithMe}
             </Text>
             {sharedTripsQuery.data.map((s) => {
               let tripData: Trip | null = null;
@@ -249,10 +249,10 @@ export default function HomeScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 15, fontWeight: '600', color: '#1C3D2E' }} numberOfLines={1}>
-                      {tripData.destinations?.[0]?.name ?? 'Viagem'}
+                      {tripData.destinations?.[0]?.name ?? t.sharing.tripFallback}
                     </Text>
                     <Text style={{ fontSize: 12, color: '#687076', marginTop: 2 }}>
-                      {s.shareRole === 'editor' ? '✏️ Editor' : '👁 Visualizador'}
+                      {s.shareRole === 'editor' ? `✏️ ${t.sharing.roleEditor}` : `👁 ${t.sharing.roleViewer}`}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color="#9BA1A6" />
@@ -267,7 +267,7 @@ export default function HomeScreen() {
           <Text
             style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: '#1C3D2E', paddingHorizontal: 24, marginBottom: 12 }}
           >
-            {t.home.all === 'All' ? 'Curated Guides' : 'Guias Curados'}
+            {t.home.curatedGuides}
           </Text>
           <FlatList
             data={CURATED_GUIDES}
@@ -293,7 +293,7 @@ export default function HomeScreen() {
                       {item.title}
                     </Text>
                     <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
-                      {item.spots} Spots
+                      {item.spots} {t.home.spotsLabel}
                     </Text>
                   </LinearGradient>
                 </ImageBackground>

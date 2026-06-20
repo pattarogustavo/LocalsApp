@@ -320,3 +320,14 @@
 - [x] Compartilhamento: botão "Compartilhar viagem" na tela de detalhes da viagem
 - [x] Fix TypeScript: destinations[0].city → destinations[0].name na tela inicial
 - [ ] RevenueCat: solicitar chaves de produção ao usuário e substituir placeholders
+
+## Fase 27 — Fix i18n Global (Troca de Idioma em Todo o App)
+
+- [x] Fix i18n: preferredLanguage armazenado separadamente do user object (persiste sem login)
+- [x] Fix i18n: useTranslation reage imediatamente à troca de idioma em todas as telas
+- [x] Fix i18n: paywall traduzido para PT/EN/ES/FR/IT (todos os textos)
+- [x] Fix i18n: home screen — "Curated Routes", "Curated Guides", "Spots", "Compartilhadas Comigo" traduzidos
+- [x] Fix i18n: trip detail — modal de datas traduzido (PT/EN/ES/FR/IT)
+- [x] Fix i18n: trip detail — modal de destinos traduzido (PT/EN/ES/FR/IT)
+- [x] Fix i18n: trip detail — aba Info (Clima, Lotação, Habitantes, Saúde, Visto, Dicas) traduzida
+- [x] Fix i18n: chaves faltantes adicionadas em todos os idiomas (sharing, tripEdit, info, home.curatedRoutes)

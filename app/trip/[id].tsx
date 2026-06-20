@@ -210,6 +210,7 @@ function EditDateModal({
   onConfirm: (newDate: string, newDuration: number) => void;
 }) {
   const colors = useColors();
+  const t = useTranslation();
   const today = new Date();
   const [pickerDate, setPickerDate] = useState(new Date(currentDate));
   const [duration, setDuration] = useState(currentDuration);
@@ -240,10 +241,10 @@ function EditDateModal({
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.modalOverlay}>
         <View style={[styles.editCard, { backgroundColor: colors.background }]}>
-          <Text style={[styles.editCardTitle, { color: '#1C3D2E' }]}>Datas do Roteiro</Text>
+          <Text style={[styles.editCardTitle, { color: '#1C3D2E' }]}>{t.tripEdit.datesTitle}</Text>
 
           {/* Start date */}
-          <Text style={{ fontSize: 11, color: colors.muted, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Data de Início</Text>
+          <Text style={{ fontSize: 11, color: colors.muted, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{t.tripEdit.startDate}</Text>
           <View style={styles.datePickerRow}>
             <TouchableOpacity onPress={() => adjustDate(-1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
               <Ionicons name="chevron-back" size={20} color="#1C3D2E" />
@@ -251,7 +252,7 @@ function EditDateModal({
             <View style={styles.dateCenter}>
               <Text style={[styles.dateDayNum, { color: colors.foreground }]}>{pickerDate.getDate()}</Text>
               <Text style={[styles.dateMonthText, { color: colors.muted }]}>
-                {MONTHS[pickerDate.getMonth()]} {pickerDate.getFullYear()}
+                {pickerDate.toLocaleString('default', { month: 'long' })} {pickerDate.getFullYear()}
               </Text>
             </View>
             <TouchableOpacity onPress={() => adjustDate(1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
@@ -260,14 +261,14 @@ function EditDateModal({
           </View>
 
           {/* Duration */}
-          <Text style={{ fontSize: 11, color: colors.muted, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, marginTop: 16 }}>Duração</Text>
+          <Text style={{ fontSize: 11, color: colors.muted, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, marginTop: 16 }}>{t.tripEdit.duration}</Text>
           <View style={[styles.datePickerRow, { marginBottom: 8 }]}>
             <TouchableOpacity onPress={() => adjustDuration(-1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
               <Ionicons name="chevron-back" size={20} color="#1C3D2E" />
             </TouchableOpacity>
             <View style={styles.dateCenter}>
               <Text style={[styles.dateDayNum, { color: colors.foreground }]}>{duration}</Text>
-              <Text style={[styles.dateMonthText, { color: colors.muted }]}>dias</Text>
+              <Text style={[styles.dateMonthText, { color: colors.muted }]}>{t.tripEdit.durationUnit}</Text>
             </View>
             <TouchableOpacity onPress={() => adjustDuration(1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
               <Ionicons name="chevron-forward" size={20} color="#1C3D2E" />
@@ -276,18 +277,18 @@ function EditDateModal({
 
           {/* End date preview */}
           <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', marginBottom: 20 }}>
-            Término: {endDate.getDate()} de {MONTHS[endDate.getMonth()]} de {endDate.getFullYear()}
+            {t.tripEdit.endDate}: {endDate.getDate()} {endDate.toLocaleString('default', { month: 'long' })} {endDate.getFullYear()}
           </Text>
 
           <View style={styles.editCardActions}>
             <TouchableOpacity onPress={onClose} style={[styles.cancelBtn, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.cancelBtnText, { color: colors.foreground }]}>Cancelar</Text>
+              <Text style={[styles.cancelBtnText, { color: colors.foreground }]}>{t.common.cancel}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => { onConfirm(pickerDate.toISOString(), duration); onClose(); }}
               style={[styles.confirmBtn, { backgroundColor: '#1C3D2E' }]}
             >
-              <Text style={styles.confirmBtnText}>Confirmar</Text>
+              <Text style={styles.confirmBtnText}>{t.common.confirm}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -308,6 +309,7 @@ function EditDestinationsModal({
   onClose: () => void;
 }) {
   const colors = useColors();
+  const t = useTranslation();
   const { updateDestinations } = useTripsStore();
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -390,7 +392,7 @@ function EditDestinationsModal({
         <View style={[styles.editSheet, { backgroundColor: colors.background }]}>
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
           <View style={styles.editSheetHeader}>
-            <Text style={[styles.editSheetTitle, { color: '#1C3D2E' }]}>Editar Destinos</Text>
+            <Text style={[styles.editSheetTitle, { color: '#1C3D2E' }]}>{t.tripEdit.destsTitle}</Text>
             <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
               <Ionicons name="close" size={16} color="#1C3D2E" />
             </Pressable>
@@ -401,10 +403,10 @@ function EditDestinationsModal({
             <View style={[styles.daysSummaryRow, { backgroundColor: allocatedDays > totalDays ? 'rgba(192,57,43,0.12)' : 'rgba(28,61,46,0.08)' }]}>
               <Ionicons name="calendar-outline" size={14} color={allocatedDays > totalDays ? '#C0392B' : '#2D5A3D'} />
               <Text style={[styles.daysSummaryText, { color: allocatedDays > totalDays ? '#C0392B' : '#2D5A3D' }]}>
-                {allocatedDays} de {totalDays} dias alocados
+                {allocatedDays} de {totalDays} {t.tripEdit.daysAllocated}
               </Text>
               {allocatedDays > totalDays && (
-                <Text style={{ fontSize: 11, color: '#C0392B', marginLeft: 4 }}>— excede o roteiro</Text>
+                <Text style={{ fontSize: 11, color: '#C0392B', marginLeft: 4 }}>{t.tripEdit.exceedsItinerary}</Text>
               )}
             </View>
           </View>
@@ -446,7 +448,7 @@ function EditDestinationsModal({
                       <Ionicons name="remove" size={12} color="#1C3D2E" />
                     </TouchableOpacity>
                     <Text style={[styles.destDaysNum, { color: colors.foreground }]}>{dest.days}</Text>
-                    <Text style={[styles.destDaysLabel, { color: colors.muted }]}>dias</Text>
+                    <Text style={[styles.destDaysLabel, { color: colors.muted }]}>{t.tripEdit.durationUnit}</Text>
                     <TouchableOpacity
                       onPress={() => handleUpdateDays(dest.id, 1)}
                       style={[styles.miniBtn, { backgroundColor: colors.surface }]}
@@ -469,15 +471,15 @@ function EditDestinationsModal({
 
             {/* Add new destination */}
             <View style={{ marginTop: 16, marginBottom: 8 }}>
-              <Text style={[styles.destDaysLabel, { color: colors.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }]}>Adicionar destino</Text>
-              <DestinationAutocomplete onSelect={handleAddDestination} placeholder="Buscar cidade ou região..." />
+              <Text style={[styles.destDaysLabel, { color: colors.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }]}>{t.tripEdit.addDestination}</Text>
+              <DestinationAutocomplete onSelect={handleAddDestination} placeholder={t.tripEdit.searchCity} />
             </View>
 
             <TouchableOpacity
               onPress={handleSave}
               style={[styles.saveBtn, { backgroundColor: '#1C3D2E', marginTop: 16 }]}
             >
-              <Text style={styles.saveBtnText}>Salvar Alterações</Text>
+              <Text style={styles.saveBtnText}>{t.tripEdit.saveChanges}</Text>
             </TouchableOpacity>
             <View style={{ height: 40 }} />
           </ScrollView>
@@ -512,7 +514,7 @@ export default function TripDetailScreen() {
   const handlePickCoverPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos de acesso à sua galeria para alterar a foto de capa.');
+      Alert.alert(t.photos.permissionTitle, t.photos.galleryPermission);
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -828,6 +830,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
   const [info, setInfo] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
+  const t = useTranslation();
 
   const load = async () => {
     if (loaded || loading) return;
@@ -869,14 +872,14 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
       {loading && (
         <View style={infoStyles.loadingRow}>
           <ActivityIndicator size="small" color="#52B788" />
-          <Text style={infoStyles.loadingText}>Carregando informações...</Text>
+          <Text style={infoStyles.loadingText}>{t.info.loading}</Text>
         </View>
       )}
 
       {!loading && !info && loaded && (
         <View style={infoStyles.loadingRow}>
           <Ionicons name="alert-circle-outline" size={16} color="rgba(245,240,232,0.4)" />
-          <Text style={infoStyles.loadingText}>Não foi possível carregar as informações.</Text>
+          <Text style={infoStyles.loadingText}>{t.info.loadError}</Text>
         </View>
       )}
 
@@ -886,7 +889,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
           <View style={infoStyles.section}>
             <View style={infoStyles.sectionHeader}>
               <Ionicons name="partly-sunny-outline" size={16} color="#F59E0B" />
-              <Text style={infoStyles.sectionTitle}>Clima</Text>
+              <Text style={infoStyles.sectionTitle}>{t.info.climate}</Text>
               {info.climate?.avgTempC != null && (
                 <View style={infoStyles.tempBadge}>
                   <Text style={infoStyles.tempText}>{info.climate.avgTempC}°C</Text>
@@ -906,7 +909,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
           <View style={infoStyles.section}>
             <View style={infoStyles.sectionHeader}>
               <Ionicons name="people-outline" size={16} color={crowdColor(info.crowd?.level)} />
-              <Text style={infoStyles.sectionTitle}>Lotação</Text>
+              <Text style={infoStyles.sectionTitle}>{t.info.crowding}</Text>
               {info.crowd?.level && (
                 <View style={[infoStyles.levelBadge, { backgroundColor: crowdColor(info.crowd.level) + '22', borderColor: crowdColor(info.crowd.level) + '44' }]}>
                   <Text style={[infoStyles.levelText, { color: crowdColor(info.crowd.level) }]}>{info.crowd.level}</Text>
@@ -927,9 +930,9 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
             <View style={infoStyles.section}>
               <View style={infoStyles.sectionHeader}>
                 <Ionicons name="business-outline" size={16} color="rgba(245,240,232,0.6)" />
-                <Text style={infoStyles.sectionTitle}>Habitantes</Text>
+                <Text style={infoStyles.sectionTitle}>{t.info.population}</Text>
               </View>
-              <Text style={infoStyles.sectionBody}>{info.population.count} habitantes</Text>
+              <Text style={infoStyles.sectionBody}>{info.population.count} {t.info.population.toLowerCase()}</Text>
             </View>
           )}
 
@@ -937,10 +940,10 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
           <View style={infoStyles.section}>
             <View style={infoStyles.sectionHeader}>
               <Ionicons name="medical-outline" size={16} color="#EF4444" />
-              <Text style={infoStyles.sectionTitle}>Saúde</Text>
+              <Text style={infoStyles.sectionTitle}>{t.info.health}</Text>
               <View style={[infoStyles.levelBadge, { backgroundColor: info.health?.waterSafe ? '#52B78822' : '#EF444422', borderColor: info.health?.waterSafe ? '#52B78844' : '#EF444444' }]}>
                 <Text style={[infoStyles.levelText, { color: info.health?.waterSafe ? '#52B788' : '#EF4444' }]}>
-                  {info.health?.waterSafe ? 'Água potável' : 'Água não potável'}
+                  {info.health?.waterSafe ? t.info.drinkableWater : `${t.common.no} ${t.info.drinkableWater.toLowerCase()}`}
                 </Text>
               </View>
             </View>
@@ -960,10 +963,10 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
           <View style={infoStyles.section}>
             <View style={infoStyles.sectionHeader}>
               <Ionicons name="document-text-outline" size={16} color="#52B788" />
-              <Text style={infoStyles.sectionTitle}>Visto</Text>
+              <Text style={infoStyles.sectionTitle}>{t.info.visa}</Text>
               <View style={[infoStyles.levelBadge, { backgroundColor: info.visa?.required ? '#EF444422' : '#52B78822', borderColor: info.visa?.required ? '#EF444444' : '#52B78844' }]}>
                 <Text style={[infoStyles.levelText, { color: info.visa?.required ? '#EF4444' : '#52B788' }]}>
-                  {info.visa?.required ? 'Necessário' : 'Não necessário'}
+                  {info.visa?.required ? t.info.visaRequired : t.info.visaNotRequired}
                 </Text>
               </View>
             </View>
@@ -976,7 +979,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
             <View style={infoStyles.section}>
               <View style={infoStyles.sectionHeader}>
                 <Ionicons name="star-outline" size={16} color="#52B788" />
-                <Text style={infoStyles.sectionTitle}>Dicas</Text>
+                <Text style={infoStyles.sectionTitle}>{t.info.tips}</Text>
               </View>
               {info.tips.map((tip: string, i: number) => (
                 <View key={i} style={infoStyles.tipRow}>
@@ -993,8 +996,9 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
 }
 
 function HistoryTab({ trip }: { trip: any }) {
+  const t = useTranslation();
   const travelMonth = trip.startDate
-    ? new Date(trip.startDate).toLocaleString('pt-BR', { month: 'long' })
+    ? new Date(trip.startDate).toLocaleString('default', { month: 'long' })
     : undefined;
 
   return (
@@ -1006,7 +1010,7 @@ function HistoryTab({ trip }: { trip: any }) {
       {trip.destinations.length === 0 ? (
         <View style={infoStyles.emptyState}>
           <Ionicons name="information-circle-outline" size={40} color="rgba(245,240,232,0.2)" />
-          <Text style={infoStyles.emptyText}>Adicione destinos ao roteiro para ver as informações</Text>
+          <Text style={infoStyles.emptyText}>{t.info.selectDest}</Text>
         </View>
       ) : (
         trip.destinations.map((dest: Destination) => (

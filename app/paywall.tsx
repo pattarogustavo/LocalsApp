@@ -16,20 +16,13 @@ import { trpc } from '@/lib/trpc';
 import { useAuthStore } from '@/store/auth';
 import { useSubscription } from '@/hooks/use-subscription';
 import { sendSubscriptionConfirmedNotification, scheduleRenewalReminder } from '@/lib/subscription-notifications';
-
-const FEATURES = [
-  { icon: 'infinite-outline', text: 'Unlimited trips & itineraries' },
-  { icon: 'sparkles-outline', text: 'AI-powered trip planning' },
-  { icon: 'airplane-outline', text: 'Real-time flight tracking' },
-  { icon: 'document-text-outline', text: 'Document storage & sharing' },
-  { icon: 'people-outline', text: 'Collaborative trip planning' },
-  { icon: 'notifications-outline', text: 'Smart travel reminders' },
-];
+import { useTranslation } from '@/hooks/use-translation';
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { blocking } = useLocalSearchParams<{ blocking?: string }>();
   const isBlocking = blocking === 'true';
+  const t = useTranslation();
 
   const { updateSubscription } = useAuthStore();
   const { isTrial, daysLeftInTrial } = useSubscription();
@@ -40,6 +33,15 @@ export default function PaywallScreen() {
 
   const mockPurchaseMutation = trpc.subscription.mockPurchase.useMutation();
 
+  const FEATURES = [
+    { icon: 'infinite-outline', text: t.paywall.featureUnlimited },
+    { icon: 'sparkles-outline', text: t.paywall.featureAI },
+    { icon: 'airplane-outline', text: t.paywall.featureFlight },
+    { icon: 'document-text-outline', text: t.paywall.featureDocs },
+    { icon: 'people-outline', text: t.paywall.featureCollaborate },
+    { icon: 'notifications-outline', text: t.paywall.featureReminders },
+  ];
+
   const handlePurchase = async () => {
     setLoading(true);
     try {
@@ -49,16 +51,15 @@ export default function PaywallScreen() {
         subscriptionPlan: selectedPlan,
         subscriptionExpiresAt: result.expiresAt.toISOString(),
       });
-      // Send confirmation notification and schedule renewal reminder
       sendSubscriptionConfirmedNotification(selectedPlan).catch(() => {});
       scheduleRenewalReminder(result.expiresAt).catch(() => {});
       Alert.alert(
-        'Subscription activated!',
-        `Your ${selectedPlan} plan is now active. Enjoy Voyage!`,
-        [{ text: 'Continue', onPress: () => router.replace('/(tabs)') }]
+        t.paywall.subscribeSuccess,
+        t.paywall.subscribeSuccessMsg.replace('{plan}', selectedPlan),
+        [{ text: t.common.continue, onPress: () => router.replace('/(tabs)') }]
       );
     } catch {
-      Alert.alert('Purchase failed', 'Please try again or contact support.');
+      Alert.alert(t.paywall.purchaseFailed, t.paywall.purchaseFailedMsg);
     } finally {
       setLoading(false);
     }
@@ -66,10 +67,9 @@ export default function PaywallScreen() {
 
   const handleRestore = async () => {
     setRestoring(true);
-    // In production: call RevenueCat restorePurchases()
     setTimeout(() => {
       setRestoring(false);
-      Alert.alert('No purchases found', 'No previous purchases were found for this account.');
+      Alert.alert(t.paywall.noPurchases, t.paywall.noPurchasesMsg);
     }, 1500);
   };
 
@@ -97,18 +97,16 @@ export default function PaywallScreen() {
         <View style={styles.hero}>
           {isBlocking ? (
             <>
-              <Text style={styles.heroTitle}>Your trial has ended</Text>
-              <Text style={styles.heroSubtitle}>
-                Subscribe to continue planning your trips with Voyage.
-              </Text>
+              <Text style={styles.heroTitle}>{t.paywall.trialEnded}</Text>
+              <Text style={styles.heroSubtitle}>{t.paywall.trialEndedSubtitle}</Text>
             </>
           ) : (
             <>
-              <Text style={styles.heroTitle}>Upgrade to Voyage Pro</Text>
+              <Text style={styles.heroTitle}>{t.paywall.upgradeTitle}</Text>
               <Text style={styles.heroSubtitle}>
                 {isTrial && daysLeftInTrial !== null
-                  ? `${daysLeftInTrial} day${daysLeftInTrial !== 1 ? 's' : ''} left in your trial — unlock everything.`
-                  : 'Unlock the full travel planning experience.'}
+                  ? t.trialBanner.daysLeft(daysLeftInTrial) + ' — ' + t.paywall.unlockAll
+                  : t.paywall.upgradeSubtitle}
               </Text>
             </>
           )}
@@ -136,7 +134,7 @@ export default function PaywallScreen() {
           >
             <View style={styles.planBadgeRow}>
               <View style={styles.saveBadge}>
-                <Text style={styles.saveBadgeText}>SAVE 40%</Text>
+                <Text style={styles.saveBadgeText}>{t.paywall.save} 40%</Text>
               </View>
               {selectedPlan === 'annual' && (
                 <View style={styles.selectedDot}>
@@ -144,12 +142,12 @@ export default function PaywallScreen() {
                 </View>
               )}
             </View>
-            <Text style={styles.planName}>Annual</Text>
+            <Text style={styles.planName}>{t.paywall.annual}</Text>
             <View style={styles.planPriceRow}>
               <Text style={styles.planPrice}>R$19,90</Text>
-              <Text style={styles.planPeriod}>/month</Text>
+              <Text style={styles.planPeriod}>{t.paywall.perMonth}</Text>
             </View>
-            <Text style={styles.planBilled}>Billed R$238,80/year</Text>
+            <Text style={styles.planBilled}>{t.paywall.billedAnnuallyFull}</Text>
           </TouchableOpacity>
 
           {/* Monthly plan */}
@@ -165,12 +163,12 @@ export default function PaywallScreen() {
                 </View>
               </View>
             )}
-            <Text style={styles.planName}>Monthly</Text>
+            <Text style={styles.planName}>{t.paywall.monthly}</Text>
             <View style={styles.planPriceRow}>
               <Text style={styles.planPrice}>R$33,90</Text>
-              <Text style={styles.planPeriod}>/month</Text>
+              <Text style={styles.planPeriod}>{t.paywall.perMonth}</Text>
             </View>
-            <Text style={styles.planBilled}>Cancel anytime</Text>
+            <Text style={styles.planBilled}>{t.paywall.cancelAnytime}</Text>
           </TouchableOpacity>
         </View>
 
@@ -185,15 +183,13 @@ export default function PaywallScreen() {
             <ActivityIndicator color="#0F1F16" />
           ) : (
             <Text style={styles.ctaBtnText}>
-              {selectedPlan === 'annual' ? 'Start Annual Plan' : 'Start Monthly Plan'}
+              {selectedPlan === 'annual' ? t.paywall.startAnnual : t.paywall.startMonthly}
             </Text>
           )}
         </TouchableOpacity>
 
         {/* Legal */}
-        <Text style={styles.legalText}>
-          Payment will be charged to your account. Subscription automatically renews unless cancelled at least 24 hours before the end of the current period.
-        </Text>
+        <Text style={styles.legalText}>{t.paywall.terms}</Text>
 
         {/* Restore */}
         <TouchableOpacity
@@ -205,7 +201,7 @@ export default function PaywallScreen() {
           {restoring ? (
             <ActivityIndicator size="small" color="rgba(245,240,232,0.4)" />
           ) : (
-            <Text style={styles.restoreText}>Restore purchases</Text>
+            <Text style={styles.restoreText}>{t.paywall.restore}</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
