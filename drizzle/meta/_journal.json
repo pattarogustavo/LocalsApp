@@ -15,6 +15,13 @@
       "when": 1780821961034,
       "tag": "0001_chief_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1781969150918,
+      "tag": "0002_natural_the_executioner",
+      "breakpoints": true
     }
   ]
 }

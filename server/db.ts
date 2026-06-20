@@ -1,6 +1,6 @@
 import { and, eq, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, InsertPasswordResetToken, passwordResetTokens, users } from "../drizzle/schema";
+import { InsertUser, InsertPasswordResetToken, passwordResetTokens, users, trips, InsertTripRow } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -178,4 +178,40 @@ export async function getSubscriptionStatus(userId: number) {
     return { ...row, subscriptionStatus: "expired" as const };
   }
   return row;
+}
+
+// ─── Trip helpers ──────────────────────────────────────────────────────────────────────────────
+
+export async function getUserTrips(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(trips).where(eq(trips.userId, userId));
+}
+
+export async function upsertTrip(userId: number, clientId: string, data: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db.select({ id: trips.id }).from(trips)
+    .where(eq(trips.userId, userId))
+    .limit(500);
+  // Check if this clientId already exists for this user
+  const allForUser = await db.select().from(trips).where(eq(trips.userId, userId));
+  const found = allForUser.find((r) => r.clientId === clientId);
+  if (found) {
+    await db.update(trips).set({ data, updatedAt: new Date() }).where(eq(trips.id, found.id));
+    return found.id;
+  } else {
+    const result = await db.insert(trips).values({ userId, clientId, data });
+    return (result as unknown as { insertId: number }).insertId;
+  }
+}
+
+export async function deleteTripByClientId(userId: number, clientId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const allForUser = await db.select().from(trips).where(eq(trips.userId, userId));
+  const found = allForUser.find((r) => r.clientId === clientId);
+  if (found) {
+    await db.delete(trips).where(eq(trips.id, found.id));
+  }
 }

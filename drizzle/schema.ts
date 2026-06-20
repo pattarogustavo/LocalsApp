@@ -51,3 +51,21 @@ export const passwordResetTokens = mysqlTable("password_reset_tokens", {
 
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+
+/**
+ * Trips table — stores the full Trip JSON blob per user.
+ * One row per trip. The `data` column holds the serialized Trip object.
+ */
+export const trips = mysqlTable("trips", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  /** Client-side UUID (Trip.id) used to match local and remote records. */
+  clientId: varchar("clientId", { length: 64 }).notNull(),
+  /** Full Trip JSON serialized as text. */
+  data: text("data").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TripRow = typeof trips.$inferSelect;
+export type InsertTripRow = typeof trips.$inferInsert;

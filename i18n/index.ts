@@ -1,6 +1,8 @@
 import { pt } from './pt';
 import { en } from './en';
 import { es } from './es';
+import { fr } from './fr';
+import { it } from './it';
 import type { Translations } from './pt';
 
 export type SupportedLanguage = 'pt' | 'en' | 'es' | 'fr' | 'de' | 'it';
@@ -9,10 +11,10 @@ const translations: Record<SupportedLanguage, Translations> = {
   pt,
   en,
   es,
-  // French, German, Italian fall back to English until translated
-  fr: en,
+  fr,
+  it,
+  // German falls back to English until translated
   de: en,
-  it: en,
 };
 
 export function getTranslations(lang: string): Translations {
@@ -21,4 +23,4 @@ export function getTranslations(lang: string): Translations {
 }
 
 export type { Translations };
-export { pt, en, es };
+export { pt, en, es, fr, it };

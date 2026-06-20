@@ -14,16 +14,19 @@ import type {
   TripPhoto,
   ItineraryStop,
 } from '@/types/voyage';
+import { trpcVanilla } from '@/lib/trpc-vanilla';
 
 interface TripsState {
   trips: Trip[];
   isLoading: boolean;
+  isSyncing: boolean;
   userPlan: UserPlan;
   // Core trip actions
   addTrip: (trip: Trip) => Promise<void>;
   updateTrip: (id: string, updates: Partial<Trip>) => Promise<void>;
   deleteTrip: (id: string) => Promise<void>;
   loadTrips: () => Promise<void>;
+  syncWithCloud: () => Promise<void>;
   getTripById: (id: string) => Trip | undefined;
   // Places
   addPlace: (tripId: string, place: Place) => Promise<void>;
@@ -81,6 +84,33 @@ const saveToStorage = async (trips: Trip[]) => {
   }
 };
 
+/**
+ * Attempt to upsert a single trip to the cloud.
+ * Silently fails if not authenticated or network is unavailable.
+ */
+const pushTripToCloud = async (trip: Trip) => {
+  try {
+    await trpcVanilla.cloudTrips.upsert.mutate({
+      clientId: trip.id,
+      data: JSON.stringify(trip),
+    });
+  } catch {
+    // Offline or unauthenticated — local data is the source of truth
+  }
+};
+
+/**
+ * Attempt to delete a trip from the cloud.
+ * Silently fails if not authenticated or network is unavailable.
+ */
+const deleteTripFromCloud = async (clientId: string) => {
+  try {
+    await trpcVanilla.cloudTrips.delete.mutate({ clientId });
+  } catch {
+    // Offline or unauthenticated — ignore
+  }
+};
+
 const DEFAULT_PLAN: UserPlan = {
   tier: 'free',
   aiCreditsUsed: 0,
@@ -90,6 +120,7 @@ const DEFAULT_PLAN: UserPlan = {
 export const useTripsStore = create<TripsState>((set, get) => ({
   trips: [],
   isLoading: false,
+  isSyncing: false,
   userPlan: DEFAULT_PLAN,
 
   loadTrips: async () => {
@@ -110,12 +141,81 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     }
   },
 
+  /**
+   * Sync trips with the cloud server.
+   * - Fetches all trips from the server.
+   * - Merges with local trips: cloud wins on conflict (newer updatedAt).
+   * - Pushes any local-only trips to the cloud.
+   * - Updates AsyncStorage with the merged result.
+   */
+  syncWithCloud: async () => {
+    set({ isSyncing: true });
+    try {
+      const cloudRows = await trpcVanilla.cloudTrips.list.query();
+      const localTrips = get().trips;
+
+      // Build a map of cloud trips by clientId
+      const cloudMap = new Map<string, Trip>();
+      for (const row of cloudRows) {
+        try {
+          const parsed = JSON.parse(row.data) as Trip;
+          cloudMap.set(row.clientId, parsed);
+        } catch {
+          // Skip malformed rows
+        }
+      }
+
+      // Merge: for each local trip, compare updatedAt with cloud version
+      const merged: Trip[] = [];
+      const localIds = new Set<string>();
+
+      for (const local of localTrips) {
+        localIds.add(local.id);
+        const cloud = cloudMap.get(local.id);
+        if (!cloud) {
+          // Local-only trip — push to cloud
+          merged.push(local);
+          await pushTripToCloud(local);
+        } else {
+          // Both exist — take the newer one
+          const localDate = new Date(local.updatedAt || 0).getTime();
+          const cloudDate = new Date(cloud.updatedAt || 0).getTime();
+          if (cloudDate > localDate) {
+            merged.push(cloud);
+          } else {
+            merged.push(local);
+            // Push local to cloud in case it's newer
+            if (localDate > cloudDate) {
+              await pushTripToCloud(local);
+            }
+          }
+        }
+      }
+
+      // Add cloud-only trips (not in local)
+      for (const [clientId, cloudTrip] of cloudMap.entries()) {
+        if (!localIds.has(clientId)) {
+          merged.push(cloudTrip);
+        }
+      }
+
+      set({ trips: merged });
+      await saveToStorage(merged);
+    } catch (e) {
+      // Sync failed (offline/unauthenticated) — keep local data
+      console.warn('[CloudSync] Sync failed, using local data:', e);
+    } finally {
+      set({ isSyncing: false });
+    }
+  },
+
   getTripById: (id: string) => get().trips.find((t) => t.id === id),
 
   addTrip: async (trip: Trip) => {
     const trips = [...get().trips, trip];
     set({ trips });
     await saveToStorage(trips);
+    await pushTripToCloud(trip);
   },
 
   updateTrip: async (id: string, updates: Partial<Trip>) => {
@@ -124,12 +224,15 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === id);
+    if (updated) await pushTripToCloud(updated);
   },
 
   deleteTrip: async (id: string) => {
     const trips = get().trips.filter((t) => t.id !== id);
     set({ trips });
     await saveToStorage(trips);
+    await deleteTripFromCloud(id);
   },
 
   // ─── Places ────────────────────────────────────────────────────────────────
@@ -140,14 +243,14 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   removePlace: async (tripId: string, placeId: string) => {
     const trips = get().trips.map((t) => {
       if (t.id !== tripId) return t;
-      // Remove from places list
       const places = t.places.filter((p) => p.id !== placeId);
-      // Also remove matching itinerary stops that reference this place
       const itinerary = t.itinerary.map((day) => ({
         ...day,
         stops: day.stops.filter((s) => s.placeId !== placeId),
@@ -156,6 +259,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     });
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   updatePlace: async (tripId: string, placeId: string, updates: Partial<Place>) => {
@@ -166,6 +271,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   setPlaces: async (tripId: string, places: Place[]) => {
@@ -174,6 +281,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   // ─── Documents ─────────────────────────────────────────────────────────────
@@ -186,6 +295,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   removeDocument: async (tripId: string, docId: string) => {
@@ -196,6 +307,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   // ─── Expenses ──────────────────────────────────────────────────────────────
@@ -208,6 +321,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   removeExpense: async (tripId: string, expenseId: string) => {
@@ -218,6 +333,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   // ─── Travelers ─────────────────────────────────────────────────────────────
@@ -230,6 +347,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   removeTraveler: async (tripId: string, travelerId: string) => {
@@ -240,6 +359,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   // ─── Transport ─────────────────────────────────────────────────────────────
@@ -252,6 +373,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   removeTransport: async (tripId: string, transportId: string) => {
@@ -262,6 +385,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   updateTransport: async (tripId: string, transportId: string, updates: Partial<Transport>) => {
@@ -276,6 +401,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   updateCityTransportMode: async (tripId: string, mode) => {
@@ -284,6 +411,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   // ─── Accommodations ────────────────────────────────────────────────────────
@@ -296,6 +425,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   removeAccommodation: async (tripId: string, accommodationId: string) => {
@@ -306,6 +437,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   updateAccommodation: async (tripId: string, accommodationId: string, updates: Partial<Accommodation>) => {
@@ -322,6 +455,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   // ─── Itinerary ─────────────────────────────────────────────────────────────
@@ -334,6 +469,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   // ─── Edit Trip ─────────────────────────────────────────────────────────────
@@ -351,6 +488,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   updateStartDate: async (tripId: string, startDate: string) => {
@@ -361,9 +500,9 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
-
-  // ─── User Plan ─────────────────────────────────────────────────────────────
 
   // ─── Photos ─────────────────────────────────────────────────────────────────
 
@@ -375,6 +514,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   removePhoto: async (tripId: string, photoId: string) => {
@@ -385,6 +526,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   updateCoverImage: async (tripId: string, url: string) => {
@@ -393,7 +536,11 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     );
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
+
+  // ─── Itinerary Stop Editing ────────────────────────────────────────────────
 
   updateItineraryStop: async (tripId: string, dayIndex: number, stopId: string, updates: Partial<ItineraryStop>) => {
     const trips = get().trips.map((t) => {
@@ -406,6 +553,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     });
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   removeItineraryStop: async (tripId: string, dayIndex: number, stopId: string) => {
@@ -419,6 +568,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     });
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   moveItineraryStop: async (tripId: string, fromDayIndex: number, toDayIndex: number, stopId: string, toPosition?: number) => {
@@ -430,7 +581,6 @@ export const useTripsStore = create<TripsState>((set, get) => ({
         }
         return day;
       });
-      // Find the stop that was moved
       const fromDay = t.itinerary[fromDayIndex];
       const stop = fromDay?.stops.find((s) => s.id === stopId);
       if (!stop) return t;
@@ -448,6 +598,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     });
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   addItineraryStop: async (tripId: string, dayIndex: number, stop: ItineraryStop) => {
@@ -461,6 +613,8 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     });
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   reorderItineraryStops: async (tripId: string, dayIndex: number, newStops: ItineraryStop[]) => {
@@ -474,23 +628,27 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     });
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   removeItineraryStopAndPlace: async (tripId: string, dayIndex: number, stopId: string, placeId?: string) => {
     const trips = get().trips.map((t) => {
       if (t.id !== tripId) return t;
-      // Remove from itinerary
       const itinerary = t.itinerary.map((day, idx) => {
         if (idx !== dayIndex) return day;
         return { ...day, stops: day.stops.filter((s) => s.id !== stopId) };
       });
-      // Also remove from places if placeId provided
       const places = placeId ? t.places.filter((p) => p.id !== placeId) : t.places;
       return { ...t, itinerary, places, updatedAt: new Date().toISOString() };
     });
     set({ trips });
     await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
+
+  // ─── User Plan ─────────────────────────────────────────────────────────────
 
   updateUserPlan: (plan: Partial<UserPlan>) => {
     const updated = { ...get().userPlan, ...plan };

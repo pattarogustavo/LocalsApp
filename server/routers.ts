@@ -1135,7 +1135,34 @@ Cada lugar deve ter: { name (string), category (attraction|restaurant|cafe|museu
           return { places: [] };
         }
       }),
+    }),
+
+  // ─── Cloud Trip Sync ──────────────────────────────────────────────────────────────────────────────
+  cloudTrips: router({
+    /** Fetch all trips for the authenticated user. Returns array of { clientId, data } */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const rows = await db.getUserTrips(ctx.user.id);
+      return rows.map((r) => ({ clientId: r.clientId, data: r.data, updatedAt: r.updatedAt.toISOString() }));
+    }),
+
+    /** Upsert a single trip (create or update by clientId). */
+    upsert: protectedProcedure
+      .input(z.object({
+        clientId: z.string().min(1).max(64),
+        data: z.string().min(1),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await db.upsertTrip(ctx.user.id, input.clientId, input.data);
+        return { ok: true };
+      }),
+
+    /** Delete a trip by clientId. */
+    delete: protectedProcedure
+      .input(z.object({ clientId: z.string().min(1).max(64) }))
+      .mutation(async ({ ctx, input }) => {
+        await db.deleteTripByClientId(ctx.user.id, input.clientId);
+        return { ok: true };
+      }),
   }),
 });
-
 export type AppRouter = typeof appRouter;

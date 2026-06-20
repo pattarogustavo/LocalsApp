@@ -290,3 +290,17 @@
 - [x] Perfil: adicionar foto de perfil com upload de imagem
 - [x] Perfil: adicionar seletor de idioma (PT-BR, EN, ES, FR, DE, IT)
 - [x] Perfil: fazer funcionar botões (Alterar senha, Privacidade, Ajuda, Contato, Avaliar)
+
+## Fase 25 — Idiomas FR/IT e Sincronização na Nuvem
+
+- [x] Criar arquivo i18n/fr.ts com tradução completa para Francês
+- [x] Criar arquivo i18n/it.ts com tradução completa para Italiano
+- [x] Adicionar FR e IT ao seletor de idioma no Perfil
+- [x] Registrar FR e IT no hook useTranslation e i18n/index.ts
+- [x] Schema: criar tabela trips no banco de dados
+- [x] Backend: endpoints CRUD para viagens (/trips)
+- [x] Store: sincronizar criação de viagem com servidor
+- [x] Store: sincronizar atualização de viagem com servidor
+- [x] Store: sincronizar exclusão de viagem com servidor
+- [x] Store: carregar viagens do servidor ao fazer login
+- [x] Fallback offline: usar AsyncStorage quando sem conexão

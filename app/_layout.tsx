@@ -11,6 +11,7 @@ import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import * as Notifications from "expo-notifications";
 import { useAuthStore } from "@/store/auth";
+import { useTripsStore } from "@/store/trips";
 import { scheduleTrialNotifications } from "@/lib/subscription-notifications";
 
 // Configure how notifications are presented when the app is in the foreground
@@ -45,6 +46,7 @@ function AuthGuard() {
   const { user, initialized } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
+  const syncWithCloud = useTripsStore((s) => s.syncWithCloud);
 
   useEffect(() => {
     if (!initialized) return;
@@ -60,6 +62,13 @@ function AuthGuard() {
       router.replace('/(tabs)');
     }
   }, [user, initialized, segments]);
+
+  // Sync trips with cloud whenever the user logs in
+  useEffect(() => {
+    if (user) {
+      syncWithCloud().catch(() => {});
+    }
+  }, [user?.id]);
 
   return null;
 }
