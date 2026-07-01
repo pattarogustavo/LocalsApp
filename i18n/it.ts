@@ -127,6 +127,13 @@ export const it: Translations = {
     searchPlaceholder: 'Cerca viaggi...',
     days: 'giorni',
     day: 'giorno',
+    sharedWithMe: 'Condivisi con me',
+    guides: {
+      'paris-1day': { title: 'Viaggio di 1 giorno a Parigi', destination: 'Parigi, Francia' },
+      'rome-1day': { title: 'Viaggio di 1 giorno a Roma', destination: 'Roma, Italia' },
+      'london-3day': { title: 'Viaggio di 3 giorni a Londra', destination: 'Londra, Regno Unito' },
+      'tokyo-4day': { title: 'Viaggio di 4 giorni a Tokyo', destination: 'Tokyo, Giappone' },
+    },
   },
 
   createTrip: {

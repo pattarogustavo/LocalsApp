@@ -21,7 +21,7 @@ import { useTripsStore } from '@/store/trips';
 import { TripCard, TripCardStacked } from '@/components/trip-card';
 import { CreateTripSheet } from '@/components/create-trip-sheet';
 import { isTripUpcoming, isTripPast, isTripOngoing } from '@/utils/trip-helpers';
-import type { Trip, CuratedGuide } from '@/types/voyage';
+import type { Trip } from '@/types/voyage';
 import { TrialBanner } from '@/components/trial-banner';
 import { useAuthStore } from '@/store/auth';
 import { useSubscription } from '@/hooks/use-subscription';
@@ -31,39 +31,11 @@ import { trpc } from '@/lib/trpc';
 const { width } = Dimensions.get('window');
 
 // Curated guides data (static)
-const CURATED_GUIDES: CuratedGuide[] = [
-  {
-    id: 'paris-1day',
-    title: '1-Day Paris Trip',
-    destination: 'Paris, França',
-    days: 1,
-    spots: 9,
-    imageUrl: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=600',
-  },
-  {
-    id: 'rome-1day',
-    title: '1-Day Rome Trip',
-    destination: 'Roma, Itália',
-    days: 1,
-    spots: 7,
-    imageUrl: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=600',
-  },
-  {
-    id: 'london-3day',
-    title: '3-Day London Trip',
-    destination: 'Londres, Reino Unido',
-    days: 3,
-    spots: 19,
-    imageUrl: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=600',
-  },
-  {
-    id: 'tokyo-4day',
-    title: '4-Day Tokyo Trip',
-    destination: 'Tóquio, Japão',
-    days: 4,
-    spots: 14,
-    imageUrl: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=600',
-  },
+const CURATED_GUIDES_BASE = [
+  { id: 'paris-1day' as const, days: 1, spots: 9, imageUrl: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=600' },
+  { id: 'rome-1day' as const, days: 1, spots: 7, imageUrl: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=600' },
+  { id: 'london-3day' as const, days: 3, spots: 19, imageUrl: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=600' },
+  { id: 'tokyo-4day' as const, days: 4, spots: 14, imageUrl: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=600' },
 ];
 
 export default function HomeScreen() {
@@ -270,35 +242,39 @@ export default function HomeScreen() {
             {t.home.curatedGuides}
           </Text>
           <FlatList
-            data={CURATED_GUIDES}
+            data={CURATED_GUIDES_BASE}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={{ width: 140, height: 180, borderRadius: 16, overflow: 'hidden' }}
-              >
-                <ImageBackground
-                  source={{ uri: item.imageUrl }}
-                  style={{ flex: 1 }}
-                  imageStyle={{ borderRadius: 16 }}
+            renderItem={({ item }) => {
+              const guideI18n = (t.home.guides as Record<string, { title: string; destination: string }>)[item.id];
+              const guideTitle = guideI18n?.title ?? item.id;
+              return (
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={{ width: 140, height: 180, borderRadius: 16, overflow: 'hidden' }}
                 >
-                  <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.75)']}
-                    style={{ flex: 1, borderRadius: 16, justifyContent: 'flex-end', padding: 12 }}
+                  <ImageBackground
+                    source={{ uri: item.imageUrl }}
+                    style={{ flex: 1 }}
+                    imageStyle={{ borderRadius: 16 }}
                   >
-                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600', marginBottom: 2 }} numberOfLines={2}>
-                      {item.title}
-                    </Text>
-                    <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
-                      {item.spots} {t.home.spotsLabel}
-                    </Text>
-                  </LinearGradient>
-                </ImageBackground>
-              </TouchableOpacity>
-            )}
+                    <LinearGradient
+                      colors={['transparent', 'rgba(0,0,0,0.75)']}
+                      style={{ flex: 1, borderRadius: 16, justifyContent: 'flex-end', padding: 12 }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600', marginBottom: 2 }} numberOfLines={2}>
+                        {guideTitle}
+                      </Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
+                        {item.spots} {t.home.spotsLabel}
+                      </Text>
+                    </LinearGradient>
+                  </ImageBackground>
+                </TouchableOpacity>
+              );
+            }}
           />
         </View>
       </ScrollView>

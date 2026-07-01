@@ -128,6 +128,13 @@ export const pt = {
     searchPlaceholder: 'Buscar viagens...',
     days: 'dias',
     day: 'dia',
+    sharedWithMe: 'Compartilhadas Comigo',
+    guides: {
+      'paris-1day': { title: 'Roteiro de 1 dia em Paris', destination: 'Paris, França' },
+      'rome-1day': { title: 'Roteiro de 1 dia em Roma', destination: 'Roma, Itália' },
+      'london-3day': { title: 'Roteiro de 3 dias em Londres', destination: 'Londres, Reino Unido' },
+      'tokyo-4day': { title: 'Roteiro de 4 dias em Tóquio', destination: 'Tóquio, Japão' },
+    },
   },
 
   // ── Create Trip ─────────────────────────────────────────────────────────────

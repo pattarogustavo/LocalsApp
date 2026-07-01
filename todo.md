@@ -331,3 +331,13 @@
 - [x] Fix i18n: trip detail — modal de destinos traduzido (PT/EN/ES/FR/IT)
 - [x] Fix i18n: trip detail — aba Info (Clima, Lotação, Habitantes, Saúde, Visto, Dicas) traduzida
 - [x] Fix i18n: chaves faltantes adicionadas em todos os idiomas (sharing, tripEdit, info, home.curatedRoutes)
+
+## Fase 28 — i18n Completo: Alemão, Guias Curados Traduzidos, Expo Go Fix
+
+- [x] Criar i18n/de.ts com tradução completa em Alemão (391 chaves)
+- [x] Registrar Alemão no i18n/index.ts como SupportedLanguage
+- [x] Adicionar chaves home.guides em todos os idiomas (PT/EN/ES/FR/IT/DE) para títulos dos Guias Curados
+- [x] Atualizar home screen para usar t.home.guides[id].title em vez de strings hardcoded
+- [x] Confirmar que o seletor de idioma lista apenas idiomas com suporte completo (PT/EN/ES/FR/DE/IT)
+- [x] Gerar novo QR code do Expo Go com URL da sessão atual
+- [x] TypeScript 0 erros
