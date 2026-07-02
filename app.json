@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "LocalsApp",
+    "slug": "voyage-app",
+    "extra": {
+      "eas": {
+        "projectId": "51c77204-fb40-4d11-bb31-a42311596671"
+      }
+    }
+  }
+}
