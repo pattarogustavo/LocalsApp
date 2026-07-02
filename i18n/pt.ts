@@ -46,7 +46,7 @@ export const pt = {
   // ── Auth ────────────────────────────────────────────────────────────────────
   auth: {
     onboarding: {
-      title: 'Voyage',
+      title: 'LocalsApp',
       subtitle: 'Planeje viagens inesquecíveis com roteiros curados por IA.',
       feature1: 'Roteiros personalizados',
       feature1Desc: 'IA cria seu roteiro completo em segundos',
@@ -556,7 +556,7 @@ export const pt = {
     active: 'Ativo',
     inviteSent: 'Convite enviado',
     inviteMsg: 'Um convite foi enviado para',
-    inviteHint: 'Se o viajante tiver uma conta no Voyage, ele receberá o roteiro completo e poderá acompanhar em tempo real.',
+    inviteHint: 'Se o viajante tiver uma conta no LocalsApp, ele receberá o roteiro completo e poderá acompanhar em tempo real.',
     emailHint: 'Se informado, um convite será enviado para acesso ao roteiro.',
   },
 
@@ -616,13 +616,13 @@ export const pt = {
     passwordError: 'Não foi possível alterar a senha.',
     // Language modal
     languageTitle: 'Idioma do Aplicativo',
-    languageSubtitle: 'Selecione o idioma de exibição do Voyage',
+    languageSubtitle: 'Selecione o idioma de exibição do LocalsApp',
     languageCancel: 'Cancelar',
   },
 
   // ── Paywall ──────────────────────────────────────────────────────────────────
   paywall: {
-    title: 'Voyage Pro',
+    title: 'LocalsApp Pro',
     subtitle: 'Desbloqueie o melhor da sua viagem',
     feature1: 'Roteiros ilimitados com IA',
     feature2: 'Busca de voos em tempo real',
@@ -644,8 +644,8 @@ export const pt = {
     alreadySubscribed: 'Você já tem uma assinatura ativa.',
     close: 'Fechar',
     trialEnded: 'Seu trial encerrou',
-    trialEndedSubtitle: 'Assine para continuar planejando suas viagens com o Voyage.',
-    upgradeTitle: 'Upgrade para Voyage Pro',
+    trialEndedSubtitle: 'Assine para continuar planejando suas viagens com o LocalsApp.',
+    upgradeTitle: 'Upgrade para LocalsApp Pro',
     upgradeSubtitle: 'Desbloqueie toda a experiência de planejamento de viagens.',
     unlockAll: 'desbloqueie tudo',
     featureUnlimited: 'Roteiros e viagens ilimitados',

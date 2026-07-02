@@ -46,7 +46,7 @@ export const de: Translations = {
 
   auth: {
     onboarding: {
-      title: 'Voyage',
+      title: 'LocalsApp',
       subtitle: 'Plane unvergessliche Reisen mit KI-kuratierten Reiseplänen.',
       feature1: 'Personalisierte Reisepläne',
       feature1Desc: 'KI erstellt deinen vollständigen Reiseplan in Sekunden',
@@ -539,7 +539,7 @@ export const de: Translations = {
     active: 'Active',
     inviteSent: 'Invite sent',
     inviteMsg: 'An invite was sent to',
-    inviteHint: 'If the traveler has a Voyage account, they will receive the full itinerary and can follow in real time.',
+    inviteHint: 'If the traveler has a LocalsApp account, they will receive the full itinerary and can follow in real time.',
     emailHint: 'If provided, an invite will be sent for itinerary access.',
   },
 
@@ -596,12 +596,12 @@ export const de: Translations = {
     passwordChanged: 'Dein Passwort wurde erfolgreich geändert.',
     passwordError: 'Passwort konnte nicht geändert werden.',
     languageTitle: 'App-Sprache',
-    languageSubtitle: 'Anzeigesprache für Voyage auswählen',
+    languageSubtitle: 'Anzeigesprache für LocalsApp auswählen',
     languageCancel: 'Abbrechen',
   },
 
   paywall: {
-    title: 'Voyage Pro',
+    title: 'LocalsApp Pro',
     subtitle: 'Das Beste aus deiner Reise herausholen',
     feature1: 'Unbegrenzte KI-Reisepläne',
     feature2: 'Echtzeit-Flugsuche',
@@ -623,8 +623,8 @@ export const de: Translations = {
     alreadySubscribed: 'Du hast bereits ein aktives Abonnement.',
     close: 'Close',
     trialEnded: 'Deine Testversion ist abgelaufen',
-    trialEndedSubtitle: 'Abonniere, um weiterhin Reisen mit Voyage zu planen.',
-    upgradeTitle: 'Auf Voyage Pro upgraden',
+    trialEndedSubtitle: 'Abonniere, um weiterhin Reisen mit LocalsApp zu planen.',
+    upgradeTitle: 'Auf LocalsApp Pro upgraden',
     upgradeSubtitle: 'Erlebe die vollständige Reiseplanung.',
     unlockAll: 'alles freischalten',
     featureUnlimited: 'Unbegrenzte Reisen & Reisepläne',
@@ -638,7 +638,7 @@ export const de: Translations = {
     startAnnual: 'Jahresplan starten',
     startMonthly: 'Monatsplan starten',
     subscribeSuccess: 'Abonnement aktiviert!',
-    subscribeSuccessMsg: 'Dein {plan}-Plan ist jetzt aktiv. Viel Spaß mit Voyage!',
+    subscribeSuccessMsg: 'Dein {plan}-Plan ist jetzt aktiv. Viel Spaß mit LocalsApp!',
     purchaseFailed: 'Kauf fehlgeschlagen',
     purchaseFailedMsg: 'Bitte erneut versuchen oder Support kontaktieren.',
     noPurchases: 'Keine Käufe gefunden',

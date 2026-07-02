@@ -341,3 +341,16 @@
 - [x] Confirmar que o seletor de idioma lista apenas idiomas com suporte completo (PT/EN/ES/FR/DE/IT)
 - [x] Gerar novo QR code do Expo Go com URL da sessão atual
 - [x] TypeScript 0 erros
+
+## Fase 29 — Rebrand: Voyage → LocalsApp
+
+- [x] Alterar nome do app para "LocalsApp" em app.config.ts
+- [x] Gerar novo ícone LocalsApp (pin de mapa + rota, fundo navy + coral)
+- [x] Atualizar icon.png, splash-icon.png, favicon.png, android-icon-foreground.png
+- [x] Atualizar logoUrl em app.config.ts com novo ícone
+- [x] Substituir "Voyage" por "LocalsApp" em todos os arquivos i18n (pt/en/es/fr/it/de)
+- [x] Substituir "Voyage Pro" por "LocalsApp Pro" em todos os idiomas
+- [x] Atualizar cabeçalho da home screen de "Voyage" para "LocalsApp"
+- [x] Atualizar e-mail de suporte para suporte@localsapp.com no perfil
+- [x] Atualizar versão de "Voyage v1.0.0" para "LocalsApp v1.0.0" no perfil
+- [x] Atualizar textos hardcoded em accept-invite.tsx, share.tsx, paywall-modal.tsx, travelers-block.tsx

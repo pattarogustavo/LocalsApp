@@ -108,7 +108,7 @@ export default function HomeScreen() {
         >
           <View>
             <Text style={{ fontSize: 32, fontFamily: 'serif', fontStyle: 'italic', color: '#1C3D2E', fontWeight: '400' }}>
-              Voyage
+              LocalsApp
             </Text>
             <Text className="text-muted text-xs tracking-widest font-semibold uppercase" style={{ marginTop: -2 }}>
             {t.home.curatedRoutes}

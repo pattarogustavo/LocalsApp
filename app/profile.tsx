@@ -525,7 +525,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[styles.menuRow, styles.menuRowBorder]}
               activeOpacity={0.7}
-              onPress={() => Linking.openURL('mailto:suporte@voyage.app?subject=Suporte%20Voyage')}
+              onPress={() => Linking.openURL('mailto:suporte@localsapp.com?subject=Suporte%20LocalsApp')}
             >
               <View style={styles.menuIconBg}>
                 <Ionicons name="chatbubble-outline" size={16} color="rgba(245,240,232,0.6)" />
@@ -570,7 +570,7 @@ export default function ProfileScreen() {
           )}
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>Voyage v1.0.0</Text>
+        <Text style={styles.versionText}>LocalsApp v1.0.0</Text>
       </ScrollView>
 
       {/* ── Modals ── */}

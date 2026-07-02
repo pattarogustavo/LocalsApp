@@ -239,7 +239,7 @@ export default function TripShareScreen() {
           <View style={[styles.infoBox, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '30' }]}>
             <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.primary }]}>
-              O convidado precisa ter uma conta no Voyage para aceitar o convite. Após aceitar, a viagem aparecerá na tela inicial dele.
+              O convidado precisa ter uma conta no LocalsApp para aceitar o convite. Após aceitar, a viagem aparecerá na tela inicial dele.
             </Text>
           </View>
         </ScrollView>

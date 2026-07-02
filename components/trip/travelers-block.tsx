@@ -170,7 +170,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
                 </TouchableOpacity>
               </View>
               <Text style={styles.modalSubtitle}>
-                {t.travelers.inviteHint ?? 'Se o viajante tiver uma conta no Voyage, ele receberá o roteiro completo.'}
+                {t.travelers.inviteHint ?? 'Se o viajante tiver uma conta no LocalsApp, ele receberá o roteiro completo.'}
               </Text>
 
               <View style={styles.inputGroup}>

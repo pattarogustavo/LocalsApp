@@ -76,7 +76,7 @@ export default function AcceptInviteScreen() {
               Convite de Viagem
             </Text>
             <Text style={[styles.desc, { color: colors.muted }]}>
-              Você foi convidado(a) para participar de uma viagem no Voyage.
+              Você foi convidado(a) para participar de uma viagem no LocalsApp.
             </Text>
             {status === 'loading' ? (
               <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 24 }} />

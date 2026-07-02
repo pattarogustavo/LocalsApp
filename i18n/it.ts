@@ -46,7 +46,7 @@ export const it: Translations = {
 
   auth: {
     onboarding: {
-      title: 'Voyage',
+      title: 'LocalsApp',
       subtitle: 'Pianifica viaggi indimenticabili con itinerari curati dall\'IA.',
       feature1: 'Itinerari personalizzati',
       feature1Desc: "L'IA crea il tuo itinerario completo in pochi secondi",
@@ -539,7 +539,7 @@ export const it: Translations = {
     active: 'Attivo',
     inviteSent: 'Invito inviato',
     inviteMsg: 'Un invito è stato inviato a',
-    inviteHint: 'Se il viaggiatore ha un account Voyage, riceverà l\'itinerario completo.',
+    inviteHint: 'Se il viaggiatore ha un account LocalsApp, riceverà l\'itinerario completo.',
     emailHint: 'Se fornita, verrà inviato un invito per accedere all\'itinerario.',
   },
 
@@ -596,12 +596,12 @@ export const it: Translations = {
     passwordChanged: 'La tua password è stata modificata con successo.',
     passwordError: 'Impossibile cambiare la password.',
     languageTitle: "Lingua dell'app",
-    languageSubtitle: 'Seleziona la lingua di visualizzazione di Voyage',
+    languageSubtitle: 'Seleziona la lingua di visualizzazione di LocalsApp',
     languageCancel: 'Annulla',
   },
 
   paywall: {
-    title: 'Voyage Pro',
+    title: 'LocalsApp Pro',
     subtitle: 'Ottieni il massimo dal tuo viaggio',
     feature1: 'Itinerari IA illimitati',
     feature2: 'Ricerca voli in tempo reale',
@@ -623,8 +623,8 @@ export const it: Translations = {
     alreadySubscribed: 'Hai già un abbonamento attivo.',
     close: 'Chiudi',
     trialEnded: 'La tua prova è terminata',
-    trialEndedSubtitle: 'Abbonati per continuare a pianificare i tuoi viaggi con Voyage.',
-    upgradeTitle: 'Passa a Voyage Pro',
+    trialEndedSubtitle: 'Abbonati per continuare a pianificare i tuoi viaggi con LocalsApp.',
+    upgradeTitle: 'Passa a LocalsApp Pro',
     upgradeSubtitle: 'Sblocca l\'esperienza completa di pianificazione del viaggio.',
     unlockAll: 'sblocca tutto',
     featureUnlimited: 'Viaggi e itinerari illimitati',

@@ -46,7 +46,7 @@ export const en: Translations = {
 
   auth: {
     onboarding: {
-      title: 'Voyage',
+      title: 'LocalsApp',
       subtitle: 'Plan unforgettable trips with AI-curated itineraries.',
       feature1: 'Personalized itineraries',
       feature1Desc: 'AI creates your full itinerary in seconds',
@@ -539,7 +539,7 @@ export const en: Translations = {
     active: 'Active',
     inviteSent: 'Invite sent',
     inviteMsg: 'An invite was sent to',
-    inviteHint: 'If the traveler has a Voyage account, they will receive the full itinerary and can follow in real time.',
+    inviteHint: 'If the traveler has a LocalsApp account, they will receive the full itinerary and can follow in real time.',
     emailHint: 'If provided, an invite will be sent for itinerary access.',
   },
 
@@ -596,12 +596,12 @@ export const en: Translations = {
     passwordChanged: 'Your password has been changed successfully.',
     passwordError: 'Could not change password.',
     languageTitle: 'App Language',
-    languageSubtitle: 'Select the display language for Voyage',
+    languageSubtitle: 'Select the display language for LocalsApp',
     languageCancel: 'Cancel',
   },
 
   paywall: {
-    title: 'Voyage Pro',
+    title: 'LocalsApp Pro',
     subtitle: 'Unlock the best of your trip',
     feature1: 'Unlimited AI itineraries',
     feature2: 'Real-time flight search',
@@ -623,8 +623,8 @@ export const en: Translations = {
     alreadySubscribed: 'You already have an active subscription.',
     close: 'Close',
     trialEnded: 'Your trial has ended',
-    trialEndedSubtitle: 'Subscribe to continue planning your trips with Voyage.',
-    upgradeTitle: 'Upgrade to Voyage Pro',
+    trialEndedSubtitle: 'Subscribe to continue planning your trips with LocalsApp.',
+    upgradeTitle: 'Upgrade to LocalsApp Pro',
     upgradeSubtitle: 'Unlock the full travel planning experience.',
     unlockAll: 'unlock everything',
     featureUnlimited: 'Unlimited trips & itineraries',
@@ -638,7 +638,7 @@ export const en: Translations = {
     startAnnual: 'Start Annual Plan',
     startMonthly: 'Start Monthly Plan',
     subscribeSuccess: 'Subscription activated!',
-    subscribeSuccessMsg: 'Your {plan} plan is now active. Enjoy Voyage!',
+    subscribeSuccessMsg: 'Your {plan} plan is now active. Enjoy LocalsApp!',
     purchaseFailed: 'Purchase failed',
     purchaseFailedMsg: 'Please try again or contact support.',
     noPurchases: 'No purchases found',
