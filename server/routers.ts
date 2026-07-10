@@ -15,6 +15,43 @@ const AERODATABOX_HOST = 'aerodatabox.p.rapidapi.com';
 const GOOGLE_DIRECTIONS_KEY = process.env.GOOGLE_DIRECTIONS_API_KEY || "";
 const OPENWEATHER_KEY = process.env.OPENWEATHERMAP_API_KEY || "";
 
+// ─── Photo helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Fetch a representative photo from Wikipedia for a city/destination.
+ * Tries "CityName, Country" first, then just "CityName".
+ * Returns a resized thumbnail URL (1200px wide) or undefined.
+ */
+async function fetchWikipediaPhoto(cityName: string, country?: string): Promise<string | undefined> {
+  const queries = [
+    country ? `${cityName}, ${country}` : null,
+    cityName,
+  ].filter(Boolean) as string[];
+
+  for (const q of queries) {
+    try {
+      const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(q)}`;
+      const r = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "LocalsApp/1.0 (travel-app)",
+        },
+        redirect: "follow",
+      });
+      if (!r.ok) continue;
+      const d = (await r.json()) as any;
+      const src: string | undefined = d.originalimage?.source;
+      if (src) {
+        // Resize to 1200px wide by replacing the size token in the URL
+        return src.replace(/\/\d+px-/, "/1200px-");
+      }
+    } catch {
+      // ignore and try next query
+    }
+  }
+  return undefined;
+}
+
 // ─── Google Directions helper ─────────────────────────────────────────────────
 
 type TravelMode = 'driving' | 'walking' | 'transit' | 'bicycling';
@@ -723,11 +760,26 @@ Responda APENAS com JSON válido neste formato exato:
           const { ISLANDS_AND_REGIONS } = await import("../constants/islands-regions");
           const island = ISLANDS_AND_REGIONS.find((i) => i.id === islandId);
           if (island) {
+            // Try to get a photo using the island's imageKeyword or name
+            const searchTerm = island.imageKeyword || island.name;
+            const countryStr = island.country.split(",").pop()?.trim() || island.country;
+            let islandImageUrl: string | undefined;
+            try {
+              islandImageUrl = await fetchWikipediaPhoto(searchTerm, countryStr);
+              if (!islandImageUrl) {
+                islandImageUrl = await fetchWikipediaPhoto(island.nameAlt?.[0] || island.name);
+              }
+            } catch {
+              // ignore
+            }
+            if (!islandImageUrl) {
+              console.warn(`[places.details] no photo for island "${island.name}" (${countryStr})`);
+            }
             return {
               lat: island.lat,
               lng: island.lng,
-              imageUrl: undefined,
-              country: island.country.split(",").pop()?.trim() || island.country,
+              imageUrl: islandImageUrl,
+              country: countryStr,
             };
           }
           return null;
@@ -750,21 +802,44 @@ Responda APENAS com JSON válido neste formato exato:
         const lat = result?.geometry?.location?.lat;
         const lng = result?.geometry?.location?.lng;
 
-        // Get a photo URL if available
+        // Get a photo URL if available — follow the redirect so we store a stable
+        // lh3.googleusercontent.com URL (no API key exposed to the client).
         let imageUrl: string | undefined;
         if (result?.photos?.[0]?.photo_reference) {
-          const photoUrl = new URL("https://maps.googleapis.com/maps/api/place/photo");
-          photoUrl.searchParams.set("maxwidth", "1200");
-          photoUrl.searchParams.set("photo_reference", result.photos[0].photo_reference);
-          photoUrl.searchParams.set("key", GOOGLE_PLACES_KEY);
-          imageUrl = photoUrl.toString();
+          try {
+            const photoUrl = new URL("https://maps.googleapis.com/maps/api/place/photo");
+            photoUrl.searchParams.set("maxwidth", "1200");
+            photoUrl.searchParams.set("photo_reference", result.photos[0].photo_reference);
+            photoUrl.searchParams.set("key", GOOGLE_PLACES_KEY);
+            // Follow the redirect so the client gets a stable public URL
+            const photoRes = await fetch(photoUrl.toString(), { redirect: "follow" });
+            if (photoRes.ok && photoRes.url.includes("googleusercontent.com")) {
+              imageUrl = photoRes.url;
+            } else {
+              // Fallback: return the redirect URL (React Native follows redirects natively)
+              imageUrl = photoUrl.toString();
+            }
+          } catch (photoErr) {
+            console.error(`[places.details] photo fetch failed for place_id=${input.placeId}:`, photoErr);
+          }
+        }
+
+        // If Google Places has no photo, try Wikipedia as fallback
+        if (!imageUrl) {
+          const placeName = result?.name || "";
+          const countryComp = result?.address_components?.find((c: any) => c.types.includes("country"));
+          const countryName = countryComp?.long_name || "";
+          imageUrl = await fetchWikipediaPhoto(placeName, countryName);
+          if (!imageUrl) {
+            console.warn(`[places.details] no photo found for "${placeName}" (${countryName}), place_id=${input.placeId}`);
+          }
         }
 
         // Extract country from address_components
         const countryComponent = result?.address_components?.find((c: any) =>
           c.types.includes("country")
         );
-                const country = countryComponent?.long_name || "";
+        const country = countryComponent?.long_name || "";
         const address = result?.formatted_address || "";
         return { lat, lng, imageUrl, country, address };
       }),

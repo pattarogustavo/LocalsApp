@@ -175,11 +175,7 @@ function getHeroImage(trip: any): string {
   for (const [key, url] of Object.entries(DESTINATION_IMAGES)) {
     if (key !== 'default' && destName.includes(key)) return url;
   }
-  // 4. Dynamic Unsplash query for any city not in the curated map
-  if (destName) {
-    const query = encodeURIComponent(`${destName} city travel landmark`);
-    return `https://source.unsplash.com/1200x800/?${query}`;
-  }
+  // 4. Default travel image (source.unsplash.com is deprecated/broken)
   return DESTINATION_IMAGES.default;
 }
 

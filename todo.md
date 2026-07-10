@@ -354,3 +354,5 @@
 - [x] Atualizar e-mail de suporte para suporte@localsapp.com no perfil
 - [x] Atualizar versão de "Voyage v1.0.0" para "LocalsApp v1.0.0" no perfil
 - [x] Atualizar textos hardcoded em accept-invite.tsx, share.tsx, paywall-modal.tsx, travelers-block.tsx
+
+- [x] Bug fix: destination cover photo — source.unsplash.com deprecated (503), trip-card not using destination.imageUrl, Google Places photo now follows redirect to stable lh3 URL, Wikipedia fallback added, islands now get Wikipedia photos

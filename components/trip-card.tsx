@@ -52,10 +52,14 @@ const DESTINATION_IMAGES: Record<string, string> = {
 };
 
 function getImageForTrip(trip: Trip): string {
+  // 1. Explicit cover image set by user
   if (trip.coverImageUrl) return trip.coverImageUrl;
+  // 2. Google Places photo fetched when destination was selected
+  if (trip.destinations[0]?.imageUrl) return trip.destinations[0].imageUrl;
+  // 3. Curated Unsplash map for well-known destinations
   const destName = trip.destinations[0]?.name?.toLowerCase() || '';
   for (const [key, url] of Object.entries(DESTINATION_IMAGES)) {
-    if (destName.includes(key)) return url;
+    if (key !== 'default' && destName.includes(key)) return url;
   }
   return DESTINATION_IMAGES.default;
 }
