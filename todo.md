@@ -364,3 +364,4 @@
 - [x] Redesign onboarding/welcome screen with compass logo and new colors
 - [x] Apply new colors to all screens (profile, trip detail, home, auth, components)
 - [x] Update splash screen background color
+- [x] Fix text contrast issues (light text on light background) in register, login, forgot-password, profile, paywall, and trip detail screens

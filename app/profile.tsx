@@ -604,7 +604,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(61,90,46,0.06)',
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '600', color: '#F0EBE0', letterSpacing: 0.2 },
+  headerTitle: { fontSize: 17, fontWeight: '600', color: '#2C2416', letterSpacing: 0.2 },
   scroll: { padding: 20, gap: 20 },
 
   // User card
@@ -644,8 +644,8 @@ const styles = StyleSheet.create({
   },
   userInfo: { flex: 1, gap: 4 },
   userNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  userName: { fontSize: 17, fontWeight: '700', color: '#F0EBE0' },
-  userEmail: { fontSize: 13, color: 'rgba(245,240,232,0.5)' },
+  userName: { fontSize: 17, fontWeight: '700', color: '#2C2416' },
+  userEmail: { fontSize: 13, color: '#8A7F6E' },
 
   // Badge
   badge: {
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(245,240,232,0.06)',
   },
   cardLabel: { fontSize: 14, color: 'rgba(245,240,232,0.55)' },
-  cardValue: { fontSize: 14, fontWeight: '500', color: '#F0EBE0' },
+  cardValue: { fontSize: 14, fontWeight: '500', color: '#2C2416' },
   cardValueWarning: { color: '#EF4444' },
 
   // Upgrade / Cancel buttons
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 12,
   },
-  upgradeBtnText: { fontSize: 14, fontWeight: '700', color: '#F0EBE0' },
+  upgradeBtnText: { fontSize: 14, fontWeight: '700', color: '#2C2416' },
   cancelBtn: {
     alignItems: 'center',
     margin: 12,
@@ -725,7 +725,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  menuLabel: { flex: 1, fontSize: 15, color: '#F0EBE0' },
+  menuLabel: { flex: 1, fontSize: 15, color: '#2C2416' },
   menuValue: { fontSize: 13, color: 'rgba(245,240,232,0.45)', marginRight: 4 },
 
   // Logout
@@ -760,8 +760,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 20,
   },
-  langTitle: { fontSize: 18, fontWeight: '700', color: '#F0EBE0', marginBottom: 6 },
-  langSubtitle: { fontSize: 13, color: 'rgba(245,240,232,0.5)', marginBottom: 20 },
+  langTitle: { fontSize: 18, fontWeight: '700', color: '#2C2416', marginBottom: 6 },
+  langSubtitle: { fontSize: 13, color: '#8A7F6E', marginBottom: 20 },
   langRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -774,7 +774,7 @@ const styles = StyleSheet.create({
   langRowActive: { backgroundColor: 'rgba(61,90,46,0.10)' },
   langFlag: { fontSize: 22 },
   langLabel: { flex: 1, fontSize: 16, color: 'rgba(245,240,232,0.7)' },
-  langLabelActive: { color: '#F0EBE0', fontWeight: '600' },
+  langLabelActive: { color: '#2C2416', fontWeight: '600' },
   langCancelBtn: {
     alignItems: 'center',
     paddingVertical: 14,
@@ -782,7 +782,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(61,90,46,0.06)',
   },
-  langCancelText: { fontSize: 16, color: 'rgba(245,240,232,0.5)' },
+  langCancelText: { fontSize: 16, color: '#8A7F6E' },
 
   // Change password modal
   pwSheet: {
@@ -792,7 +792,7 @@ const styles = StyleSheet.create({
     maxHeight: '85%',
   },
   pwHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  pwTitle: { fontSize: 20, fontWeight: '700', color: '#F0EBE0' },
+  pwTitle: { fontSize: 20, fontWeight: '700', color: '#2C2416' },
   pwLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(44,36,22,0.6)', marginBottom: 8, marginTop: 16 },
   pwInput: {
     backgroundColor: 'rgba(245,240,232,0.06)',
@@ -800,7 +800,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#F0EBE0',
+    color: '#2C2416',
     borderWidth: 0.5,
     borderColor: 'rgba(245,240,232,0.12)',
   },

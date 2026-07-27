@@ -79,7 +79,7 @@ export default function PaywallScreen() {
       <View style={styles.header}>
         {!isBlocking && (
           <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-            <Ionicons name="close" size={22} color="rgba(240,235,224,0.9)" />
+            <Ionicons name="close" size={22} color="#8A7F6E" />
           </TouchableOpacity>
         )}
         <View style={styles.headerCenter}>
@@ -180,7 +180,7 @@ export default function PaywallScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#F0EBE0" />
+            <ActivityIndicator color="#2C2416" />
           ) : (
             <Text style={styles.ctaBtnText}>
               {selectedPlan === 'annual' ? t.paywall.startAnnual : t.paywall.startMonthly}
@@ -199,7 +199,7 @@ export default function PaywallScreen() {
           disabled={restoring}
         >
           {restoring ? (
-            <ActivityIndicator size="small" color="rgba(240,235,224,0.9)" />
+            <ActivityIndicator size="small" color="#8A7F6E" />
           ) : (
             <Text style={styles.restoreText}>{t.paywall.restore}</Text>
           )}
@@ -258,12 +258,12 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 26,
     fontWeight: '700',
-    color: '#F0EBE0',
+    color: '#F7F3EC',
     textAlign: 'center',
   },
   heroSubtitle: {
     fontSize: 14,
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: 16,
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 14,
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
     fontWeight: '500',
   },
   plans: {
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   planName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#F0EBE0',
+    color: '#2C2416',
     marginBottom: 4,
   },
   planPriceRow: {
@@ -349,15 +349,15 @@ const styles = StyleSheet.create({
   planPrice: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#F0EBE0',
+    color: '#2C2416',
   },
   planPeriod: {
     fontSize: 11,
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
   },
   planBilled: {
     fontSize: 10,
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
     marginTop: 2,
   },
   ctaBtn: {
@@ -371,13 +371,13 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   ctaBtnText: {
-    color: '#F0EBE0',
+    color: '#F7F3EC',
     fontSize: 16,
     fontWeight: '700',
   },
   legalText: {
     fontSize: 10,
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
     textAlign: 'center',
     lineHeight: 16,
     marginBottom: 16,
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   },
   restoreText: {
     fontSize: 13,
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
     textDecorationLine: 'underline',
   },
 });

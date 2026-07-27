@@ -668,7 +668,7 @@ export default function TripDetailScreen() {
                   style={[
                     styles.tabBtn,
                     {
-                      backgroundColor: isActive ? 'rgba(82,183,136,0.25)' : 'rgba(255,255,255,0.08)',
+                      backgroundColor: isActive ? 'rgba(61,90,46,0.15)' : 'transparent',
                       borderWidth: isActive ? 1 : 0,
                       borderColor: isActive ? '#3D5A2E' : 'transparent',
                     },
@@ -677,12 +677,12 @@ export default function TripDetailScreen() {
                   <Ionicons
                     name={tab.icon as any}
                     size={16}
-                    color={isActive ? '#3D5A2E' : 'rgba(240,235,224,0.9)'}
+                    color={isActive ? '#3D5A2E' : '#8A7F6E'}
                   />
                   <Text
                     style={[
                       styles.tabBtnText,
-                      { color: isActive ? '#3D5A2E' : 'rgba(240,235,224,0.9)', fontWeight: isActive ? '600' : '400' },
+                      { color: isActive ? '#3D5A2E' : '#8A7F6E', fontWeight: isActive ? '600' : '400' },
                     ]}
                   >
                     {tab.label}
@@ -812,7 +812,7 @@ function TransportTab({ trip }: { trip: any }) {
       />
       {trip.transport.length === 0 && (
         <View style={styles.emptyState}>
-          <Ionicons name="airplane-outline" size={48} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="airplane-outline" size={48} color="#C4B89A" />
           <Text style={styles.emptyStateTitle}>{t.transport.noTransport}</Text>
           <Text style={styles.emptyStateSubtitle}>{t.transport.addTransport}</Text>
         </View>
@@ -874,7 +874,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
 
       {!loading && !info && loaded && (
         <View style={infoStyles.loadingRow}>
-          <Ionicons name="alert-circle-outline" size={16} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="alert-circle-outline" size={16} color="#C4B89A" />
           <Text style={infoStyles.loadingText}>{t.info.loadError}</Text>
         </View>
       )}
@@ -925,7 +925,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
           {info.population?.count && (
             <View style={infoStyles.section}>
               <View style={infoStyles.sectionHeader}>
-                <Ionicons name="business-outline" size={16} color="rgba(240,235,224,0.9)" />
+                <Ionicons name="business-outline" size={16} color="#C4B89A" />
                 <Text style={infoStyles.sectionTitle}>{t.info.population}</Text>
               </View>
               <Text style={infoStyles.sectionBody}>{info.population.count} {t.info.population.toLowerCase()}</Text>
@@ -1005,7 +1005,7 @@ function HistoryTab({ trip }: { trip: any }) {
     >
       {trip.destinations.length === 0 ? (
         <View style={infoStyles.emptyState}>
-          <Ionicons name="information-circle-outline" size={40} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="information-circle-outline" size={40} color="#C4B89A" />
           <Text style={infoStyles.emptyText}>{t.info.selectDest}</Text>
         </View>
       ) : (
@@ -1036,11 +1036,11 @@ const infoStyles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   destFlag: { fontSize: 24 },
-  destName: { flex: 1, fontSize: 18, fontWeight: '700', color: '#F0EBE0' },
+  destName: { flex: 1, fontSize: 18, fontWeight: '700', color: '#2C2416' },
   destMonth: {
     fontSize: 12,
-    color: 'rgba(240,235,224,0.9)',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    color: '#8A7F6E',
+    backgroundColor: 'rgba(61,90,46,0.08)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -1051,7 +1051,7 @@ const infoStyles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
   },
-  loadingText: { fontSize: 13, color: 'rgba(240,235,224,0.9)' },
+  loadingText: { fontSize: 13, color: '#8A7F6E' },
   section: {
     marginBottom: 14,
     paddingBottom: 14,

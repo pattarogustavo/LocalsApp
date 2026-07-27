@@ -49,7 +49,7 @@ export default function ForgotPasswordScreen() {
       <View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}>
         {/* Header */}
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="arrow-back" size={22} color="#8A7F6E" />
         </TouchableOpacity>
 
         {sent ? (
@@ -81,7 +81,7 @@ export default function ForgotPasswordScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t.auth.forgotPassword.emailPlaceholder}
-                placeholderTextColor="rgba(240,235,224,0.9)"
+                placeholderTextColor="#8A7F6E"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -100,7 +100,7 @@ export default function ForgotPasswordScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#F0EBE0" />
+                <ActivityIndicator color="#F7F3EC" />
               ) : (
                 <Text style={styles.submitBtnText}>{t.auth.forgotPassword.sendBtn}</Text>
               )}
@@ -152,25 +152,25 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#F0EBE0',
+    color: '#2C2416',
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 14,
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
     lineHeight: 22,
     marginBottom: 32,
   },
   successText: {
     fontSize: 14,
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
     lineHeight: 22,
     textAlign: 'center',
     marginBottom: 32,
     paddingHorizontal: 16,
   },
   emailHighlight: {
-    color: '#F0EBE0',
+    color: '#2C2416',
     fontWeight: '600',
   },
   fieldGroup: {
@@ -179,20 +179,20 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
     letterSpacing: 0.5,
     marginBottom: 8,
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: 'rgba(240,235,224,0.9)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(240,235,224,0.9)',
+    borderColor: '#DDD5C5',
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#F0EBE0',
+    color: '#2C2416',
   },
   submitBtn: {
     backgroundColor: '#3D5A2E',
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitBtnText: {
-    color: '#F0EBE0',
+    color: '#2C2416',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontSize: 14,
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
   },
   loginLink: {
     fontSize: 14,

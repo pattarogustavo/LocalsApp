@@ -87,7 +87,7 @@ export default function LoginScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="rgba(240,235,224,0.9)" />
+            <Ionicons name="arrow-back" size={22} color="#8A7F6E" />
           </TouchableOpacity>
           <Text style={styles.title}>{t.auth.login.subtitle}</Text>
           <Text style={styles.subtitle}>{t.auth.login.title}</Text>
@@ -95,7 +95,7 @@ export default function LoginScreen() {
 
         {/* Google button */}
         <TouchableOpacity style={styles.googleBtn} activeOpacity={0.85} onPress={handleGoogleLogin}>
-          <Ionicons name="logo-google" size={18} color="#F0EBE0" />
+          <Ionicons name="logo-google" size={18} color="#2C2416" />
           <Text style={styles.googleBtnText}>{t.auth.login.continueWithGoogle}</Text>
         </TouchableOpacity>
 
@@ -111,7 +111,7 @@ export default function LoginScreen() {
           <TextInput
             style={styles.input}
             placeholder={t.auth.login.emailPlaceholder}
-            placeholderTextColor="rgba(240,235,224,0.9)"
+            placeholderTextColor="#8A7F6E"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -133,7 +133,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.inputFlex}
               placeholder={t.auth.login.passwordPlaceholder}
-              placeholderTextColor="rgba(240,235,224,0.9)"
+              placeholderTextColor="#8A7F6E"
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
@@ -141,7 +141,7 @@ export default function LoginScreen() {
               onSubmitEditing={handleLogin}
             />
             <TouchableOpacity onPress={() => setShowPassword((v) => !v)} style={styles.eyeBtn}>
-              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="rgba(240,235,224,0.9)" />
+              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#8A7F6E" />
             </TouchableOpacity>
           </View>
         </View>
@@ -154,7 +154,7 @@ export default function LoginScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#F0EBE0" />
+            <ActivityIndicator color="#F7F3EC" />
           ) : (
             <Text style={styles.submitBtnText}>{t.auth.login.loginBtn}</Text>
           )}
@@ -190,27 +190,27 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#F0EBE0',
+    color: '#2C2416',
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
   },
   googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: 'rgba(240,235,224,0.9)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: 'rgba(240,235,224,0.9)',
+    borderColor: '#DDD5C5',
     marginBottom: 20,
   },
   googleBtnText: {
-    color: '#F0EBE0',
+    color: '#2C2416',
     fontSize: 15,
     fontWeight: '600',
   },
@@ -223,10 +223,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(240,235,224,0.9)',
+    backgroundColor: '#FFFFFF',
   },
   dividerText: {
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
     fontSize: 12,
   },
   fieldGroup: {
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
@@ -251,22 +251,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   input: {
-    backgroundColor: 'rgba(240,235,224,0.9)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(240,235,224,0.9)',
+    borderColor: '#DDD5C5',
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#F0EBE0',
+    color: '#2C2416',
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(240,235,224,0.9)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(240,235,224,0.9)',
+    borderColor: '#DDD5C5',
     paddingRight: 8,
   },
   inputFlex: {
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#F0EBE0',
+    color: '#2C2416',
   },
   eyeBtn: {
     padding: 8,
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitBtnText: {
-    color: '#F0EBE0',
+    color: '#2C2416',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
   },
   registerText: {
     fontSize: 14,
-    color: 'rgba(240,235,224,0.9)',
+    color: '#2C2416',
   },
   registerLink: {
     fontSize: 14,
