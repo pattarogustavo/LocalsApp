@@ -356,3 +356,11 @@
 - [x] Atualizar textos hardcoded em accept-invite.tsx, share.tsx, paywall-modal.tsx, travelers-block.tsx
 
 - [x] Bug fix: destination cover photo — source.unsplash.com deprecated (503), trip-card not using destination.imageUrl, Google Places photo now follows redirect to stable lh3 URL, Wikipedia fallback added, islands now get Wikipedia photos
+
+## Redesign (Jul 2026)
+
+- [x] Update color palette to warm beige/olive green (theme.config.js)
+- [x] Update icon symbol mappings (icon-symbol.tsx)
+- [x] Redesign onboarding/welcome screen with compass logo and new colors
+- [x] Apply new colors to all screens (profile, trip detail, home, auth, components)
+- [x] Update splash screen background color

@@ -23,7 +23,7 @@ export function TrialBanner() {
         <Ionicons
           name={isUrgent ? 'warning-outline' : 'time-outline'}
           size={14}
-          color={isUrgent ? '#F59E0B' : '#52B788'}
+          color={isUrgent ? '#F59E0B' : '#3D5A2E'}
         />
         <Text style={styles.text}>
           {daysLeftInTrial === 0
@@ -44,7 +44,7 @@ export function TrialBanner() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setDismissed(true)} style={styles.dismissBtn}>
-          <Ionicons name="close" size={14} color="rgba(245,240,232,0.4)" />
+          <Ionicons name="close" size={14} color="rgba(240,235,224,0.9)" />
         </TouchableOpacity>
       </View>
     </View>
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: 'rgba(82,183,136,0.1)',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(82,183,136,0.2)',
+    borderBottomColor: 'rgba(61,90,46,0.15)',
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 12,
-    color: 'rgba(245,240,232,0.7)',
+    color: 'rgba(240,235,224,0.9)',
     fontWeight: '500',
   },
   right: {
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   upgradeBtn: {
-    backgroundColor: 'rgba(82,183,136,0.2)',
+    backgroundColor: 'rgba(61,90,46,0.15)',
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   upgradeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#52B788',
+    color: '#3D5A2E',
   },
   upgradeTextUrgent: {
     color: '#F59E0B',

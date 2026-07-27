@@ -47,8 +47,8 @@ const LOCALE_MAP: Record<string, string> = {
 
 function SubscriptionBadge({ status, t }: { status: string | null; t: ReturnType<typeof useTranslation> }) {
   const config = {
-    trial: { label: 'Trial', bg: 'rgba(82,183,136,0.15)', color: '#52B788', icon: 'time-outline' },
-    active: { label: 'Pro', bg: 'rgba(82,183,136,0.15)', color: '#52B788', icon: 'checkmark-circle-outline' },
+    trial: { label: 'Trial', bg: 'rgba(61,90,46,0.12)', color: '#3D5A2E', icon: 'time-outline' },
+    active: { label: 'Pro', bg: 'rgba(61,90,46,0.12)', color: '#3D5A2E', icon: 'checkmark-circle-outline' },
     expired: { label: t.profile.expiredStatus, bg: 'rgba(239,68,68,0.12)', color: '#EF4444', icon: 'close-circle-outline' },
     cancelled: { label: t.common.cancel, bg: 'rgba(156,163,175,0.15)', color: '#9CA3AF', icon: 'ban-outline' },
   }[status ?? 'expired'] ?? { label: 'Free', bg: 'rgba(156,163,175,0.15)', color: '#9CA3AF', icon: 'person-outline' };
@@ -95,7 +95,7 @@ function LanguageModal({
                 {lang.label}
               </Text>
               {current === lang.code && (
-                <Ionicons name="checkmark-circle" size={18} color="#52B788" />
+                <Ionicons name="checkmark-circle" size={18} color="#3D5A2E" />
               )}
             </TouchableOpacity>
           ))}
@@ -166,7 +166,7 @@ function ChangePasswordModal({
           <View style={styles.pwHeader}>
             <Text style={styles.pwTitle}>{t.profile.changePasswordTitle}</Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close-circle" size={26} color="rgba(245,240,232,0.6)" />
+              <Ionicons name="close-circle" size={26} color="rgba(44,36,22,0.6)" />
             </TouchableOpacity>
           </View>
           <Text style={styles.pwLabel}>{t.profile.currentPassword}</Text>
@@ -202,7 +202,7 @@ function ChangePasswordModal({
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#0F1F16" />
+              <ActivityIndicator color="#F0EBE0" />
             ) : (
               <Text style={styles.pwSaveBtnText}>{t.profile.savePassword}</Text>
             )}
@@ -307,7 +307,7 @@ export default function ProfileScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color="rgba(245,240,232,0.8)" />
+          <Ionicons name="arrow-back" size={22} color="rgba(44,36,22,0.8)" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t.profile.title}</Text>
         <View style={{ width: 36 }} />
@@ -332,9 +332,9 @@ export default function ProfileScreen() {
             )}
             <View style={styles.avatarEditBadge}>
               {uploadingAvatar ? (
-                <ActivityIndicator size="small" color="#0F1F16" />
+                <ActivityIndicator size="small" color="#F0EBE0" />
               ) : (
-                <Ionicons name="camera" size={12} color="#0F1F16" />
+                <Ionicons name="camera" size={12} color="#F0EBE0" />
               )}
             </View>
           </TouchableOpacity>
@@ -375,7 +375,7 @@ export default function ProfileScreen() {
                   activeOpacity={0.85}
                   onPress={() => router.push('/paywall' as any)}
                 >
-                  <Ionicons name="sparkles-outline" size={14} color="#0F1F16" />
+                  <Ionicons name="sparkles-outline" size={14} color="#F0EBE0" />
                   <Text style={styles.upgradeBtnText}>{t.profile.upgradeBtn}</Text>
                 </TouchableOpacity>
               </>
@@ -419,7 +419,7 @@ export default function ProfileScreen() {
                   activeOpacity={0.85}
                   onPress={() => router.push('/paywall' as any)}
                 >
-                  <Ionicons name="refresh-outline" size={14} color="#0F1F16" />
+                  <Ionicons name="refresh-outline" size={14} color="#F0EBE0" />
                   <Text style={styles.upgradeBtnText}>{t.profile.renewBtn}</Text>
                 </TouchableOpacity>
               </>
@@ -442,7 +442,7 @@ export default function ProfileScreen() {
                   activeOpacity={0.85}
                   onPress={() => router.push('/paywall' as any)}
                 >
-                  <Ionicons name="refresh-outline" size={14} color="#0F1F16" />
+                  <Ionicons name="refresh-outline" size={14} color="#F0EBE0" />
                   <Text style={styles.upgradeBtnText}>{t.profile.upgradeBtn}</Text>
                 </TouchableOpacity>
               </>
@@ -460,11 +460,11 @@ export default function ProfileScreen() {
               onPress={() => setShowLangModal(true)}
             >
               <View style={styles.menuIconBg}>
-                <Ionicons name="language-outline" size={16} color="rgba(245,240,232,0.6)" />
+                <Ionicons name="language-outline" size={16} color="rgba(44,36,22,0.6)" />
               </View>
               <Text style={styles.menuLabel}>{t.profile.language}</Text>
               <Text style={styles.menuValue}>{currentLangLabel}</Text>
-              <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
+              <Ionicons name="chevron-forward" size={14} color="rgba(44,36,22,0.25)" />
             </TouchableOpacity>
           </View>
         </View>
@@ -479,10 +479,10 @@ export default function ProfileScreen() {
               onPress={() => setShowPwModal(true)}
             >
               <View style={styles.menuIconBg}>
-                <Ionicons name="lock-closed-outline" size={16} color="rgba(245,240,232,0.6)" />
+                <Ionicons name="lock-closed-outline" size={16} color="rgba(44,36,22,0.6)" />
               </View>
               <Text style={styles.menuLabel}>{t.profile.changePassword}</Text>
-              <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
+              <Ionicons name="chevron-forward" size={14} color="rgba(44,36,22,0.25)" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -491,10 +491,10 @@ export default function ProfileScreen() {
               onPress={() => Alert.alert(t.profile.privacy, t.profile.privacyDesc)}
             >
               <View style={styles.menuIconBg}>
-                <Ionicons name="shield-checkmark-outline" size={16} color="rgba(245,240,232,0.6)" />
+                <Ionicons name="shield-checkmark-outline" size={16} color="rgba(44,36,22,0.6)" />
               </View>
               <Text style={styles.menuLabel}>{t.profile.privacy}</Text>
-              <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
+              <Ionicons name="chevron-forward" size={14} color="rgba(44,36,22,0.25)" />
             </TouchableOpacity>
           </View>
         </View>
@@ -516,10 +516,10 @@ export default function ProfileScreen() {
               )}
             >
               <View style={styles.menuIconBg}>
-                <Ionicons name="help-circle-outline" size={16} color="rgba(245,240,232,0.6)" />
+                <Ionicons name="help-circle-outline" size={16} color="rgba(44,36,22,0.6)" />
               </View>
               <Text style={styles.menuLabel}>{t.profile.help}</Text>
-              <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
+              <Ionicons name="chevron-forward" size={14} color="rgba(44,36,22,0.25)" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -528,10 +528,10 @@ export default function ProfileScreen() {
               onPress={() => Linking.openURL('mailto:suporte@localsapp.com?subject=Suporte%20LocalsApp')}
             >
               <View style={styles.menuIconBg}>
-                <Ionicons name="chatbubble-outline" size={16} color="rgba(245,240,232,0.6)" />
+                <Ionicons name="chatbubble-outline" size={16} color="rgba(44,36,22,0.6)" />
               </View>
               <Text style={styles.menuLabel}>{t.profile.contact}</Text>
-              <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
+              <Ionicons name="chevron-forward" size={14} color="rgba(44,36,22,0.25)" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -545,10 +545,10 @@ export default function ProfileScreen() {
               }}
             >
               <View style={styles.menuIconBg}>
-                <Ionicons name="star-outline" size={16} color="rgba(245,240,232,0.6)" />
+                <Ionicons name="star-outline" size={16} color="rgba(44,36,22,0.6)" />
               </View>
               <Text style={styles.menuLabel}>{t.profile.rate}</Text>
-              <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.25)" />
+              <Ionicons name="chevron-forward" size={14} color="rgba(44,36,22,0.25)" />
             </TouchableOpacity>
           </View>
         </View>
@@ -593,7 +593,7 @@ export default function ProfileScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F1F16' },
+  container: { flex: 1, backgroundColor: '#F0EBE0' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -601,10 +601,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(245,240,232,0.08)',
+    borderBottomColor: 'rgba(61,90,46,0.06)',
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '600', color: '#F5F0E8', letterSpacing: 0.2 },
+  headerTitle: { fontSize: 17, fontWeight: '600', color: '#F0EBE0', letterSpacing: 0.2 },
   scroll: { padding: 20, gap: 20 },
 
   // User card
@@ -616,19 +616,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 0.5,
-    borderColor: 'rgba(245,240,232,0.08)',
+    borderColor: 'rgba(61,90,46,0.06)',
   },
   avatarWrapper: { position: 'relative' },
   avatarCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(82,183,136,0.15)',
+    backgroundColor: 'rgba(61,90,46,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarImage: { width: 64, height: 64, borderRadius: 32 },
-  avatarText: { fontSize: 24, fontWeight: '700', color: '#52B788' },
+  avatarText: { fontSize: 24, fontWeight: '700', color: '#3D5A2E' },
   avatarEditBadge: {
     position: 'absolute',
     bottom: 0,
@@ -636,15 +636,15 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#52B788',
+    backgroundColor: '#3D5A2E',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#0F1F16',
+    borderColor: '#F0EBE0',
   },
   userInfo: { flex: 1, gap: 4 },
   userNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  userName: { fontSize: 17, fontWeight: '700', color: '#F5F0E8' },
+  userName: { fontSize: 17, fontWeight: '700', color: '#F0EBE0' },
   userEmail: { fontSize: 13, color: 'rgba(245,240,232,0.5)' },
 
   // Badge
@@ -667,7 +667,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(245,240,232,0.04)',
     borderRadius: 14,
     borderWidth: 0.5,
-    borderColor: 'rgba(245,240,232,0.08)',
+    borderColor: 'rgba(61,90,46,0.06)',
     overflow: 'hidden',
   },
   cardRow: {
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(245,240,232,0.06)',
   },
   cardLabel: { fontSize: 14, color: 'rgba(245,240,232,0.55)' },
-  cardValue: { fontSize: 14, fontWeight: '500', color: '#F5F0E8' },
+  cardValue: { fontSize: 14, fontWeight: '500', color: '#F0EBE0' },
   cardValueWarning: { color: '#EF4444' },
 
   // Upgrade / Cancel buttons
@@ -690,11 +690,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     margin: 12,
-    backgroundColor: '#52B788',
+    backgroundColor: '#3D5A2E',
     borderRadius: 10,
     paddingVertical: 12,
   },
-  upgradeBtnText: { fontSize: 14, fontWeight: '700', color: '#0F1F16' },
+  upgradeBtnText: { fontSize: 14, fontWeight: '700', color: '#F0EBE0' },
   cancelBtn: {
     alignItems: 'center',
     margin: 12,
@@ -725,7 +725,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  menuLabel: { flex: 1, fontSize: 15, color: '#F5F0E8' },
+  menuLabel: { flex: 1, fontSize: 15, color: '#F0EBE0' },
   menuValue: { fontSize: 13, color: 'rgba(245,240,232,0.45)', marginRight: 4 },
 
   // Logout
@@ -746,7 +746,7 @@ const styles = StyleSheet.create({
   // Language modal
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
   langSheet: {
-    backgroundColor: '#1A2E22',
+    backgroundColor: '#EDE8DC',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
@@ -760,7 +760,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 20,
   },
-  langTitle: { fontSize: 18, fontWeight: '700', color: '#F5F0E8', marginBottom: 6 },
+  langTitle: { fontSize: 18, fontWeight: '700', color: '#F0EBE0', marginBottom: 6 },
   langSubtitle: { fontSize: 13, color: 'rgba(245,240,232,0.5)', marginBottom: 20 },
   langRow: {
     flexDirection: 'row',
@@ -771,45 +771,45 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     gap: 12,
   },
-  langRowActive: { backgroundColor: 'rgba(82,183,136,0.12)' },
+  langRowActive: { backgroundColor: 'rgba(61,90,46,0.10)' },
   langFlag: { fontSize: 22 },
   langLabel: { flex: 1, fontSize: 16, color: 'rgba(245,240,232,0.7)' },
-  langLabelActive: { color: '#F5F0E8', fontWeight: '600' },
+  langLabelActive: { color: '#F0EBE0', fontWeight: '600' },
   langCancelBtn: {
     alignItems: 'center',
     paddingVertical: 14,
     marginTop: 8,
     borderTopWidth: 0.5,
-    borderTopColor: 'rgba(245,240,232,0.08)',
+    borderTopColor: 'rgba(61,90,46,0.06)',
   },
   langCancelText: { fontSize: 16, color: 'rgba(245,240,232,0.5)' },
 
   // Change password modal
   pwSheet: {
-    backgroundColor: '#1A2E22',
+    backgroundColor: '#EDE8DC',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '85%',
   },
   pwHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  pwTitle: { fontSize: 20, fontWeight: '700', color: '#F5F0E8' },
-  pwLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(245,240,232,0.6)', marginBottom: 8, marginTop: 16 },
+  pwTitle: { fontSize: 20, fontWeight: '700', color: '#F0EBE0' },
+  pwLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(44,36,22,0.6)', marginBottom: 8, marginTop: 16 },
   pwInput: {
     backgroundColor: 'rgba(245,240,232,0.06)',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#F5F0E8',
+    color: '#F0EBE0',
     borderWidth: 0.5,
     borderColor: 'rgba(245,240,232,0.12)',
   },
   pwSaveBtn: {
-    backgroundColor: '#52B788',
+    backgroundColor: '#3D5A2E',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 28,
   },
-  pwSaveBtnText: { fontSize: 16, fontWeight: '700', color: '#0F1F16' },
+  pwSaveBtnText: { fontSize: 16, fontWeight: '700', color: '#F0EBE0' },
 });

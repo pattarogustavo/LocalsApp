@@ -5,79 +5,94 @@ import {
   StyleSheet,
   TouchableOpacity,
   StatusBar,
-  ImageBackground,
-  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '@/hooks/use-translation';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
+
+// Compass rose SVG matching the mockup
+function CompassLogo({ size = 120 }: { size?: number }) {
+  const c = size / 2;
+  const r = size * 0.42;
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <Circle cx={c} cy={c} r={r} stroke="#2C2416" strokeWidth={1.2} fill="none" />
+      <Line x1={c} y1={c - r} x2={c} y2={c - r + 8} stroke="#2C2416" strokeWidth={1.2} />
+      <Line x1={c} y1={c + r - 8} x2={c} y2={c + r} stroke="#2C2416" strokeWidth={1.2} />
+      <Line x1={c - r} y1={c} x2={c - r + 8} y2={c} stroke="#2C2416" strokeWidth={1.2} />
+      <Line x1={c + r - 8} y1={c} x2={c + r} y2={c} stroke="#2C2416" strokeWidth={1.2} />
+      <Path d={`M${c},${c - r * 0.72} L${c - r * 0.14},${c} L${c},${c - r * 0.1} Z`} fill="#2C2416" />
+      <Path d={`M${c},${c + r * 0.72} L${c + r * 0.14},${c} L${c},${c + r * 0.1} Z`} fill="#2C2416" opacity={0.35} />
+      <Path d={`M${c + r * 0.72},${c} L${c},${c - r * 0.14} L${c + r * 0.1},${c} Z`} fill="#2C2416" opacity={0.35} />
+      <Path d={`M${c - r * 0.72},${c} L${c},${c + r * 0.14} L${c - r * 0.1},${c} Z`} fill="#2C2416" opacity={0.35} />
+      <Circle cx={c} cy={c} r={3} fill="#2C2416" />
+      <Path
+        d={`M${c - r * 0.28},${c + r * 0.55} Q${c},${c + r * 0.68} ${c + r * 0.28},${c + r * 0.55}`}
+        stroke="#B8860B" strokeWidth={1.2} fill="none"
+      />
+    </Svg>
+  );
+}
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const t = useTranslation();
 
+  const features = [
+    { icon: 'map-outline' as const, text: t.auth.onboarding.feature1 },
+    { icon: 'document-text-outline' as const, text: t.auth.onboarding.feature2 },
+    { icon: 'navigate-outline' as const, text: t.auth.onboarding.feature3 },
+  ];
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 24 }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F0EBE0" />
 
-      {/* Background gradient overlay */}
-      <View style={styles.background}>
-        <View style={styles.gradientOverlay} />
+      <View style={styles.logoSection}>
+        <CompassLogo size={120} />
       </View>
 
-      {/* Hero content */}
-      <View style={[styles.content, { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 40 }]}>
-        {/* Logo / Icon */}
-        <View style={styles.logoContainer}>
-          <View style={styles.logoCircle}>
-            <Ionicons name="airplane" size={40} color="#fff" />
-          </View>
+      <View style={styles.titleBlock}>
+        <Text style={styles.appName}>Locals</Text>
+        <View style={styles.appTagRow}>
+          <View style={styles.tagLine} />
+          <Text style={styles.appTag}>APP</Text>
+          <View style={styles.tagLine} />
         </View>
+        <Text style={styles.subtitle}>{t.auth.onboarding.subtitle}</Text>
+      </View>
 
-        {/* Title */}
-        <View style={styles.titleBlock}>
-          <Text style={styles.appName}>{t.auth.onboarding.title}</Text>
-          <Text style={styles.tagline}>{t.auth.onboarding.subtitle}</Text>
-        </View>
-
-        {/* Feature highlights */}
-        <View style={styles.features}>
-          {[
-            { icon: 'map-outline', text: t.auth.onboarding.feature1 },
-            { icon: 'document-text-outline', text: t.auth.onboarding.feature2 },
-            { icon: 'airplane-outline', text: t.auth.onboarding.feature3 },
-          ].map((f) => (
-            <View key={f.text} style={styles.featureRow}>
-              <View style={styles.featureIconBg}>
-                <Ionicons name={f.icon as any} size={16} color="#52B788" />
-              </View>
-              <Text style={styles.featureText}>{f.text}</Text>
+      <View style={styles.features}>
+        {features.map((f) => (
+          <View key={f.text} style={styles.featureRow}>
+            <View style={styles.featureIconBg}>
+              <Ionicons name={f.icon} size={18} color="#3D5A2E" />
             </View>
-          ))}
-        </View>
-
-        {/* CTA Buttons */}
-        <View style={styles.buttons}>
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            activeOpacity={0.85}
-            onPress={() => router.push('/auth/register' as any)}
-          >
-            <Text style={styles.primaryBtnText}>{t.auth.onboarding.getStarted}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.secondaryBtn}
-            activeOpacity={0.85}
-            onPress={() => router.push('/auth/login' as any)}
-          >
-            <Text style={styles.secondaryBtnText}>{t.auth.onboarding.alreadyHaveAccount}</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.trialNote}>{t.auth.onboarding.trialInfo}</Text>
+            <Text style={styles.featureText}>{f.text}</Text>
+          </View>
+        ))}
       </View>
+
+      <View style={styles.buttons}>
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          activeOpacity={0.85}
+          onPress={() => router.push('/auth/register' as any)}
+        >
+          <Text style={styles.primaryBtnText}>{t.auth.onboarding.getStarted}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.secondaryBtn}
+          activeOpacity={0.85}
+          onPress={() => router.push('/auth/login' as any)}
+        >
+          <Text style={styles.secondaryBtnText}>{t.auth.onboarding.alreadyHaveAccount}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.trialNote}>{t.auth.onboarding.trialInfo}</Text>
     </View>
   );
 }
@@ -85,101 +100,100 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F1F16',
-  },
-  background: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#0F1F16',
-  },
-  gradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15,31,22,0.85)',
-  },
-  content: {
-    flex: 1,
+    backgroundColor: '#F0EBE0',
     paddingHorizontal: 28,
     justifyContent: 'space-between',
   },
-  logoContainer: {
+  logoSection: {
     alignItems: 'center',
-  },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(82,183,136,0.2)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(82,183,136,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   titleBlock: {
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
   appName: {
-    fontSize: 48,
+    fontSize: 52,
     fontWeight: '700',
-    color: '#F5F0E8',
+    color: '#2C2416',
+    fontStyle: 'italic',
     letterSpacing: -1,
+    lineHeight: 60,
   },
-  tagline: {
-    fontSize: 18,
-    color: 'rgba(245,240,232,0.65)',
+  appTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  tagLine: {
+    width: 36,
+    height: 1,
+    backgroundColor: '#B8860B',
+  },
+  appTag: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#B8860B',
+    letterSpacing: 3,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: '#8A7F6E',
     textAlign: 'center',
-    lineHeight: 26,
+    lineHeight: 22,
+    marginTop: 8,
   },
   features: {
-    gap: 14,
+    gap: 12,
   },
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
   },
   featureIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(82,183,136,0.12)',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#EDE8DC',
     alignItems: 'center',
     justifyContent: 'center',
   },
   featureText: {
     fontSize: 15,
-    color: 'rgba(245,240,232,0.8)',
+    color: '#2C2416',
     fontWeight: '500',
   },
   buttons: {
     gap: 12,
   },
   primaryBtn: {
-    backgroundColor: '#52B788',
+    backgroundColor: '#3D5A2E',
     borderRadius: 14,
-    paddingVertical: 16,
+    paddingVertical: 17,
     alignItems: 'center',
   },
   primaryBtnText: {
-    color: '#0F1F16',
+    color: '#F7F3EC',
     fontSize: 16,
     fontWeight: '700',
   },
   secondaryBtn: {
-    backgroundColor: 'rgba(245,240,232,0.08)',
+    backgroundColor: '#F7F3EC',
     borderRadius: 14,
-    paddingVertical: 16,
+    paddingVertical: 17,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(245,240,232,0.15)',
+    borderColor: '#DDD5C5',
   },
   secondaryBtnText: {
-    color: 'rgba(245,240,232,0.85)',
+    color: '#2C2416',
     fontSize: 16,
     fontWeight: '500',
   },
   trialNote: {
     textAlign: 'center',
     fontSize: 12,
-    color: 'rgba(245,240,232,0.35)',
+    color: '#8A7F6E',
   },
 });

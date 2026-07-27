@@ -161,7 +161,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
       places: [],
       documents: [],
       expenses: [],
-      travelers: [{ id: generateId(), name: t.travelers.you, initials: t.travelers.you.charAt(0).toUpperCase(), color: '#1C3D2E' }],
+      travelers: [{ id: generateId(), name: t.travelers.you, initials: t.travelers.you.charAt(0).toUpperCase(), color: '#2C2416' }],
       accommodations: [],
       itinerary: [],
       currency: 'BRL',
@@ -213,12 +213,12 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
               >
                 {/* Header */}
                 <View style={styles.header}>
-                  <Text style={[styles.title, { color: '#1C3D2E' }]}>{t.createTrip.title}</Text>
+                  <Text style={[styles.title, { color: '#2C2416' }]}>{t.createTrip.title}</Text>
                   <TouchableOpacity
                     onPress={handleClose}
                     style={[styles.closeBtn, { backgroundColor: colors.surface }]}
                   >
-                    <Ionicons name="close" size={16} color="#1C3D2E" />
+                    <Ionicons name="close" size={16} color="#2C2416" />
                   </TouchableOpacity>
                 </View>
 
@@ -239,7 +239,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                       onPress={() => setTotalDays(Math.max(1, totalDays - 1))}
                       style={[styles.stepperBtn, { backgroundColor: colors.background }]}
                     >
-                      <Ionicons name="remove" size={14} color="#1C3D2E" />
+                      <Ionicons name="remove" size={14} color="#2C2416" />
                     </TouchableOpacity>
                     <View style={styles.stepperCenter}>
                       <Text style={[styles.stepperNum, { color: colors.foreground }]}>{totalDays}</Text>
@@ -249,7 +249,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                       onPress={() => setTotalDays(totalDays + 1)}
                       style={[styles.stepperBtn, { backgroundColor: colors.background }]}
                     >
-                      <Ionicons name="add" size={14} color="#1C3D2E" />
+                      <Ionicons name="add" size={14} color="#2C2416" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -274,7 +274,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                               onPress={() => handleUpdateDestDays(dest.id, -1)}
                               style={[styles.miniBtn, { backgroundColor: colors.background }]}
                             >
-                              <Ionicons name="remove" size={12} color="#1C3D2E" />
+                              <Ionicons name="remove" size={12} color="#2C2416" />
                             </TouchableOpacity>
                             <Text style={[styles.destDaysNum, { color: colors.foreground }]}>{dest.days}</Text>
                             <Text style={[styles.destDaysLabel, { color: colors.muted }]}>{t.common.days}</Text>
@@ -282,7 +282,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                               onPress={() => handleUpdateDestDays(dest.id, 1)}
                               style={[styles.miniBtn, { backgroundColor: colors.background }]}
                             >
-                              <Ionicons name="add" size={12} color="#1C3D2E" />
+                              <Ionicons name="add" size={12} color="#2C2416" />
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => handleRemoveDest(dest.id)}
@@ -326,7 +326,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                   disabled={!canCreate || isCreating}
                   style={[
                     styles.createBtn,
-                    { backgroundColor: canCreate ? '#1C3D2E' : colors.surface },
+                    { backgroundColor: canCreate ? '#2C2416' : colors.surface },
                   ]}
                 >
                   <Text style={[styles.createBtnText, { color: canCreate ? '#fff' : colors.muted }]}>

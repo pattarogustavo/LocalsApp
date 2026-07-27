@@ -81,8 +81,8 @@ export function PlacesAutocompleteInput({
   };
 
   const bg = dark ? 'rgba(255,255,255,0.08)' : colors.surface;
-  const textColor = dark ? '#F5F0E8' : colors.foreground;
-  const mutedColor = dark ? 'rgba(245,240,232,0.45)' : colors.muted;
+  const textColor = dark ? '#F0EBE0' : colors.foreground;
+  const mutedColor = dark ? 'rgba(240,235,224,0.9)' : colors.muted;
   const borderColor = dark ? 'rgba(255,255,255,0.12)' : colors.border;
 
   const predictions = data?.predictions || [];
@@ -104,7 +104,7 @@ export function PlacesAutocompleteInput({
           {value || defaultPlaceholder}
         </Text>
         {value ? (
-          <Ionicons name="checkmark-circle" size={16} color="#52B788" />
+          <Ionicons name="checkmark-circle" size={16} color="#3D5A2E" />
         ) : (
           <Ionicons name="chevron-forward" size={14} color={mutedColor} />
         )}

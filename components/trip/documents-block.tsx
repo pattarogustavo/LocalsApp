@@ -56,7 +56,7 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
   return (
     <View
       style={{
-        backgroundColor: 'rgba(28,61,46,0.85)',
+        backgroundColor: 'rgba(44,36,22,0.5)',
         borderRadius: 20,
         padding: 16,
         marginBottom: 12,
@@ -64,19 +64,19 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: documents.length > 0 ? 12 : 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Ionicons name="document-text-outline" size={16} color="#52B788" />
-          <Text style={{ color: '#F5F0E8', fontSize: 12, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
+          <Ionicons name="document-text-outline" size={16} color="#3D5A2E" />
+          <Text style={{ color: '#F0EBE0', fontSize: 12, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>
             {t.documents.title}
           </Text>
         </View>
         <TouchableOpacity onPress={() => setShowModal(true)}>
-          <Text style={{ color: '#52B788', fontSize: 13 }}>{t.documents.openDocument}</Text>
+          <Text style={{ color: '#3D5A2E', fontSize: 13 }}>{t.documents.openDocument}</Text>
         </TouchableOpacity>
       </View>
 
       {documents.length === 0 ? (
         <TouchableOpacity onPress={() => setShowModal(true)}>
-          <Text style={{ color: 'rgba(245,240,232,0.5)', fontSize: 13, marginTop: 4 }}>
+          <Text style={{ color: 'rgba(240,235,224,0.9)', fontSize: 13, marginTop: 4 }}>
             {t.documents.noDocuments}
           </Text>
         </TouchableOpacity>
@@ -90,13 +90,13 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}
               activeOpacity={0.7}
             >
-              <Ionicons name={typeInfo.icon as any} size={16} color="rgba(245,240,232,0.6)" />
-              <Text style={{ color: '#F5F0E8', fontSize: 14, flex: 1 }}>{doc.name}</Text>
+              <Ionicons name={typeInfo.icon as any} size={16} color="rgba(240,235,224,0.9)" />
+              <Text style={{ color: '#F0EBE0', fontSize: 14, flex: 1 }}>{doc.name}</Text>
               {doc.url ? (
                 <Ionicons name="open-outline" size={13} color="rgba(82,183,136,0.6)" />
               ) : null}
               <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); removeDocument(tripId, doc.id); }}>
-                <Ionicons name="trash-outline" size={14} color="rgba(245,240,232,0.4)" />
+                <Ionicons name="trash-outline" size={14} color="rgba(240,235,224,0.9)" />
               </TouchableOpacity>
             </TouchableOpacity>
           );
@@ -112,7 +112,7 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
           <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
             <View
               style={{
-                backgroundColor: '#F5F0E8',
+                backgroundColor: '#F0EBE0',
                 borderTopLeftRadius: 28,
                 borderTopRightRadius: 28,
                 padding: 24,
@@ -121,11 +121,11 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
               }}
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: '#1C3D2E' }}>
+                <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: '#2C2416' }}>
                   {t.documents.title}
                 </Text>
                 <TouchableOpacity onPress={() => setShowModal(false)}>
-                  <Ionicons name="close-circle" size={26} color="#1C3D2E" />
+                  <Ionicons name="close-circle" size={26} color="#2C2416" />
                 </TouchableOpacity>
               </View>
 
@@ -149,7 +149,7 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
                     }}
                   >
                     <Ionicons name={typeInfo.icon as any} size={18} color="#3D5A47" />
-                    <Text style={{ color: '#1C3D2E', flex: 1, fontWeight: '500' }}>{doc.name}</Text>
+                    <Text style={{ color: '#2C2416', flex: 1, fontWeight: '500' }}>{doc.name}</Text>
                     {doc.url ? (
                       <Ionicons name="open-outline" size={14} color="#3D5A47" />
                     ) : null}
@@ -175,11 +175,11 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
                       paddingHorizontal: 12,
                       paddingVertical: 8,
                       borderRadius: 20,
-                      backgroundColor: docType === t.key ? '#1C3D2E' : '#EDE8DC',
+                      backgroundColor: docType === t.key ? '#2C2416' : '#EDE8DC',
                     }}
                   >
-                    <Ionicons name={t.icon as any} size={14} color={docType === t.key ? '#F5F0E8' : '#1C3D2E'} />
-                    <Text style={{ fontSize: 12, color: docType === t.key ? '#F5F0E8' : '#1C3D2E' }}>{t.label}</Text>
+                    <Ionicons name={t.icon as any} size={14} color={docType === t.key ? '#F0EBE0' : '#2C2416'} />
+                    <Text style={{ fontSize: 12, color: docType === t.key ? '#F0EBE0' : '#2C2416' }}>{t.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -194,7 +194,7 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
                   borderRadius: 12,
                   paddingHorizontal: 14,
                   paddingVertical: 12,
-                  color: '#1C3D2E',
+                  color: '#2C2416',
                   fontSize: 15,
                   marginBottom: 12,
                 }}
@@ -203,13 +203,13 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
               <TouchableOpacity
                 onPress={handleAdd}
                 style={{
-                  backgroundColor: '#1C3D2E',
+                  backgroundColor: '#2C2416',
                   borderRadius: 16,
                   paddingVertical: 16,
                   alignItems: 'center',
                 }}
               >
-                <Text style={{ color: '#F5F0E8', fontWeight: '600', fontSize: 16 }}>{t.documents.addDocument}</Text>
+                <Text style={{ color: '#F0EBE0', fontWeight: '600', fontSize: 16 }}>{t.documents.addDocument}</Text>
               </TouchableOpacity>
               </ScrollView>
             </View>

@@ -98,7 +98,7 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0F1F16' }}
+      style={{ flex: 1, backgroundColor: '#F0EBE0' }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
@@ -109,7 +109,7 @@ export default function RegisterScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="rgba(245,240,232,0.8)" />
+            <Ionicons name="arrow-back" size={22} color="rgba(240,235,224,0.9)" />
           </TouchableOpacity>
           <Text style={styles.title}>{t.auth.register.title}</Text>
           <Text style={styles.subtitle}>{t.auth.register.trialInfo}</Text>
@@ -117,7 +117,7 @@ export default function RegisterScreen() {
 
         {/* Google button */}
         <TouchableOpacity style={styles.googleBtn} activeOpacity={0.85} onPress={handleGoogleLogin}>
-          <Ionicons name="logo-google" size={18} color="#F5F0E8" />
+          <Ionicons name="logo-google" size={18} color="#F0EBE0" />
           <Text style={styles.googleBtnText}>{t.auth.register.continueWithGoogle}</Text>
         </TouchableOpacity>
 
@@ -133,7 +133,7 @@ export default function RegisterScreen() {
           <TextInput
             style={[styles.input, touched.name && errors.name ? styles.inputError : null]}
             placeholder={t.auth.register.namePlaceholder}
-            placeholderTextColor="rgba(245,240,232,0.25)"
+            placeholderTextColor="rgba(240,235,224,0.9)"
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
@@ -149,7 +149,7 @@ export default function RegisterScreen() {
           <TextInput
             style={[styles.input, touched.email && errors.email ? styles.inputError : null]}
             placeholder={t.auth.register.emailPlaceholder}
-            placeholderTextColor="rgba(245,240,232,0.25)"
+            placeholderTextColor="rgba(240,235,224,0.9)"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -168,7 +168,7 @@ export default function RegisterScreen() {
             <TextInput
               style={[styles.inputFlex, touched.password && errors.password ? styles.inputError : null]}
               placeholder={t.auth.register.passwordPlaceholder}
-              placeholderTextColor="rgba(245,240,232,0.25)"
+              placeholderTextColor="rgba(240,235,224,0.9)"
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
@@ -176,7 +176,7 @@ export default function RegisterScreen() {
               {...field('password')}
             />
             <TouchableOpacity onPress={() => setShowPassword((v) => !v)} style={styles.eyeBtn}>
-              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="rgba(245,240,232,0.4)" />
+              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="rgba(240,235,224,0.9)" />
             </TouchableOpacity>
           </View>
           {touched.password && errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
@@ -189,7 +189,7 @@ export default function RegisterScreen() {
             <TextInput
               style={[styles.inputFlex, touched.confirm && errors.confirm ? styles.inputError : null]}
               placeholder={t.auth.register.confirmPasswordPlaceholder}
-              placeholderTextColor="rgba(245,240,232,0.25)"
+              placeholderTextColor="rgba(240,235,224,0.9)"
               value={confirm}
               onChangeText={setConfirm}
               secureTextEntry={!showConfirm}
@@ -198,7 +198,7 @@ export default function RegisterScreen() {
               {...field('confirm')}
             />
             <TouchableOpacity onPress={() => setShowConfirm((v) => !v)} style={styles.eyeBtn}>
-              <Ionicons name={showConfirm ? 'eye-off-outline' : 'eye-outline'} size={18} color="rgba(245,240,232,0.4)" />
+              <Ionicons name={showConfirm ? 'eye-off-outline' : 'eye-outline'} size={18} color="rgba(240,235,224,0.9)" />
             </TouchableOpacity>
           </View>
           {touched.confirm && errors.confirm ? <Text style={styles.errorText}>{errors.confirm}</Text> : null}
@@ -207,7 +207,7 @@ export default function RegisterScreen() {
         {/* Terms checkbox */}
         <TouchableOpacity style={styles.checkRow} activeOpacity={0.8} onPress={() => setAgreed((v) => !v)}>
           <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-            {agreed && <Ionicons name="checkmark" size={12} color="#0F1F16" />}
+            {agreed && <Ionicons name="checkmark" size={12} color="#F0EBE0" />}
           </View>
           <Text style={styles.checkText}>
             I agree to the{' '}
@@ -225,7 +225,7 @@ export default function RegisterScreen() {
           disabled={!canSubmit}
         >
           {loading ? (
-            <ActivityIndicator color="#0F1F16" />
+            <ActivityIndicator color="#F0EBE0" />
           ) : (
             <Text style={styles.submitBtnText}>{t.auth.register.registerBtn}</Text>
           )}
@@ -262,27 +262,27 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#F5F0E8',
+    color: '#F0EBE0',
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
-    color: 'rgba(245,240,232,0.5)',
+    color: 'rgba(240,235,224,0.9)',
   },
   googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: 'rgba(245,240,232,0.08)',
+    backgroundColor: 'rgba(240,235,224,0.9)',
     borderRadius: 12,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: 'rgba(245,240,232,0.12)',
+    borderColor: 'rgba(240,235,224,0.9)',
     marginBottom: 20,
   },
   googleBtnText: {
-    color: '#F5F0E8',
+    color: '#F0EBE0',
     fontSize: 15,
     fontWeight: '600',
   },
@@ -295,10 +295,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(245,240,232,0.1)',
+    backgroundColor: 'rgba(240,235,224,0.9)',
   },
   dividerText: {
-    color: 'rgba(245,240,232,0.3)',
+    color: 'rgba(240,235,224,0.9)',
     fontSize: 12,
   },
   fieldGroup: {
@@ -307,20 +307,20 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(245,240,232,0.5)',
+    color: 'rgba(240,235,224,0.9)',
     letterSpacing: 0.5,
     marginBottom: 8,
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: 'rgba(245,240,232,0.06)',
+    backgroundColor: 'rgba(240,235,224,0.9)',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(245,240,232,0.1)',
+    borderColor: 'rgba(240,235,224,0.9)',
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#F5F0E8',
+    color: '#F0EBE0',
   },
   inputError: {
     borderColor: '#E74C3C',
@@ -328,10 +328,10 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(245,240,232,0.06)',
+    backgroundColor: 'rgba(240,235,224,0.9)',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(245,240,232,0.1)',
+    borderColor: 'rgba(240,235,224,0.9)',
     paddingRight: 8,
   },
   inputFlex: {
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#F5F0E8',
+    color: '#F0EBE0',
   },
   eyeBtn: {
     padding: 8,
@@ -361,27 +361,27 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 5,
     borderWidth: 1.5,
-    borderColor: 'rgba(245,240,232,0.25)',
+    borderColor: 'rgba(240,235,224,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
   },
   checkboxChecked: {
-    backgroundColor: '#52B788',
-    borderColor: '#52B788',
+    backgroundColor: '#3D5A2E',
+    borderColor: '#3D5A2E',
   },
   checkText: {
     flex: 1,
     fontSize: 13,
-    color: 'rgba(245,240,232,0.55)',
+    color: 'rgba(240,235,224,0.9)',
     lineHeight: 20,
   },
   link: {
-    color: '#52B788',
+    color: '#3D5A2E',
     fontWeight: '600',
   },
   submitBtn: {
-    backgroundColor: '#52B788',
+    backgroundColor: '#3D5A2E',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   submitBtnText: {
-    color: '#0F1F16',
+    color: '#F0EBE0',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -402,11 +402,11 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontSize: 14,
-    color: 'rgba(245,240,232,0.45)',
+    color: 'rgba(240,235,224,0.9)',
   },
   loginLink: {
     fontSize: 14,
-    color: '#52B788',
+    color: '#3D5A2E',
     fontWeight: '600',
   },
 });

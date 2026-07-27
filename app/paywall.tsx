@@ -79,12 +79,12 @@ export default function PaywallScreen() {
       <View style={styles.header}>
         {!isBlocking && (
           <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-            <Ionicons name="close" size={22} color="rgba(245,240,232,0.6)" />
+            <Ionicons name="close" size={22} color="rgba(240,235,224,0.9)" />
           </TouchableOpacity>
         )}
         <View style={styles.headerCenter}>
           <View style={styles.logoCircle}>
-            <Ionicons name="airplane" size={24} color="#52B788" />
+            <Ionicons name="airplane" size={24} color="#3D5A2E" />
           </View>
         </View>
       </View>
@@ -117,7 +117,7 @@ export default function PaywallScreen() {
           {FEATURES.map((f) => (
             <View key={f.text} style={styles.featureRow}>
               <View style={styles.featureIconBg}>
-                <Ionicons name={f.icon as any} size={16} color="#52B788" />
+                <Ionicons name={f.icon as any} size={16} color="#3D5A2E" />
               </View>
               <Text style={styles.featureText}>{f.text}</Text>
             </View>
@@ -138,7 +138,7 @@ export default function PaywallScreen() {
               </View>
               {selectedPlan === 'annual' && (
                 <View style={styles.selectedDot}>
-                  <Ionicons name="checkmark-circle" size={18} color="#52B788" />
+                  <Ionicons name="checkmark-circle" size={18} color="#3D5A2E" />
                 </View>
               )}
             </View>
@@ -159,7 +159,7 @@ export default function PaywallScreen() {
             {selectedPlan === 'monthly' && (
               <View style={[styles.planBadgeRow, { justifyContent: 'flex-end' }]}>
                 <View style={styles.selectedDot}>
-                  <Ionicons name="checkmark-circle" size={18} color="#52B788" />
+                  <Ionicons name="checkmark-circle" size={18} color="#3D5A2E" />
                 </View>
               </View>
             )}
@@ -180,7 +180,7 @@ export default function PaywallScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#0F1F16" />
+            <ActivityIndicator color="#F0EBE0" />
           ) : (
             <Text style={styles.ctaBtnText}>
               {selectedPlan === 'annual' ? t.paywall.startAnnual : t.paywall.startMonthly}
@@ -199,7 +199,7 @@ export default function PaywallScreen() {
           disabled={restoring}
         >
           {restoring ? (
-            <ActivityIndicator size="small" color="rgba(245,240,232,0.4)" />
+            <ActivityIndicator size="small" color="rgba(240,235,224,0.9)" />
           ) : (
             <Text style={styles.restoreText}>{t.paywall.restore}</Text>
           )}
@@ -212,7 +212,7 @@ export default function PaywallScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F1F16',
+    backgroundColor: '#F0EBE0',
   },
   header: {
     flexDirection: 'row',
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 18,
-    backgroundColor: 'rgba(245,240,232,0.08)',
+    backgroundColor: 'rgba(240,235,224,0.9)',
   },
   headerCenter: {
     position: 'absolute',
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(82,183,136,0.12)',
+    backgroundColor: 'rgba(61,90,46,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -258,24 +258,24 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 26,
     fontWeight: '700',
-    color: '#F5F0E8',
+    color: '#F0EBE0',
     textAlign: 'center',
   },
   heroSubtitle: {
     fontSize: 14,
-    color: 'rgba(245,240,232,0.55)',
+    color: 'rgba(240,235,224,0.9)',
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: 16,
   },
   featuresCard: {
-    backgroundColor: 'rgba(245,240,232,0.04)',
+    backgroundColor: 'rgba(240,235,224,0.9)',
     borderRadius: 16,
     padding: 16,
     gap: 12,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(245,240,232,0.08)',
+    borderColor: 'rgba(240,235,224,0.9)',
   },
   featureRow: {
     flexDirection: 'row',
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 14,
-    color: 'rgba(245,240,232,0.8)',
+    color: 'rgba(240,235,224,0.9)',
     fontWeight: '500',
   },
   plans: {
@@ -302,16 +302,16 @@ const styles = StyleSheet.create({
   },
   planCard: {
     flex: 1,
-    backgroundColor: 'rgba(245,240,232,0.05)',
+    backgroundColor: 'rgba(240,235,224,0.9)',
     borderRadius: 14,
     padding: 14,
     borderWidth: 1.5,
-    borderColor: 'rgba(245,240,232,0.1)',
+    borderColor: 'rgba(240,235,224,0.9)',
     minHeight: 120,
     justifyContent: 'flex-end',
   },
   planCardSelected: {
-    borderColor: '#52B788',
+    borderColor: '#3D5A2E',
     backgroundColor: 'rgba(82,183,136,0.08)',
   },
   planBadgeRow: {
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   saveBadge: {
-    backgroundColor: 'rgba(82,183,136,0.2)',
+    backgroundColor: 'rgba(61,90,46,0.15)',
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   saveBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#52B788',
+    color: '#3D5A2E',
     letterSpacing: 0.5,
   },
   selectedDot: {
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   planName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#F5F0E8',
+    color: '#F0EBE0',
     marginBottom: 4,
   },
   planPriceRow: {
@@ -349,19 +349,19 @@ const styles = StyleSheet.create({
   planPrice: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#F5F0E8',
+    color: '#F0EBE0',
   },
   planPeriod: {
     fontSize: 11,
-    color: 'rgba(245,240,232,0.45)',
+    color: 'rgba(240,235,224,0.9)',
   },
   planBilled: {
     fontSize: 10,
-    color: 'rgba(245,240,232,0.35)',
+    color: 'rgba(240,235,224,0.9)',
     marginTop: 2,
   },
   ctaBtn: {
-    backgroundColor: '#52B788',
+    backgroundColor: '#3D5A2E',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -371,13 +371,13 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   ctaBtnText: {
-    color: '#0F1F16',
+    color: '#F0EBE0',
     fontSize: 16,
     fontWeight: '700',
   },
   legalText: {
     fontSize: 10,
-    color: 'rgba(245,240,232,0.25)',
+    color: 'rgba(240,235,224,0.9)',
     textAlign: 'center',
     lineHeight: 16,
     marginBottom: 16,
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   },
   restoreText: {
     fontSize: 13,
-    color: 'rgba(245,240,232,0.35)',
+    color: 'rgba(240,235,224,0.9)',
     textDecorationLine: 'underline',
   },
 });

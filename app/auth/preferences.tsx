@@ -192,7 +192,7 @@ export default function PreferencesScreen() {
                     <Text style={styles.listDesc}>{opt.desc}</Text>
                   </View>
                   {selected && (
-                    <Ionicons name="checkmark-circle" size={22} color="#1C3D2E" />
+                    <Ionicons name="checkmark-circle" size={22} color="#2C2416" />
                   )}
                 </TouchableOpacity>
               );
@@ -222,7 +222,7 @@ export default function PreferencesScreen() {
                     <Text style={styles.listDesc}>{opt.desc}</Text>
                   </View>
                   {selected && (
-                    <Ionicons name="checkmark-circle" size={22} color="#1C3D2E" />
+                    <Ionicons name="checkmark-circle" size={22} color="#2C2416" />
                   )}
                 </TouchableOpacity>
               );
@@ -258,7 +258,7 @@ const CARD_WIDTH = (width - 48 - 12) / 2;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F1F16',
+    backgroundColor: '#F0EBE0',
   },
   header: {
     flexDirection: 'row',
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
   bottomSection: {
     paddingHorizontal: 24,
     paddingTop: 12,
-    backgroundColor: '#0F1F16',
+    backgroundColor: '#F0EBE0',
   },
   nextBtn: {
     backgroundColor: '#4CAF7D',

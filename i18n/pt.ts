@@ -47,7 +47,7 @@ export const pt = {
   auth: {
     onboarding: {
       title: 'LocalsApp',
-      subtitle: 'Planeje viagens inesquecíveis com roteiros curados por IA.',
+      subtitle: 'Organize, planeje e guarde cada detalhe da sua viagem em um só lugar.',
       feature1: 'Roteiros personalizados',
       feature1Desc: 'IA cria seu roteiro completo em segundos',
       feature2: 'Tudo em um lugar',

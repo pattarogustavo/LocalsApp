@@ -65,7 +65,7 @@ export function DocAttachField({ label, uri, onPick, onRemove }: DocAttachFieldP
         <View style={styles.previewRow}>
           {isPdf ? (
             <View style={styles.pdfPreview}>
-              <Ionicons name="document-text" size={28} color="#52B788" />
+              <Ionicons name="document-text" size={28} color="#3D5A2E" />
               <Text style={styles.pdfLabel} numberOfLines={1}>Documento anexado</Text>
             </View>
           ) : (
@@ -78,23 +78,23 @@ export function DocAttachField({ label, uri, onPick, onRemove }: DocAttachFieldP
       ) : (
         <>
           <TouchableOpacity style={styles.addBtn} onPress={() => setShowOptions(!showOptions)}>
-            <Ionicons name="attach-outline" size={16} color="#52B788" />
+            <Ionicons name="attach-outline" size={16} color="#3D5A2E" />
             <Text style={styles.addBtnText}>Anexar documento</Text>
           </TouchableOpacity>
 
           {showOptions && (
             <View style={styles.optionsRow}>
               <TouchableOpacity style={styles.optionChip} onPress={pickFromCamera}>
-                <Ionicons name="camera-outline" size={15} color="#F5F0E8" />
+                <Ionicons name="camera-outline" size={15} color="#F0EBE0" />
                 <Text style={styles.optionText}>Câmera</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.optionChip} onPress={pickFromGallery}>
-                <Ionicons name="images-outline" size={15} color="#F5F0E8" />
+                <Ionicons name="images-outline" size={15} color="#F0EBE0" />
                 <Text style={styles.optionText}>Galeria</Text>
               </TouchableOpacity>
               {Platform.OS !== 'web' && (
                 <TouchableOpacity style={styles.optionChip} onPress={pickPdf}>
-                  <Ionicons name="document-outline" size={15} color="#F5F0E8" />
+                  <Ionicons name="document-outline" size={15} color="#F0EBE0" />
                   <Text style={styles.optionText}>PDF</Text>
                 </TouchableOpacity>
               )}
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     letterSpacing: 1,
-    color: 'rgba(245,240,232,0.5)',
+    color: 'rgba(240,235,224,0.9)',
     marginBottom: 8,
   },
   addBtn: {
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   },
   addBtnText: {
     fontSize: 13,
-    color: '#52B788',
+    color: '#3D5A2E',
     fontWeight: '500',
   },
   optionsRow: {
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontSize: 12,
-    color: '#F5F0E8',
+    color: '#F0EBE0',
     fontWeight: '500',
   },
   previewRow: {
@@ -175,11 +175,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(82,183,136,0.2)',
+    borderColor: 'rgba(61,90,46,0.15)',
   },
   pdfLabel: {
     fontSize: 13,
-    color: '#52B788',
+    color: '#3D5A2E',
     fontWeight: '500',
     flex: 1,
   },

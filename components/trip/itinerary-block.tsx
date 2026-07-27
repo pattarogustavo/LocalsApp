@@ -24,7 +24,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  attraction: '#52B788',
+  attraction: '#3D5A2E',
   restaurant: '#E07B5A',
   cafe: '#C4A35A',
   museum: '#7B9FD4',
@@ -183,7 +183,7 @@ function StopItem({
   const desc = stop.description || stop.tip || '';
   const cat  = stop.placeCategory || 'other';
   const catIcon  = CATEGORY_ICONS[cat] || 'location-outline';
-  const catColor = CATEGORY_COLORS[cat] || '#52B788';
+  const catColor = CATEGORY_COLORS[cat] || '#3D5A2E';
 
   const openMaps = () => {
     const destCoord = stop.lat && stop.lng ? `${stop.lat},${stop.lng}` : stop.address;
@@ -250,13 +250,13 @@ function StopItem({
 
               {stop.hours ? (
                 <View style={styles.stopDetail}>
-                  <Ionicons name="time-outline" size={12} color="rgba(245,240,232,0.4)" />
+                  <Ionicons name="time-outline" size={12} color="rgba(240,235,224,0.9)" />
                   <Text style={styles.stopDetailText}>{stop.hours}</Text>
                 </View>
               ) : null}
               {stop.address ? (
                 <View style={styles.stopDetail}>
-                  <Ionicons name="location-outline" size={12} color="rgba(245,240,232,0.4)" />
+                  <Ionicons name="location-outline" size={12} color="rgba(240,235,224,0.9)" />
                   <Text style={styles.stopDetailText}>{stop.address}</Text>
                 </View>
               ) : null}
@@ -284,7 +284,7 @@ function StopItem({
               <View style={styles.stopActions}>
                 {(stop.lat || stop.address) ? (
                   <TouchableOpacity onPress={openMaps} style={styles.stopActionBtn}>
-                    <Ionicons name="map-outline" size={13} color="#52B788" />
+                    <Ionicons name="map-outline" size={13} color="#3D5A2E" />
                     <Text style={styles.stopActionText}>Maps</Text>
                   </TouchableOpacity>
                 ) : null}
@@ -294,7 +294,7 @@ function StopItem({
                     onPress={() => Linking.openURL(stop.website || linkedPlace?.website || '')}
                     style={styles.stopActionBtn}
                   >
-                    <Ionicons name="globe-outline" size={13} color="#52B788" />
+                    <Ionicons name="globe-outline" size={13} color="#3D5A2E" />
                     <Text style={styles.stopActionText}>Site</Text>
                   </TouchableOpacity>
                 ) : null}
@@ -331,7 +331,7 @@ function StopItem({
               style={styles.gmMoveBtn}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <Ionicons name="swap-vertical-outline" size={16} color="rgba(245,240,232,0.45)" />
+              <Ionicons name="swap-vertical-outline" size={16} color="rgba(240,235,224,0.9)" />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -347,7 +347,7 @@ function StopItem({
               value={timeInput}
               onChangeText={setTimeInput}
               placeholder="09:30"
-              placeholderTextColor="rgba(245,240,232,0.3)"
+              placeholderTextColor="rgba(240,235,224,0.9)"
               keyboardType="numbers-and-punctuation"
               maxLength={5}
               autoFocus
@@ -396,7 +396,7 @@ function StopItem({
               <Ionicons
                 name={travelModeIcon(stop.travelModeToNext) as any}
                 size={11}
-                color="rgba(245,240,232,0.5)"
+                color="rgba(240,235,224,0.9)"
               />
             </View>
           </View>
@@ -420,7 +420,7 @@ function StopItem({
               <View style={styles.editStopHeader}>
                 <Text style={styles.editStopTitle}>{t.itinerary.editStop}</Text>
                 <TouchableOpacity onPress={() => setShowEditModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="close" size={22} color="rgba(245,240,232,0.6)" />
+                  <Ionicons name="close" size={22} color="rgba(240,235,224,0.9)" />
                 </TouchableOpacity>
               </View>
 
@@ -432,7 +432,7 @@ function StopItem({
                   value={editName}
                   onChangeText={setEditName}
                   placeholder={t.itinerary.stopNamePlaceholder}
-                  placeholderTextColor="rgba(245,240,232,0.3)"
+                  placeholderTextColor="rgba(240,235,224,0.9)"
                   returnKeyType="next"
                 />
 
@@ -441,7 +441,7 @@ function StopItem({
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {Object.entries(CATEGORY_ICONS).map(([key, icon]) => {
-                      const color = CATEGORY_COLORS[key] || '#52B788';
+                      const color = CATEGORY_COLORS[key] || '#3D5A2E';
                       const isActive = editCat === key;
                       return (
                         <TouchableOpacity
@@ -449,8 +449,8 @@ function StopItem({
                           onPress={() => setEditCat(key)}
                           style={[styles.editCatChip, { borderColor: isActive ? color : 'rgba(255,255,255,0.12)', backgroundColor: isActive ? `${color}20` : 'transparent' }]}
                         >
-                          <Ionicons name={icon as any} size={14} color={isActive ? color : 'rgba(245,240,232,0.4)'} />
-                          <Text style={[styles.editCatChipText, { color: isActive ? color : 'rgba(245,240,232,0.4)' }]}>
+                          <Ionicons name={icon as any} size={14} color={isActive ? color : 'rgba(240,235,224,0.9)'} />
+                          <Text style={[styles.editCatChipText, { color: isActive ? color : 'rgba(240,235,224,0.9)' }]}>
                             {key === 'attraction' ? t.places.categories.attraction : key === 'restaurant' ? t.places.categories.restaurant : key === 'cafe' ? 'Café' : key === 'museum' ? 'Museu' : key === 'hidden_gem' ? 'Joia' : key === 'hotel' ? t.places.categories.hotel : t.places.categories.all}
                           </Text>
                         </TouchableOpacity>
@@ -466,7 +466,7 @@ function StopItem({
                   value={editDesc}
                   onChangeText={setEditDesc}
                   placeholder={t.places.details.description + '...'}
-                  placeholderTextColor="rgba(245,240,232,0.3)"
+                  placeholderTextColor="rgba(240,235,224,0.9)"
                   multiline
                   numberOfLines={3}
                 />
@@ -478,7 +478,7 @@ function StopItem({
                   value={editNotes}
                   onChangeText={setEditNotes}
                   placeholder={t.itinerary.stopNotesPlaceholder}
-                  placeholderTextColor="rgba(245,240,232,0.3)"
+                  placeholderTextColor="rgba(240,235,224,0.9)"
                   multiline
                   numberOfLines={3}
                 />
@@ -503,7 +503,7 @@ function StopItem({
                     setShowEditModal(false);
                   }}
                 >
-                  <Ionicons name="checkmark" size={16} color="#0F1F16" />
+                  <Ionicons name="checkmark" size={16} color="#F0EBE0" />
                   <Text style={styles.editStopSaveText}>{t.common.save}</Text>
                 </TouchableOpacity>
               </View>
@@ -611,7 +611,7 @@ function DayView({
       <View style={styles.emptyDay}>
         <Text style={styles.emptyDayText}>{t.itinerary.noStops}</Text>
         <TouchableOpacity onPress={onGoToPlaces} style={styles.goToPlacesBtn}>
-          <Ionicons name="location-outline" size={14} color="#0F1F16" />
+          <Ionicons name="location-outline" size={14} color="#F0EBE0" />
           <Text style={styles.goToPlacesBtnText}>{t.itinerary.addStop}</Text>
         </TouchableOpacity>
       </View>
@@ -700,9 +700,9 @@ function DayView({
           style={styles.updateRoutesBtn}
         >
           {updatingRoutes ? (
-            <ActivityIndicator size="small" color="#52B788" />
+            <ActivityIndicator size="small" color="#3D5A2E" />
           ) : (
-            <Ionicons name="navigate-outline" size={13} color="#52B788" />
+            <Ionicons name="navigate-outline" size={13} color="#3D5A2E" />
           )}
           <Text style={styles.updateRoutesBtnText}>
             {updatingRoutes ? t.common.loading : t.itinerary.title}
@@ -788,7 +788,7 @@ function DayView({
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
               <Text style={[styles.paceModalTitle, { flex: 1 }]}>Mover parada</Text>
               <TouchableOpacity onPress={() => { setShowMoveModal(false); setStopToMove(null); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close" size={22} color="rgba(245,240,232,0.6)" />
+                <Ionicons name="close" size={22} color="rgba(240,235,224,0.9)" />
               </TouchableOpacity>
             </View>
             <Text style={styles.paceModalSubtitle}>
@@ -799,17 +799,17 @@ function DayView({
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, marginTop: 4 }}>
               <TouchableOpacity
                 onPress={() => setMoveMode('position')}
-                style={[styles.paceModalBtn, { flex: 1, backgroundColor: moveMode === 'position' ? 'rgba(82,183,136,0.2)' : 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: moveMode === 'position' ? '#52B788' : 'transparent' }]}
+                style={[styles.paceModalBtn, { flex: 1, backgroundColor: moveMode === 'position' ? 'rgba(61,90,46,0.15)' : 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: moveMode === 'position' ? '#3D5A2E' : 'transparent' }]}
               >
-                <Ionicons name="swap-vertical-outline" size={14} color={moveMode === 'position' ? '#52B788' : 'rgba(245,240,232,0.5)'} />
-                <Text style={{ color: moveMode === 'position' ? '#52B788' : 'rgba(245,240,232,0.5)', fontWeight: '600', fontSize: 13 }}>Posição</Text>
+                <Ionicons name="swap-vertical-outline" size={14} color={moveMode === 'position' ? '#3D5A2E' : 'rgba(240,235,224,0.9)'} />
+                <Text style={{ color: moveMode === 'position' ? '#3D5A2E' : 'rgba(240,235,224,0.9)', fontWeight: '600', fontSize: 13 }}>Posição</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setMoveMode('day')}
-                style={[styles.paceModalBtn, { flex: 1, backgroundColor: moveMode === 'day' ? 'rgba(82,183,136,0.2)' : 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: moveMode === 'day' ? '#52B788' : 'transparent' }]}
+                style={[styles.paceModalBtn, { flex: 1, backgroundColor: moveMode === 'day' ? 'rgba(61,90,46,0.15)' : 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: moveMode === 'day' ? '#3D5A2E' : 'transparent' }]}
               >
-                <Ionicons name="calendar-outline" size={14} color={moveMode === 'day' ? '#52B788' : 'rgba(245,240,232,0.5)'} />
-                <Text style={{ color: moveMode === 'day' ? '#52B788' : 'rgba(245,240,232,0.5)', fontWeight: '600', fontSize: 13 }}>Outro dia</Text>
+                <Ionicons name="calendar-outline" size={14} color={moveMode === 'day' ? '#3D5A2E' : 'rgba(240,235,224,0.9)'} />
+                <Text style={{ color: moveMode === 'day' ? '#3D5A2E' : 'rgba(240,235,224,0.9)', fontWeight: '600', fontSize: 13 }}>Outro dia</Text>
               </TouchableOpacity>
             </View>
 
@@ -836,7 +836,7 @@ function DayView({
                         style={[styles.paceModalOption, { opacity: canUp ? 1 : 0.35 }]}
                         disabled={!canUp}
                       >
-                        <Ionicons name="arrow-up-outline" size={18} color="#52B788" />
+                        <Ionicons name="arrow-up-outline" size={18} color="#3D5A2E" />
                         <View style={{ flex: 1 }}>
                           <Text style={styles.paceModalOptionLabel}>Mover para antes</Text>
                           {canUp && rawStops[idx - 1] && (
@@ -858,7 +858,7 @@ function DayView({
                         style={[styles.paceModalOption, { opacity: canDown ? 1 : 0.35 }]}
                         disabled={!canDown}
                       >
-                        <Ionicons name="arrow-down-outline" size={18} color="#52B788" />
+                        <Ionicons name="arrow-down-outline" size={18} color="#3D5A2E" />
                         <View style={{ flex: 1 }}>
                           <Text style={styles.paceModalOptionLabel}>Mover para depois</Text>
                           {canDown && rawStops[idx + 1] && (
@@ -884,9 +884,9 @@ function DayView({
                       onPress={() => handleMoveStop(i)}
                       style={[styles.paceModalOption, { marginBottom: 8 }]}
                     >
-                      <Ionicons name="calendar-outline" size={16} color="#52B788" />
+                      <Ionicons name="calendar-outline" size={16} color="#3D5A2E" />
                       <Text style={[styles.paceModalOptionLabel, { flex: 1 }]}>{label}</Text>
-                      <Ionicons name="chevron-forward" size={16} color="rgba(245,240,232,0.3)" />
+                      <Ionicons name="chevron-forward" size={16} color="rgba(240,235,224,0.9)" />
                     </TouchableOpacity>
                   );
                 })}
@@ -912,7 +912,7 @@ interface ItineraryBlockProps {
 function UnscheduledPlaceRow({ place, onAdd }: { place: Place; onAdd: () => void }) {
   const cat = place.category || 'other';
   const catIcon = CATEGORY_ICONS[cat] || 'location-outline';
-  const catColor = CATEGORY_COLORS[cat] || '#52B788';
+  const catColor = CATEGORY_COLORS[cat] || '#3D5A2E';
   const catLabels: Record<string, string> = {
     attraction: 'Atração', restaurant: 'Restaurante', cafe: 'Café',
     museum: 'Museu', hidden_gem: 'Joia oculta', hotel: 'Hotel', other: 'Outro',
@@ -927,7 +927,7 @@ function UnscheduledPlaceRow({ place, onAdd }: { place: Place; onAdd: () => void
         <Text style={styles.unscheduledCat}>{catLabels[cat] || cat}</Text>
       </View>
       <TouchableOpacity onPress={onAdd} style={styles.unscheduledAddBtn}>
-        <Ionicons name="add" size={18} color="#52B788" />
+        <Ionicons name="add" size={18} color="#3D5A2E" />
       </TouchableOpacity>
     </View>
   );
@@ -1204,7 +1204,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
       {/* Header — no Regerar button */}
       <View style={styles.sectionHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Ionicons name="calendar-outline" size={15} color="#52B788" />
+          <Ionicons name="calendar-outline" size={15} color="#3D5A2E" />
           <Text style={styles.sectionTitle}>ROTEIRO DIA-A-DIA</Text>
         </View>
       </View>
@@ -1281,12 +1281,12 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         >
           {generating ? (
             <>
-              <ActivityIndicator size="small" color="#0F1F16" />
+              <ActivityIndicator size="small" color="#F0EBE0" />
               <Text style={styles.createItineraryBtnText}>{t.ai.generatingItinerary}</Text>
             </>
           ) : (
             <>
-              <Ionicons name="sparkles" size={15} color="#0F1F16" />
+              <Ionicons name="sparkles" size={15} color="#F0EBE0" />
               <Text style={styles.createItineraryBtnText}>
                 {hasItinerary ? t.itinerary.editItinerary : t.itinerary.createItinerary}
               </Text>
@@ -1325,7 +1325,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 onPress={() => setShowCreateModal(false)}
                 style={{ padding: 4, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)' }}
               >
-                <Ionicons name="close" size={18} color="rgba(245,240,232,0.7)" />
+                <Ionicons name="close" size={18} color="rgba(240,235,224,0.9)" />
               </TouchableOpacity>
             </View>
             <Text style={styles.paceModalSubtitle}>{t.itinerary.createSubtitle}</Text>
@@ -1343,7 +1343,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                       pace === p.id && styles.paceMiniChipActive,
                     ]}
                   >
-                    <Text style={[styles.paceMiniChipText, pace === p.id && { color: '#0F1F16' }]}>{p.label}</Text>
+                    <Text style={[styles.paceMiniChipText, pace === p.id && { color: '#F0EBE0' }]}>{p.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1354,14 +1354,14 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               onPress={() => { setShowCreateModal(false); setShowProfileModal(true); }}
               style={styles.createModeOption}
             >
-              <View style={[styles.createModeIcon, { backgroundColor: 'rgba(82,183,136,0.15)' }]}>
-                <Ionicons name="sparkles" size={20} color="#52B788" />
+              <View style={[styles.createModeIcon, { backgroundColor: 'rgba(61,90,46,0.12)' }]}>
+                <Ionicons name="sparkles" size={20} color="#3D5A2E" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.createModeLabel}>IA do zero</Text>
                 <Text style={styles.createModeDesc}>A IA cria tudo com base no seu perfil de viajante</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="rgba(245,240,232,0.3)" />
+              <Ionicons name="chevron-forward" size={16} color="rgba(240,235,224,0.9)" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1380,9 +1380,9 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 </Text>
               </View>
               {trip.places.length === 0 ? (
-                <Ionicons name="lock-closed-outline" size={16} color="rgba(245,240,232,0.3)" />
+                <Ionicons name="lock-closed-outline" size={16} color="rgba(240,235,224,0.9)" />
               ) : (
-                <Ionicons name="chevron-forward" size={16} color="rgba(245,240,232,0.3)" />
+                <Ionicons name="chevron-forward" size={16} color="rgba(240,235,224,0.9)" />
               )}
             </TouchableOpacity>
 
@@ -1410,14 +1410,14 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                     : 'Você será direcionado para a aba Lugares'}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="rgba(245,240,232,0.3)" />
+              <Ionicons name="chevron-forward" size={16} color="rgba(240,235,224,0.9)" />
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => setShowCreateModal(false)}
               style={[styles.paceModalBtn, { backgroundColor: 'rgba(255,255,255,0.08)', marginTop: 4 }]}
             >
-              <Text style={{ color: 'rgba(245,240,232,0.7)', fontWeight: '600' }}>Cancelar</Text>
+              <Text style={{ color: 'rgba(240,235,224,0.9)', fontWeight: '600' }}>Cancelar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1446,8 +1446,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                       onPress={() => toggleTravelStyle(s.id)}
                       style={[styles.profileChip, active && styles.profileChipActive]}
                     >
-                      <Ionicons name={s.icon as any} size={13} color={active ? '#0F1F16' : '#52B788'} />
-                      <Text style={[styles.profileChipText, active && { color: '#0F1F16' }]}>{s.label}</Text>
+                      <Ionicons name={s.icon as any} size={13} color={active ? '#F0EBE0' : '#3D5A2E'} />
+                      <Text style={[styles.profileChipText, active && { color: '#F0EBE0' }]}>{s.label}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -1461,12 +1461,12 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                   onPress={() => setProfileBudget(b.id as any)}
                   style={[styles.paceModalOption, profileBudget === b.id && styles.paceModalOptionActive, { marginBottom: 8 }]}
                 >
-                  <Ionicons name={b.icon as any} size={18} color={profileBudget === b.id ? '#0F1F16' : '#52B788'} />
+                  <Ionicons name={b.icon as any} size={18} color={profileBudget === b.id ? '#F0EBE0' : '#3D5A2E'} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.paceModalOptionLabel, profileBudget === b.id && { color: '#0F1F16' }]}>{b.label}</Text>
-                    <Text style={[styles.paceModalOptionDesc, profileBudget === b.id && { color: 'rgba(15,31,22,0.7)' }]}>{b.desc}</Text>
+                    <Text style={[styles.paceModalOptionLabel, profileBudget === b.id && { color: '#F0EBE0' }]}>{b.label}</Text>
+                    <Text style={[styles.paceModalOptionDesc, profileBudget === b.id && { color: 'rgba(44,36,22,0.5)' }]}>{b.desc}</Text>
                   </View>
-                  {profileBudget === b.id && <Ionicons name="checkmark" size={18} color="#0F1F16" />}
+                  {profileBudget === b.id && <Ionicons name="checkmark" size={18} color="#F0EBE0" />}
                 </TouchableOpacity>
               ))}
 
@@ -1481,8 +1481,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                       onPress={() => setProfileTravelProfile(p.id as any)}
                       style={[styles.profileChip, active && styles.profileChipActive]}
                     >
-                      <Ionicons name={p.icon as any} size={13} color={active ? '#0F1F16' : '#52B788'} />
-                      <Text style={[styles.profileChipText, active && { color: '#0F1F16' }]}>{p.label}</Text>
+                      <Ionicons name={p.icon as any} size={13} color={active ? '#F0EBE0' : '#3D5A2E'} />
+                      <Text style={[styles.profileChipText, active && { color: '#F0EBE0' }]}>{p.label}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -1497,8 +1497,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                     onPress={() => setPace(p.id)}
                     style={[styles.paceMiniChip, { flex: 1 }, pace === p.id && styles.paceMiniChipActive]}
                   >
-                    <Ionicons name={p.icon as any} size={14} color={pace === p.id ? '#0F1F16' : '#52B788'} />
-                    <Text style={[styles.paceMiniChipText, pace === p.id && { color: '#0F1F16' }]}>{p.label}</Text>
+                    <Ionicons name={p.icon as any} size={14} color={pace === p.id ? '#F0EBE0' : '#3D5A2E'} />
+                    <Text style={[styles.paceMiniChipText, pace === p.id && { color: '#F0EBE0' }]}>{p.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1512,7 +1512,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                     onPress={() => setProfileWakeUp(t)}
                     style={[styles.paceMiniChip, profileWakeUp === t && styles.paceMiniChipActive]}
                   >
-                    <Text style={[styles.paceMiniChipText, profileWakeUp === t && { color: '#0F1F16' }]}>{t}</Text>
+                    <Text style={[styles.paceMiniChipText, profileWakeUp === t && { color: '#F0EBE0' }]}>{t}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1523,7 +1523,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 value={profileInterests}
                 onChangeText={setProfileInterests}
                 placeholder="Ex: vinhos, arquitetura modernista, praias desertas..."
-                placeholderTextColor="rgba(245,240,232,0.25)"
+                placeholderTextColor="rgba(240,235,224,0.9)"
                 style={styles.profileTextInput}
                 multiline
                 numberOfLines={2}
@@ -1535,15 +1535,15 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                   onPress={() => setShowProfileModal(false)}
                   style={[styles.paceModalBtn, { backgroundColor: 'rgba(255,255,255,0.08)', flex: 1 }]}
                 >
-                  <Text style={{ color: 'rgba(245,240,232,0.7)', fontWeight: '600' }}>Voltar</Text>
+                  <Text style={{ color: 'rgba(240,235,224,0.9)', fontWeight: '600' }}>Voltar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleGenerateFromScratch}
-                  style={[styles.paceModalBtn, { backgroundColor: '#52B788', flex: 1.5 }]}
+                  style={[styles.paceModalBtn, { backgroundColor: '#3D5A2E', flex: 1.5 }]}
                   disabled={generating}
                 >
-                  <Ionicons name="sparkles-outline" size={15} color="#0F1F16" />
-                  <Text style={{ color: '#0F1F16', fontWeight: '700' }}>Criar Roteiro</Text>
+                  <Ionicons name="sparkles-outline" size={15} color="#F0EBE0" />
+                  <Text style={{ color: '#F0EBE0', fontWeight: '700' }}>Criar Roteiro</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -1559,7 +1559,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <Text style={styles.paceModalTitle}>Adicionar ao Dia {selectedDay + 1}</Text>
               <TouchableOpacity onPress={() => setShowManualPicker(false)}>
-                <Ionicons name="close" size={22} color="rgba(245,240,232,0.6)" />
+                <Ionicons name="close" size={22} color="rgba(240,235,224,0.9)" />
               </TouchableOpacity>
             </View>
             <Text style={styles.paceModalSubtitle}>
@@ -1575,7 +1575,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                   const alreadyScheduled = scheduledPlaceIds.has(place.id);
                   const cat = place.category || 'other';
                   const catIcon = CATEGORY_ICONS[cat] || 'location-outline';
-                  const catColor = CATEGORY_COLORS[cat] || '#52B788';
+                  const catColor = CATEGORY_COLORS[cat] || '#3D5A2E';
                   const pickerDay = manualPickerDays[place.id] ?? 0;
                   return (
                     <View key={place.id} style={[styles.manualPickerRow, { flexDirection: 'column', alignItems: 'stretch', gap: 8 }]}>
@@ -1590,8 +1590,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                         </View>
                         {alreadyScheduled && (
                           <View style={styles.manualPickerScheduled}>
-                            <Ionicons name="checkmark-circle" size={16} color="#52B788" />
-                            <Text style={{ fontSize: 11, color: '#52B788', marginLeft: 3 }}>Agendado</Text>
+                            <Ionicons name="checkmark-circle" size={16} color="#3D5A2E" />
+                            <Text style={{ fontSize: 11, color: '#3D5A2E', marginLeft: 3 }}>Agendado</Text>
                           </View>
                         )}
                       </View>
@@ -1612,7 +1612,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                                     isSelected && styles.manualDayChipActive,
                                   ]}
                                 >
-                                  <Text style={[styles.manualDayChipText, isSelected && { color: '#0F1F16' }]}>
+                                  <Text style={[styles.manualDayChipText, isSelected && { color: '#F0EBE0' }]}>
                                     Dia {di + 1}
                                   </Text>
                                 </TouchableOpacity>
@@ -1623,7 +1623,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                             onPress={() => { handleAddUnscheduledPlace(place, pickerDay); }}
                             style={styles.unscheduledAddBtn}
                           >
-                            <Ionicons name="add" size={18} color="#0F1F16" />
+                            <Ionicons name="add" size={18} color="#F0EBE0" />
                           </TouchableOpacity>
                         </View>
                       )}
@@ -1635,9 +1635,9 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
             </ScrollView>
             <TouchableOpacity
               onPress={() => setShowManualPicker(false)}
-              style={[styles.paceModalBtn, { backgroundColor: '#52B788', marginTop: 8 }]}
+              style={[styles.paceModalBtn, { backgroundColor: '#3D5A2E', marginTop: 8 }]}
             >
-              <Text style={{ color: '#0F1F16', fontWeight: '700' }}>Concluído</Text>
+              <Text style={{ color: '#F0EBE0', fontWeight: '700' }}>Concluído</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1651,31 +1651,31 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: 'rgba(245,240,232,0.7)' },
-  regenBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(82,183,136,0.12)', minWidth: 80, justifyContent: 'center' },
-  regenBtnText: { fontSize: 12, color: '#52B788', fontWeight: '600' },
+  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: 'rgba(240,235,224,0.9)' },
+  regenBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(61,90,46,0.10)', minWidth: 80, justifyContent: 'center' },
+  regenBtnText: { fontSize: 12, color: '#3D5A2E', fontWeight: '600' },
 
   itineraryCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'rgba(82,183,136,0.1)' },
 
   // Day selector chips
   dayChip: { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.06)', minWidth: 52 },
-  dayChipActive: { backgroundColor: '#52B788' },
-  dayChipName: { fontSize: 11, color: 'rgba(245,240,232,0.5)', fontWeight: '600', marginBottom: 2 },
-  dayChipNameActive: { color: '#0F1F16' },
-  dayChipNum: { fontSize: 20, fontWeight: '800', color: '#F5F0E8', lineHeight: 24 },
-  dayChipNumActive: { color: '#0F1F16' },
-  dayChipMonth: { fontSize: 10, color: 'rgba(245,240,232,0.4)', marginTop: 1 },
-  dayChipMonthActive: { color: 'rgba(15,31,22,0.7)' },
+  dayChipActive: { backgroundColor: '#3D5A2E' },
+  dayChipName: { fontSize: 11, color: 'rgba(240,235,224,0.9)', fontWeight: '600', marginBottom: 2 },
+  dayChipNameActive: { color: '#F0EBE0' },
+  dayChipNum: { fontSize: 20, fontWeight: '800', color: '#F0EBE0', lineHeight: 24 },
+  dayChipNumActive: { color: '#F0EBE0' },
+  dayChipMonth: { fontSize: 10, color: 'rgba(240,235,224,0.9)', marginTop: 1 },
+  dayChipMonthActive: { color: 'rgba(44,36,22,0.5)' },
 
   // Stop item — Google Maps-style
-  stopAnimatedBg: { backgroundColor: '#1A2E22' }, // opaque so swipe-delete bg doesn't show through
+  stopAnimatedBg: { backgroundColor: '#EDE8DC' }, // opaque so swipe-delete bg doesn't show through
   stopRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 6, paddingHorizontal: 4 },
   // Legacy (kept for fallback references)
   timeCol: { width: 44, alignItems: 'flex-end', paddingRight: 10, paddingTop: 6 },
-  stopTime: { fontSize: 12, color: 'rgba(245,240,232,0.4)', fontWeight: '500' },
+  stopTime: { fontSize: 12, color: 'rgba(240,235,224,0.9)', fontWeight: '500' },
   iconCol: { width: 36, alignItems: 'center' },
   stopIconBg: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  vertLine: { flex: 1, width: 1, backgroundColor: 'rgba(82,183,136,0.2)', marginTop: 4, minHeight: 16 },
+  vertLine: { flex: 1, width: 1, backgroundColor: 'rgba(61,90,46,0.15)', marginTop: 4, minHeight: 16 },
   stopContent: { flex: 1, paddingLeft: 10, paddingBottom: 8 },
   // Google Maps-style columns
   gmIconCol: { width: 32, alignItems: 'center', paddingTop: 2 },
@@ -1683,149 +1683,149 @@ const styles = StyleSheet.create({
   gmVertLine: { width: 1.5, flex: 1, backgroundColor: 'rgba(82,183,136,0.25)', marginTop: 3, minHeight: 20 },
   gmContent: { flex: 1, paddingLeft: 10, paddingBottom: 10, paddingTop: 3 },
   gmRightCol: { alignItems: 'flex-end', paddingLeft: 6, paddingTop: 3, gap: 6, minWidth: 52 },
-  gmTimeBtn: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, backgroundColor: 'rgba(82,183,136,0.1)', borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)' },
-  gmTimeText: { fontSize: 12, color: '#52B788', fontWeight: '600', letterSpacing: 0.3 },
+  gmTimeBtn: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, backgroundColor: 'rgba(82,183,136,0.1)', borderWidth: 1, borderColor: 'rgba(61,90,46,0.15)' },
+  gmTimeText: { fontSize: 12, color: '#3D5A2E', fontWeight: '600', letterSpacing: 0.3 },
   gmMoveBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)' },
   // Transit connector (Google Maps style)
   gmTransitRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 4, paddingVertical: 2, paddingBottom: 4 },
   gmTransitIconWrap: { width: 32, alignItems: 'center' },
-  gmTransitIconBg: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(82,183,136,0.15)' },
-  gmTransitText: { fontSize: 11, color: 'rgba(245,240,232,0.4)', paddingLeft: 10, flex: 1 },
-  stopName: { fontSize: 15, fontWeight: '700', color: '#F5F0E8', lineHeight: 20 },
-  stopDesc: { fontSize: 13, color: 'rgba(245,240,232,0.55)', marginTop: 2, lineHeight: 18 },
+  gmTransitIconBg: { width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(61,90,46,0.12)' },
+  gmTransitText: { fontSize: 11, color: 'rgba(240,235,224,0.9)', paddingLeft: 10, flex: 1 },
+  stopName: { fontSize: 15, fontWeight: '700', color: '#F0EBE0', lineHeight: 20 },
+  stopDesc: { fontSize: 13, color: 'rgba(240,235,224,0.9)', marginTop: 2, lineHeight: 18 },
   stopExpanded: { marginTop: 8, gap: 6 },
   stopDetail: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-  stopDetailText: { fontSize: 12, color: 'rgba(245,240,232,0.5)', flex: 1, lineHeight: 16 },
+  stopDetailText: { fontSize: 12, color: 'rgba(240,235,224,0.9)', flex: 1, lineHeight: 16 },
   stopActions: { flexDirection: 'row', gap: 8, marginTop: 6 },
-  stopActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: 'rgba(82,183,136,0.12)' },
-  stopActionText: { fontSize: 12, color: '#52B788', fontWeight: '600' },
+  stopActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: 'rgba(61,90,46,0.10)' },
+  stopActionText: { fontSize: 12, color: '#3D5A2E', fontWeight: '600' },
 
   // Travel between stops
   travelRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 2 },
   travelIconBg: { width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },
-  travelText: { fontSize: 11, color: 'rgba(245,240,232,0.35)', paddingLeft: 10 },
+  travelText: { fontSize: 11, color: 'rgba(240,235,224,0.9)', paddingLeft: 10 },
 
   // Day tip
   dayTip: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 12, padding: 10, backgroundColor: 'rgba(196,163,90,0.1)', borderRadius: 10, borderLeftWidth: 2, borderLeftColor: '#C4A35A' },
-  dayTipText: { flex: 1, fontSize: 12, color: 'rgba(245,240,232,0.6)', lineHeight: 18 },
+  dayTipText: { flex: 1, fontSize: 12, color: 'rgba(240,235,224,0.9)', lineHeight: 18 },
 
   // Empty day
   emptyDay: { paddingVertical: 20, alignItems: 'center', gap: 12 },
-  emptyDayText: { fontSize: 14, color: 'rgba(245,240,232,0.4)', textAlign: 'center' },
+  emptyDayText: { fontSize: 14, color: 'rgba(240,235,224,0.9)', textAlign: 'center' },
   goToPlacesBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#52B788', borderRadius: 20,
+    backgroundColor: '#3D5A2E', borderRadius: 20,
     paddingHorizontal: 16, paddingVertical: 8,
   },
-  goToPlacesBtnText: { fontSize: 13, fontWeight: '700', color: '#0F1F16' },
+  goToPlacesBtnText: { fontSize: 13, fontWeight: '700', color: '#F0EBE0' },
 
   // Generating
   generatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 12, justifyContent: 'center' },
-  loadingText: { fontSize: 12, color: 'rgba(245,240,232,0.4)', textAlign: 'center' },
+  loadingText: { fontSize: 12, color: 'rgba(240,235,224,0.9)', textAlign: 'center' },
 
   // Pace modal
   paceModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
-  paceModalCard: { backgroundColor: '#1A2E22', borderRadius: 20, padding: 20, gap: 10 },
-  paceModalTitle: { fontSize: 18, fontWeight: '700', color: '#F5F0E8', fontStyle: 'italic', marginBottom: 2 },
-  paceModalSubtitle: { fontSize: 13, color: 'rgba(245,240,232,0.5)', lineHeight: 18, marginBottom: 4 },
+  paceModalCard: { backgroundColor: '#EDE8DC', borderRadius: 20, padding: 20, gap: 10 },
+  paceModalTitle: { fontSize: 18, fontWeight: '700', color: '#F0EBE0', fontStyle: 'italic', marginBottom: 2 },
+  paceModalSubtitle: { fontSize: 13, color: 'rgba(240,235,224,0.9)', lineHeight: 18, marginBottom: 4 },
   paceModalOption: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)' },
-  paceModalOptionActive: { backgroundColor: '#52B788' },
-  paceModalOptionLabel: { fontSize: 15, fontWeight: '700', color: '#F5F0E8' },
-  paceModalOptionDesc: { fontSize: 12, color: 'rgba(245,240,232,0.5)', marginTop: 1 },
+  paceModalOptionActive: { backgroundColor: '#3D5A2E' },
+  paceModalOptionLabel: { fontSize: 15, fontWeight: '700', color: '#F0EBE0' },
+  paceModalOptionDesc: { fontSize: 12, color: 'rgba(240,235,224,0.9)', marginTop: 1 },
   paceModalBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, borderRadius: 12 },
 
   // Time edit
-  timeBtn: { paddingHorizontal: 4, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)' },
+  timeBtn: { paddingHorizontal: 4, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: 'rgba(61,90,46,0.15)' },
   timeModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 32 },
-  timeModalSheet: { backgroundColor: '#1A2E22', borderRadius: 20, padding: 20, gap: 12 },
-  timeModalTitle: { fontSize: 17, fontWeight: '700', color: '#F5F0E8', textAlign: 'center' },
-  timeModalInput: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: 14, fontSize: 28, fontWeight: '700', color: '#F5F0E8', textAlign: 'center', borderWidth: 1, borderColor: 'rgba(82,183,136,0.3)', letterSpacing: 4 },
-  timeModalHint: { fontSize: 12, color: 'rgba(245,240,232,0.35)', textAlign: 'center' },
+  timeModalSheet: { backgroundColor: '#EDE8DC', borderRadius: 20, padding: 20, gap: 12 },
+  timeModalTitle: { fontSize: 17, fontWeight: '700', color: '#F0EBE0', textAlign: 'center' },
+  timeModalInput: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: 14, fontSize: 28, fontWeight: '700', color: '#F0EBE0', textAlign: 'center', borderWidth: 1, borderColor: 'rgba(61,90,46,0.25)', letterSpacing: 4 },
+  timeModalHint: { fontSize: 12, color: 'rgba(240,235,224,0.9)', textAlign: 'center' },
   timeModalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
   timeModalCancel: { flex: 1, paddingVertical: 13, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center' },
-  timeModalCancelText: { color: 'rgba(245,240,232,0.6)', fontSize: 15, fontWeight: '500' },
-  timeModalConfirm: { flex: 2, paddingVertical: 13, borderRadius: 14, backgroundColor: '#52B788', alignItems: 'center' },
-  timeModalConfirmText: { color: '#0F1F16', fontSize: 15, fontWeight: '700' },
+  timeModalCancelText: { color: 'rgba(240,235,224,0.9)', fontSize: 15, fontWeight: '500' },
+  timeModalConfirm: { flex: 2, paddingVertical: 13, borderRadius: 14, backgroundColor: '#3D5A2E', alignItems: 'center' },
+  timeModalConfirmText: { color: '#F0EBE0', fontSize: 15, fontWeight: '700' },
 
   // Update routes button
-  updateRoutesBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-end', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: 'rgba(82,183,136,0.1)', marginBottom: 10, borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)' },
-  updateRoutesBtnText: { fontSize: 11, color: '#52B788', fontWeight: '600' },
+  updateRoutesBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-end', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: 'rgba(82,183,136,0.1)', marginBottom: 10, borderWidth: 1, borderColor: 'rgba(61,90,46,0.15)' },
+  updateRoutesBtnText: { fontSize: 11, color: '#3D5A2E', fontWeight: '600' },
 
   // Create mode options
   createModeOption: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.05)', marginBottom: 8 },
   createModeIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  createModeLabel: { fontSize: 15, fontWeight: '700', color: '#F5F0E8', marginBottom: 2 },
-  createModeDesc: { fontSize: 12, color: 'rgba(245,240,232,0.5)', lineHeight: 16 },
+  createModeLabel: { fontSize: 15, fontWeight: '700', color: '#F0EBE0', marginBottom: 2 },
+  createModeDesc: { fontSize: 12, color: 'rgba(240,235,224,0.9)', lineHeight: 16 },
 
   // Pace mini chips (for create modal)
   paceMiniChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center' },
-  paceMiniChipActive: { backgroundColor: '#52B788' },
-  paceMiniChipText: { fontSize: 12, fontWeight: '600', color: '#52B788' },
+  paceMiniChipActive: { backgroundColor: '#3D5A2E' },
+  paceMiniChipText: { fontSize: 12, fontWeight: '600', color: '#3D5A2E' },
 
   // Profile questions
-  profileSectionLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8, color: 'rgba(245,240,232,0.5)', marginTop: 12, marginBottom: 8 },
+  profileSectionLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8, color: 'rgba(240,235,224,0.9)', marginTop: 12, marginBottom: 8 },
   profileChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   profileChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.06)' },
-  profileChipActive: { backgroundColor: '#52B788' },
-  profileChipText: { fontSize: 13, fontWeight: '600', color: '#52B788' },
-  profileTextInput: { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: 12, fontSize: 14, color: '#F5F0E8', borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)', lineHeight: 20, minHeight: 64 },
+  profileChipActive: { backgroundColor: '#3D5A2E' },
+  profileChipText: { fontSize: 13, fontWeight: '600', color: '#3D5A2E' },
+  profileTextInput: { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: 12, fontSize: 14, color: '#F0EBE0', borderWidth: 1, borderColor: 'rgba(61,90,46,0.15)', lineHeight: 20, minHeight: 64 },
 
   // Manual picker
-  manualDayChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)' },
-  manualDayChipActive: { backgroundColor: '#52B788', borderColor: '#52B788' },
-  manualDayChipText: { fontSize: 12, fontWeight: '600', color: 'rgba(245,240,232,0.7)' },
-  manualPickerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(245,240,232,0.06)' },
+  manualDayChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(61,90,46,0.15)' },
+  manualDayChipActive: { backgroundColor: '#3D5A2E', borderColor: '#3D5A2E' },
+  manualDayChipText: { fontSize: 12, fontWeight: '600', color: 'rgba(240,235,224,0.9)' },
+  manualPickerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(240,235,224,0.9)' },
   manualPickerScheduled: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: 'rgba(82,183,136,0.1)' },
 
   // Drag handle
   dragHandle: { width: 20, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, flexWrap: 'wrap', flexDirection: 'row', gap: 3, marginRight: 2 },
-  dragDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(245,240,232,0.25)' },
+  dragDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(240,235,224,0.9)' },
 
   // Swipe-to-delete
   swipeDeleteAction: { backgroundColor: '#E74C3C', alignItems: 'center', justifyContent: 'center', width: 80, borderRadius: 12, gap: 4 },
   swipeDeleteText: { fontSize: 11, fontWeight: '700', color: '#fff' },
 
   // Create itinerary button (below day selector)
-  createItineraryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#52B788', borderRadius: 14, paddingVertical: 11, paddingHorizontal: 16, marginBottom: 16 },
-  createItineraryBtnText: { fontSize: 14, fontWeight: '700', color: '#0F1F16' },
+  createItineraryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#3D5A2E', borderRadius: 14, paddingVertical: 11, paddingHorizontal: 16, marginBottom: 16 },
+  createItineraryBtnText: { fontSize: 14, fontWeight: '700', color: '#F0EBE0' },
 
   // Unscheduled places panel
   unscheduledPanel: { marginTop: 12, backgroundColor: 'rgba(196,163,90,0.06)', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: 'rgba(196,163,90,0.15)' },
   unscheduledHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   unscheduledTitle: { fontSize: 10, fontWeight: '700', letterSpacing: 1.2, color: '#C4A35A', flex: 1 },
   unscheduledCount: { fontSize: 11, fontWeight: '700', color: '#C4A35A', backgroundColor: 'rgba(196,163,90,0.2)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
-  unscheduledSubtitle: { fontSize: 12, color: 'rgba(245,240,232,0.4)', marginBottom: 10, lineHeight: 16 },
+  unscheduledSubtitle: { fontSize: 12, color: 'rgba(240,235,224,0.9)', marginBottom: 10, lineHeight: 16 },
   unscheduledRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
   unscheduledIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  unscheduledName: { fontSize: 14, fontWeight: '600', color: '#F5F0E8' },
-  unscheduledCat: { fontSize: 11, color: 'rgba(245,240,232,0.4)', marginTop: 1 },
-  unscheduledAddBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(82,183,136,0.15)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(82,183,136,0.3)' },
+  unscheduledName: { fontSize: 14, fontWeight: '600', color: '#F0EBE0' },
+  unscheduledCat: { fontSize: 11, color: 'rgba(240,235,224,0.9)', marginTop: 1 },
+  unscheduledAddBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(61,90,46,0.12)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(61,90,46,0.25)' },
 
   // Edit stop modal
   editStopOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  editStopSheet: { backgroundColor: '#1A2E22', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 },
+  editStopSheet: { backgroundColor: '#EDE8DC', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 },
   editStopHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  editStopTitle: { fontSize: 18, fontWeight: '700', color: '#F5F0E8' },
-  editStopLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8, color: 'rgba(245,240,232,0.5)', marginBottom: 6, marginTop: 4 },
-  editStopInput: { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: 12, fontSize: 14, color: '#F5F0E8', borderWidth: 1, borderColor: 'rgba(82,183,136,0.2)', marginBottom: 12 },
+  editStopTitle: { fontSize: 18, fontWeight: '700', color: '#F0EBE0' },
+  editStopLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8, color: 'rgba(240,235,224,0.9)', marginBottom: 6, marginTop: 4 },
+  editStopInput: { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: 12, fontSize: 14, color: '#F0EBE0', borderWidth: 1, borderColor: 'rgba(61,90,46,0.15)', marginBottom: 12 },
   editCatChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   editCatChipText: { fontSize: 12, fontWeight: '600' },
   editStopActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   editStopCancel: { flex: 1, paddingVertical: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center' },
-  editStopCancelText: { fontSize: 14, fontWeight: '600', color: 'rgba(245,240,232,0.6)' },
-  editStopSave: { flex: 2, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 14, backgroundColor: '#52B788', alignItems: 'center', justifyContent: 'center' },
-  editStopSaveText: { fontSize: 14, fontWeight: '700', color: '#0F1F16' },
+  editStopCancelText: { fontSize: 14, fontWeight: '600', color: 'rgba(240,235,224,0.9)' },
+  editStopSave: { flex: 2, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 14, backgroundColor: '#3D5A2E', alignItems: 'center', justifyContent: 'center' },
+  editStopSaveText: { fontSize: 14, fontWeight: '700', color: '#F0EBE0' },
 
   // Day summary header
   daySummaryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 4, marginBottom: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(82,183,136,0.1)' },
   daySummaryStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  daySummaryStatText: { fontSize: 12, color: 'rgba(245,240,232,0.5)', fontWeight: '500' },
+  daySummaryStatText: { fontSize: 12, color: 'rgba(240,235,224,0.9)', fontWeight: '500' },
 
   // Weather strip
-  weatherStrip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(82,183,136,0.08)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(82,183,136,0.15)' },
+  weatherStrip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(82,183,136,0.08)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(61,90,46,0.12)' },
   weatherIcon: { width: 40, height: 40 },
-  weatherDesc: { fontSize: 13, color: 'rgba(245,240,232,0.8)', fontWeight: '500', lineHeight: 17 },
-  weatherTemp: { fontSize: 12, color: 'rgba(245,240,232,0.5)', marginTop: 2 },
+  weatherDesc: { fontSize: 13, color: 'rgba(240,235,224,0.9)', fontWeight: '500', lineHeight: 17 },
+  weatherTemp: { fontSize: 12, color: 'rgba(240,235,224,0.9)', marginTop: 2 },
 
   // Stop photo & attachments
   stopPhoto: { width: '100%', height: 130, borderRadius: 12, marginBottom: 10, marginTop: 4 },

@@ -16,7 +16,7 @@ const MODE_ICONS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  scheduled: '#52B788',
+  scheduled: '#3D5A2E',
   delayed: '#F59E0B',
   boarding: '#3B82F6',
   departed: '#8B5CF6',
@@ -138,7 +138,7 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
       <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Ionicons name="airplane-outline" size={15} color="#52B788" />
+            <Ionicons name="airplane-outline" size={15} color="#3D5A2E" />
             <Text style={styles.sectionTitle}>{t.common.nextTransport}</Text>
           </View>
           <View style={styles.addHint}>
@@ -156,7 +156,7 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
   const modeIcon = MODE_ICONS[next.mode] || 'navigate';
   const modeLabel = MODE_LABELS[next.mode] || 'Transporte';
   const status = f?.status || 'scheduled';
-  const statusColor = STATUS_COLORS[status] || '#52B788';
+  const statusColor = STATUS_COLORS[status] || '#3D5A2E';
   const statusLabel = STATUS_LABELS[status] || 'No horário';
 
   // Days until departure
@@ -178,7 +178,7 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name={`${modeIcon}-outline` as any} size={15} color="#52B788" />
+          <Ionicons name={`${modeIcon}-outline` as any} size={15} color="#3D5A2E" />
           <Text style={styles.sectionTitle}>{t.transport.saida.replace('SAÍDA', 'PRÓXIMO TRANSPORTE')}</Text>
         </View>
         <View style={styles.headerRight}>
@@ -189,7 +189,7 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
               </Text>
             </View>
           ) : null}
-          <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.3)" />
+          <Ionicons name="chevron-forward" size={14} color="rgba(240,235,224,0.9)" />
         </View>
       </View>
 
@@ -212,7 +212,7 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
           <View style={styles.routeLine}>
             <View style={styles.routeDot} />
             <View style={styles.routeLineBar} />
-            <Ionicons name={modeIcon as any} size={16} color="#52B788" />
+            <Ionicons name={modeIcon as any} size={16} color="#3D5A2E" />
             <View style={styles.routeLineBar} />
             <View style={styles.routeDot} />
           </View>
@@ -263,12 +263,12 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(28,61,46,0.85)',
+    backgroundColor: 'rgba(44,36,22,0.5)',
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(82,183,136,0.15)',
+    borderColor: 'rgba(61,90,46,0.12)',
   },
   header: {
     flexDirection: 'row',
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.5,
-    color: 'rgba(245,240,232,0.6)',
+    color: 'rgba(240,235,224,0.9)',
   },
   headerRight: {
     flexDirection: 'row',
@@ -293,18 +293,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   countdownBadge: {
-    backgroundColor: 'rgba(82,183,136,0.15)',
+    backgroundColor: 'rgba(61,90,46,0.12)',
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   countdownToday: {
-    backgroundColor: 'rgba(82,183,136,0.3)',
+    backgroundColor: 'rgba(61,90,46,0.25)',
   },
   countdownText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#52B788',
+    color: '#3D5A2E',
   },
   countdownTodayText: {
     color: '#A8D5B5',
@@ -322,18 +322,18 @@ const styles = StyleSheet.create({
   airportCode: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#F5F0E8',
+    color: '#F0EBE0',
     letterSpacing: 0.5,
   },
   timeText: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(245,240,232,0.75)',
+    color: 'rgba(240,235,224,0.9)',
     marginTop: 2,
   },
   dateText: {
     fontSize: 11,
-    color: 'rgba(245,240,232,0.4)',
+    color: 'rgba(240,235,224,0.9)',
     marginTop: 1,
   },
   routeMiddle: {
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   },
   durationText: {
     fontSize: 11,
-    color: 'rgba(245,240,232,0.4)',
+    color: 'rgba(240,235,224,0.9)',
   },
   routeLine: {
     flexDirection: 'row',
@@ -361,12 +361,12 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
-    backgroundColor: '#52B788',
+    backgroundColor: '#3D5A2E',
   },
   flightNumberText: {
     fontSize: 11,
     fontWeight: '600',
-    color: 'rgba(245,240,232,0.45)',
+    color: 'rgba(240,235,224,0.9)',
     letterSpacing: 0.5,
   },
   // Footer
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
   },
   airlineText: {
     fontSize: 12,
-    color: 'rgba(245,240,232,0.45)',
+    color: 'rgba(240,235,224,0.9)',
     flex: 1,
   },
   gateRow: {
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   },
   gateText: {
     fontSize: 11,
-    color: 'rgba(245,240,232,0.4)',
+    color: 'rgba(240,235,224,0.9)',
     backgroundColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -413,12 +413,12 @@ const styles = StyleSheet.create({
   // Empty state
   emptyText: {
     fontSize: 14,
-    color: 'rgba(245,240,232,0.5)',
+    color: 'rgba(240,235,224,0.9)',
     marginBottom: 4,
   },
   emptySubText: {
     fontSize: 12,
-    color: 'rgba(245,240,232,0.3)',
+    color: 'rgba(240,235,224,0.9)',
     lineHeight: 18,
   },
   addHint: {
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
 import { Linking } from 'react-native';
 
 const FLIGHT_STATUS_COLORS_SUMMARY: Record<string, string> = {
-  scheduled: '#52B788', delayed: '#F59E0B', boarding: '#3B82F6',
+  scheduled: '#3D5A2E', delayed: '#F59E0B', boarding: '#3B82F6',
   departed: '#8B5CF6', arrived: '#10B981', cancelled: '#EF4444',
 };
 
@@ -475,7 +475,7 @@ function SummaryFlightCard({ transport }: { transport: Transport }) {
           <View style={summaryStyles.lineRow}>
             <View style={summaryStyles.dot} />
             <View style={summaryStyles.bar} />
-            <Ionicons name="airplane" size={13} color="rgba(245,240,232,0.5)" />
+            <Ionicons name="airplane" size={13} color="rgba(240,235,224,0.9)" />
             <View style={summaryStyles.bar} />
             <View style={summaryStyles.dot} />
           </View>
@@ -511,7 +511,7 @@ function SummaryCarCard({ transport }: { transport: Transport }) {
     <View style={summaryStyles.flightCard}>
       <View style={summaryStyles.flightTopRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons name="car-outline" size={14} color="#52B788" />
+          <Ionicons name="car-outline" size={14} color="#3D5A2E" />
           <Text style={summaryStyles.airlineName}>{transport.leg || t.transport.car}</Text>
         </View>
       </View>
@@ -525,7 +525,7 @@ function SummaryCarCard({ transport }: { transport: Transport }) {
           <View style={summaryStyles.lineRow}>
             <View style={summaryStyles.dot} />
             <View style={summaryStyles.bar} />
-            <Ionicons name="car" size={13} color="rgba(245,240,232,0.5)" />
+            <Ionicons name="car" size={13} color="rgba(240,235,224,0.9)" />
             <View style={summaryStyles.bar} />
             <View style={summaryStyles.dot} />
           </View>
@@ -539,7 +539,7 @@ function SummaryCarCard({ transport }: { transport: Transport }) {
       </View>
       {c.mapsUrl ? (
         <TouchableOpacity style={summaryStyles.mapsBtn} onPress={() => Linking.openURL(c.mapsUrl!)}>
-          <Ionicons name="map-outline" size={12} color="#52B788" />
+          <Ionicons name="map-outline" size={12} color="#3D5A2E" />
           <Text style={summaryStyles.mapsBtnText}>{t.transport.openMaps}</Text>
         </TouchableOpacity>
       ) : null}
@@ -561,7 +561,7 @@ function SummaryGenericCard({ transport }: { transport: Transport }) {
     <View style={summaryStyles.flightCard}>
       <View style={summaryStyles.flightTopRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons name={modeIcons[transport.mode] as any || 'navigate-outline'} size={14} color="#52B788" />
+          <Ionicons name={modeIcons[transport.mode] as any || 'navigate-outline'} size={14} color="#3D5A2E" />
           <Text style={summaryStyles.airlineName}>{modeLabels[transport.mode] || 'Transporte'}</Text>
         </View>
         {transport.travelTime ? <Text style={summaryStyles.duration}>{transport.travelTime}</Text> : null}
@@ -580,18 +580,18 @@ export function TransportSummaryCard({ transports, destinations, startDate, onPr
       {/* Header */}
       <TouchableOpacity style={summaryStyles.header} onPress={onPress} activeOpacity={0.8}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons name="airplane-outline" size={15} color="#52B788" />
+          <Ionicons name="airplane-outline" size={15} color="#3D5A2E" />
           <Text style={summaryStyles.sectionTitle}>{t.transport.title.toUpperCase()}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={summaryStyles.addHintText}>{t.common.manage}</Text>
-          <Ionicons name="chevron-forward" size={14} color="rgba(245,240,232,0.3)" />
+          <Ionicons name="chevron-forward" size={14} color="rgba(240,235,224,0.9)" />
         </View>
       </TouchableOpacity>
 
       {!hasTransports ? (
         <TouchableOpacity style={summaryStyles.emptyRow} onPress={onPress} activeOpacity={0.8}>
-          <Ionicons name="airplane-outline" size={20} color="rgba(245,240,232,0.2)" />
+          <Ionicons name="airplane-outline" size={20} color="rgba(240,235,224,0.9)" />
           <Text style={summaryStyles.emptyText}>{t.transport.noTransport}</Text>
           <Text style={summaryStyles.emptyCta}>{t.transport.tapToConfigure}</Text>
         </TouchableOpacity>
@@ -614,12 +614,12 @@ export function TransportSummaryCard({ transports, destinations, startDate, onPr
 
 const summaryStyles = StyleSheet.create({
   wrapper: {
-    backgroundColor: 'rgba(28,61,46,0.85)',
+    backgroundColor: 'rgba(44,36,22,0.5)',
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(82,183,136,0.15)',
+    borderColor: 'rgba(61,90,46,0.12)',
     gap: 12,
   },
   header: {
@@ -631,7 +631,7 @@ const summaryStyles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.5,
-    color: 'rgba(245,240,232,0.6)',
+    color: 'rgba(240,235,224,0.9)',
   },
   addHintText: {
     fontSize: 12,
@@ -645,7 +645,7 @@ const summaryStyles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    color: 'rgba(245,240,232,0.4)',
+    color: 'rgba(240,235,224,0.9)',
   },
   emptyCta: {
     fontSize: 12,
@@ -666,13 +666,13 @@ const summaryStyles = StyleSheet.create({
   },
   airlineName: {
     fontSize: 12,
-    color: 'rgba(245,240,232,0.5)',
+    color: 'rgba(240,235,224,0.9)',
     fontWeight: '500',
   },
   flightNum: {
     fontSize: 12,
     fontWeight: '700',
-    color: 'rgba(245,240,232,0.6)',
+    color: 'rgba(240,235,224,0.9)',
     letterSpacing: 0.5,
   },
   routeRow: {
@@ -685,19 +685,19 @@ const summaryStyles = StyleSheet.create({
   },
   cityName: {
     fontSize: 11,
-    color: 'rgba(245,240,232,0.4)',
+    color: 'rgba(240,235,224,0.9)',
     marginBottom: 1,
   },
   iata: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#F5F0E8',
+    color: '#F0EBE0',
     letterSpacing: 0.5,
   },
   time: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(245,240,232,0.7)',
+    color: 'rgba(240,235,224,0.9)',
     marginTop: 2,
   },
   middle: {
@@ -716,7 +716,7 @@ const summaryStyles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#52B788',
+    backgroundColor: '#3D5A2E',
   },
   bar: {
     flex: 1,
@@ -725,7 +725,7 @@ const summaryStyles = StyleSheet.create({
   },
   duration: {
     fontSize: 10,
-    color: 'rgba(245,240,232,0.35)',
+    color: 'rgba(240,235,224,0.9)',
   },
   footer: {
     flexDirection: 'row',
@@ -752,7 +752,7 @@ const summaryStyles = StyleSheet.create({
   },
   gateText: {
     fontSize: 10,
-    color: 'rgba(245,240,232,0.4)',
+    color: 'rgba(240,235,224,0.9)',
     backgroundColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 5,
     paddingVertical: 2,
@@ -762,12 +762,12 @@ const summaryStyles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 1,
-    color: 'rgba(245,240,232,0.35)',
+    color: 'rgba(240,235,224,0.9)',
     marginBottom: 2,
   },
   address: {
     fontSize: 10,
-    color: 'rgba(245,240,232,0.35)',
+    color: 'rgba(240,235,224,0.9)',
     marginTop: 2,
     maxWidth: 90,
   },
@@ -783,11 +783,11 @@ const summaryStyles = StyleSheet.create({
   },
   mapsBtnText: {
     fontSize: 11,
-    color: '#52B788',
+    color: '#3D5A2E',
     fontWeight: '600',
   },
   legLabel: {
     fontSize: 12,
-    color: 'rgba(245,240,232,0.45)',
+    color: 'rgba(240,235,224,0.9)',
   },
 });

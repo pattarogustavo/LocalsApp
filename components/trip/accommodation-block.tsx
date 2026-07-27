@@ -150,11 +150,11 @@ function AddAccommodationModal({
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
           <View style={styles.addHeader}>
-            <Text style={[styles.addTitle, { color: '#1C3D2E' }]}>
+            <Text style={[styles.addTitle, { color: '#2C2416' }]}>
               {t.accommodation.addTitle} {destination.name}
             </Text>
             <Pressable onPress={handleClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="close" size={16} color="#1C3D2E" />
+              <Ionicons name="close" size={16} color="#2C2416" />
             </Pressable>
           </View>
 
@@ -309,7 +309,7 @@ function AddAccommodationModal({
             <TouchableOpacity
               onPress={handleSave}
               disabled={!canSave}
-              style={[styles.saveBtn, { backgroundColor: canSave ? '#1C3D2E' : colors.border }]}
+              style={[styles.saveBtn, { backgroundColor: canSave ? '#2C2416' : colors.border }]}
             >
               <Text style={[styles.saveBtnText, { color: canSave ? '#fff' : colors.muted }]}>
                 {t.accommodation.save}
@@ -386,7 +386,7 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
                               );
                             }}
                           >
-                            <Ionicons name="document-attach-outline" size={11} color="#52B788" />
+                            <Ionicons name="document-attach-outline" size={11} color="#3D5A2E" />
                             <Text style={styles.docBadgeText}>{t.accommodation.confirmationAttached}</Text>
                             <Ionicons name="open-outline" size={10} color="rgba(82,183,136,0.7)" />
                           </TouchableOpacity>
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   docBadgeText: {
-    color: '#52B788',
+    color: '#3D5A2E',
     fontSize: 11,
   },
   removeBtn: {

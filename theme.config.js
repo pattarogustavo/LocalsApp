@@ -1,28 +1,28 @@
 /** @type {const} */
 const themeColors = {
-  // Primary deep forest green
-  primary: { light: '#1C3D2E', dark: '#1C3D2E' },
-  // Secondary olive green
-  secondary: { light: '#3D5A47', dark: '#3D5A47' },
-  // Off-white / warm cream background
-  background: { light: '#F5F0E8', dark: '#0F1F16' },
-  // Card surface - slightly warmer
-  surface: { light: '#EDE8DC', dark: '#1A3028' },
-  // Dark green card (translucent style)
-  card: { light: '#1C3D2E', dark: '#1C3D2E' },
-  // Text colors
-  foreground: { light: '#1C3D2E', dark: '#F5F0E8' },
-  muted: { light: '#6B7C72', dark: '#8FA396' },
-  // Borders
-  border: { light: '#D4CEC2', dark: '#2A4A38' },
+  // Primary — dark olive green (buttons, active tabs, accents)
+  primary: { light: '#3D5A2E', dark: '#3D5A2E' },
+  // Secondary olive
+  secondary: { light: '#4A6B38', dark: '#4A6B38' },
+  // Warm cream/beige background (matches mockup #F0EBE0)
+  background: { light: '#F0EBE0', dark: '#1A1A14' },
+  // Card surface — slightly lighter cream
+  surface: { light: '#F7F3EC', dark: '#252519' },
+  // Card (same as surface)
+  card: { light: '#F7F3EC', dark: '#252519' },
+  // Text — dark warm brown/charcoal
+  foreground: { light: '#2C2416', dark: '#F0EBE0' },
+  // Muted text — warm grey
+  muted: { light: '#8A7F6E', dark: '#9A9080' },
+  // Borders — warm taupe
+  border: { light: '#DDD5C5', dark: '#3A3828' },
   // Status
-  success: { light: '#2D6A4F', dark: '#52B788' },
-  warning: { light: '#B5830A', dark: '#FBBF24' },
-  error: { light: '#C0392B', dark: '#F87171' },
-  // Accent - light green for badges/highlights
-  accent: { light: '#52B788', dark: '#52B788' },
+  success: { light: '#3D5A2E', dark: '#6B9B52' },
+  warning: { light: '#A07830', dark: '#D4A855' },
+  error: { light: '#B84040', dark: '#E07070' },
+  // Accent — warm amber/gold (the "APP" text underline in mockup)
+  accent: { light: '#B8860B', dark: '#D4A855' },
   // Tint for tab bar
-  tint: { light: '#1C3D2E', dark: '#52B788' },
+  tint: { light: '#3D5A2E', dark: '#6B9B52' },
 };
-
 module.exports = { themeColors };

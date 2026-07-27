@@ -83,7 +83,7 @@ export function DatePickerField({
             if (!isNaN(d.getTime())) onChange(d);
           }}
           placeholder="AAAA-MM-DD"
-          placeholderTextColor="rgba(245,240,232,0.25)"
+          placeholderTextColor="rgba(240,235,224,0.9)"
           style={[styles.field, compact && styles.fieldCompact]}
         />
         {hint ? <Text style={styles.hint}>{hint}</Text> : null}
@@ -134,7 +134,7 @@ export function DatePickerField({
               maximumDate={maximumDate}
               locale={locale}
               style={styles.iosPicker}
-              textColor="#F5F0E8"
+              textColor="#F0EBE0"
             />
           </View>
         </Modal>
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.5,
-    color: 'rgba(245,240,232,0.4)',
+    color: 'rgba(240,235,224,0.9)',
     marginBottom: 6,
   },
   field: {
@@ -202,16 +202,16 @@ const styles = StyleSheet.create({
   },
   fieldText: {
     fontSize: 15,
-    color: '#F5F0E8',
+    color: '#F0EBE0',
     flex: 1,
   },
   placeholder: {
-    color: 'rgba(245,240,232,0.65)',
+    color: 'rgba(240,235,224,0.9)',
     fontSize: 14,
   },
   hint: {
     fontSize: 11,
-    color: 'rgba(245,240,232,0.35)',
+    color: 'rgba(240,235,224,0.9)',
     marginTop: 4,
   },
 
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   iosSheet: {
-    backgroundColor: '#1A2E22',
+    backgroundColor: '#EDE8DC',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 32,
@@ -238,12 +238,12 @@ const styles = StyleSheet.create({
   },
   iosCancelText: {
     fontSize: 15,
-    color: 'rgba(245,240,232,0.5)',
+    color: 'rgba(240,235,224,0.9)',
   },
   iosDoneText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#52B788',
+    color: '#3D5A2E',
   },
   iosPicker: {
     height: 200,

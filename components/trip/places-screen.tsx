@@ -97,14 +97,14 @@ function PlaceDetailModal({
           {place.imageUrl ? (
             <Image source={{ uri: place.imageUrl }} style={styles.placePhoto} resizeMode="cover" />
           ) : (
-            <View style={[styles.placePhotoPlaceholder, { backgroundColor: 'rgba(82,183,136,0.12)' }]}>
+            <View style={[styles.placePhotoPlaceholder, { backgroundColor: 'rgba(61,90,46,0.10)' }]}>
               <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={40} color="rgba(82,183,136,0.4)" />
             </View>
           )}
 
           <View style={styles.detailContent}>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={16} color="rgba(245,240,232,0.7)" />
+              <Ionicons name="close" size={16} color="rgba(240,235,224,0.9)" />
             </TouchableOpacity>
 
             <Text style={styles.detailName}>{place.name}</Text>
@@ -116,7 +116,7 @@ function PlaceDetailModal({
 
             {place.hours ? (
               <View style={styles.detailRow}>
-                <Ionicons name="time-outline" size={15} color="rgba(245,240,232,0.4)" />
+                <Ionicons name="time-outline" size={15} color="rgba(240,235,224,0.9)" />
                 <View>
                   <Text style={styles.detailRowLabel}>HORÁRIO</Text>
                   <Text style={styles.detailRowValue}>{place.hours}</Text>
@@ -126,7 +126,7 @@ function PlaceDetailModal({
 
             {place.address ? (
               <View style={styles.detailRow}>
-                <Ionicons name="location-outline" size={15} color="rgba(245,240,232,0.4)" />
+                <Ionicons name="location-outline" size={15} color="rgba(240,235,224,0.9)" />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.detailRowLabel}>ENDEREÇO</Text>
                   <Text style={styles.detailRowValue}>{place.address}</Text>
@@ -136,7 +136,7 @@ function PlaceDetailModal({
 
             {place.phone ? (
               <View style={styles.detailRow}>
-                <Ionicons name="call-outline" size={15} color="rgba(245,240,232,0.4)" />
+                <Ionicons name="call-outline" size={15} color="rgba(240,235,224,0.9)" />
                 <View>
                   <Text style={styles.detailRowLabel}>TELEFONE</Text>
                   <Text style={styles.detailRowValue}>{place.phone}</Text>
@@ -148,13 +148,13 @@ function PlaceDetailModal({
               <View style={styles.detailActions}>
                 {place.website ? (
                   <TouchableOpacity onPress={() => Linking.openURL(place.website!)} style={styles.detailActionBtn}>
-                    <Ionicons name="globe-outline" size={16} color="#F5F0E8" />
+                    <Ionicons name="globe-outline" size={16} color="#F0EBE0" />
                     <Text style={styles.detailActionText}>Site</Text>
                   </TouchableOpacity>
                 ) : null}
                 {(place.address || (place.lat && place.lng)) ? (
                   <TouchableOpacity onPress={openMaps} style={styles.detailActionBtn}>
-                    <Ionicons name="map-outline" size={16} color="#F5F0E8" />
+                    <Ionicons name="map-outline" size={16} color="#F0EBE0" />
                     <Text style={styles.detailActionText}>Maps</Text>
                   </TouchableOpacity>
                 ) : null}
@@ -180,7 +180,7 @@ function PlaceDetailModal({
                   >
                     <Ionicons
                       name={att.type === 'pdf' ? 'document-text-outline' : 'image-outline'}
-                      size={16} color="rgba(245,240,232,0.5)"
+                      size={16} color="rgba(240,235,224,0.9)"
                     />
                     <Text style={styles.attachName} numberOfLines={1}>{att.name}</Text>
                     {att.url ? (
@@ -213,7 +213,7 @@ function PlaceDetailModal({
                 onPress={() => { onAdd(); onClose(); }}
                 style={styles.addActionBtn}
               >
-                <Ionicons name="add" size={18} color="#0F1F16" />
+                <Ionicons name="add" size={18} color="#F0EBE0" />
                 <Text style={styles.addActionText}>Adicionar à Viagem</Text>
               </TouchableOpacity>
             )}
@@ -240,7 +240,7 @@ function MyPlaceRow({
       {place.imageUrl ? (
         <Image source={{ uri: place.imageUrl }} style={styles.myPlaceThumb} resizeMode="cover" />
       ) : (
-        <View style={[styles.myPlaceThumb, { backgroundColor: 'rgba(82,183,136,0.12)', alignItems: 'center', justifyContent: 'center' }]}>
+        <View style={[styles.myPlaceThumb, { backgroundColor: 'rgba(61,90,46,0.10)', alignItems: 'center', justifyContent: 'center' }]}>
           <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={18} color="rgba(82,183,136,0.5)" />
         </View>
       )}
@@ -272,7 +272,7 @@ function AvailPlaceRow({
       {place.imageUrl ? (
         <Image source={{ uri: place.imageUrl }} style={styles.availThumb} resizeMode="cover" />
       ) : (
-        <View style={[styles.availThumb, { backgroundColor: 'rgba(82,183,136,0.12)', alignItems: 'center', justifyContent: 'center' }]}>
+        <View style={[styles.availThumb, { backgroundColor: 'rgba(61,90,46,0.10)', alignItems: 'center', justifyContent: 'center' }]}>
           <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={20} color="rgba(82,183,136,0.5)" />
         </View>
       )}
@@ -284,7 +284,7 @@ function AvailPlaceRow({
       </View>
       {isAdded ? (
         <TouchableOpacity onPress={onRemove} style={styles.addedBadge}>
-          <Ionicons name="checkmark" size={12} color="#52B788" />
+          <Ionicons name="checkmark" size={12} color="#3D5A2E" />
           <Text style={styles.addedBadgeText}>Adicionado</Text>
         </TouchableOpacity>
       ) : (
@@ -361,7 +361,7 @@ function AIPanel({
   if (loading) {
     return (
       <View style={styles.aiLoadingRow}>
-        <ActivityIndicator size="small" color="#52B788" />
+        <ActivityIndicator size="small" color="#3D5A2E" />
         <Text style={styles.aiLoadingText}>Buscando sugestões para {destination.name}...</Text>
       </View>
     );
@@ -370,7 +370,7 @@ function AIPanel({
   if (loaded && filtered.length === 0) {
     return (
       <View style={styles.aiEmptyRow}>
-        <Ionicons name="search-outline" size={16} color="rgba(245,240,232,0.3)" />
+        <Ionicons name="search-outline" size={16} color="rgba(240,235,224,0.9)" />
         <Text style={styles.aiEmptyText}>
           {searchQuery ? `Nenhum resultado para "${searchQuery}"` : 'Nenhuma sugestão disponível'}
         </Text>
@@ -378,7 +378,7 @@ function AIPanel({
           onPress={() => { fetchedRef.current = false; loadSuggestions(); }}
           style={styles.aiRefreshBtn}
         >
-          <Ionicons name="refresh-outline" size={14} color="#52B788" />
+          <Ionicons name="refresh-outline" size={14} color="#3D5A2E" />
         </TouchableOpacity>
       </View>
     );
@@ -460,9 +460,9 @@ function CustomSearchResultRow({
       </View>
       <TouchableOpacity
         onPress={onAdd}
-        style={[styles.customResultAddBtn, isAdded && { backgroundColor: 'rgba(82,183,136,0.15)' }]}
+        style={[styles.customResultAddBtn, isAdded && { backgroundColor: 'rgba(61,90,46,0.12)' }]}
       >
-        <Ionicons name={isAdded ? 'checkmark' : 'add'} size={16} color={isAdded ? '#52B788' : '#0F1F16'} />
+        <Ionicons name={isAdded ? 'checkmark' : 'add'} size={16} color={isAdded ? '#3D5A2E' : '#F0EBE0'} />
       </TouchableOpacity>
     </View>
   );
@@ -625,7 +625,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
               style={[styles.catChip, activeCategory === cat.key && styles.catChipActive]}
             >
               <Ionicons name={cat.icon as any}
-                size={12} color={activeCategory === cat.key ? '#52B788' : 'rgba(245,240,232,0.45)'} />
+                size={12} color={activeCategory === cat.key ? '#3D5A2E' : 'rgba(240,235,224,0.9)'} />
               <Text style={[styles.catChipText, activeCategory === cat.key && styles.catChipTextActive]}>
                 {cat.label}
               </Text>
@@ -657,7 +657,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
           ))
         ) : (
           <View style={styles.emptyMyPlaces}>
-            <Ionicons name="location-outline" size={24} color="rgba(245,240,232,0.2)" />
+            <Ionicons name="location-outline" size={24} color="rgba(240,235,224,0.9)" />
             <Text style={styles.emptyMyPlacesText}>
               {'Nenhum lugar adicionado ainda'}
             </Text>
@@ -674,18 +674,18 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
 
         {/* Search within Disponíveis */}
         <View style={[styles.searchRow, { marginBottom: 16 }]}>
-          <Ionicons name="search-outline" size={15} color="rgba(245,240,232,0.4)" />
+          <Ionicons name="search-outline" size={15} color="rgba(240,235,224,0.9)" />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar lugares disponíveis..."
-            placeholderTextColor="rgba(245,240,232,0.3)"
+            placeholderTextColor="rgba(240,235,224,0.9)"
             value={availSearch}
             onChangeText={setAvailSearch}
             returnKeyType="search"
           />
           {availSearch.length > 0 && (
             <TouchableOpacity onPress={() => setAvailSearch('')}>
-              <Ionicons name="close-circle" size={15} color="rgba(245,240,232,0.4)" />
+              <Ionicons name="close-circle" size={15} color="rgba(240,235,224,0.9)" />
             </TouchableOpacity>
           )}
         </View>
@@ -712,7 +712,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
           style={styles.customSearchToggleBtn}
           onPress={() => setShowCustomSearch(!showCustomSearch)}
         >
-          <Ionicons name={showCustomSearch ? 'chevron-up' : 'add-circle-outline'} size={16} color="#52B788" />
+          <Ionicons name={showCustomSearch ? 'chevron-up' : 'add-circle-outline'} size={16} color="#3D5A2E" />
           <Text style={styles.customSearchToggleText}>
             {showCustomSearch ? 'Fechar pesquisa' : 'Pesquisar lugar que não aparece aqui'}
           </Text>
@@ -722,7 +722,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
           <View style={styles.customSearchSection}>
             <View style={styles.customSearchHeader}>
               <Text style={styles.customSearchTitle}>PESQUISA PERSONALIZADA</Text>
-              <Ionicons name="search" size={14} color="#52B788" />
+              <Ionicons name="search" size={14} color="#3D5A2E" />
             </View>
 
             {/* Destination selector (if multiple) */}
@@ -747,7 +747,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
               <TextInput
                 style={styles.customSearchInput}
                 placeholder="Ex: Museu do Louvre, restaurante italiano..."
-                placeholderTextColor="rgba(245,240,232,0.3)"
+                placeholderTextColor="rgba(240,235,224,0.9)"
                 value={customQuery}
                 onChangeText={(t) => { setCustomQuery(t); setCustomSearchEnabled(false); }}
                 returnKeyType="search"
@@ -759,7 +759,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
                 disabled={customQuery.trim().length < 2}
               >
                 {customSearchQuery.isFetching ? (
-                  <ActivityIndicator size="small" color="#0F1F16" />
+                  <ActivityIndicator size="small" color="#F0EBE0" />
                 ) : (
                   <Text style={styles.customSearchBtnText}>Buscar</Text>
                 )}
@@ -768,7 +768,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
 
             {/* Results */}
             {customSearchEnabled && !customSearchQuery.isFetching && customResults.length === 0 && customQuery.trim().length >= 2 && (
-              <Text style={{ color: 'rgba(245,240,232,0.4)', fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
+              <Text style={{ color: 'rgba(240,235,224,0.9)', fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
                 Nenhum resultado encontrado. Tente outros termos.
               </Text>
             )}
@@ -804,7 +804,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
 const styles = StyleSheet.create({
   sectionBlock: { marginBottom: 20 },
   sectionLabel: {
-    color: 'rgba(245,240,232,0.5)',
+    color: 'rgba(240,235,224,0.9)',
     fontSize: 11, fontWeight: '700', letterSpacing: 1.5,
   },
 
@@ -815,14 +815,14 @@ const styles = StyleSheet.create({
   },
   iaHeaderBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#52B788', borderRadius: 20,
+    backgroundColor: '#3D5A2E', borderRadius: 20,
     paddingHorizontal: 12, paddingVertical: 6,
   },
-  iaHeaderBtnText: { fontSize: 12, fontWeight: '700', color: '#0F1F16' },
+  iaHeaderBtnText: { fontSize: 12, fontWeight: '700', color: '#F0EBE0' },
 
   // Available header
   availHeader: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 12 },
-  availSubtitle: { fontSize: 11, color: 'rgba(245,240,232,0.3)' },
+  availSubtitle: { fontSize: 11, color: 'rgba(240,235,224,0.9)' },
 
   // Destination chips
   destChip: {
@@ -830,8 +830,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.07)',
   },
   destChipActive: { backgroundColor: '#2D5A3D' },
-  destChipText: { fontSize: 13, fontWeight: '500', color: 'rgba(245,240,232,0.6)' },
-  destChipTextActive: { color: '#F5F0E8' },
+  destChipText: { fontSize: 13, fontWeight: '500', color: 'rgba(240,235,224,0.9)' },
+  destChipTextActive: { color: '#F0EBE0' },
 
   // Category chips
   catChip: {
@@ -840,9 +840,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1, borderColor: 'transparent',
   },
-  catChipActive: { backgroundColor: 'rgba(82,183,136,0.15)', borderColor: '#52B788' },
-  catChipText: { fontSize: 12, fontWeight: '500', color: 'rgba(245,240,232,0.45)' },
-  catChipTextActive: { color: '#52B788' },
+  catChipActive: { backgroundColor: 'rgba(61,90,46,0.12)', borderColor: '#3D5A2E' },
+  catChipText: { fontSize: 12, fontWeight: '500', color: 'rgba(240,235,224,0.9)' },
+  catChipTextActive: { color: '#3D5A2E' },
 
   // Search
   searchRow: {
@@ -851,7 +851,7 @@ const styles = StyleSheet.create({
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11,
     gap: 10, marginBottom: 12,
   },
-  searchInput: { flex: 1, color: '#F5F0E8', fontSize: 14 },
+  searchInput: { flex: 1, color: '#F0EBE0', fontSize: 14 },
 
   // Group labels
   destGroupLabel: {
@@ -859,7 +859,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5, marginBottom: 6, marginTop: 4,
   },
   catGroupLabel: {
-    color: 'rgba(245,240,232,0.35)', fontSize: 10, fontWeight: '700',
+    color: 'rgba(240,235,224,0.9)', fontSize: 10, fontWeight: '700',
     letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4, marginTop: 8,
   },
 
@@ -870,7 +870,7 @@ const styles = StyleSheet.create({
     borderRadius: 12, padding: 10, marginBottom: 6, gap: 10,
   },
   myPlaceThumb: { width: 40, height: 40, borderRadius: 8 },
-  myPlaceName: { flex: 1, color: '#F5F0E8', fontSize: 14, fontWeight: '500' },
+  myPlaceName: { flex: 1, color: '#F0EBE0', fontSize: 14, fontWeight: '500' },
   removeBtn: {
     width: 32, height: 32, borderRadius: 8,
     backgroundColor: 'rgba(231,76,60,0.12)',
@@ -879,22 +879,22 @@ const styles = StyleSheet.create({
 
   // Empty my places
   emptyMyPlaces: { alignItems: 'center', paddingVertical: 20, gap: 6 },
-  emptyMyPlacesText: { color: 'rgba(245,240,232,0.35)', fontSize: 13 },
+  emptyMyPlacesText: { color: 'rgba(240,235,224,0.9)', fontSize: 13 },
 
   // AI loading/empty
   aiLoadingRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 16, justifyContent: 'center',
   },
-  aiLoadingText: { fontSize: 13, color: 'rgba(245,240,232,0.4)' },
+  aiLoadingText: { fontSize: 13, color: 'rgba(240,235,224,0.9)' },
   aiEmptyRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 12,
   },
-  aiEmptyText: { flex: 1, color: 'rgba(245,240,232,0.4)', fontSize: 13 },
+  aiEmptyText: { flex: 1, color: 'rgba(240,235,224,0.9)', fontSize: 13 },
   aiRefreshBtn: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: 'rgba(82,183,136,0.12)',
+    backgroundColor: 'rgba(61,90,46,0.10)',
     alignItems: 'center', justifyContent: 'center',
   },
   destAiBlock: { marginBottom: 16 },
@@ -908,20 +908,20 @@ const styles = StyleSheet.create({
   },
   availThumb: { width: 44, height: 44, borderRadius: 10 },
   availInfo: { flex: 1 },
-  availName: { color: '#F5F0E8', fontSize: 14, fontWeight: '500' },
-  availDesc: { color: 'rgba(245,240,232,0.45)', fontSize: 12, marginTop: 2 },
+  availName: { color: '#F0EBE0', fontSize: 14, fontWeight: '500' },
+  availDesc: { color: 'rgba(240,235,224,0.9)', fontSize: 12, marginTop: 2 },
   addChip: {
-    backgroundColor: 'rgba(82,183,136,0.15)',
+    backgroundColor: 'rgba(61,90,46,0.12)',
     borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: 'rgba(82,183,136,0.3)',
+    borderWidth: 1, borderColor: 'rgba(61,90,46,0.25)',
   },
-  addChipText: { fontSize: 12, fontWeight: '600', color: '#52B788' },
+  addChipText: { fontSize: 12, fontWeight: '600', color: '#3D5A2E' },
   addedBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: 'rgba(82,183,136,0.08)',
     borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6,
   },
-  addedBadgeText: { fontSize: 12, fontWeight: '600', color: '#52B788' },
+  addedBadgeText: { fontSize: 12, fontWeight: '600', color: '#3D5A2E' },
 
   // Place Detail Modal
   modalOverlay: {
@@ -929,7 +929,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   detailSheet: {
-    backgroundColor: '#1A2E22',
+    backgroundColor: '#EDE8DC',
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     paddingBottom: 32,
   },
@@ -952,35 +952,35 @@ const styles = StyleSheet.create({
   },
   detailName: {
     fontSize: 22, fontStyle: 'italic', fontWeight: '700',
-    color: '#F5F0E8', paddingRight: 40, lineHeight: 28,
+    color: '#F0EBE0', paddingRight: 40, lineHeight: 28,
   },
   detailCategory: {
-    fontSize: 13, color: 'rgba(245,240,232,0.5)', marginTop: 2, marginBottom: 12,
+    fontSize: 13, color: 'rgba(240,235,224,0.9)', marginTop: 2, marginBottom: 12,
   },
   detailDesc: {
-    fontSize: 14, color: 'rgba(245,240,232,0.7)', lineHeight: 20, marginBottom: 14,
+    fontSize: 14, color: 'rgba(240,235,224,0.9)', lineHeight: 20, marginBottom: 14,
   },
   detailRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12,
   },
   detailRowLabel: {
     fontSize: 10, fontWeight: '700', letterSpacing: 0.5,
-    color: 'rgba(245,240,232,0.4)', textTransform: 'uppercase',
+    color: 'rgba(240,235,224,0.9)', textTransform: 'uppercase',
   },
-  detailRowValue: { fontSize: 14, color: '#F5F0E8', marginTop: 2 },
+  detailRowValue: { fontSize: 14, color: '#F0EBE0', marginTop: 2 },
   detailActions: { flexDirection: 'row', gap: 10, marginBottom: 14, marginTop: 4 },
   detailActionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 12, paddingVertical: 10,
   },
-  detailActionText: { fontSize: 14, fontWeight: '600', color: '#F5F0E8' },
+  detailActionText: { fontSize: 14, fontWeight: '600', color: '#F0EBE0' },
   addActionBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#52B788', borderRadius: 14,
+    backgroundColor: '#3D5A2E', borderRadius: 14,
     paddingVertical: 14, marginTop: 4,
   },
-  addActionText: { fontSize: 15, fontWeight: '700', color: '#0F1F16' },
+  addActionText: { fontSize: 15, fontWeight: '700', color: '#F0EBE0' },
   removeActionBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: 'rgba(231,76,60,0.12)',
@@ -997,14 +997,14 @@ const styles = StyleSheet.create({
   },
   attachSectionLabel: {
     fontSize: 10, fontWeight: '700', letterSpacing: 1,
-    color: 'rgba(245,240,232,0.4)', textTransform: 'uppercase', marginBottom: 4,
+    color: 'rgba(240,235,224,0.9)', textTransform: 'uppercase', marginBottom: 4,
   },
   attachRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
   },
-  attachName: { flex: 1, fontSize: 13, color: 'rgba(245,240,232,0.7)' },
+  attachName: { flex: 1, fontSize: 13, color: 'rgba(240,235,224,0.9)' },
   attachRemove: { padding: 4 },
 
   // Custom search
@@ -1012,13 +1012,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: 'rgba(82,183,136,0.06)',
     borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: 'rgba(82,183,136,0.15)',
+    borderWidth: 1, borderColor: 'rgba(61,90,46,0.12)',
   },
   customSearchHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10,
   },
   customSearchTitle: {
-    fontSize: 12, fontWeight: '700', letterSpacing: 0.5, color: '#52B788',
+    fontSize: 12, fontWeight: '700', letterSpacing: 0.5, color: '#3D5A2E',
   },
   customSearchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8,
@@ -1026,15 +1026,15 @@ const styles = StyleSheet.create({
   customSearchInput: {
     flex: 1, backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-    color: '#F5F0E8', fontSize: 14,
+    color: '#F0EBE0', fontSize: 14,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   customSearchBtn: {
-    backgroundColor: '#52B788', borderRadius: 10,
+    backgroundColor: '#3D5A2E', borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 10,
     alignItems: 'center', justifyContent: 'center',
   },
-  customSearchBtnText: { fontSize: 13, fontWeight: '700', color: '#0F1F16' },
+  customSearchBtnText: { fontSize: 13, fontWeight: '700', color: '#F0EBE0' },
   customDestPicker: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10,
   },
@@ -1044,22 +1044,22 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   customDestChipActive: {
-    backgroundColor: 'rgba(82,183,136,0.2)',
+    backgroundColor: 'rgba(61,90,46,0.15)',
     borderColor: 'rgba(82,183,136,0.5)',
   },
-  customDestChipText: { fontSize: 12, color: 'rgba(245,240,232,0.6)' },
-  customDestChipTextActive: { color: '#52B788', fontWeight: '600' },
+  customDestChipText: { fontSize: 12, color: 'rgba(240,235,224,0.9)' },
+  customDestChipTextActive: { color: '#3D5A2E', fontWeight: '600' },
   customResultRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(255,255,255,0.07)',
   },
   customResultImg: { width: 44, height: 44, borderRadius: 8 },
-  customResultName: { fontSize: 14, fontWeight: '500', color: '#F5F0E8' },
-  customResultAddr: { fontSize: 12, color: 'rgba(245,240,232,0.45)', marginTop: 1 },
+  customResultName: { fontSize: 14, fontWeight: '500', color: '#F0EBE0' },
+  customResultAddr: { fontSize: 12, color: 'rgba(240,235,224,0.9)', marginTop: 1 },
   customResultAddBtn: {
     width: 32, height: 32, borderRadius: 8,
-    backgroundColor: '#52B788',
+    backgroundColor: '#3D5A2E',
     alignItems: 'center', justifyContent: 'center',
   },
   customSearchToggleBtn: {
@@ -1067,6 +1067,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: 4,
   },
   customSearchToggleText: {
-    fontSize: 13, color: '#52B788', fontWeight: '600',
+    fontSize: 13, color: '#3D5A2E', fontWeight: '600',
   },
 });

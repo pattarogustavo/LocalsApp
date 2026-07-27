@@ -138,11 +138,11 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
       {/* Header */}
       <View style={row}>
         <View style={rowLeft}>
-          <Ionicons name="cash-outline" size={16} color="#52B788" />
+          <Ionicons name="cash-outline" size={16} color="#3D5A2E" />
           <Text style={sectionTitle}>{t.expenses.title.toUpperCase()}</Text>
         </View>
         <TouchableOpacity onPress={() => setShowModal(true)} style={addBtn}>
-          <Ionicons name="add" size={14} color="#52B788" />
+          <Ionicons name="add" size={14} color="#3D5A2E" />
           <Text style={addBtnText}>{t.common.add}</Text>
         </TouchableOpacity>
       </View>
@@ -157,7 +157,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
             return (
               <View key={expense.id} style={expenseRow}>
                 <View style={catIcon}>
-                  <Ionicons name={cat.icon as any} size={14} color="#52B788" />
+                  <Ionicons name={cat.icon as any} size={14} color="#3D5A2E" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={expenseDesc} numberOfLines={1}>{expense.description}</Text>
@@ -170,7 +170,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                 </View>
                 <Text style={expenseAmount}>{symbol}{expense.amount.toFixed(2)}</Text>
                 <TouchableOpacity onPress={() => removeExpense(tripId, expense.id)} style={{ padding: 4 }}>
-                  <Ionicons name="trash-outline" size={14} color="rgba(245,240,232,0.4)" />
+                  <Ionicons name="trash-outline" size={14} color="rgba(240,235,224,0.9)" />
                 </TouchableOpacity>
               </View>
             );
@@ -194,13 +194,13 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
               <Text style={settlementTitle}>{t.expenses.settlement.toUpperCase()}</Text>
               {transactions.map((tx, i) => (
                 <View key={i} style={settlementRow}>
-                  <Ionicons name="arrow-forward" size={12} color="#52B788" />
+                  <Ionicons name="arrow-forward" size={12} color="#3D5A2E" />
                   <Text style={settlementText}>
-                    <Text style={{ fontWeight: '700', color: '#F5F0E8' }}>{tx.from}</Text>
+                    <Text style={{ fontWeight: '700', color: '#F0EBE0' }}>{tx.from}</Text>
                     {` ${t.expenses.pays} `}
-                    <Text style={{ fontWeight: '700', color: '#52B788' }}>{symbol}{tx.amount.toFixed(2)}</Text>
+                    <Text style={{ fontWeight: '700', color: '#3D5A2E' }}>{symbol}{tx.amount.toFixed(2)}</Text>
                     {` ${t.expenses.to} `}
-                    <Text style={{ fontWeight: '700', color: '#F5F0E8' }}>{tx.to}</Text>
+                    <Text style={{ fontWeight: '700', color: '#F0EBE0' }}>{tx.to}</Text>
                   </Text>
                 </View>
               ))}
@@ -213,16 +213,16 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
       <Modal visible={showModal} transparent animationType="slide">
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <ScrollView style={{ backgroundColor: '#F5F0E8', borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
+            <ScrollView style={{ backgroundColor: '#F0EBE0', borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
               contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 24 }}
               keyboardShouldPersistTaps="handled"
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: '#1C3D2E' }}>
+                <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: '#2C2416' }}>
                   {t.expenses.newExpense}
                 </Text>
                 <TouchableOpacity onPress={() => setShowModal(false)}>
-                  <Ionicons name="close-circle" size={26} color="#1C3D2E" />
+                  <Ionicons name="close-circle" size={26} color="#2C2416" />
                 </TouchableOpacity>
               </View>
 
@@ -236,11 +236,11 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                     style={{
                       flexDirection: 'row', alignItems: 'center', gap: 6,
                       paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-                      backgroundColor: category === c.key ? '#1C3D2E' : '#EDE8DC',
+                      backgroundColor: category === c.key ? '#2C2416' : '#EDE8DC',
                     }}
                   >
-                    <Ionicons name={c.icon as any} size={14} color={category === c.key ? '#F5F0E8' : '#1C3D2E'} />
-                    <Text style={{ fontSize: 12, color: category === c.key ? '#F5F0E8' : '#1C3D2E' }}>{c.label}</Text>
+                    <Ionicons name={c.icon as any} size={14} color={category === c.key ? '#F0EBE0' : '#2C2416'} />
+                    <Text style={{ fontSize: 12, color: category === c.key ? '#F0EBE0' : '#2C2416' }}>{c.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -277,10 +277,10 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                         onPress={() => setPaidBy(name)}
                         style={{
                           paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: paidBy === name ? '#1C3D2E' : '#EDE8DC',
+                          backgroundColor: paidBy === name ? '#2C2416' : '#EDE8DC',
                         }}
                       >
-                        <Text style={{ fontSize: 13, color: paidBy === name ? '#F5F0E8' : '#1C3D2E', fontWeight: '600' }}>
+                        <Text style={{ fontSize: 13, color: paidBy === name ? '#F0EBE0' : '#2C2416', fontWeight: '600' }}>
                           {name}
                         </Text>
                       </TouchableOpacity>
@@ -298,10 +298,10 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                           paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
                           backgroundColor: splitWith.includes(name) ? '#2D5A3D' : '#EDE8DC',
                           borderWidth: 1,
-                          borderColor: splitWith.includes(name) ? '#52B788' : 'transparent',
+                          borderColor: splitWith.includes(name) ? '#3D5A2E' : 'transparent',
                         }}
                       >
-                        <Text style={{ fontSize: 13, color: splitWith.includes(name) ? '#F5F0E8' : '#1C3D2E', fontWeight: '600' }}>
+                        <Text style={{ fontSize: 13, color: splitWith.includes(name) ? '#F0EBE0' : '#2C2416', fontWeight: '600' }}>
                           {name}
                         </Text>
                       </TouchableOpacity>
@@ -312,9 +312,9 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
 
               <TouchableOpacity
                 onPress={handleAdd}
-                style={{ backgroundColor: '#1C3D2E', borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
+                style={{ backgroundColor: '#2C2416', borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
               >
-                <Text style={{ color: '#F5F0E8', fontWeight: '600', fontSize: 16 }}>{t.common.add}</Text>
+                <Text style={{ color: '#F0EBE0', fontWeight: '600', fontSize: 16 }}>{t.common.add}</Text>
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -327,30 +327,30 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
 // ─── Inline styles ────────────────────────────────────────────────────────────
 
 const card: any = {
-  backgroundColor: 'rgba(28,61,46,0.85)',
+  backgroundColor: 'rgba(44,36,22,0.5)',
   borderRadius: 20, padding: 16, marginBottom: 12,
 };
 const row: any = {
   flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12,
 };
 const rowLeft: any = { flexDirection: 'row', alignItems: 'center', gap: 8 };
-const sectionTitle: any = { color: '#F5F0E8', fontSize: 12, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' };
-const addBtn: any = { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(82,183,136,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 };
-const addBtnText: any = { color: '#52B788', fontSize: 12, fontWeight: '600' };
-const emptyText: any = { color: 'rgba(245,240,232,0.5)', fontSize: 13, marginTop: 4 };
+const sectionTitle: any = { color: '#F0EBE0', fontSize: 12, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' };
+const addBtn: any = { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(61,90,46,0.15)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 };
+const addBtnText: any = { color: '#3D5A2E', fontSize: 12, fontWeight: '600' };
+const emptyText: any = { color: 'rgba(240,235,224,0.9)', fontSize: 13, marginTop: 4 };
 const expenseRow: any = { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 };
-const catIcon: any = { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(82,183,136,0.15)', alignItems: 'center', justifyContent: 'center' };
-const expenseDesc: any = { color: '#F5F0E8', fontSize: 14 };
-const expenseMeta: any = { color: 'rgba(245,240,232,0.4)', fontSize: 11, marginTop: 1 };
-const expenseAmount: any = { color: '#52B788', fontSize: 14, fontWeight: '600' };
+const catIcon: any = { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(61,90,46,0.12)', alignItems: 'center', justifyContent: 'center' };
+const expenseDesc: any = { color: '#F0EBE0', fontSize: 14 };
+const expenseMeta: any = { color: 'rgba(240,235,224,0.9)', fontSize: 11, marginTop: 1 };
+const expenseAmount: any = { color: '#3D5A2E', fontSize: 14, fontWeight: '600' };
 const showMoreBtn: any = { alignItems: 'center', paddingVertical: 6 };
 const showMoreText: any = { color: 'rgba(82,183,136,0.7)', fontSize: 12 };
-const totalRow: any = { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(245,240,232,0.1)' };
-const totalLabel: any = { color: 'rgba(245,240,232,0.6)', fontSize: 13 };
-const totalValue: any = { color: '#F5F0E8', fontSize: 15, fontWeight: '700' };
+const totalRow: any = { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(240,235,224,0.9)' };
+const totalLabel: any = { color: 'rgba(240,235,224,0.9)', fontSize: 13 };
+const totalValue: any = { color: '#F0EBE0', fontSize: 15, fontWeight: '700' };
 const settlementBox: any = { marginTop: 12, backgroundColor: 'rgba(82,183,136,0.08)', borderRadius: 12, padding: 12, gap: 8 };
-const settlementTitle: any = { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: 'rgba(245,240,232,0.4)', marginBottom: 4 };
+const settlementTitle: any = { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: 'rgba(240,235,224,0.9)', marginBottom: 4 };
 const settlementRow: any = { flexDirection: 'row', alignItems: 'center', gap: 6 };
-const settlementText: any = { fontSize: 13, color: 'rgba(245,240,232,0.7)', flex: 1 };
-const formLabel: any = { fontSize: 12, fontWeight: '700', color: '#1C3D2E', marginBottom: 6, letterSpacing: 0.5 };
-const formInput: any = { backgroundColor: '#EDE8DC', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: '#1C3D2E', fontSize: 15, marginBottom: 14 };
+const settlementText: any = { fontSize: 13, color: 'rgba(240,235,224,0.9)', flex: 1 };
+const formLabel: any = { fontSize: 12, fontWeight: '700', color: '#2C2416', marginBottom: 6, letterSpacing: 0.5 };
+const formInput: any = { backgroundColor: '#EDE8DC', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: '#2C2416', fontSize: 15, marginBottom: 14 };

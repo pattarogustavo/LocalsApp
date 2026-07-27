@@ -14,11 +14,46 @@ type IconSymbolName = keyof typeof MAPPING;
  * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
  */
 const MAPPING = {
+  // Navigation
   "house.fill": "home",
-  "paperplane.fill": "send",
-  "chevron.left.forwardslash.chevron.right": "code",
   "chevron.right": "chevron-right",
-} as IconMapping;
+  "chevron.left": "chevron-left",
+  "xmark": "close",
+  // Travel / Onboarding
+  "map": "map",
+  "map.fill": "map",
+  "paperplane.fill": "near-me",
+  "paperplane": "near-me",
+  "doc.text": "description",
+  "doc.text.fill": "description",
+  // Profile / Settings
+  "globe": "language",
+  "lock": "lock-outline",
+  "lock.fill": "lock",
+  "shield.checkmark": "verified-user",
+  "questionmark.circle": "help-outline",
+  "bubble.left": "chat-bubble-outline",
+  "star": "star-outline",
+  "arrow.right.square": "logout",
+  // Actions
+  "plus": "add",
+  "magnifyingglass": "search",
+  "person": "person-outline",
+  "person.fill": "person",
+  "camera": "camera-alt",
+  "trash": "delete-outline",
+  "pencil": "edit",
+  // Trip detail
+  "calendar": "calendar-today",
+  "location": "place",
+  "location.fill": "place",
+  "airplane": "flight",
+  "car": "directions-car",
+  "bed.double": "hotel",
+  "photo": "photo-library",
+  "info.circle": "info-outline",
+  "chevron.left.forwardslash.chevron.right": "code",
+} as unknown as IconMapping;
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.

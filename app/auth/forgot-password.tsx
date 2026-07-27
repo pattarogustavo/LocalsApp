@@ -43,20 +43,20 @@ export default function ForgotPasswordScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0F1F16' }}
+      style={{ flex: 1, backgroundColor: '#F0EBE0' }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}>
         {/* Header */}
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color="rgba(245,240,232,0.8)" />
+          <Ionicons name="arrow-back" size={22} color="rgba(240,235,224,0.9)" />
         </TouchableOpacity>
 
         {sent ? (
           /* Success state */
           <View style={styles.successContainer}>
             <View style={styles.successIcon}>
-              <Ionicons name="mail-outline" size={36} color="#52B788" />
+              <Ionicons name="mail-outline" size={36} color="#3D5A2E" />
             </View>
             <Text style={styles.title}>{t.auth.forgotPassword.successTitle}</Text>
             <Text style={styles.successText}>
@@ -81,7 +81,7 @@ export default function ForgotPasswordScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t.auth.forgotPassword.emailPlaceholder}
-                placeholderTextColor="rgba(245,240,232,0.25)"
+                placeholderTextColor="rgba(240,235,224,0.9)"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -100,7 +100,7 @@ export default function ForgotPasswordScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#0F1F16" />
+                <ActivityIndicator color="#F0EBE0" />
               ) : (
                 <Text style={styles.submitBtnText}>{t.auth.forgotPassword.sendBtn}</Text>
               )}
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(82,183,136,0.12)',
+    backgroundColor: 'rgba(61,90,46,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
@@ -152,25 +152,25 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#F5F0E8',
+    color: '#F0EBE0',
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 14,
-    color: 'rgba(245,240,232,0.5)',
+    color: 'rgba(240,235,224,0.9)',
     lineHeight: 22,
     marginBottom: 32,
   },
   successText: {
     fontSize: 14,
-    color: 'rgba(245,240,232,0.5)',
+    color: 'rgba(240,235,224,0.9)',
     lineHeight: 22,
     textAlign: 'center',
     marginBottom: 32,
     paddingHorizontal: 16,
   },
   emailHighlight: {
-    color: '#F5F0E8',
+    color: '#F0EBE0',
     fontWeight: '600',
   },
   fieldGroup: {
@@ -179,23 +179,23 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(245,240,232,0.5)',
+    color: 'rgba(240,235,224,0.9)',
     letterSpacing: 0.5,
     marginBottom: 8,
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: 'rgba(245,240,232,0.06)',
+    backgroundColor: 'rgba(240,235,224,0.9)',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(245,240,232,0.1)',
+    borderColor: 'rgba(240,235,224,0.9)',
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#F5F0E8',
+    color: '#F0EBE0',
   },
   submitBtn: {
-    backgroundColor: '#52B788',
+    backgroundColor: '#3D5A2E',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitBtnText: {
-    color: '#0F1F16',
+    color: '#F0EBE0',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -217,11 +217,11 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontSize: 14,
-    color: 'rgba(245,240,232,0.45)',
+    color: 'rgba(240,235,224,0.9)',
   },
   loginLink: {
     fontSize: 14,
-    color: '#52B788',
+    color: '#3D5A2E',
     fontWeight: '600',
   },
 });
