@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   StatusBar,
+  Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,25 +13,57 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '@/hooks/use-translation';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
-// Compass rose SVG matching the mockup
-function CompassLogo({ size = 120 }: { size?: number }) {
+const SCREEN_WIDTH = Dimensions.get('window').width;
+// Logo occupies ~50% of screen width, matching the mockup proportion
+const LOGO_SIZE = Math.round(SCREEN_WIDTH * 0.50);
+
+// Compass rose SVG matching the mockup — large, centered, with amber arc at bottom
+function CompassLogo({ size }: { size: number }) {
   const c = size / 2;
-  const r = size * 0.42;
+  const r = size * 0.43;
+  const tickLen = size * 0.065;
+  const strokeW = size * 0.010;
+  const dotR = size * 0.025;
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <Circle cx={c} cy={c} r={r} stroke="#2C2416" strokeWidth={1.2} fill="none" />
-      <Line x1={c} y1={c - r} x2={c} y2={c - r + 8} stroke="#2C2416" strokeWidth={1.2} />
-      <Line x1={c} y1={c + r - 8} x2={c} y2={c + r} stroke="#2C2416" strokeWidth={1.2} />
-      <Line x1={c - r} y1={c} x2={c - r + 8} y2={c} stroke="#2C2416" strokeWidth={1.2} />
-      <Line x1={c + r - 8} y1={c} x2={c + r} y2={c} stroke="#2C2416" strokeWidth={1.2} />
-      <Path d={`M${c},${c - r * 0.72} L${c - r * 0.14},${c} L${c},${c - r * 0.1} Z`} fill="#2C2416" />
-      <Path d={`M${c},${c + r * 0.72} L${c + r * 0.14},${c} L${c},${c + r * 0.1} Z`} fill="#2C2416" opacity={0.35} />
-      <Path d={`M${c + r * 0.72},${c} L${c},${c - r * 0.14} L${c + r * 0.1},${c} Z`} fill="#2C2416" opacity={0.35} />
-      <Path d={`M${c - r * 0.72},${c} L${c},${c + r * 0.14} L${c - r * 0.1},${c} Z`} fill="#2C2416" opacity={0.35} />
-      <Circle cx={c} cy={c} r={3} fill="#2C2416" />
+      {/* Outer circle */}
+      <Circle cx={c} cy={c} r={r} stroke="#2C2416" strokeWidth={strokeW} fill="none" />
+      {/* Cardinal tick marks */}
+      <Line x1={c} y1={c - r} x2={c} y2={c - r + tickLen} stroke="#2C2416" strokeWidth={strokeW} />
+      <Line x1={c} y1={c + r - tickLen} x2={c} y2={c + r} stroke="#2C2416" strokeWidth={strokeW} />
+      <Line x1={c - r} y1={c} x2={c - r + tickLen} y2={c} stroke="#2C2416" strokeWidth={strokeW} />
+      <Line x1={c + r - tickLen} y1={c} x2={c + r} y2={c} stroke="#2C2416" strokeWidth={strokeW} />
+      {/* North point — tall, dark */}
       <Path
-        d={`M${c - r * 0.28},${c + r * 0.55} Q${c},${c + r * 0.68} ${c + r * 0.28},${c + r * 0.55}`}
-        stroke="#B8860B" strokeWidth={1.2} fill="none"
+        d={`M${c},${c - r * 0.75} L${c - r * 0.13},${c + r * 0.05} L${c},${c - r * 0.08} Z`}
+        fill="#2C2416"
+      />
+      {/* South point — shorter, faded */}
+      <Path
+        d={`M${c},${c + r * 0.75} L${c + r * 0.13},${c - r * 0.05} L${c},${c + r * 0.08} Z`}
+        fill="#2C2416"
+        opacity={0.30}
+      />
+      {/* East point */}
+      <Path
+        d={`M${c + r * 0.75},${c} L${c - r * 0.05},${c - r * 0.13} L${c + r * 0.08},${c} Z`}
+        fill="#2C2416"
+        opacity={0.30}
+      />
+      {/* West point */}
+      <Path
+        d={`M${c - r * 0.75},${c} L${c + r * 0.05},${c + r * 0.13} L${c - r * 0.08},${c} Z`}
+        fill="#2C2416"
+        opacity={0.30}
+      />
+      {/* Center dot */}
+      <Circle cx={c} cy={c} r={dotR} fill="#2C2416" />
+      {/* Decorative amber arc at bottom */}
+      <Path
+        d={`M${c - r * 0.30},${c + r * 0.58} Q${c},${c + r * 0.72} ${c + r * 0.30},${c + r * 0.58}`}
+        stroke="#B8860B"
+        strokeWidth={strokeW * 1.1}
+        fill="none"
       />
     </Svg>
   );
@@ -47,13 +80,15 @@ export default function OnboardingScreen() {
   ];
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 24 }]}>
+    <View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#F0EBE0" />
 
+      {/* Large compass logo */}
       <View style={styles.logoSection}>
-        <CompassLogo size={120} />
+        <CompassLogo size={LOGO_SIZE} />
       </View>
 
+      {/* Title block */}
       <View style={styles.titleBlock}>
         <Text style={styles.appName}>Locals</Text>
         <View style={styles.appTagRow}>
@@ -64,6 +99,7 @@ export default function OnboardingScreen() {
         <Text style={styles.subtitle}>{t.auth.onboarding.subtitle}</Text>
       </View>
 
+      {/* Feature rows */}
       <View style={styles.features}>
         {features.map((f) => (
           <View key={f.text} style={styles.featureRow}>
@@ -75,6 +111,7 @@ export default function OnboardingScreen() {
         ))}
       </View>
 
+      {/* CTA Buttons */}
       <View style={styles.buttons}>
         <TouchableOpacity
           style={styles.primaryBtn}
@@ -112,12 +149,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   appName: {
-    fontSize: 52,
+    fontSize: 56,
     fontWeight: '700',
     color: '#2C2416',
     fontStyle: 'italic',
     letterSpacing: -1,
-    lineHeight: 60,
+    lineHeight: 64,
   },
   appTagRow: {
     flexDirection: 'row',
@@ -144,7 +181,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   features: {
-    gap: 12,
+    gap: 14,
   },
   featureRow: {
     flexDirection: 'row',
@@ -152,9 +189,9 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   featureIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 13,
     backgroundColor: '#EDE8DC',
     alignItems: 'center',
     justifyContent: 'center',
