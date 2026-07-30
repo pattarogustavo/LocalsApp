@@ -8,17 +8,18 @@
   "dev_command": "pnpm run dev",
   "env_vars": {
     "DATABASE_URL": "mysql://49HuCptxgz3Nger.root:w3DrJzgXEp9YpB3m5M30@gateway06.us-east-1.prod.aws.tidbcloud.com:4000/W4ReyjxDyzrfQdpLmkcvHo?ssl={\"rejectUnauthorized\":true}",
-    "DRIZZLE_DATABASE_URL": "mysql://49HuCptxgz3Nger.root:w3DrJzgXEp9YpB3m5M30@gateway06.us-east-1.prod.aws.tidbcloud.com:4000/W4ReyjxDyzrfQdpLmkcvHo?ssl={\"rejectUnauthorized\":true}"
+    "DRIZZLE_DATABASE_URL": "mysql://49HuCptxgz3Nger.root:w3DrJzgXEp9YpB3m5M30@gateway06.us-east-1.prod.aws.tidbcloud.com:4000/W4ReyjxDyzrfQdpLmkcvHo?ssl={\"rejectUnauthorized\":true}",
+    "MANUS_WEBDEV_PROJECT_ID": "W4ReyjxDyzrfQdpLmkcvHo"
   },
   "experiments": [
     "no_db_push"
   ],
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/310419663029664606/W4ReyjxDyzrfQdpLmkcvHo",
-    "access_key_id": "ASIAZV3A2ECZI7N2TARJ",
-    "secret_access_key": "pZ+uADMuXWYq5wZ3dkcYATqE6ivdW5P04N9mpmXP",
-    "session_token": "IQoJb3JpZ2luX2VjEDkaCXVzLWVhc3QtMSJIMEYCIQCYprC0Dv6CE4WhJ4RF2k3X6hX/IAtg3Ub/6I/7BH4LCQIhAKzUqU3aicFrW27NsCJMkVUd2KMDZLylL6WWZDYvXn4KKvUDCAEQBBoMNjY1Mzg2MDk4ODY2IgwpwOnDwNvwfSuxjHMq0gMuSHx9eiD/omLiW7e+JDt0l6yXZZW+M5JXSkU/k92MKvOarN9Q33Begdm9RoLqyKJ+a+6bkfeIRqW7NCqmnCalCYN7xQaccjoGAqiaLM/c7QYfIIpj/xvLz5mc8Uv+nRFPThiNpekpt8tac9DCWiuIZJM2sch4kzahFDoe1/mJpB41jfdrojErgPrWu+74R4yve6OrlDZa686IyyC71DWuTGxGBS4+Pj5WBTcPwaF6nEKL463cMtJcF46EJmFpLkK8wonLfa+UbVv9u+trrR9jfgXSZQllSyzPebZWDrpKL3UUkDcBuGe3AkoeHN+k+3cVo+wr0MxYq9YztCb1fYlfAMVSVXJbg8aVLjuZ7teF1EcybYZn+pSocb66igsaJT4ujspth7Ust6h9r0dAhYeGBC+4nZDKcYoShi2rq4koYW5FgXheqOtOo/iNN7zRxTjFFGRbYrTROT+T5LH5FyYuJ3sU/r68HwzzqzTsWSeicFjSpAf78yMQHo8W8a3px7oa2YF3bxsMxA/NTXEoTr9xduWK67HNGUtBAfZMz0ysVOmDNJi14sBsm5Lsek8NJQaNqiiI7i5bfmCSktmDVIszRQum9EzTFCbkOdBM86wlvKGWMI66jNMGOpwBOu8SVfr5EGNM6jdFiKTfJ1hDa4f7a/XFSrjzjoTgXFjFpvLa2SbP8VedYDfQue8GBXeAuks3Fg6+TutLn3yXSpXjSrw7/KQZDaA5JXx91/9YXNVRyVfpylIYPR7Gv1/ZFRg2O36zlAg1p8qXGZA2nuRq/XhHBBKwA397NXtGZJ6oKBzOx5c70tPktJm9rglJYrTN/+r3qj2sMq8q",
-    "expiration": "2026-07-24T20:06:38.000Z",
+    "access_key_id": "ASIAZV3A2ECZHJFO67UZ",
+    "secret_access_key": "qfbTo7G3LB+6Qp9l5faFeujHvENAvX+YGHeJFVy2",
+    "session_token": "IQoJb3JpZ2luX2VjENX//////////wEaCXVzLWVhc3QtMSJGMEQCIHMRf1s1Bv9YkjCvUPI9Yn6q5NviGXhWDbaVIr3u0jX1AiBwklJyzplkG3c7bpAp2VjayJBsvK+ruvY37dKCyajy/ir+Awie//////////8BEAQaDDY2NTM4NjA5ODg2NiIMW/EdHQ0SXyZOn6dxKtIDG+jOv9mQOXetMaQTP8+RhvRCoFCFtvYFnrLzefo8KgfvkdE3vjtfOtg7YvvWYECV5CB3FJBVB5xWv059TWFnZmvkcfd/acEZNStInYzT8x3V10wFC+4BAh2+ojtxUCuc/UMB2mMEmmRITzc8uKgBV8S09Vu9OTf0bpA353vnvUkJioQdagv1cvvAJEIw9BaOsih3ix2rftv6ra4GKlE0q/nnXRDny/htO6pCgK1NFxfKQJ9eAtKAWTUK3aOQ0R2c3MNuA9FiyrboqffCmchjjx4HsLsyy7U/dNtSZH+5GgI/zi5FQIpcFoAV6meyMOvmC5XgcDHbUWA8BQOo/ev5zSm8DsDj91KlrDnC1F+pTDi9xEr6/rppV9TYx0Uxbzju9epSQkLGzjzfoc9fcPo5EDtVASaVNW8sv4Bj/K4AbIQRbgBHvatePpS+vnLaXtaM0jB3Hhi9hh4alATpDCGHJc/87GwQNRYC4u/QGhp6CzJ2tglN8E500jOY5aqj+sgxWi98xn13meaBJOplOoSXM1z7YA/R171Lk71qIey8I198x5EUoXhTUd1PxZSkhr4C4oIzqoZM8QzpMrmx6U9Km54WlGz55at1NndjaXj5r21ENzCR7q7TBjqeAUK3lkAxZRexPQy03nFt1eRiG8G33cOXcNauUddolOJOvNR96Ff77URRQWwYTqYcZ8sk2I51Lhc2Ju55lBCVzVTLLtJAt8cPGHibLKth5sZWusoN6ZMvg2kdYRpOEGn8nekzBJZfSQziiX1jLE7+d/UbEpvr4Mwjrvu8vZIzl6i06g2Z7bDaIJNKjYzgqRwyUxJssbqkRSOSIk0g4yy3",
+    "expiration": "2026-07-31T08:41:53.000Z",
     "backend": "GIT_BACKEND_S3"
   },
   "name": "voyage-app",
@@ -36,6 +37,8 @@
     "EXPO_PUBLIC_OAUTH_SERVER_URL": "https://api.manus.im",
     "EXPO_PUBLIC_OWNER_NAME": "Gustavo Pattaro",
     "EXPO_PUBLIC_OWNER_OPEN_ID": "3wS655SqUDXWqFd5ky9AbF",
+    "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlob2hzaXh4bXhoYWhtY2p5Y3RkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTE5NjMsImV4cCI6MjEwMDgyNzk2M30.H_bDNs707XCU1GvAYmYdkxbAqX3SgvDVPH59kb76Jrg",
+    "EXPO_PUBLIC_SUPABASE_URL": "https://yhohsixxmxhahmcjyctd.supabase.co",
     "GOOGLE_DIRECTIONS_API_KEY": "AIzaSyDAX8R2ZAx9dSJPRYfaAEW1v8soiEMbaHw",
     "GOOGLE_PLACES_API_KEY": "AIzaSyDAX8R2ZAx9dSJPRYfaAEW1v8soiEMbaHw",
     "JWT_SECRET": "JJr9X7jjvMA2SYEBpHCftm",
@@ -44,11 +47,12 @@
     "OWNER_NAME": "Gustavo Pattaro",
     "OWNER_OPEN_ID": "3wS655SqUDXWqFd5ky9AbF",
     "REACT_NATIVE_PACKAGER_HOSTNAME": "8081-i9suu11jz75qwyk825n00-2c82bc1d.us2.manus.computer",
+    "SUPABASE_JWT_SECRET": "0947e5c3-03ba-4194-b070-87bd5e5367d7",
     "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",
     "VITE_ANALYTICS_WEBSITE_ID": "f0a84261-fd78-4a9b-bf33-250959f4b8da",
     "VITE_APP_ID": "W4ReyjxDyzrfQdpLmkcvHo",
-    "VITE_APP_LOGO": "https://d2xsxph8kpxj0f.cloudfront.net/310419663029664606/W4ReyjxDyzrfQdpLmkcvHo/icon-PJnDAzUD7mKE2GDk5Qvtbe.png",
-    "VITE_APP_TITLE": "Voyage",
+    "VITE_APP_LOGO": "https://d2xsxph8kpxj0f.cloudfront.net/310419663029664606/W4ReyjxDyzrfQdpLmkcvHo/localsapp-icon-v2-JiUQw3quC7ztHCsWs9Sqag.png",
+    "VITE_APP_TITLE": "LocalsApp",
     "VITE_FRONTEND_FORGE_API_KEY": "hqHPaKHvXLV6vrJjWATcgx",
     "VITE_FRONTEND_FORGE_API_URL": "https://forge.manus.ai",
     "VITE_OAUTH_PORTAL_URL": "https://manus.im"

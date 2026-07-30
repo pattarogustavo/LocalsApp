@@ -1,101 +1,125 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/lib/supabase';
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
-const AUTH_USER_KEY = 'voyage_auth_user';
-const AUTH_TOKEN_KEY = 'voyage_auth_token';
 const LANG_KEY = 'voyage_preferred_language';
+const PROFILE_KEY = 'voyage_user_profile';
 
 export interface AuthUser {
-  id: number;
-  openId: string;
-  name: string | null;
+  id: string;           // Supabase UUID
   email: string | null;
+  name: string | null;
   subscriptionStatus: 'trial' | 'active' | 'expired' | 'cancelled' | null;
   subscriptionPlan: 'monthly' | 'annual' | null;
-  subscriptionExpiresAt: string | null; // ISO string
-  trialEndsAt: string | null; // ISO string
-  avatarUri?: string | null;         // local URI of profile photo
-  preferredLanguage?: string | null; // e.g. 'pt', 'en', 'es'
+  subscriptionExpiresAt: string | null;
+  trialEndsAt: string | null;
+  avatarUri?: string | null;
+  preferredLanguage?: string | null;
 }
 
 interface AuthState {
   user: AuthUser | null;
-  token: string | null;
+  session: Session | null;
   loading: boolean;
   initialized: boolean;
-  // Language is stored separately so it survives logout
   preferredLanguage: string;
-  setUser: (user: AuthUser | null) => void;
-  setToken: (token: string | null) => void;
+
+  // Actions
+  setSession: (session: Session | null) => Promise<void>;
   logout: () => Promise<void>;
-  loadFromStorage: () => Promise<void>;
-  updateSubscription: (data: Partial<AuthUser>) => void;
+  initialize: () => Promise<void>;
   updateProfile: (data: Partial<AuthUser>) => void;
+  updateSubscription: (data: Partial<AuthUser>) => void;
   setLanguage: (lang: string) => void;
+
+  // Computed helpers
+  get token(): string | null;
+}
+
+function supabaseUserToAuthUser(
+  supabaseUser: SupabaseUser,
+  profile?: Partial<AuthUser> | null,
+): AuthUser {
+  const meta = supabaseUser.user_metadata ?? {};
+  return {
+    id: supabaseUser.id,
+    email: supabaseUser.email ?? null,
+    name: meta.full_name ?? meta.name ?? profile?.name ?? null,
+    subscriptionStatus: profile?.subscriptionStatus ?? null,
+    subscriptionPlan: profile?.subscriptionPlan ?? null,
+    subscriptionExpiresAt: profile?.subscriptionExpiresAt ?? null,
+    trialEndsAt: profile?.trialEndsAt ?? null,
+    avatarUri: profile?.avatarUri ?? null,
+    preferredLanguage: profile?.preferredLanguage ?? null,
+  };
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  token: null,
+  session: null,
   loading: true,
   initialized: false,
   preferredLanguage: 'pt',
 
-  setUser: (user) => {
-    set({ user });
-    if (user) {
-      AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-      // If user has a language preference, sync it to the top-level language state
-      if (user.preferredLanguage) {
-        set({ preferredLanguage: user.preferredLanguage });
-        AsyncStorage.setItem(LANG_KEY, user.preferredLanguage);
-      }
-    } else {
-      AsyncStorage.removeItem(AUTH_USER_KEY);
-    }
+  get token() {
+    return get().session?.access_token ?? null;
   },
 
-  setToken: (token) => {
-    set({ token });
-    if (token) {
-      AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
-    } else {
-      AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+  setSession: async (session) => {
+    if (!session) {
+      set({ user: null, session: null });
+      return;
     }
+    // Load cached profile extras (subscription, avatar, language)
+    let profile: Partial<AuthUser> | null = null;
+    try {
+      const raw = await AsyncStorage.getItem(PROFILE_KEY);
+      if (raw) profile = JSON.parse(raw);
+    } catch {}
+
+    const user = supabaseUserToAuthUser(session.user, profile);
+    const lang = user.preferredLanguage ?? profile?.preferredLanguage ?? (await AsyncStorage.getItem(LANG_KEY)) ?? 'pt';
+    set({ session, user, preferredLanguage: lang });
   },
 
   logout: async () => {
-    // Keep language preference even after logout
     const lang = get().preferredLanguage;
-    await AsyncStorage.multiRemove([AUTH_USER_KEY, AUTH_TOKEN_KEY]);
-    set({ user: null, token: null, preferredLanguage: lang });
+    await supabase.auth.signOut();
+    await AsyncStorage.multiRemove([PROFILE_KEY]);
+    set({ user: null, session: null, preferredLanguage: lang });
   },
 
-  loadFromStorage: async () => {
+  initialize: async () => {
     try {
-      const [userJson, token, savedLang] = await Promise.all([
-        AsyncStorage.getItem(AUTH_USER_KEY),
-        AsyncStorage.getItem(AUTH_TOKEN_KEY),
-        AsyncStorage.getItem(LANG_KEY),
-      ]);
-      const user = userJson ? JSON.parse(userJson) as AuthUser : null;
-      // Priority: user.preferredLanguage > savedLang > 'pt'
-      const lang = user?.preferredLanguage ?? savedLang ?? 'pt';
-      set({ user, token, loading: false, initialized: true, preferredLanguage: lang });
+      const savedLang = await AsyncStorage.getItem(LANG_KEY);
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session) {
+        let profile: Partial<AuthUser> | null = null;
+        try {
+          const raw = await AsyncStorage.getItem(PROFILE_KEY);
+          if (raw) profile = JSON.parse(raw);
+        } catch {}
+        const user = supabaseUserToAuthUser(session.user, profile);
+        const lang = user.preferredLanguage ?? savedLang ?? 'pt';
+        set({ session, user, loading: false, initialized: true, preferredLanguage: lang });
+      } else {
+        set({ session: null, user: null, loading: false, initialized: true, preferredLanguage: savedLang ?? 'pt' });
+      }
     } catch {
-      set({ user: null, token: null, loading: false, initialized: true });
+      set({ session: null, user: null, loading: false, initialized: true });
     }
   },
 
   setLanguage: (lang: string) => {
     set({ preferredLanguage: lang });
     AsyncStorage.setItem(LANG_KEY, lang);
-    // Also update user object if logged in
     const current = get().user;
     if (current) {
       const updated = { ...current, preferredLanguage: lang };
       set({ user: updated });
-      AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
+      AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
     }
   },
 
@@ -104,8 +128,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!current) return;
     const updated = { ...current, ...data };
     set({ user: updated });
-    AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
-    // If language is being updated, also update the top-level language state
+    AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
     if (data.preferredLanguage) {
       set({ preferredLanguage: data.preferredLanguage });
       AsyncStorage.setItem(LANG_KEY, data.preferredLanguage);
@@ -117,6 +140,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!current) return;
     const updated = { ...current, ...data };
     set({ user: updated });
-    AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
+    AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
   },
 }));

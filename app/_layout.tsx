@@ -78,12 +78,12 @@ export default function RootLayout() {
   const initialFrame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
   const [frame, setFrame] = useState<Rect>(initialFrame);
-  const { loadFromStorage } = useAuthStore();
+  const { initialize } = useAuthStore();
 
   useEffect(() => {
     initManusRuntime();
-    // Load auth state from storage on startup
-    loadFromStorage().then(() => {
+    // Initialize Supabase session on startup
+    initialize().then(() => {
       // Schedule trial notifications after loading auth state
       const { user } = useAuthStore.getState();
       if (user?.trialEndsAt && user.subscriptionStatus === 'trial') {

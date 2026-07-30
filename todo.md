@@ -365,3 +365,29 @@
 - [x] Apply new colors to all screens (profile, trip detail, home, auth, components)
 - [x] Update splash screen background color
 - [x] Fix text contrast issues (light text on light background) in register, login, forgot-password, profile, paywall, and trip detail screens
+
+## Supabase Auth Migration
+
+- [ ] Install @supabase/supabase-js and configure client
+- [ ] Create lib/supabase.ts with Supabase client + SecureStore adapter
+- [ ] Rewrite store/auth.ts to use Supabase session
+- [ ] Rewrite app/auth/login.tsx for email + Apple Sign In
+- [ ] Rewrite app/auth/register.tsx for email registration
+- [ ] Rewrite app/auth/forgot-password.tsx for Supabase password reset
+- [ ] Update server-side context.ts to validate Supabase JWT
+- [ ] Update app/_layout.tsx AuthGuard for Supabase session
+- [ ] Update drizzle/schema.ts users table to use Supabase UUID
+
+## Supabase Auth Migration
+
+- [x] Install @supabase/supabase-js and expo-apple-authentication
+- [x] Create lib/supabase.ts with lazy SecureStore/localStorage adapter
+- [x] Rewrite store/auth.ts to use Supabase session management
+- [x] Rewrite app/auth/login.tsx with email + Apple Sign In
+- [x] Rewrite app/auth/register.tsx with Supabase email signup
+- [x] Rewrite app/auth/forgot-password.tsx with Supabase resetPasswordForEmail
+- [x] Update app/profile.tsx changePassword to use Supabase updateUser
+- [x] Update lib/_core/auth.ts getSessionToken to read from Supabase store
+- [x] Update server/sdk.ts authenticateRequest to validate Supabase JWTs
+- [x] Add SUPABASE_JWT_SECRET to server ENV
+- [x] Fix window is not defined crash in Metro (lazy storage adapter)

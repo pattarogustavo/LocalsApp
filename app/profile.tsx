@@ -124,8 +124,6 @@ function ChangePasswordModal({
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
-  const changePwMutation = trpc.auth.changePassword.useMutation();
-
   const handleSubmit = async () => {
     if (!current || !next || !confirm) {
       Alert.alert(t.common.error, t.profile.fillAllFields);
@@ -141,7 +139,16 @@ function ChangePasswordModal({
     }
     setLoading(true);
     try {
-      await changePwMutation.mutateAsync({ currentPassword: current, newPassword: next });
+      const { supabase } = await import('@/lib/supabase');
+      const { useAuthStore } = await import('@/store/auth');
+      const userEmail = useAuthStore.getState().user?.email;
+      if (!userEmail) throw new Error('No email found');
+      // Verify current password
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email: userEmail, password: current });
+      if (signInError) throw new Error(t.profile.passwordError);
+      // Update to new password
+      const { error: updateError } = await supabase.auth.updateUser({ password: next });
+      if (updateError) throw updateError;
       Alert.alert(t.common.success, t.profile.passwordChanged);
       setCurrent(''); setNext(''); setConfirm('');
       onClose();

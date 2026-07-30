@@ -232,61 +232,74 @@ class SDKServer {
   }
 
   async authenticateRequest(req: Request): Promise<AuthenticatedUser> {
-    // Regular authentication flow
+    // Extract Bearer token from Authorization header
     const authHeader = req.headers.authorization || req.headers.Authorization;
     let token: string | undefined;
     if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
       token = authHeader.slice("Bearer ".length).trim();
     }
 
-    const cookies = this.parseCookies(req.headers.cookie);
-    const sessionCookie = token || cookies.get(COOKIE_NAME);
-    const session = await this.verifySession(sessionCookie);
-
-    if (!session) {
-      throw ForbiddenError("Invalid session cookie");
+    if (!token) {
+      throw ForbiddenError("Missing authorization token");
     }
 
-    if (session.openId.startsWith(CRON_OPEN_ID_PREFIX)) {
-      const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
-      const taskUid = userInfo.taskUid ?? null;
-      if (!taskUid) {
-        throw ForbiddenError("Cron session missing task_uid");
-      }
-      return buildCronUser(userInfo);
+    // Validate Supabase JWT using the project JWT secret
+    const jwtSecret = ENV.supabaseJwtSecret;
+    if (!jwtSecret) {
+      throw ForbiddenError("Server auth not configured (missing SUPABASE_JWT_SECRET)");
     }
 
-    const sessionUserId = session.openId;
+    let supabaseUserId: string;
+    let supabaseEmail: string | null = null;
+    let supabaseName: string | null = null;
+    let loginMethod = "email";
+
+    try {
+      const secretKey = new TextEncoder().encode(jwtSecret);
+      const { payload } = await jwtVerify(token, secretKey, { algorithms: ["HS256"] });
+      supabaseUserId = payload.sub as string;
+      supabaseEmail = (payload.email as string) ?? null;
+      const meta = ((payload as any).user_metadata as Record<string, unknown>) ?? {};
+      supabaseName = ((meta.full_name ?? meta.name) as string) ?? null;
+      // Detect Apple Sign In from app_metadata.providers
+      const appMeta = ((payload as any).app_metadata as Record<string, unknown>) ?? {};
+      const providers = (appMeta.providers as string[]) ?? [];
+      if (providers.includes("apple")) loginMethod = "apple";
+    } catch (error) {
+      console.warn("[Auth] Supabase JWT verification failed:", String(error));
+      throw ForbiddenError("Invalid or expired token");
+    }
+
+    if (!supabaseUserId) {
+      throw ForbiddenError("Token missing user ID");
+    }
+
     const signedInAt = new Date();
-    let user = await db.getUserByOpenId(sessionUserId);
+    let user = await db.getUserByOpenId(supabaseUserId);
 
-    // If user not in DB, sync from OAuth server automatically
+    // Auto-provision user in DB on first login
     if (!user) {
       try {
-        const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
         await db.upsertUser({
-          openId: userInfo.openId,
-          name: userInfo.name || null,
-          email: userInfo.email ?? null,
-          loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+          openId: supabaseUserId,
+          name: supabaseName,
+          email: supabaseEmail,
+          loginMethod,
           lastSignedIn: signedInAt,
         });
-        user = await db.getUserByOpenId(userInfo.openId);
+        user = await db.getUserByOpenId(supabaseUserId);
       } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
-        throw ForbiddenError("Failed to sync user info");
+        console.error("[Auth] Failed to provision user:", error);
+        throw ForbiddenError("Failed to create user record");
       }
     }
 
     if (!user) {
-      throw ForbiddenError("User not found");
+      throw ForbiddenError("User not found after provisioning");
     }
 
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
-
+    // Update last sign-in timestamp
+    await db.upsertUser({ openId: user.openId, lastSignedIn: signedInAt });
     return user;
   }
 }

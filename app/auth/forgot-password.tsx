@@ -13,7 +13,7 @@ import {
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { trpc } from '@/lib/trpc';
+import { supabase } from '@/lib/supabase';
 import { useTranslation } from '@/hooks/use-translation';
 
 export default function ForgotPasswordScreen() {
@@ -23,8 +23,6 @@ export default function ForgotPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const forgotMutation = trpc.auth.forgotPassword.useMutation();
-
   const handleSubmit = async () => {
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       Alert.alert(t.common.error, t.auth.forgotPassword.fillEmail);
@@ -32,7 +30,8 @@ export default function ForgotPasswordScreen() {
     }
     setLoading(true);
     try {
-      await forgotMutation.mutateAsync({ email });
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+      if (error) throw error;
       setSent(true);
     } catch {
       Alert.alert(t.common.error, t.common.tryAgain);

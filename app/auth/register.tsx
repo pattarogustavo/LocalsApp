@@ -14,16 +14,17 @@ import {
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { trpc } from '@/lib/trpc';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth';
-import { startOAuthLogin } from '@/constants/oauth';
 import { useTranslation } from '@/hooks/use-translation';
 
 // Validation is now done inside the component so it can use translations
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
-  const { setUser } = useAuthStore();
+  const { setSession } = useAuthStore();
+  const [appleLoading, setAppleLoading] = useState(false);
   const t = useTranslation();
 
   function validate(n: string, e: string, p: string, c: string) {
@@ -51,44 +52,64 @@ export default function RegisterScreen() {
   const errors = validate(name, email, password, confirm);
   const canSubmit = Object.keys(errors).length === 0 && agreed && !loading;
 
-  const registerMutation = trpc.auth.register.useMutation();
-
   const handleRegister = async () => {
-    // Mark all fields as touched to show errors
     setTouched({ name: true, email: true, password: true, confirm: true });
     if (!canSubmit) return;
     setLoading(true);
     try {
-      const result = await registerMutation.mutateAsync({ name, email, password });
-      setUser({
-        id: result.user.id,
-        openId: result.user.openId,
-        name: result.user.name,
-        email: result.user.email,
-        subscriptionStatus: result.user.subscriptionStatus,
-        subscriptionPlan: null,
-        subscriptionExpiresAt: null,
-        trialEndsAt: result.user.trialEndsAt ? result.user.trialEndsAt.toISOString() : null,
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: { data: { full_name: name.trim() } },
       });
-      // Redirect to preferences onboarding after registration
-      router.replace('/auth/preferences' as any);
-    } catch (err: any) {
-      const msg = err?.message ?? '';
-      if (msg.includes('EMAIL_TAKEN')) {
-        Alert.alert(t.auth.register.errorTitle, t.auth.register.emailValidation);
-      } else {
-        Alert.alert(t.auth.register.errorTitle, t.common.tryAgain);
+      if (error) {
+        Alert.alert('Erro ao criar conta', error.message);
+        return;
       }
+      if (data.session) {
+        await setSession(data.session);
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert(
+          'Confirme seu e-mail',
+          'Enviamos um link de confirmação para ' + email.trim().toLowerCase() + '. Verifique sua caixa de entrada.',
+          [{ text: 'OK', onPress: () => router.replace('/auth/login' as any) }],
+        );
+      }
+    } catch (e: any) {
+      Alert.alert('Erro', e.message ?? 'Tente novamente.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleAppleLogin = async () => {
+    setAppleLoading(true);
     try {
-      await startOAuthLogin();
-    } catch {
-      Alert.alert(t.common.error, t.common.tryAgain);
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken!,
+      });
+      if (error) {
+        Alert.alert('Erro ao entrar com Apple', error.message);
+        return;
+      }
+      if (data.session) {
+        await setSession(data.session);
+        router.replace('/(tabs)');
+      }
+    } catch (e: any) {
+      if (e.code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert('Erro', e.message ?? 'Tente novamente.');
+      }
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -115,17 +136,26 @@ export default function RegisterScreen() {
           <Text style={styles.subtitle}>{t.auth.register.trialInfo}</Text>
         </View>
 
-        {/* Google button */}
-        <TouchableOpacity style={styles.googleBtn} activeOpacity={0.85} onPress={handleGoogleLogin}>
-          <Ionicons name="logo-google" size={18} color="#2C2416" />
-          <Text style={styles.googleBtnText}>{t.auth.register.continueWithGoogle}</Text>
-        </TouchableOpacity>
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>{t.common.or}</Text>
-          <View style={styles.dividerLine} />
-        </View>
+        {/* Apple Sign In — iOS only */}
+        {Platform.OS === 'ios' && (
+          <>
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={12}
+              style={styles.appleBtn}
+              onPress={handleAppleLogin}
+            />
+            {appleLoading && (
+              <ActivityIndicator color="#2C2416" style={{ marginBottom: 12 }} />
+            )}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>ou crie com e-mail</Text>
+              <View style={styles.dividerLine} />
+            </View>
+          </>
+        )}
 
         {/* Full name */}
         <View style={styles.fieldGroup}>
@@ -269,23 +299,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2C2416',
   },
-  googleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: '#DDD5C5',
-    marginBottom: 20,
-  },
-  googleBtnText: {
-    color: '#2C2416',
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  appleBtn: { height: 50, marginBottom: 16 },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -295,7 +309,7 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#DDD5C5',
   },
   dividerText: {
     color: '#2C2416',
@@ -391,7 +405,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   submitBtnText: {
-    color: '#2C2416',
+    color: '#F7F3EC',
     fontSize: 16,
     fontWeight: '700',
   },
