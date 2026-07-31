@@ -518,7 +518,7 @@ export default function ProfileScreen() {
                 t.profile.notificationsDesc,
                 [
                   { text: t.common.close, style: 'cancel' },
-                  { text: t.profile.help, onPress: () => Linking.openURL('https://voyage.app/help') },
+                  { text: t.profile.help, onPress: () => Linking.openURL('mailto:suporte@localsapp.com?subject=Suporte%20LocalsApp') },
                 ]
               )}
             >
@@ -547,7 +547,7 @@ export default function ProfileScreen() {
               onPress={() => {
                 const storeUrl = Platform.OS === 'ios'
                   ? 'https://apps.apple.com/app/id000000000'
-                  : 'https://play.google.com/store/apps/details?id=space.manus.voyage';
+                  : 'https://play.google.com/store/apps/details?id=com.localsapp.app';
                 Linking.openURL(storeUrl);
               }}
             >

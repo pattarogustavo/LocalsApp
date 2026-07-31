@@ -2,11 +2,9 @@
 import "./scripts/load-env.js";
 import type { ExpoConfig } from "expo/config";
 
-// Bundle ID format: space.manus.<project_name_dots>.<timestamp>
-// e.g., "my-app" created at 2024-01-15 10:30:45 -> "space.manus.my.app.t20240115103045"
-// Bundle ID can only contain letters, numbers, and dots
-// Android requires each dot-separated segment to start with a letter
-const rawBundleId = "com.app.voyageapp";
+// Bundle ID can only contain letters, numbers, and dots.
+// Android requires each dot-separated segment to start with a letter.
+const rawBundleId = "com.localsapp.app";
 const bundleId =
   rawBundleId
     .replace(/[-_]/g, ".") // Replace hyphens/underscores with dots
@@ -20,11 +18,11 @@ const bundleId =
       // Prefix with 'x' if segment starts with a digit
       return /^[a-zA-Z]/.test(segment) ? segment : "x" + segment;
     })
-    .join(".") || "space.manus.app";
+    .join(".");
 const env = {
   // App branding - update these values directly (do not use env vars)
   appName: "LocalsApp",
-  appSlug: "voyage-app",
+  appSlug: "localsapp",
   // Optional remote URL for the app logo. Leave empty to use the default icon
   // from assets/images/icon.png (not currently referenced by the config below).
   logoUrl: "",
