@@ -1,4 +1,4 @@
-import { boolean, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -6,20 +6,12 @@ import { boolean, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "d
  */
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
+  /** Supabase Auth user UUID. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-
-  // ── Custom auth fields ──────────────────────────────────────────────────────
-  /** bcrypt hash of password (null for OAuth-only users) */
-  passwordHash: varchar("passwordHash", { length: 255 }),
-  /** Google OAuth subject ID */
-  googleId: varchar("googleId", { length: 128 }),
-  /** auth provider used at registration */
-  authProvider: mysqlEnum("authProvider", ["email", "google", "manus"]).default("manus"),
 
   // ── Trial & Subscription ────────────────────────────────────────────────────
   trialStartedAt: timestamp("trialStartedAt"),
@@ -36,21 +28,6 @@ export const users = mysqlTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
-
-/**
- * Password reset tokens for email-based password recovery.
- */
-export const passwordResetTokens = mysqlTable("password_reset_tokens", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  token: varchar("token", { length: 128 }).notNull().unique(),
-  expiresAt: timestamp("expiresAt").notNull(),
-  used: boolean("used").default(false).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
-
-export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
-export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 
 /**
  * Trips table — stores the full Trip JSON blob per user.

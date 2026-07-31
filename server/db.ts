@@ -1,7 +1,6 @@
-import { and, eq, gt, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, InsertPasswordResetToken, passwordResetTokens, users, trips, tripShares, InsertTripRow } from "../drizzle/schema";
-import { ENV } from "./_core/env";
+import { InsertUser, users, trips, tripShares, InsertTripRow } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -40,7 +39,6 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     textFields.forEach(assignNullable);
     if (user.lastSignedIn !== undefined) { values.lastSignedIn = user.lastSignedIn; updateSet.lastSignedIn = user.lastSignedIn; }
     if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
-    else if (user.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
     if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
     await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
@@ -57,59 +55,6 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function getUserById(id: number) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
-}
-
-export async function getUserByEmail(email: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
-}
-
-export async function getUserByGoogleId(googleId: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.googleId, googleId)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
-}
-
-export async function createEmailUser(data: {
-  name: string;
-  email: string;
-  passwordHash: string;
-}) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const now = new Date();
-  const trialEnds = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  // Generate a unique openId for email users
-  const openId = `email_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  const result = await db.insert(users).values({
-    openId,
-    name: data.name,
-    email: data.email,
-    passwordHash: data.passwordHash,
-    authProvider: "email",
-    loginMethod: "email",
-    trialStartedAt: now,
-    trialEndsAt: trialEnds,
-    subscriptionStatus: "trial",
-    lastSignedIn: now,
-  });
-  return { insertId: (result as any)[0]?.insertId ?? 0, openId };
-}
-
-export async function updateUser(id: number, data: Partial<InsertUser>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.update(users).set({ ...data, updatedAt: new Date() }).where(eq(users.id, id));
-}
-
 export async function updateSubscriptionStatus(userId: number, data: {
   subscriptionStatus: "trial" | "active" | "expired" | "cancelled";
   subscriptionPlan?: "monthly" | "annual" | null;
@@ -119,35 +64,6 @@ export async function updateSubscriptionStatus(userId: number, data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(users).set({ ...data, updatedAt: new Date() }).where(eq(users.id, userId));
-}
-
-// ─── Password Reset helpers ───────────────────────────────────────────────────
-
-export async function createPasswordResetToken(userId: number, token: string) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-  await db.insert(passwordResetTokens).values({ userId, token, expiresAt });
-}
-
-export async function getValidPasswordResetToken(token: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const now = new Date();
-  const result = await db.select().from(passwordResetTokens).where(
-    and(
-      eq(passwordResetTokens.token, token),
-      eq(passwordResetTokens.used, false),
-      gt(passwordResetTokens.expiresAt, now)
-    )
-  ).limit(1);
-  return result.length > 0 ? result[0] : undefined;
-}
-
-export async function markPasswordResetTokenUsed(token: string) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.token, token));
 }
 
 // ─── Subscription helpers ─────────────────────────────────────────────────────

@@ -16,7 +16,7 @@ import * as Linking from 'expo-linking';
 import type { Transport, TransportMode, CityTransportMode, Destination, Accommodation, CarInfo } from '@/types/voyage';
 import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
 import { DocAttachField } from '@/components/ui/doc-attach-field';
-import { getApiBaseUrl } from '@/constants/oauth';
+import { getApiBaseUrl } from '@/constants/api';
 import { useTranslation } from '@/hooks/use-translation';
 
 // ─── Constants ────────────────────────────────────────────────────────────────

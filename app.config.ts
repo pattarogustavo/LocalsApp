@@ -21,19 +21,15 @@ const bundleId =
       return /^[a-zA-Z]/.test(segment) ? segment : "x" + segment;
     })
     .join(".") || "space.manus.app";
-// Extract timestamp from bundle ID and prefix with "manus" for deep link scheme
-// e.g., "space.manus.my.app.t20240115103045" -> "manus20240115103045"
-const timestamp = bundleId.split(".").pop()?.replace(/^t/, "") ?? "";
-const schemeFromBundleId = `manus${timestamp}`;
-
 const env = {
   // App branding - update these values directly (do not use env vars)
   appName: "LocalsApp",
   appSlug: "voyage-app",
-  // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
-  // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "https://files.manuscdn.com/user_upload_by_module/session_file/310419663029664606/InrQwUFpDkdXfMyL.png",
-  scheme: schemeFromBundleId,
+  // Optional remote URL for the app logo. Leave empty to use the default icon
+  // from assets/images/icon.png (not currently referenced by the config below).
+  logoUrl: "",
+  // Deep link URL scheme (e.g. localsapp://trip/accept-invite?token=...)
+  scheme: "localsapp",
   iosBundleId: bundleId,
   androidPackage: bundleId,
 };
@@ -42,9 +38,10 @@ const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
   version: "1.0.0",
+  platforms: ["ios", "android"],
   extra: {
     eas: {
-      projectId: "51c77204-fb40-4d11-bb31-a42311596671",
+      projectId: "c8ca51b9-bf49-4b50-b5f0-466a78f72c6c",
     },
   },
   orientation: "portrait",
@@ -83,11 +80,6 @@ const config: ExpoConfig = {
         category: ["BROWSABLE", "DEFAULT"],
       },
     ],
-  },
-  web: {
-    bundler: "metro",
-    output: "static",
-    favicon: "./assets/images/favicon.png",
   },
   plugins: [
     "expo-router",
