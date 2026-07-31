@@ -3,9 +3,6 @@
     "name": "LocalsApp",
     "slug": "voyage-app",
     "extra": {
-      "eas": {
-        "projectId": "c8ca51b9-bf49-4b50-b5f0-466a78f72c6c"
-      }
     }
   }
 }
