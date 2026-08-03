@@ -5,6 +5,15 @@ import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 const LANG_KEY = 'voyage_preferred_language';
 const PROFILE_KEY = 'voyage_user_profile';
+const INIT_STEP_TIMEOUT_MS = 8000;
+
+// Races a promise against a timeout so a hung network/storage call can never block init.
+function withTimeout<T>(promise: Promise<T>, fallback: T, ms = INIT_STEP_TIMEOUT_MS): Promise<T> {
+  const timeout = new Promise<T>((resolve) => {
+    setTimeout(() => resolve(fallback), ms);
+  });
+  return Promise.race([promise.catch(() => fallback), timeout]);
+}
 
 export interface AuthUser {
   id: string;           // Supabase UUID
@@ -91,15 +100,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: async () => {
+    let initializedSafely = false;
     try {
-      const savedLang = await AsyncStorage.getItem(LANG_KEY);
-      const { data: { session } } = await supabase.auth.getSession();
+      const savedLang = await withTimeout(AsyncStorage.getItem(LANG_KEY), null);
+      const { data: { session } } = await withTimeout(
+        supabase.auth.getSession(),
+        { data: { session: null }, error: null },
+      );
 
       if (session) {
+        const profileRaw = await withTimeout(AsyncStorage.getItem(PROFILE_KEY), null);
         let profile: Partial<AuthUser> | null = null;
         try {
-          const raw = await AsyncStorage.getItem(PROFILE_KEY);
-          if (raw) profile = JSON.parse(raw);
+          if (profileRaw) profile = JSON.parse(profileRaw);
         } catch {}
         const user = supabaseUserToAuthUser(session.user, profile);
         const lang = user.preferredLanguage ?? savedLang ?? 'pt';
@@ -107,8 +120,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } else {
         set({ session: null, user: null, loading: false, initialized: true, preferredLanguage: savedLang ?? 'pt' });
       }
+      initializedSafely = true;
     } catch {
       set({ session: null, user: null, loading: false, initialized: true });
+      initializedSafely = true;
+    } finally {
+      // Absolute last resort: no matter what happened above, never leave the app stuck on splash.
+      if (!initializedSafely) {
+        set({ session: null, user: null, loading: false, initialized: true });
+      }
     }
   },
 

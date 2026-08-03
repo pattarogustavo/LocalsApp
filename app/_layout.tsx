@@ -10,9 +10,14 @@ import { Platform, KeyboardAvoidingView } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import * as Notifications from "expo-notifications";
+import * as SplashScreen from "expo-splash-screen";
 import { useAuthStore } from "@/store/auth";
 import { useTripsStore } from "@/store/trips";
 import { scheduleTrialNotifications } from "@/lib/subscription-notifications";
+
+// Keep the native splash screen visible until we explicitly hide it below,
+// so the app never flashes to a blank screen while auth initializes.
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // Configure how notifications are presented when the app is in the foreground
 Notifications.setNotificationHandler({
@@ -78,13 +83,19 @@ export default function RootLayout() {
 
   useEffect(() => {
     // Initialize Supabase session on startup
-    initialize().then(() => {
-      // Schedule trial notifications after loading auth state
-      const { user } = useAuthStore.getState();
-      if (user?.trialEndsAt && user.subscriptionStatus === 'trial') {
-        scheduleTrialNotifications(user).catch(() => {});
-      }
-    });
+    initialize()
+      .then(() => {
+        // Schedule trial notifications after loading auth state
+        const { user } = useAuthStore.getState();
+        if (user?.trialEndsAt && user.subscriptionStatus === 'trial') {
+          scheduleTrialNotifications(user).catch(() => {});
+        }
+      })
+      .finally(() => {
+        // Only now do we know whether the user has a session, so the splash
+        // screen stays up until AuthGuard has enough state to route correctly.
+        SplashScreen.hideAsync().catch(() => {});
+      });
     // Create Android notification channel for flight reminders
     if (Platform.OS === 'android') {
       Notifications.setNotificationChannelAsync('flight-reminders', {
