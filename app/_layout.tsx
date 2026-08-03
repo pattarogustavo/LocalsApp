@@ -14,21 +14,12 @@ import * as SplashScreen from "expo-splash-screen";
 import { useAuthStore } from "@/store/auth";
 import { useTripsStore } from "@/store/trips";
 import { scheduleTrialNotifications } from "@/lib/subscription-notifications";
+import { withTimeout } from "@/lib/_core/with-timeout";
 
 // Keep the native splash screen visible until we explicitly hide it below,
 // so the app never flashes to a blank screen while auth initializes.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// Configure how notifications are presented when the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -96,20 +87,63 @@ export default function RootLayout() {
         // screen stays up until AuthGuard has enough state to route correctly.
         SplashScreen.hideAsync().catch(() => {});
       });
-    // Create Android notification channel for flight reminders
-    if (Platform.OS === 'android') {
-      Notifications.setNotificationChannelAsync('flight-reminders', {
-        name: 'Lembretes de Voo',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 250, 250, 250],
-        sound: 'default',
-      });
-      Notifications.setNotificationChannelAsync('subscription', {
-        name: 'Assinatura',
-        importance: Notifications.AndroidImportance.DEFAULT,
-        sound: 'default',
-      });
-    }
+  }, []);
+
+  useEffect(() => {
+    // Deferred to the next tick and individually timed out/try-caught so a
+    // hung native notifications call can never block startup or the splash
+    // screen — none of this gates routing, so it's safe to run fire-and-forget.
+    const timer = setTimeout(() => {
+      (async () => {
+        try {
+          await withTimeout(
+            (async () => {
+              // Configure how notifications are presented when the app is in the foreground
+              Notifications.setNotificationHandler({
+                handleNotification: async () => ({
+                  shouldShowAlert: true,
+                  shouldPlaySound: true,
+                  shouldSetBadge: false,
+                  shouldShowBanner: true,
+                  shouldShowList: true,
+                }),
+              });
+            })(),
+            undefined,
+            4000,
+          );
+        } catch {}
+
+        if (Platform.OS === 'android') {
+          try {
+            await withTimeout(
+              Notifications.setNotificationChannelAsync('flight-reminders', {
+                name: 'Lembretes de Voo',
+                importance: Notifications.AndroidImportance.HIGH,
+                vibrationPattern: [0, 250, 250, 250],
+                sound: 'default',
+              }),
+              null,
+              4000,
+            );
+          } catch {}
+
+          try {
+            await withTimeout(
+              Notifications.setNotificationChannelAsync('subscription', {
+                name: 'Assinatura',
+                importance: Notifications.AndroidImportance.DEFAULT,
+                sound: 'default',
+              }),
+              null,
+              4000,
+            );
+          } catch {}
+        }
+      })();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const [queryClient] = useState(

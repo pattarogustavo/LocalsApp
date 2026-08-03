@@ -1,19 +1,11 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/_core/with-timeout';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 const LANG_KEY = 'voyage_preferred_language';
 const PROFILE_KEY = 'voyage_user_profile';
-const INIT_STEP_TIMEOUT_MS = 8000;
-
-// Races a promise against a timeout so a hung network/storage call can never block init.
-function withTimeout<T>(promise: Promise<T>, fallback: T, ms = INIT_STEP_TIMEOUT_MS): Promise<T> {
-  const timeout = new Promise<T>((resolve) => {
-    setTimeout(() => resolve(fallback), ms);
-  });
-  return Promise.race([promise.catch(() => fallback), timeout]);
-}
 
 export interface AuthUser {
   id: string;           // Supabase UUID
