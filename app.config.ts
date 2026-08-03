@@ -82,6 +82,10 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-router",
+    "expo-asset",
+    "@react-native-community/datetimepicker",
+    "expo-font",
+    "expo-web-browser",
     [
       "expo-audio",
       {
