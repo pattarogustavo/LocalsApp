@@ -1,40 +1,12 @@
 {
   "version": "7",
-  "dialect": "mysql",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "5",
-      "when": 1763372440610,
-      "tag": "0000_elite_eternals",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1780821961034,
-      "tag": "0001_chief_stick",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1781969150918,
-      "tag": "0002_natural_the_executioner",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "5",
-      "when": 1781970154305,
-      "tag": "0003_equal_lady_deathstrike",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "5",
-      "when": 1785525628328,
-      "tag": "0004_bright_krista_starr",
+      "version": "7",
+      "when": 1785623838688,
+      "tag": "0000_smart_clint_barton",
       "breakpoints": true
     }
   ]

@@ -1,5 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/postgres-js";
 import { InsertUser, users, trips, tripShares, InsertTripRow } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -41,7 +41,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
     if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-    await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+    await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
     throw error;
@@ -117,8 +117,8 @@ export async function upsertTrip(userId: number, clientId: string, data: string)
     await db.update(trips).set({ data, updatedAt: new Date() }).where(eq(trips.id, found.id));
     return found.id;
   } else {
-    const result = await db.insert(trips).values({ userId, clientId, data });
-    return (result as unknown as { insertId: number }).insertId;
+    const [inserted] = await db.insert(trips).values({ userId, clientId, data }).returning({ id: trips.id });
+    return inserted.id;
   }
 }
 
