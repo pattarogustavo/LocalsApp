@@ -71,6 +71,25 @@ function buildEmptyDays(totalDays: number, startDate: string): DayItinerary[] {
   });
 }
 
+// TEMP DEBUG: remove once AI itinerary generation errors are diagnosed in production.
+function formatGenerationErrorForAlert(e: any): string {
+  const parts: string[] = [];
+  if (e?.message) parts.push(`message: ${e.message}`);
+  if (e?.data?.code) parts.push(`code: ${e.data.code}`);
+  if (e?.data?.httpStatus) parts.push(`httpStatus: ${e.data.httpStatus}`);
+  if (e?.shape?.message) parts.push(`shape.message: ${e.shape.message}`);
+  if (e?.shape?.code) parts.push(`shape.code: ${e.shape.code}`);
+  if (e?.cause?.message) parts.push(`cause: ${e.cause.message}`);
+  if (parts.length === 0) {
+    try {
+      parts.push(JSON.stringify(e));
+    } catch {
+      parts.push(String(e));
+    }
+  }
+  return parts.join('\n');
+}
+
 // ─── Day Selector ─────────────────────────────────────────────────────────────
 
 function DaySelector({
@@ -1121,6 +1140,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
       }
     } catch (e) {
       console.error('Itinerary generation error:', e);
+      // TEMP DEBUG: remove once AI itinerary generation errors are diagnosed in production.
+      Alert.alert('Erro ao gerar roteiro (debug)', formatGenerationErrorForAlert(e));
     } finally {
       setGenerating(false);
     }
@@ -1182,6 +1203,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
       }
     } catch (e) {
       console.error('Generate from scratch error:', e);
+      // TEMP DEBUG: remove once AI itinerary generation errors are diagnosed in production.
+      Alert.alert('Erro ao gerar roteiro (debug)', formatGenerationErrorForAlert(e));
     } finally {
       setGenerating(false);
     }
