@@ -44,10 +44,13 @@ function buildRuntimePalette(scheme: ColorScheme): RuntimePalette {
     ...base,
     text: base.foreground,
     background: base.background,
-    tint: base.primary,
+    // `base.primary` is constant across schemes and fails contrast as a
+    // standalone tint/icon color in dark mode — use the scheme-adaptive
+    // `tint`/`tabIconActive` tokens instead (see theme.config.js).
+    tint: base.tint,
     icon: base.muted,
-    tabIconDefault: base.muted,
-    tabIconSelected: base.primary,
+    tabIconDefault: base.tabIconInactive,
+    tabIconSelected: base.tabIconActive,
     border: base.border,
   };
 }

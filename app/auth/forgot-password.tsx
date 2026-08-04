@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,10 +15,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useTranslation } from '@/hooks/use-translation';
+import { useColors } from '@/hooks/use-colors';
+import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
+
+// Text/icon color for content drawn on top of the primary button color, which
+// is identical in both schemes — always the light-scheme background swatch.
+const ON_PRIMARY = SchemeColors.light.background;
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 export default function ForgotPasswordScreen() {
   const insets = useSafeAreaInsets();
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -42,20 +55,20 @@ export default function ForgotPasswordScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#F0EBE0' }}
+      style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}>
         {/* Header */}
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color="#8A7F6E" />
+          <Ionicons name="arrow-back" size={22} color={colors.muted} />
         </TouchableOpacity>
 
         {sent ? (
           /* Success state */
           <View style={styles.successContainer}>
             <View style={styles.successIcon}>
-              <Ionicons name="mail-outline" size={36} color="#3D5A2E" />
+              <Ionicons name="mail-outline" size={36} color={colors.primary} />
             </View>
             <Text style={styles.title}>{t.auth.forgotPassword.successTitle}</Text>
             <Text style={styles.successText}>
@@ -80,7 +93,7 @@ export default function ForgotPasswordScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={t.auth.forgotPassword.emailPlaceholder}
-                placeholderTextColor="#8A7F6E"
+                placeholderTextColor={colors.muted}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -99,7 +112,7 @@ export default function ForgotPasswordScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#F7F3EC" />
+                <ActivityIndicator color={ON_PRIMARY} />
               ) : (
                 <Text style={styles.submitBtnText}>{t.auth.forgotPassword.sendBtn}</Text>
               )}
@@ -118,7 +131,7 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 24,
@@ -143,7 +156,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(61,90,46,0.10)',
+    backgroundColor: withAlpha(colors.primary, 0.10),
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
@@ -151,25 +164,25 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#2C2416',
+    color: colors.foreground,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 14,
-    color: '#2C2416',
+    color: colors.foreground,
     lineHeight: 22,
     marginBottom: 32,
   },
   successText: {
     fontSize: 14,
-    color: '#2C2416',
+    color: colors.foreground,
     lineHeight: 22,
     textAlign: 'center',
     marginBottom: 32,
     paddingHorizontal: 16,
   },
   emailHighlight: {
-    color: '#2C2416',
+    color: colors.foreground,
     fontWeight: '600',
   },
   fieldGroup: {
@@ -178,23 +191,23 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#2C2416',
+    color: colors.foreground,
     letterSpacing: 0.5,
     marginBottom: 8,
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#DDD5C5',
+    borderColor: colors.border,
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   submitBtn: {
-    backgroundColor: '#3D5A2E',
+    backgroundColor: colors.primary,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -205,7 +218,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitBtnText: {
-    color: '#2C2416',
+    color: ON_PRIMARY,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -216,11 +229,11 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontSize: 14,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   loginLink: {
     fontSize: 14,
-    color: '#3D5A2E',
+    color: colors.primary,
     fontWeight: '600',
   },
 });

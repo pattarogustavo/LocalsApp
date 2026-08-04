@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -20,9 +20,16 @@ import { useTripsStore } from '@/store/trips';
 import { generateId } from '@/utils/trip-helpers';
 import type { TripPhoto } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
+import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3; // 3 columns with padding
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 interface Props {
   tripId: string;
@@ -32,6 +39,8 @@ interface Props {
 
 export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { trips, addPhoto, removePhoto } = useTripsStore();
   const trip = trips.find((t) => t.id === tripId);
   const photos = trip?.photos || [];
@@ -128,7 +137,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="images-outline" size={16} color="#4CAF7D" />
+          <Ionicons name="images-outline" size={16} color={colors.textAccent} />
           <Text style={styles.headerTitle}>{fullPage ? (t.photos.tripPhotos ?? 'FOTOS DA VIAGEM') : (t.photos.tripAlbum ?? 'ÁLBUM DA VIAGEM')}</Text>
           {photos.length > 0 && (
             <View style={styles.countBadge}>
@@ -137,14 +146,14 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
           )}
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={showOptions}>
-          <Ionicons name="add" size={16} color="#4CAF7D" />
+          <Ionicons name="add" size={16} color={colors.textAccent} />
           <Text style={styles.addBtnText}>{t.common.add}</Text>
         </TouchableOpacity>
       </View>
 
       {photos.length === 0 ? (
         <TouchableOpacity style={styles.emptyState} onPress={showOptions}>
-          <Ionicons name="camera-outline" size={28} color="rgba(255,255,255,0.3)" />
+          <Ionicons name="camera-outline" size={28} color={colors.muted} />
           <Text style={styles.emptyText}>{t.photos.emptyText ?? 'Adicione fotos da sua viagem'}</Text>
           <Text style={styles.emptySubtext}>{t.photos.emptySubtext ?? 'Compartilhadas com todos os viajantes'}</Text>
         </TouchableOpacity>
@@ -167,7 +176,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
           ))}
           {/* Add more button */}
           <TouchableOpacity style={styles.addMoreCell} onPress={showOptions}>
-            <Ionicons name="add" size={24} color="rgba(255,255,255,0.4)" />
+            <Ionicons name="add" size={24} color={colors.muted} />
           </TouchableOpacity>
         </View>
       )}
@@ -205,7 +214,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
                     setTimeout(() => handleDelete(selectedPhoto), 300);
                   }}
                 >
-                  <Ionicons name="trash-outline" size={16} color="#ff6b6b" />
+                  <Ionicons name="trash-outline" size={16} color={colors.error} />
                   <Text style={styles.deletePhotoText}>{t.photos.deletePhoto}</Text>
                 </TouchableOpacity>
               </View>
@@ -234,7 +243,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
             <TextInput
               style={styles.captionInput}
               placeholder={t.photos.captionPlaceholder}
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              placeholderTextColor={colors.muted}
               value={captionInput}
               onChangeText={setCaptionInput}
               maxLength={120}
@@ -260,9 +269,9 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: withAlpha(colors.foreground, 0.06),
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -273,14 +282,14 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   countBadge: {
-    backgroundColor: 'rgba(76,175,125,0.2)',
+    backgroundColor: withAlpha(colors.primary, 0.2),
     borderRadius: 10,
     paddingHorizontal: 7,
     paddingVertical: 2,
     marginLeft: 4,
   },
   countText: {
-    color: '#4CAF7D',
+    color: colors.textAccent,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -296,7 +305,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   headerTitle: {
-    color: '#fff',
+    color: colors.foreground,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1,
@@ -305,13 +314,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(76,175,125,0.15)',
+    backgroundColor: withAlpha(colors.primary, 0.15),
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   addBtnText: {
-    color: '#4CAF7D',
+    color: colors.textAccent,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -321,12 +330,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   emptyText: {
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.muted,
     fontSize: 14,
     fontWeight: '500',
   },
   emptySubtext: {
-    color: 'rgba(255,255,255,0.3)',
+    color: colors.muted,
     fontSize: 12,
   },
   grid: {
@@ -344,12 +353,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  // Caption strip sits directly on the photo thumbnail — kept permanently
+  // dark with light text so it stays legible over any photo, in any theme.
   captionOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlayModal,
     paddingHorizontal: 4,
     paddingVertical: 3,
   },
@@ -361,17 +372,18 @@ const styles = StyleSheet.create({
     width: PHOTO_SIZE,
     height: PHOTO_SIZE,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: withAlpha(colors.foreground, 0.06),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.border,
     borderStyle: 'dashed',
   },
-  // Full image modal
+  // Full image modal — a permanently-dark photo-viewer overlay (lightbox),
+  // intentionally not theme-adaptive so photos are always shown on black.
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.92)',
+    backgroundColor: colors.overlayScrim,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -411,28 +423,29 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255,107,107,0.1)',
+    backgroundColor: withAlpha(colors.error, 0.1),
     borderRadius: 12,
   },
   deletePhotoText: {
-    color: '#ff6b6b',
+    color: colors.error,
     fontSize: 13,
   },
-  // Caption modal
+  // Caption modal — a real bottom sheet (not a fixed-dark overlay), so it
+  // follows the same adaptive sheet pattern as create-trip-sheet.tsx.
   captionModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: colors.overlayModal,
     justifyContent: 'flex-end',
   },
   captionModalSheet: {
-    backgroundColor: '#1A2E22',
+    backgroundColor: colors.background,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
     gap: 12,
   },
   captionModalTitle: {
-    color: '#fff',
+    color: colors.foreground,
     fontSize: 17,
     fontWeight: '600',
     textAlign: 'center',
@@ -443,14 +456,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   captionInput: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#fff',
+    color: colors.foreground,
     fontSize: 15,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: colors.border,
   },
   captionModalActions: {
     flexDirection: 'row',
@@ -462,11 +475,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.surface,
     alignItems: 'center',
   },
   captionCancelText: {
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.muted,
     fontSize: 15,
     fontWeight: '500',
   },
@@ -474,11 +487,11 @@ const styles = StyleSheet.create({
     flex: 2,
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: '#2D5A3D',
+    backgroundColor: colors.primary,
     alignItems: 'center',
   },
   captionConfirmText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 15,
     fontWeight: '600',
   },

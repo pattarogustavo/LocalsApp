@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -18,11 +18,19 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth';
 import { useTranslation } from '@/hooks/use-translation';
+import { useColors } from '@/hooks/use-colors';
+import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
+
+// Text/icon color for content drawn on top of the primary button color, which
+// is identical in both schemes — always the light-scheme background swatch.
+const ON_PRIMARY = SchemeColors.light.background;
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { setSession } = useAuthStore();
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -88,7 +96,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#F0EBE0' }}
+      style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
@@ -99,7 +107,7 @@ export default function LoginScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="#8A7F6E" />
+            <Ionicons name="arrow-back" size={22} color={colors.muted} />
           </TouchableOpacity>
           <Text style={styles.title}>{t.auth.login.subtitle}</Text>
           <Text style={styles.subtitle}>{t.auth.login.title}</Text>
@@ -116,7 +124,7 @@ export default function LoginScreen() {
               onPress={handleAppleLogin}
             />
             {appleLoading && (
-              <ActivityIndicator color="#2C2416" style={{ marginBottom: 12 }} />
+              <ActivityIndicator color={colors.foreground} style={{ marginBottom: 12 }} />
             )}
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
@@ -132,7 +140,7 @@ export default function LoginScreen() {
           <TextInput
             style={styles.input}
             placeholder={t.auth.login.emailPlaceholder}
-            placeholderTextColor="#8A7F6E"
+            placeholderTextColor={colors.muted}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -154,7 +162,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.inputFlex}
               placeholder={t.auth.login.passwordPlaceholder}
-              placeholderTextColor="#8A7F6E"
+              placeholderTextColor={colors.muted}
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
@@ -162,7 +170,7 @@ export default function LoginScreen() {
               onSubmitEditing={handleLogin}
             />
             <TouchableOpacity onPress={() => setShowPassword((v) => !v)} style={styles.eyeBtn}>
-              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#8A7F6E" />
+              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.muted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -175,7 +183,7 @@ export default function LoginScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#F7F3EC" />
+            <ActivityIndicator color={ON_PRIMARY} />
           ) : (
             <Text style={styles.submitBtnText}>{t.auth.login.loginBtn}</Text>
           )}
@@ -193,7 +201,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   scroll: {
     paddingHorizontal: 24,
   },
@@ -211,12 +219,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#2C2416',
+    color: colors.foreground,
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   appleBtn: { height: 50, marginBottom: 16 },
   divider: {
@@ -228,10 +236,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#DDD5C5',
+    backgroundColor: colors.border,
   },
   dividerText: {
-    color: '#2C2416',
+    color: colors.foreground,
     fontSize: 12,
   },
   fieldGroup: {
@@ -246,32 +254,32 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#2C2416',
+    color: colors.foreground,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
   forgotLink: {
     fontSize: 12,
-    color: '#3D5A2E',
+    color: colors.primary,
     fontWeight: '600',
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#DDD5C5',
+    borderColor: colors.border,
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#DDD5C5',
+    borderColor: colors.border,
     paddingRight: 8,
   },
   inputFlex: {
@@ -279,13 +287,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   eyeBtn: {
     padding: 8,
   },
   submitBtn: {
-    backgroundColor: '#3D5A2E',
+    backgroundColor: colors.primary,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -296,7 +304,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitBtnText: {
-    color: '#F7F3EC',
+    color: ON_PRIMARY,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -307,11 +315,11 @@ const styles = StyleSheet.create({
   },
   registerText: {
     fontSize: 14,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   registerLink: {
     fontSize: 14,
-    color: '#3D5A2E',
+    color: colors.primary,
     fontWeight: '600',
   },
 });

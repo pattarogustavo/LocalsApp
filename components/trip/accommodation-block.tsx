@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
 import { useTripsStore } from '@/store/trips';
 import { generateId } from '@/utils/trip-helpers';
 import type { Trip, Accommodation, AccommodationType, Destination } from '@/types/voyage';
@@ -23,6 +24,11 @@ import { DatePickerField } from '@/components/ui/date-picker-field';
 import { DocAttachField } from '@/components/ui/doc-attach-field';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from '@/hooks/use-translation';
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,6 +72,7 @@ function AddAccommodationModal({
 }: AddAccommodationModalProps) {
   const t = useTranslation();
   const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { addAccommodation } = useTripsStore();
 
   const [type, setType] = useState<AccommodationType>('hotel');
@@ -150,11 +157,11 @@ function AddAccommodationModal({
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
           <View style={styles.addHeader}>
-            <Text style={[styles.addTitle, { color: '#2C2416' }]}>
+            <Text style={[styles.addTitle, { color: colors.foreground }]}>
               {t.accommodation.addTitle} {destination.name}
             </Text>
             <Pressable onPress={handleClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="close" size={16} color="#2C2416" />
+              <Ionicons name="close" size={16} color={colors.foreground} />
             </Pressable>
           </View>
 
@@ -173,14 +180,14 @@ function AddAccommodationModal({
                   style={({ pressed }) => [
                     styles.typeChip,
                     {
-                      backgroundColor: type === t.id ? '#2D5A3D' : colors.surface,
-                      borderColor: type === t.id ? '#2D5A3D' : colors.border,
+                      backgroundColor: type === t.id ? colors.primary : colors.surface,
+                      borderColor: type === t.id ? colors.primary : colors.border,
                       opacity: pressed ? 0.8 : 1,
                     },
                   ]}
                 >
                   <Text style={styles.typeChipEmoji}>{t.icon}</Text>
-                  <Text style={[styles.typeChipLabel, { color: type === t.id ? '#fff' : colors.foreground }]}>
+                  <Text style={[styles.typeChipLabel, { color: type === t.id ? colors.textOnPrimary : colors.foreground }]}>
                     {t.label}
                   </Text>
                 </Pressable>
@@ -203,7 +210,7 @@ function AddAccommodationModal({
                   }}
                 />
               </View>
-              <View style={[styles.nightsBadge, { backgroundColor: '#2D5A3D' }]}>
+              <View style={[styles.nightsBadge, { backgroundColor: colors.primary }]}>
                 <Text style={styles.nightsNum}>
                   {nightsBetween(checkIn.toISOString(), checkOut.toISOString())}
                 </Text>
@@ -309,9 +316,9 @@ function AddAccommodationModal({
             <TouchableOpacity
               onPress={handleSave}
               disabled={!canSave}
-              style={[styles.saveBtn, { backgroundColor: canSave ? '#2C2416' : colors.border }]}
+              style={[styles.saveBtn, { backgroundColor: canSave ? colors.primary : colors.border }]}
             >
-              <Text style={[styles.saveBtnText, { color: canSave ? '#fff' : colors.muted }]}>
+              <Text style={[styles.saveBtnText, { color: canSave ? colors.textOnPrimary : colors.muted }]}>
                 {t.accommodation.save}
               </Text>
             </TouchableOpacity>
@@ -334,14 +341,15 @@ interface AccommodationBlockProps {
 export function AccommodationBlock({ trip }: AccommodationBlockProps) {
   const t = useTranslation();
   const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { removeAccommodation } = useTripsStore();
   const [addingForDest, setAddingForDest] = useState<Destination | null>(null);
 
   return (
-    <View style={[styles.container, { backgroundColor: '#1A3A2A' }]}>
+    <View style={styles.container}>
       <View style={styles.blockHeader}>
         <View style={styles.blockTitleRow}>
-          <Ionicons name="bed-outline" size={16} color="#A8D5B5" />
+          <Ionicons name="bed-outline" size={16} color={colors.textAccent} />
           <Text style={styles.blockTitle}>{t.accommodation.title.toUpperCase()}</Text>
         </View>
       </View>
@@ -386,9 +394,9 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
                               );
                             }}
                           >
-                            <Ionicons name="document-attach-outline" size={11} color="#3D5A2E" />
+                            <Ionicons name="document-attach-outline" size={11} color={colors.textAccent} />
                             <Text style={styles.docBadgeText}>{t.accommodation.confirmationAttached}</Text>
-                            <Ionicons name="open-outline" size={10} color="rgba(82,183,136,0.7)" />
+                            <Ionicons name="open-outline" size={10} color={withAlpha(colors.primary, 0.7)} />
                           </TouchableOpacity>
                         )}
                       </View>
@@ -396,7 +404,7 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
                         onPress={() => removeAccommodation(trip.id, acc.id)}
                         style={({ pressed }) => [styles.removeBtn, { opacity: pressed ? 0.7 : 1 }]}
                       >
-                        <Ionicons name="trash-outline" size={14} color="#E74C3C" />
+                        <Ionicons name="trash-outline" size={14} color={colors.error} />
                       </Pressable>
                     </View>
                   </View>
@@ -408,7 +416,7 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
               onPress={() => setAddingForDest(dest)}
               style={({ pressed }) => [styles.addAccBtn, { opacity: pressed ? 0.8 : 1 }]}
             >
-              <Ionicons name="add" size={14} color="#A8D5B5" />
+              <Ionicons name="add" size={14} color={colors.textAccent} />
               <Text style={styles.addAccBtnText}>{t.accommodation.addAccommodation}</Text>
             </Pressable>
           </View>
@@ -430,7 +438,7 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: {
     borderRadius: 16,
     padding: 16,
@@ -445,7 +453,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   blockTitle: {
-    color: '#A8D5B5',
+    color: colors.textAccent,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1,
@@ -453,7 +461,7 @@ const styles = StyleSheet.create({
   destSection: {
     marginBottom: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.1)',
+    borderTopColor: colors.border,
     paddingTop: 12,
   },
   destHeaderRow: {
@@ -463,21 +471,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   destName: {
-    color: '#fff',
+    color: colors.foreground,
     fontSize: 14,
     fontWeight: '600',
   },
   destDays: {
-    color: '#A8D5B5',
+    color: colors.textAccent,
     fontSize: 12,
   },
   noAccText: {
-    color: 'rgba(255,255,255,0.4)',
+    color: colors.muted,
     fontSize: 13,
     marginBottom: 8,
   },
   accCard: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: colors.surface,
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
@@ -496,20 +504,20 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   accName: {
-    color: '#fff',
+    color: colors.foreground,
     fontSize: 14,
     fontWeight: '600',
   },
   accDates: {
-    color: '#A8D5B5',
+    color: colors.textAccent,
     fontSize: 12,
   },
   accCode: {
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.muted,
     fontSize: 11,
   },
   accAddress: {
-    color: 'rgba(255,255,255,0.45)',
+    color: colors.muted,
     fontSize: 11,
     marginTop: 2,
   },
@@ -520,7 +528,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   docBadgeText: {
-    color: '#3D5A2E',
+    color: colors.textAccent,
     fontSize: 11,
   },
   removeBtn: {
@@ -534,19 +542,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(168,213,181,0.3)',
+    borderColor: withAlpha(colors.primary, 0.3),
     borderStyle: 'dashed',
     alignSelf: 'flex-start',
   },
   addAccBtnText: {
-    color: '#A8D5B5',
+    color: colors.textAccent,
     fontSize: 13,
     fontWeight: '500',
   },
   // Modal
+  // Full-screen backdrop scrim behind the bottom sheet — universal UI
+  // pattern, intentionally theme-independent.
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: colors.overlayModal,
     justifyContent: 'flex-end',
   },
   addSheet: {

@@ -4,14 +4,27 @@ export const themeColors: {
   background: { light: string; dark: string };
   surface: { light: string; dark: string };
   card: { light: string; dark: string };
+  cardElevated: { light: string; dark: string };
   foreground: { light: string; dark: string };
   muted: { light: string; dark: string };
+  textPlaceholder: { light: string; dark: string };
+  textOnPrimary: { light: string; dark: string };
+  textAccent: { light: string; dark: string };
   border: { light: string; dark: string };
+  borderInput: { light: string; dark: string };
   success: { light: string; dark: string };
   warning: { light: string; dark: string };
   error: { light: string; dark: string };
   accent: { light: string; dark: string };
   tint: { light: string; dark: string };
+  info: { light: string; dark: string };
+  statusBoarding: { light: string; dark: string };
+  statusDeparted: { light: string; dark: string };
+  statusArrived: { light: string; dark: string };
+  overlayModal: { light: string; dark: string };
+  overlayScrim: { light: string; dark: string };
+  tabIconActive: { light: string; dark: string };
+  tabIconInactive: { light: string; dark: string };
 };
 declare const themeConfig: {
   themeColors: typeof themeColors;

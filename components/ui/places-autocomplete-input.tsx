@@ -14,6 +14,11 @@ import { trpc } from '@/lib/trpc';
 import { useColors } from '@/hooks/use-colors';
 import { useTranslation } from '@/hooks/use-translation';
 
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
+
 export interface PlaceResult {
   placeId: string;
   name: string;
@@ -80,10 +85,10 @@ export function PlacesAutocompleteInput({
     setDebouncedQuery('');
   };
 
-  const bg = dark ? 'rgba(255,255,255,0.08)' : colors.surface;
-  const textColor = dark ? '#F0EBE0' : colors.foreground;
-  const mutedColor = dark ? 'rgba(240,235,224,0.9)' : colors.muted;
-  const borderColor = dark ? 'rgba(255,255,255,0.12)' : colors.border;
+  const bg = dark ? withAlpha(colors.foreground, 0.08) : colors.surface;
+  const textColor = colors.foreground;
+  const mutedColor = colors.muted;
+  const borderColor = dark ? withAlpha(colors.foreground, 0.12) : colors.border;
 
   const predictions = data?.predictions || [];
 
@@ -104,7 +109,7 @@ export function PlacesAutocompleteInput({
           {value || defaultPlaceholder}
         </Text>
         {value ? (
-          <Ionicons name="checkmark-circle" size={16} color="#3D5A2E" />
+          <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
         ) : (
           <Ionicons name="chevron-forward" size={14} color={mutedColor} />
         )}

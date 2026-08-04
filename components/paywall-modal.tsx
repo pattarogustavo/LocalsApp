@@ -8,7 +8,17 @@ import {
   ScrollView,
 } from 'react-native';
 import { useColors } from '@/hooks/use-colors';
+import { SchemeColors } from '@/constants/theme';
 import { useTripsStore } from '@/store/trips';
+
+// Text/icon color for content drawn on top of a solid brand-colored fill, which
+// is identical in both schemes — always the light-scheme background swatch.
+const ON_PRIMARY = SchemeColors.light.background;
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 interface PaywallModalProps {
   visible: boolean;
@@ -16,44 +26,48 @@ interface PaywallModalProps {
   feature?: string;
 }
 
-const PLANS = [
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: 'R$ 19,90/mês',
-    priceAnnual: 'R$ 14,90/mês (anual)',
-    highlight: 'Mais popular',
-    color: '#2D5A3D',
-    features: [
-      '✦ Roteiros com IA ilimitados',
-      '✦ Sugestão de destinos por IA',
-      '✦ Lugares recomendados por IA',
-      '✦ Roteiro dia-a-dia automático',
-      '✦ Até 20 roteiros salvos',
-      '✦ Exportar roteiro em PDF',
-    ],
-  },
-  {
-    id: 'premium',
-    name: 'Premium',
-    price: 'R$ 34,90/mês',
-    priceAnnual: 'R$ 24,90/mês (anual)',
-    highlight: 'Completo',
-    color: '#1A3A2A',
-    features: [
-      '✦ Tudo do plano Pro',
-      '✦ Roteiros colaborativos',
-      '✦ Alertas de preço de voos',
-      '✦ Integração com calendário',
-      '✦ Roteiros ilimitados',
-      '✦ Suporte prioritário',
-    ],
-  },
-];
-
 export function PaywallModal({ visible, onClose, feature }: PaywallModalProps) {
   const colors = useColors();
   const { userPlan, updateUserPlan } = useTripsStore();
+
+  // Per-plan brand accent colors: "Pro" maps to the app's primary green; "Premium"
+  // keeps a distinct, deliberately fixed darker green (no theme-token equivalent)
+  // so the two tiers stay visually distinguishable in both light and dark mode —
+  // same precedent as the non-mapped flight-status colors in transport-block.tsx.
+  const PLANS = [
+    {
+      id: 'pro',
+      name: 'Pro',
+      price: 'R$ 19,90/mês',
+      priceAnnual: 'R$ 14,90/mês (anual)',
+      highlight: 'Mais popular',
+      color: colors.primary,
+      features: [
+        '✦ Roteiros com IA ilimitados',
+        '✦ Sugestão de destinos por IA',
+        '✦ Lugares recomendados por IA',
+        '✦ Roteiro dia-a-dia automático',
+        '✦ Até 20 roteiros salvos',
+        '✦ Exportar roteiro em PDF',
+      ],
+    },
+    {
+      id: 'premium',
+      name: 'Premium',
+      price: 'R$ 34,90/mês',
+      priceAnnual: 'R$ 24,90/mês (anual)',
+      highlight: 'Completo',
+      color: '#1A3A2A',
+      features: [
+        '✦ Tudo do plano Pro',
+        '✦ Roteiros colaborativos',
+        '✦ Alertas de preço de voos',
+        '✦ Integração com calendário',
+        '✦ Roteiros ilimitados',
+        '✦ Suporte prioritário',
+      ],
+    },
+  ];
 
   // For demo: simulate upgrading to Pro
   const handleUpgrade = (planId: string) => {
@@ -67,7 +81,7 @@ export function PaywallModal({ visible, onClose, feature }: PaywallModalProps) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, { backgroundColor: colors.overlayModal }]}>
         <View style={[styles.sheet, { backgroundColor: colors.background }]}>
           {/* Handle */}
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
@@ -214,19 +228,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   planName: {
-    color: '#fff',
+    color: ON_PRIMARY,
     fontSize: 18,
     fontWeight: '700',
     fontStyle: 'italic',
   },
   planBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: withAlpha(ON_PRIMARY, 0.2),
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   planBadgeText: {
-    color: '#fff',
+    color: ON_PRIMARY,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -253,7 +267,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   upgradeBtnText: {
-    color: '#fff',
+    color: ON_PRIMARY,
     fontSize: 16,
     fontWeight: '700',
   },

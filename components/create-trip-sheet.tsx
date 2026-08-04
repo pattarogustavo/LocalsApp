@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { PaywallModal } from '@/components/paywall-modal';
 import { trpc } from '@/lib/trpc';
 import type { Trip, Destination } from '@/types/voyage';
 import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
 import { DatePickerField } from '@/components/ui/date-picker-field';
 import { useTranslation } from '@/hooks/use-translation';
 
@@ -38,6 +39,7 @@ function formatDateDisplay(date: Date): string {
 export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheetProps) {
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
   const addTrip = useTripsStore((s) => s.addTrip);
   const userPlan = useTripsStore((s) => s.userPlan);
@@ -213,12 +215,12 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
               >
                 {/* Header */}
                 <View style={styles.header}>
-                  <Text style={[styles.title, { color: '#2C2416' }]}>{t.createTrip.title}</Text>
+                  <Text style={[styles.title, { color: colors.foreground }]}>{t.createTrip.title}</Text>
                   <TouchableOpacity
                     onPress={handleClose}
                     style={[styles.closeBtn, { backgroundColor: colors.surface }]}
                   >
-                    <Ionicons name="close" size={16} color="#2C2416" />
+                    <Ionicons name="close" size={16} color={colors.foreground} />
                   </TouchableOpacity>
                 </View>
 
@@ -239,7 +241,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                       onPress={() => setTotalDays(Math.max(1, totalDays - 1))}
                       style={[styles.stepperBtn, { backgroundColor: colors.background }]}
                     >
-                      <Ionicons name="remove" size={14} color="#2C2416" />
+                      <Ionicons name="remove" size={14} color={colors.foreground} />
                     </TouchableOpacity>
                     <View style={styles.stepperCenter}>
                       <Text style={[styles.stepperNum, { color: colors.foreground }]}>{totalDays}</Text>
@@ -249,7 +251,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                       onPress={() => setTotalDays(totalDays + 1)}
                       style={[styles.stepperBtn, { backgroundColor: colors.background }]}
                     >
-                      <Ionicons name="add" size={14} color="#2C2416" />
+                      <Ionicons name="add" size={14} color={colors.foreground} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -274,7 +276,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                               onPress={() => handleUpdateDestDays(dest.id, -1)}
                               style={[styles.miniBtn, { backgroundColor: colors.background }]}
                             >
-                              <Ionicons name="remove" size={12} color="#2C2416" />
+                              <Ionicons name="remove" size={12} color={colors.foreground} />
                             </TouchableOpacity>
                             <Text style={[styles.destDaysNum, { color: colors.foreground }]}>{dest.days}</Text>
                             <Text style={[styles.destDaysLabel, { color: colors.muted }]}>{t.common.days}</Text>
@@ -282,13 +284,13 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                               onPress={() => handleUpdateDestDays(dest.id, 1)}
                               style={[styles.miniBtn, { backgroundColor: colors.background }]}
                             >
-                              <Ionicons name="add" size={12} color="#2C2416" />
+                              <Ionicons name="add" size={12} color={colors.foreground} />
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => handleRemoveDest(dest.id)}
                               style={[styles.miniBtn, { backgroundColor: colors.background, marginLeft: 4 }]}
                             >
-                              <Ionicons name="close" size={12} color="#C0392B" />
+                              <Ionicons name="close" size={12} color={colors.error} />
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -303,7 +305,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                       <Text
                         style={[
                           styles.daysDistValue,
-                          { color: distributedDays > totalDays ? '#E74C3C' : '#2D5A3D' },
+                          { color: distributedDays > totalDays ? colors.error : colors.success },
                         ]}
                       >
                         {distributedDays}/{totalDays}
@@ -326,10 +328,10 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                   disabled={!canCreate || isCreating}
                   style={[
                     styles.createBtn,
-                    { backgroundColor: canCreate ? '#2C2416' : colors.surface },
+                    { backgroundColor: canCreate ? colors.primary : colors.surface },
                   ]}
                 >
-                  <Text style={[styles.createBtnText, { color: canCreate ? '#fff' : colors.muted }]}>
+                  <Text style={[styles.createBtnText, { color: canCreate ? colors.textOnPrimary : colors.muted }]}>
                     {!startDate
                       ? t.createTrip.startDate
                       : destinations.length === 0
@@ -368,11 +370,11 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlayModal,
   },
   sheet: {
     borderTopLeftRadius: 24,
@@ -478,7 +480,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 20,
     borderRadius: 2,
-    backgroundColor: '#2D5A3D',
+    backgroundColor: colors.primary,
     marginRight: 12,
   },
   destInfo: {
@@ -550,14 +552,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   aiBadge: {
-    backgroundColor: '#2D5A3D',
+    backgroundColor: colors.primary,
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginLeft: 4,
   },
   aiBadgeText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -575,7 +577,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlayModal,
   },
   datePickerCard: {
     borderRadius: 24,
@@ -634,7 +636,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   datePickerConfirmText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 15,
     fontWeight: '700',
   },

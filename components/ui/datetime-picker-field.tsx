@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, StyleSheet, Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '@/hooks/use-translation';
+import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 interface DateTimePickerFieldProps {
   label?: string;
@@ -37,6 +44,8 @@ export function DateTimePickerField({
   hint,
 }: DateTimePickerFieldProps) {
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const lang = t.common.today === 'Hoje' ? 'pt' : t.common.today === 'Today' ? 'en' : t.common.today === 'Hoy' ? 'es' : 'pt';
   const locale = LOCALE_MAP[lang] || 'pt-BR';
 
@@ -52,7 +61,7 @@ export function DateTimePickerField({
       <View style={styles.container}>
         {label ? <Text style={styles.label}>{label}</Text> : null}
         <View style={styles.field}>
-          <Ionicons name="calendar-outline" size={16} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="calendar-outline" size={16} color={colors.muted} />
           <Text style={[styles.fieldText, !hasValue && styles.placeholder]}>
             {hasValue ? formatDisplay(value, locale) : placeholder}
           </Text>
@@ -68,11 +77,11 @@ export function DateTimePickerField({
       <View style={styles.container}>
         {label ? <Text style={styles.label}>{label}</Text> : null}
         <TouchableOpacity style={styles.field} onPress={() => { setTempDate(value || new Date()); setShowDatePicker(true); }}>
-          <Ionicons name="calendar-outline" size={16} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="calendar-outline" size={16} color={colors.muted} />
           <Text style={[styles.fieldText, !hasValue && styles.placeholder]}>
             {hasValue ? formatDisplay(value, locale) : placeholder}
           </Text>
-          <Ionicons name="chevron-down" size={14} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="chevron-down" size={14} color={colors.muted} />
         </TouchableOpacity>
         {hint ? <Text style={styles.hint}>{hint}</Text> : null}
 
@@ -88,7 +97,7 @@ export function DateTimePickerField({
                 display="spinner"
                 minimumDate={minimumDate}
                 onChange={(_, d) => { if (d) setTempDate(d); }}
-                textColor="#F0EBE0"
+                textColor={colors.foreground}
                 style={{ width: '100%' }}
               />
               <View style={styles.sheetBtns}>
@@ -117,7 +126,7 @@ export function DateTimePickerField({
                 mode="time"
                 display="spinner"
                 onChange={(_, d) => { if (d) setTempDate(d); }}
-                textColor="#F0EBE0"
+                textColor={colors.foreground}
                 style={{ width: '100%' }}
               />
               <View style={styles.sheetBtns}>
@@ -143,11 +152,11 @@ export function DateTimePickerField({
     <View style={styles.container}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
       <TouchableOpacity style={styles.field} onPress={() => { setTempDate(value || new Date()); setShowDatePicker(true); }}>
-        <Ionicons name="calendar-outline" size={16} color="rgba(240,235,224,0.9)" />
+        <Ionicons name="calendar-outline" size={16} color={colors.muted} />
         <Text style={[styles.fieldText, !hasValue && styles.placeholder]}>
           {hasValue ? formatDisplay(value, locale) : placeholder}
         </Text>
-        <Ionicons name="chevron-down" size={14} color="rgba(240,235,224,0.9)" />
+        <Ionicons name="chevron-down" size={14} color={colors.muted} />
       </TouchableOpacity>
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
 
@@ -178,29 +187,29 @@ export function DateTimePickerField({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: { marginBottom: 14 },
-  label: { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: 'rgba(240,235,224,0.9)', marginBottom: 6 },
+  label: { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: colors.muted, marginBottom: 6 },
   field: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: withAlpha(colors.foreground, 0.07),
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: withAlpha(colors.foreground, 0.08),
   },
-  fieldText: { flex: 1, fontSize: 15, color: '#F0EBE0' },
-  placeholder: { color: 'rgba(240,235,224,0.9)' },
-  hint: { fontSize: 11, color: 'rgba(240,235,224,0.9)', marginTop: 4 },
-  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#EDE8DC', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, alignItems: 'stretch', width: '100%' },
-  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center', marginBottom: 16 },
-  sheetTitle: { fontSize: 16, fontWeight: '700', color: '#F0EBE0', textAlign: 'center', marginBottom: 8 },
+  fieldText: { flex: 1, fontSize: 15, color: colors.foreground },
+  placeholder: { color: colors.muted },
+  hint: { fontSize: 11, color: colors.muted, marginTop: 4 },
+  sheetOverlay: { flex: 1, backgroundColor: colors.overlayModal, justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, alignItems: 'stretch', width: '100%' },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16 },
+  sheetTitle: { fontSize: 16, fontWeight: '700', color: colors.foreground, textAlign: 'center', marginBottom: 8 },
   sheetBtns: { flexDirection: 'row', gap: 12, marginTop: 16, width: '100%' },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center' },
-  cancelText: { fontSize: 15, color: 'rgba(240,235,224,0.9)', fontWeight: '600' },
-  confirmBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#3D5A2E', alignItems: 'center' },
-  confirmText: { fontSize: 15, color: '#F0EBE0', fontWeight: '700' },
+  cancelBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: withAlpha(colors.foreground, 0.07), alignItems: 'center' },
+  cancelText: { fontSize: 15, color: colors.muted, fontWeight: '600' },
+  confirmBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center' },
+  confirmText: { fontSize: 15, color: colors.textOnPrimary, fontWeight: '700' },
 });

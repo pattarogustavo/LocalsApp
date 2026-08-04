@@ -1,11 +1,18 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTripsStore } from '@/store/trips';
 import { generateId, getCurrencySymbol } from '@/utils/trip-helpers';
 import type { Expense } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
+import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 interface Traveler {
   id: string;
@@ -79,6 +86,8 @@ function computeSettlement(expenses: Expense[], travelers: Traveler[]) {
 
 export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: ExpensesBlockProps) {
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const addExpense = useTripsStore((s) => s.addExpense);
   const removeExpense = useTripsStore((s) => s.removeExpense);
   const [showModal, setShowModal] = useState(false);
@@ -134,73 +143,73 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
   const displayedExpenses = showAll ? expenses : expenses.slice(0, 3);
 
   return (
-    <View style={card}>
+    <View style={styles.card}>
       {/* Header */}
-      <View style={row}>
-        <View style={rowLeft}>
-          <Ionicons name="cash-outline" size={16} color="#3D5A2E" />
-          <Text style={sectionTitle}>{t.expenses.title.toUpperCase()}</Text>
+      <View style={styles.row}>
+        <View style={styles.rowLeft}>
+          <Ionicons name="cash-outline" size={16} color={colors.textAccent} />
+          <Text style={styles.sectionTitle}>{t.expenses.title.toUpperCase()}</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowModal(true)} style={addBtn}>
-          <Ionicons name="add" size={14} color="#3D5A2E" />
-          <Text style={addBtnText}>{t.common.add}</Text>
+        <TouchableOpacity onPress={() => setShowModal(true)} style={styles.addBtn}>
+          <Ionicons name="add" size={14} color={colors.textAccent} />
+          <Text style={styles.addBtnText}>{t.common.add}</Text>
         </TouchableOpacity>
       </View>
 
       {expenses.length === 0 ? (
-        <Text style={emptyText}>{t.expenses.empty}</Text>
+        <Text style={styles.emptyText}>{t.expenses.empty}</Text>
       ) : (
         <>
           {/* Expense list */}
           {displayedExpenses.map((expense) => {
             const cat = CATEGORIES.find((c) => c.key === expense.category) || CATEGORIES[5];
             return (
-              <View key={expense.id} style={expenseRow}>
-                <View style={catIcon}>
-                  <Ionicons name={cat.icon as any} size={14} color="#3D5A2E" />
+              <View key={expense.id} style={styles.expenseRow}>
+                <View style={styles.catIcon}>
+                  <Ionicons name={cat.icon as any} size={14} color={colors.textAccent} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={expenseDesc} numberOfLines={1}>{expense.description}</Text>
-                  <Text style={expenseMeta}>
+                  <Text style={styles.expenseDesc} numberOfLines={1}>{expense.description}</Text>
+                  <Text style={styles.expenseMeta}>
                     {expense.paidBy || selfName}
                     {expense.splitWith && expense.splitWith.length > 0
                       ? ` · ${t.expenses.splitWith} ${expense.splitWith.filter((n) => n !== expense.paidBy).join(', ') || t.expenses.everyone}`
                       : ''}
                   </Text>
                 </View>
-                <Text style={expenseAmount}>{symbol}{expense.amount.toFixed(2)}</Text>
+                <Text style={styles.expenseAmount}>{symbol}{expense.amount.toFixed(2)}</Text>
                 <TouchableOpacity onPress={() => removeExpense(tripId, expense.id)} style={{ padding: 4 }}>
-                  <Ionicons name="trash-outline" size={14} color="rgba(240,235,224,0.9)" />
+                  <Ionicons name="trash-outline" size={14} color={colors.muted} />
                 </TouchableOpacity>
               </View>
             );
           })}
 
           {expenses.length > 3 && (
-            <TouchableOpacity onPress={() => setShowAll((v) => !v)} style={showMoreBtn}>
-              <Text style={showMoreText}>{showAll ? t.common.close : `${t.expenses.showMore} ${expenses.length - 3}`}</Text>
+            <TouchableOpacity onPress={() => setShowAll((v) => !v)} style={styles.showMoreBtn}>
+              <Text style={styles.showMoreText}>{showAll ? t.common.close : `${t.expenses.showMore} ${expenses.length - 3}`}</Text>
             </TouchableOpacity>
           )}
 
           {/* Total */}
-          <View style={totalRow}>
-            <Text style={totalLabel}>{t.expenses.total}</Text>
-            <Text style={totalValue}>{symbol}{total.toFixed(2)}</Text>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>{t.expenses.total}</Text>
+            <Text style={styles.totalValue}>{symbol}{total.toFixed(2)}</Text>
           </View>
 
           {/* Settlement summary */}
           {transactions.length > 0 && (
-            <View style={settlementBox}>
-              <Text style={settlementTitle}>{t.expenses.settlement.toUpperCase()}</Text>
+            <View style={styles.settlementBox}>
+              <Text style={styles.settlementTitle}>{t.expenses.settlement.toUpperCase()}</Text>
               {transactions.map((tx, i) => (
-                <View key={i} style={settlementRow}>
-                  <Ionicons name="arrow-forward" size={12} color="#3D5A2E" />
-                  <Text style={settlementText}>
-                    <Text style={{ fontWeight: '700', color: '#F0EBE0' }}>{tx.from}</Text>
+                <View key={i} style={styles.settlementRow}>
+                  <Ionicons name="arrow-forward" size={12} color={colors.textAccent} />
+                  <Text style={styles.settlementText}>
+                    <Text style={{ fontWeight: '700', color: colors.foreground }}>{tx.from}</Text>
                     {` ${t.expenses.pays} `}
-                    <Text style={{ fontWeight: '700', color: '#3D5A2E' }}>{symbol}{tx.amount.toFixed(2)}</Text>
+                    <Text style={{ fontWeight: '700', color: colors.textAccent }}>{symbol}{tx.amount.toFixed(2)}</Text>
                     {` ${t.expenses.to} `}
-                    <Text style={{ fontWeight: '700', color: '#F0EBE0' }}>{tx.to}</Text>
+                    <Text style={{ fontWeight: '700', color: colors.foreground }}>{tx.to}</Text>
                   </Text>
                 </View>
               ))}
@@ -211,23 +220,23 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
 
       {/* Add Expense Modal */}
       <Modal visible={showModal} transparent animationType="slide">
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlayModal }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <ScrollView style={{ backgroundColor: '#F0EBE0', borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
+            <ScrollView style={{ backgroundColor: colors.background, borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
               contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 24 }}
               keyboardShouldPersistTaps="handled"
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: '#2C2416' }}>
+                <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: colors.foreground }}>
                   {t.expenses.newExpense}
                 </Text>
                 <TouchableOpacity onPress={() => setShowModal(false)}>
-                  <Ionicons name="close-circle" size={26} color="#2C2416" />
+                  <Ionicons name="close-circle" size={26} color={colors.foreground} />
                 </TouchableOpacity>
               </View>
 
               {/* Category */}
-              <Text style={formLabel}>{t.expenses.category}</Text>
+              <Text style={styles.formLabel}>{t.expenses.category}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {CATEGORIES.map((c) => (
                   <TouchableOpacity
@@ -236,40 +245,40 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                     style={{
                       flexDirection: 'row', alignItems: 'center', gap: 6,
                       paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-                      backgroundColor: category === c.key ? '#2C2416' : '#EDE8DC',
+                      backgroundColor: category === c.key ? colors.primary : colors.surface,
                     }}
                   >
-                    <Ionicons name={c.icon as any} size={14} color={category === c.key ? '#F0EBE0' : '#2C2416'} />
-                    <Text style={{ fontSize: 12, color: category === c.key ? '#F0EBE0' : '#2C2416' }}>{c.label}</Text>
+                    <Ionicons name={c.icon as any} size={14} color={category === c.key ? colors.textOnPrimary : colors.foreground} />
+                    <Text style={{ fontSize: 12, color: category === c.key ? colors.textOnPrimary : colors.foreground }}>{c.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
               {/* Description */}
-              <Text style={formLabel}>{t.expenses.description}</Text>
+              <Text style={styles.formLabel}>{t.expenses.description}</Text>
               <TextInput
                 value={description}
                 onChangeText={setDescription}
                 placeholder={t.expenses.descriptionPlaceholder}
-                placeholderTextColor="#9BA1A6"
-                style={formInput}
+                placeholderTextColor={colors.muted}
+                style={styles.formInput}
               />
 
               {/* Amount */}
-              <Text style={formLabel}>{t.expenses.amount} ({symbol})</Text>
+              <Text style={styles.formLabel}>{t.expenses.amount} ({symbol})</Text>
               <TextInput
                 value={amount}
                 onChangeText={setAmount}
                 placeholder="0,00"
-                placeholderTextColor="#9BA1A6"
+                placeholderTextColor={colors.muted}
                 keyboardType="decimal-pad"
-                style={formInput}
+                style={styles.formInput}
               />
 
               {/* Paid by */}
               {allParticipants.length > 1 && (
                 <>
-                  <Text style={formLabel}>{t.expenses.paidBy}</Text>
+                  <Text style={styles.formLabel}>{t.expenses.paidBy}</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                     {allParticipants.map((name) => (
                       <TouchableOpacity
@@ -277,10 +286,10 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                         onPress={() => setPaidBy(name)}
                         style={{
                           paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: paidBy === name ? '#2C2416' : '#EDE8DC',
+                          backgroundColor: paidBy === name ? colors.primary : colors.surface,
                         }}
                       >
-                        <Text style={{ fontSize: 13, color: paidBy === name ? '#F0EBE0' : '#2C2416', fontWeight: '600' }}>
+                        <Text style={{ fontSize: 13, color: paidBy === name ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
                           {name}
                         </Text>
                       </TouchableOpacity>
@@ -288,7 +297,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                   </View>
 
                   {/* Split with */}
-                  <Text style={formLabel}>{t.expenses.splitWith} ({t.expenses.emptyMeansAll})</Text>
+                  <Text style={styles.formLabel}>{t.expenses.splitWith} ({t.expenses.emptyMeansAll})</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                     {allParticipants.map((name) => (
                       <TouchableOpacity
@@ -296,12 +305,12 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                         onPress={() => toggleParticipant(name)}
                         style={{
                           paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: splitWith.includes(name) ? '#2D5A3D' : '#EDE8DC',
+                          backgroundColor: splitWith.includes(name) ? colors.primary : colors.surface,
                           borderWidth: 1,
-                          borderColor: splitWith.includes(name) ? '#3D5A2E' : 'transparent',
+                          borderColor: splitWith.includes(name) ? colors.primary : 'transparent',
                         }}
                       >
-                        <Text style={{ fontSize: 13, color: splitWith.includes(name) ? '#F0EBE0' : '#2C2416', fontWeight: '600' }}>
+                        <Text style={{ fontSize: 13, color: splitWith.includes(name) ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
                           {name}
                         </Text>
                       </TouchableOpacity>
@@ -312,9 +321,9 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
 
               <TouchableOpacity
                 onPress={handleAdd}
-                style={{ backgroundColor: '#2C2416', borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
+                style={{ backgroundColor: colors.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
               >
-                <Text style={{ color: '#F0EBE0', fontWeight: '600', fontSize: 16 }}>{t.common.add}</Text>
+                <Text style={{ color: colors.textOnPrimary, fontWeight: '600', fontSize: 16 }}>{t.common.add}</Text>
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -324,33 +333,88 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
   );
 }
 
-// ─── Inline styles ────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
-const card: any = {
-  backgroundColor: 'rgba(44,36,22,0.5)',
-  borderRadius: 20, padding: 16, marginBottom: 12,
-};
-const row: any = {
-  flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12,
-};
-const rowLeft: any = { flexDirection: 'row', alignItems: 'center', gap: 8 };
-const sectionTitle: any = { color: '#F0EBE0', fontSize: 12, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' };
-const addBtn: any = { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(61,90,46,0.15)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 };
-const addBtnText: any = { color: '#3D5A2E', fontSize: 12, fontWeight: '600' };
-const emptyText: any = { color: 'rgba(240,235,224,0.9)', fontSize: 13, marginTop: 4 };
-const expenseRow: any = { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 };
-const catIcon: any = { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(61,90,46,0.12)', alignItems: 'center', justifyContent: 'center' };
-const expenseDesc: any = { color: '#F0EBE0', fontSize: 14 };
-const expenseMeta: any = { color: 'rgba(240,235,224,0.9)', fontSize: 11, marginTop: 1 };
-const expenseAmount: any = { color: '#3D5A2E', fontSize: 14, fontWeight: '600' };
-const showMoreBtn: any = { alignItems: 'center', paddingVertical: 6 };
-const showMoreText: any = { color: 'rgba(82,183,136,0.7)', fontSize: 12 };
-const totalRow: any = { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(240,235,224,0.9)' };
-const totalLabel: any = { color: 'rgba(240,235,224,0.9)', fontSize: 13 };
-const totalValue: any = { color: '#F0EBE0', fontSize: 15, fontWeight: '700' };
-const settlementBox: any = { marginTop: 12, backgroundColor: 'rgba(82,183,136,0.08)', borderRadius: 12, padding: 12, gap: 8 };
-const settlementTitle: any = { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: 'rgba(240,235,224,0.9)', marginBottom: 4 };
-const settlementRow: any = { flexDirection: 'row', alignItems: 'center', gap: 6 };
-const settlementText: any = { fontSize: 13, color: 'rgba(240,235,224,0.9)', flex: 1 };
-const formLabel: any = { fontSize: 12, fontWeight: '700', color: '#2C2416', marginBottom: 6, letterSpacing: 0.5 };
-const formInput: any = { backgroundColor: '#EDE8DC', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: '#2C2416', fontSize: 15, marginBottom: 14 };
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionTitle: {
+    color: colors.foreground,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: withAlpha(colors.primary, 0.15),
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  addBtnText: { color: colors.textAccent, fontSize: 12, fontWeight: '600' },
+  emptyText: { color: colors.muted, fontSize: 13, marginTop: 4 },
+  expenseRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  catIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: withAlpha(colors.primary, 0.12),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expenseDesc: { color: colors.foreground, fontSize: 14 },
+  expenseMeta: { color: colors.muted, fontSize: 11, marginTop: 1 },
+  expenseAmount: { color: colors.textAccent, fontSize: 14, fontWeight: '600' },
+  showMoreBtn: { alignItems: 'center', paddingVertical: 6 },
+  showMoreText: { color: withAlpha(colors.primary, 0.7), fontSize: 12 },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  totalLabel: { color: colors.muted, fontSize: 13 },
+  totalValue: { color: colors.foreground, fontSize: 15, fontWeight: '700' },
+  settlementBox: {
+    marginTop: 12,
+    backgroundColor: withAlpha(colors.primary, 0.08),
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+  },
+  settlementTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    color: colors.muted,
+    marginBottom: 4,
+  },
+  settlementRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  settlementText: { fontSize: 13, color: colors.muted, flex: 1 },
+  formLabel: { fontSize: 12, fontWeight: '700', color: colors.foreground, marginBottom: 6, letterSpacing: 0.5 },
+  formInput: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: colors.foreground,
+    fontSize: 15,
+    marginBottom: 14,
+  },
+});

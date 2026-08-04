@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -16,12 +16,21 @@ import { useTripsStore } from '@/store/trips';
 import { generateId, getInitials } from '@/utils/trip-helpers';
 import type { Traveler } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
+import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 interface TravelersBlockProps {
   tripId: string;
   travelers: Traveler[];
 }
 
+// Fixed palette of avatar colors assigned to travelers (pure data, not theme —
+// each traveler is pinned to one of these regardless of light/dark scheme).
 const AVATAR_COLORS = [
   '#4CAF7D', '#5B9BD5', '#E8A838', '#E85D5D', '#9B59B6',
   '#1ABC9C', '#E67E22', '#3498DB', '#E91E63', '#00BCD4',
@@ -29,6 +38,8 @@ const AVATAR_COLORS = [
 
 export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const addTraveler = useTripsStore((s) => s.addTraveler);
   const removeTraveler = useTripsStore((s) => s.removeTraveler);
   const insets = useSafeAreaInsets();
@@ -85,11 +96,11 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="people-outline" size={16} color="#4CAF7D" />
+          <Ionicons name="people-outline" size={16} color={colors.textAccent} />
           <Text style={styles.headerTitle}>{(t.travelers.title ?? 'VIAJANTES').toUpperCase()}</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => setShowModal(true)}>
-          <Ionicons name="person-add-outline" size={14} color="#4CAF7D" />
+          <Ionicons name="person-add-outline" size={14} color={colors.textAccent} />
           <Text style={styles.addBtnText}>{t.common.add}</Text>
         </TouchableOpacity>
       </View>
@@ -97,15 +108,15 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
       {/* Avatar row */}
       <View style={styles.avatarRow}>
         {/* "Me" avatar always first */}
-        <View style={[styles.avatar, { backgroundColor: '#2D5A3D' }]}>
-          <Text style={styles.avatarText}>{(t.travelers.you ?? 'EU').toUpperCase()}</Text>
+        <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+          <Text style={[styles.avatarText, { color: colors.textOnPrimary }]}>{(t.travelers.you ?? 'EU').toUpperCase()}</Text>
         </View>
 
         {travelers.map((traveler) => (
           <TouchableOpacity
             key={traveler.id}
             onLongPress={() => handleRemove(traveler)}
-            style={[styles.avatar, { backgroundColor: traveler.color || '#4CAF7D' }]}
+            style={[styles.avatar, { backgroundColor: traveler.color || colors.primary }]}
           >
             <Text style={styles.avatarText}>{traveler.initials}</Text>
             {traveler.inviteStatus === 'pending' && (
@@ -115,7 +126,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
         ))}
 
         <TouchableOpacity style={styles.addAvatar} onPress={() => setShowModal(true)}>
-          <Ionicons name="add" size={18} color="rgba(255,255,255,0.4)" />
+          <Ionicons name="add" size={18} color={colors.muted} />
         </TouchableOpacity>
       </View>
 
@@ -124,7 +135,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
         <View style={styles.travelerList}>
           {travelers.map((traveler) => (
             <View key={traveler.id} style={styles.travelerRow}>
-              <View style={[styles.smallAvatar, { backgroundColor: traveler.color || '#4CAF7D' }]}>
+              <View style={[styles.smallAvatar, { backgroundColor: traveler.color || colors.primary }]}>
                 <Text style={styles.smallAvatarText}>{traveler.initials}</Text>
               </View>
               <View style={styles.travelerInfo}>
@@ -144,7 +155,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
                   </View>
                 ) : null}
                 <TouchableOpacity onPress={() => handleRemove(traveler)} style={styles.removeBtn}>
-                  <Ionicons name="close" size={14} color="rgba(255,255,255,0.3)" />
+                  <Ionicons name="close" size={14} color={colors.muted} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -166,7 +177,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
               <View style={styles.modalTitleRow}>
                 <Text style={styles.modalTitle}>{t.travelers.addTraveler}</Text>
                 <TouchableOpacity onPress={() => setShowModal(false)}>
-                  <Ionicons name="close-circle" size={24} color="rgba(255,255,255,0.4)" />
+                  <Ionicons name="close-circle" size={24} color={colors.muted} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.modalSubtitle}>
@@ -178,7 +189,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
                 <TextInput
                   style={styles.input}
                   placeholder={t.travelers.namePlaceholder}
-                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  placeholderTextColor={colors.muted}
                   value={nameInput}
                   onChangeText={setNameInput}
                   autoCapitalize="words"
@@ -192,7 +203,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
                 <TextInput
                   style={styles.input}
                   placeholder={t.travelers.emailPlaceholder}
-                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  placeholderTextColor={colors.muted}
                   value={emailInput}
                   onChangeText={setEmailInput}
                   keyboardType="email-address"
@@ -228,9 +239,9 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -247,7 +258,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   headerTitle: {
-    color: '#fff',
+    color: colors.foreground,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1,
@@ -256,13 +267,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(76,175,125,0.15)',
+    backgroundColor: withAlpha(colors.primary, 0.15),
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   addBtnText: {
-    color: '#4CAF7D',
+    color: colors.textAccent,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -280,6 +291,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
   },
+  // White initials sit on arbitrary, data-driven avatar background colors
+  // (AVATAR_COLORS / traveler.color) — not a themed surface, so no token
+  // applies here; white stays legible across every avatar color in both schemes.
   avatarText: {
     color: '#fff',
     fontSize: 13,
@@ -292,19 +306,19 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#E8A838',
+    backgroundColor: colors.warning,
     borderWidth: 2,
-    borderColor: '#0F1E14',
+    borderColor: colors.surface,
   },
   addAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: withAlpha(colors.foreground, 0.06),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: withAlpha(colors.foreground, 0.12),
     borderStyle: 'dashed',
   },
   travelerList: {
@@ -323,6 +337,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Same rationale as avatarText above — sits on data-driven avatar colors.
   smallAvatarText: {
     color: '#fff',
     fontSize: 11,
@@ -332,12 +347,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   travelerName: {
-    color: '#fff',
+    color: colors.foreground,
     fontSize: 14,
     fontWeight: '500',
   },
   travelerEmail: {
-    color: 'rgba(255,255,255,0.4)',
+    color: colors.muted,
     fontSize: 11,
     marginTop: 1,
   },
@@ -347,37 +362,39 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   pendingBadge: {
-    backgroundColor: 'rgba(232,168,56,0.15)',
+    backgroundColor: withAlpha(colors.warning, 0.15),
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   pendingText: {
-    color: '#E8A838',
+    color: colors.warning,
     fontSize: 10,
     fontWeight: '600',
   },
   activeBadge: {
-    backgroundColor: 'rgba(76,175,125,0.15)',
+    backgroundColor: withAlpha(colors.primary, 0.15),
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   activeText: {
-    color: '#4CAF7D',
+    color: colors.textAccent,
     fontSize: 10,
     fontWeight: '600',
   },
   removeBtn: {
     padding: 4,
   },
+  // Full-screen backdrop scrim behind the bottom sheet — universal UI
+  // pattern, intentionally theme-independent.
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: colors.overlayModal,
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: '#1A2E22',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -386,7 +403,7 @@ const styles = StyleSheet.create({
   modalHandle: {
     width: 36,
     height: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: withAlpha(colors.foreground, 0.2),
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 4,
@@ -397,14 +414,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalTitle: {
-    color: '#fff',
+    color: colors.foreground,
     fontSize: 20,
     fontWeight: '700',
     fontStyle: 'italic',
     fontFamily: 'serif',
   },
   modalSubtitle: {
-    color: 'rgba(255,255,255,0.45)',
+    color: colors.muted,
     fontSize: 13,
     lineHeight: 18,
   },
@@ -412,23 +429,23 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   inputLabel: {
-    color: 'rgba(255,255,255,0.4)',
+    color: colors.muted,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1,
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: withAlpha(colors.foreground, 0.07),
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 13,
-    color: '#fff',
+    color: colors.foreground,
     fontSize: 15,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: withAlpha(colors.foreground, 0.1),
   },
   inputHint: {
-    color: 'rgba(255,255,255,0.3)',
+    color: colors.muted,
     fontSize: 11,
     lineHeight: 15,
   },
@@ -441,11 +458,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: withAlpha(colors.foreground, 0.07),
     alignItems: 'center',
   },
   cancelText: {
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.muted,
     fontSize: 15,
     fontWeight: '500',
   },
@@ -453,14 +470,14 @@ const styles = StyleSheet.create({
     flex: 2,
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: '#2D5A3D',
+    backgroundColor: colors.primary,
     alignItems: 'center',
   },
   confirmBtnDisabled: {
     opacity: 0.4,
   },
   confirmText: {
-    color: '#fff',
+    color: colors.textOnPrimary,
     fontSize: 15,
     fontWeight: '600',
   },

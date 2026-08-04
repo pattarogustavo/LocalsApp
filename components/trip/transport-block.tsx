@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, Modal, StyleSheet,
   ScrollView, TextInput, Alert, Image, Platform, ActivityIndicator,
@@ -18,6 +18,13 @@ import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/place
 import { DocAttachField } from '@/components/ui/doc-attach-field';
 import { getApiBaseUrl } from '@/constants/api';
 import { useTranslation } from '@/hooks/use-translation';
+import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -39,10 +46,16 @@ const CITY_MODE_KEYS: Array<{ key: CityTransportMode; icon: string }> = [
   { key: 'taxi', icon: 'car-outline' },
 ];
 
-const FLIGHT_STATUS_COLORS: Record<string, string> = {
-  scheduled: '#3D5A2E', delayed: '#F59E0B', boarding: '#3B82F6',
-  departed: '#8B5CF6', arrived: '#10B981', cancelled: '#EF4444',
-};
+function getFlightStatusColors(colors: ThemeColorPalette): Record<string, string> {
+  // Drawn directly as text/dot color (see `statusText` below), so every
+  // entry must be a token that stays legible in both schemes — `primary` is
+  // constant across schemes and fails contrast as text in dark mode, so
+  // "scheduled" uses `textAccent` instead.
+  return {
+    scheduled: colors.textAccent, delayed: colors.warning, boarding: colors.statusBoarding,
+    departed: colors.statusDeparted, arrived: colors.statusArrived, cancelled: colors.error,
+  };
+}
 
 function formatTime(time: string): string {
   if (!time) return '--:--';
@@ -140,6 +153,9 @@ function FlightCard({
   onViewBoardingPass: () => void;
 }) {
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const FLIGHT_STATUS_COLORS = useMemo(() => getFlightStatusColors(colors), [colors]);
   const f = transport.flight!;
   const statusColor = FLIGHT_STATUS_COLORS[f.status || 'scheduled'];
   const FLIGHT_STATUS_LABELS: Record<string, string> = {
@@ -166,7 +182,7 @@ function FlightCard({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           {hasNotifs && (
             <View style={styles.notifBadge}>
-              <Ionicons name="notifications" size={10} color="#C4A35A" />
+              <Ionicons name="notifications" size={10} color={colors.accent} />
             </View>
           )}
           {f.airline ? (
@@ -174,7 +190,7 @@ function FlightCard({
           ) : null}
         </View>
         <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-          <Ionicons name="trash-outline" size={14} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="trash-outline" size={14} color={colors.muted} />
         </TouchableOpacity>
       </View>
 
@@ -195,7 +211,7 @@ function FlightCard({
           <View style={styles.flightLineRow}>
             <View style={styles.flightLineDot} />
             <View style={styles.flightLineBar} />
-            <Ionicons name="airplane" size={14} color="rgba(240,235,224,0.9)" />
+            <Ionicons name="airplane" size={14} color={colors.muted} />
             <View style={styles.flightLineBar} />
             <View style={styles.flightLineDot} />
           </View>
@@ -229,12 +245,12 @@ function FlightCard({
         <View style={{ flex: 1 }} />
         {transport.boardingPassUri ? (
           <TouchableOpacity style={styles.boardingPassBtn} onPress={onViewBoardingPass}>
-            <Ionicons name="qr-code-outline" size={12} color="#3D5A2E" />
+            <Ionicons name="qr-code-outline" size={12} color={colors.textAccent} />
             <Text style={styles.boardingPassText}>Passagem</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.boardingPassBtnEmpty} onPress={onAddBoardingPass}>
-            <Ionicons name="qr-code-outline" size={12} color="rgba(240,235,224,0.9)" />
+            <Ionicons name="qr-code-outline" size={12} color={colors.muted} />
             <Text style={styles.boardingPassTextEmpty}>+ QR</Text>
           </TouchableOpacity>
         )}
@@ -246,6 +262,8 @@ function FlightCard({
 // ─── Car Card ────────────────────────────────────────────────────────────────
 
 function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () => void }) {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const c = transport.car!;
 
   const formatDT = (iso: string) => {
@@ -259,12 +277,12 @@ function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () =
       <View style={styles.flightCardTopRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={styles.modeIconBg}>
-            <Ionicons name="car-outline" size={14} color="#3D5A2E" />
+            <Ionicons name="car-outline" size={14} color={colors.textAccent} />
           </View>
           <Text style={styles.flightAirlineName}>{transport.leg || 'Carro'}</Text>
         </View>
         <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-          <Ionicons name="trash-outline" size={14} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="trash-outline" size={14} color={colors.muted} />
         </TouchableOpacity>
       </View>
 
@@ -281,7 +299,7 @@ function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () =
           <View style={styles.carLineRow}>
             <View style={styles.carLineDot} />
             <View style={styles.carLineBar} />
-            <Ionicons name="car" size={14} color="rgba(240,235,224,0.9)" />
+            <Ionicons name="car" size={14} color={colors.muted} />
             <View style={styles.carLineBar} />
             <View style={styles.carLineDot} />
           </View>
@@ -305,7 +323,7 @@ function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () =
           style={styles.carMapsBtn}
           onPress={() => Linking.openURL(c.mapsUrl!)}
         >
-          <Ionicons name="map-outline" size={12} color="#3D5A2E" />
+          <Ionicons name="map-outline" size={12} color={colors.textAccent} />
           <Text style={styles.carMapsBtnText}>Abrir no Google Maps</Text>
         </TouchableOpacity>
       ) : null}
@@ -315,6 +333,8 @@ function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () =
 
 function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: () => void }) {
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const BETWEEN_MODES_LOCAL = BETWEEN_MODE_KEYS.map((m) => ({
     ...m,
     label: (t.transport as any)[m.key] as string || m.key,
@@ -325,7 +345,7 @@ function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: 
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
           <View style={styles.modeIconBg}>
-            <Ionicons name={modeInfo?.icon as any || 'navigate-outline'} size={16} color="#3D5A2E" />
+            <Ionicons name={modeInfo?.icon as any || 'navigate-outline'} size={16} color={colors.textAccent} />
           </View>
           <View>
             <Text style={styles.flightNumber}>{modeInfo?.label || 'Transporte'}</Text>
@@ -333,7 +353,7 @@ function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: 
           </View>
         </View>
         <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-          <Ionicons name="trash-outline" size={14} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="trash-outline" size={14} color={colors.muted} />
         </TouchableOpacity>
       </View>
       {transport.leg ? (
@@ -343,19 +363,19 @@ function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: 
         <View style={styles.cardFooter}>
           {transport.distance && (
             <View style={styles.footerItem}>
-              <Ionicons name="navigate-outline" size={12} color="rgba(240,235,224,0.9)" />
+              <Ionicons name="navigate-outline" size={12} color={colors.muted} />
               <Text style={styles.footerText}>{transport.distance}</Text>
             </View>
           )}
           {transport.trainNumber && (
             <View style={styles.footerItem}>
-              <Ionicons name="train-outline" size={12} color="rgba(240,235,224,0.9)" />
+              <Ionicons name="train-outline" size={12} color={colors.muted} />
               <Text style={styles.footerText}>#{transport.trainNumber}</Text>
             </View>
           )}
           {transport.platform && (
             <View style={styles.footerItem}>
-              <Ionicons name="location-outline" size={12} color="rgba(240,235,224,0.9)" />
+              <Ionicons name="location-outline" size={12} color={colors.muted} />
               <Text style={styles.footerText}>Plataforma {transport.platform}</Text>
             </View>
           )}
@@ -369,9 +389,9 @@ function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: 
             Alert.alert('Erro', 'Não foi possível abrir o documento.')
           )}
         >
-          <Ionicons name="document-attach-outline" size={12} color="#3D5A2E" />
+          <Ionicons name="document-attach-outline" size={12} color={colors.textAccent} />
           <Text style={styles.boardingPassText}>Bilhete anexado</Text>
-          <Ionicons name="open-outline" size={11} color="rgba(82,183,136,0.7)" />
+          <Ionicons name="open-outline" size={11} color={withAlpha(colors.primary, 0.7)} />
         </TouchableOpacity>
       ) : null}
     </View>
@@ -388,11 +408,13 @@ function FlightResultRow({
   flight: any;
   onSelect: () => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <TouchableOpacity style={styles.flightResultRow} onPress={onSelect}>
       <View style={styles.flightResultLeft}>
         <Text style={styles.flightResultIATA}>{flight.origin}</Text>
-        <Ionicons name="arrow-forward" size={12} color="rgba(240,235,224,0.9)" style={{ marginHorizontal: 4 }} />
+        <Ionicons name="arrow-forward" size={12} color={colors.muted} style={{ marginHorizontal: 4 }} />
         <Text style={styles.flightResultIATA}>{flight.destination}</Text>
       </View>
       <View style={styles.flightResultMid}>
@@ -403,7 +425,7 @@ function FlightResultRow({
         <Text style={styles.flightResultTime}>{formatTime(flight.departureTime)}</Text>
         {flight.duration ? <Text style={styles.flightResultDur}>{flight.duration}</Text> : null}
       </View>
-      <Ionicons name="chevron-forward" size={14} color="rgba(82,183,136,0.5)" />
+      <Ionicons name="chevron-forward" size={14} color={withAlpha(colors.primary, 0.5)} />
     </TouchableOpacity>
   );
 }
@@ -422,6 +444,8 @@ function AddTransportModal({
   accommodations: Accommodation[];
 }) {
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   // Build translated mode arrays
   const BETWEEN_MODES = BETWEEN_MODE_KEYS.map((m) => ({
@@ -819,7 +843,7 @@ function AddTransportModal({
   const ConfirmedFlight = () => (
     <View style={styles.lookupResultCard}>
       <View style={styles.lookupResultHeader}>
-        <Ionicons name="checkmark-circle" size={16} color="#3D5A2E" />
+        <Ionicons name="checkmark-circle" size={16} color={colors.textAccent} />
         <Text style={styles.lookupResultTitle}>Voo selecionado</Text>
         <TouchableOpacity
           onPress={() => { setSelectedFlight(null); setRouteResults([]); setRouteSearched(false); }}
@@ -837,9 +861,9 @@ function AddTransportModal({
         <View style={{ flex: 1, alignItems: 'center', gap: 2 }}>
           <Text style={styles.lookupResultFlightNum}>{selectedFlight.flightNumber}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', gap: 2 }}>
-            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(82,183,136,0.4)' }} />
-            <Ionicons name="airplane" size={12} color="#3D5A2E" />
-            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(82,183,136,0.4)' }} />
+            <View style={{ flex: 1, height: 1, backgroundColor: withAlpha(colors.primary, 0.4) }} />
+            <Ionicons name="airplane" size={12} color={colors.textAccent} />
+            <View style={{ flex: 1, height: 1, backgroundColor: withAlpha(colors.primary, 0.4) }} />
           </View>
           <Text style={styles.lookupResultDuration}>{selectedFlight.duration}</Text>
         </View>
@@ -867,7 +891,7 @@ function AddTransportModal({
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Adicionar Transporte</Text>
             <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
-              <Ionicons name="close" size={18} color="rgba(240,235,224,0.9)" />
+              <Ionicons name="close" size={18} color={colors.muted} />
             </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -882,7 +906,7 @@ function AddTransportModal({
                     onPress={() => setSelectedLeg(leg)}
                     style={[styles.legChip, selectedLeg === leg && styles.legChipActive]}
                   >
-                    <Text style={[styles.legChipText, selectedLeg === leg && { color: '#F0EBE0' }]}>{leg}</Text>
+                    <Text style={[styles.legChipText, selectedLeg === leg && { color: colors.textOnPrimary }]}>{leg}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -898,8 +922,8 @@ function AddTransportModal({
                     onPress={() => { setMode(m.key); setSelectedFlight(null); setSearchError(''); }}
                     style={[styles.modeChip, mode === m.key && styles.modeChipActive]}
                   >
-                    <Ionicons name={m.icon as any} size={16} color={mode === m.key ? '#F0EBE0' : '#3D5A2E'} />
-                    <Text style={[styles.modeChipText, mode === m.key && { color: '#F0EBE0' }]}>{m.label}</Text>
+                    <Ionicons name={m.icon as any} size={16} color={mode === m.key ? colors.textOnPrimary : colors.textAccent} />
+                    <Text style={[styles.modeChipText, mode === m.key && { color: colors.textOnPrimary }]}>{m.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -917,13 +941,13 @@ function AddTransportModal({
                         onPress={() => setEnableNotifs(!enableNotifs)}
                       >
                         <View style={[styles.notifToggleBox, enableNotifs && styles.notifToggleBoxActive]}>
-                          {enableNotifs && <Ionicons name="checkmark" size={13} color="#F0EBE0" />}
+                          {enableNotifs && <Ionicons name="checkmark" size={13} color={colors.textOnPrimary} />}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.notifToggleLabel}>Ativar lembretes de voo</Text>
                           <Text style={styles.notifToggleDesc}>Check-in 24h antes · Embarque 4h antes</Text>
                         </View>
-                        <Ionicons name="notifications-outline" size={16} color="#C4A35A" />
+                        <Ionicons name="notifications-outline" size={16} color={colors.accent} />
                       </TouchableOpacity>
                     )}
                   </>
@@ -936,15 +960,15 @@ function AddTransportModal({
                         style={[styles.searchModeBtn, searchMode === 'route' && styles.searchModeBtnActive]}
                         onPress={() => { setSearchMode('route'); setSearchError(''); setRouteResults([]); setRouteSearched(false); }}
                       >
-                        <Ionicons name="swap-horizontal-outline" size={14} color={searchMode === 'route' ? '#F0EBE0' : '#3D5A2E'} />
-                        <Text style={[styles.searchModeBtnText, searchMode === 'route' && { color: '#F0EBE0' }]}>Origem / Destino</Text>
+                        <Ionicons name="swap-horizontal-outline" size={14} color={searchMode === 'route' ? colors.textOnPrimary : colors.textAccent} />
+                        <Text style={[styles.searchModeBtnText, searchMode === 'route' && { color: colors.textOnPrimary }]}>Origem / Destino</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.searchModeBtn, searchMode === 'number' && styles.searchModeBtnActive]}
                         onPress={() => { setSearchMode('number'); setSearchError(''); }}
                       >
-                        <Ionicons name="barcode-outline" size={14} color={searchMode === 'number' ? '#F0EBE0' : '#3D5A2E'} />
-                        <Text style={[styles.searchModeBtnText, searchMode === 'number' && { color: '#F0EBE0' }]}>Número do voo</Text>
+                        <Ionicons name="barcode-outline" size={14} color={searchMode === 'number' ? colors.textOnPrimary : colors.textAccent} />
+                        <Text style={[styles.searchModeBtnText, searchMode === 'number' && { color: colors.textOnPrimary }]}>Número do voo</Text>
                       </TouchableOpacity>
                     </View>
 
@@ -956,18 +980,18 @@ function AddTransportModal({
                           <Text style={styles.inputLabel}>AEROPORTO DE ORIGEM</Text>
                           <View style={{ position: 'relative' }}>
                             <View style={[styles.textInput, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 0, height: 48 }]}>
-                              <Ionicons name="airplane-outline" size={16} color="rgba(82,183,136,0.6)" />
+                              <Ionicons name="airplane-outline" size={16} color={withAlpha(colors.primary, 0.6)} />
                               <TextInput
                                 value={routeOriginQuery}
                                 onChangeText={handleOriginQueryChange}
                                 placeholder="São Paulo, GRU, Brasil..."
-                                placeholderTextColor="rgba(240,235,224,0.9)"
-                                style={{ flex: 1, color: '#F0EBE0', fontSize: 14 }}
+                                placeholderTextColor={colors.muted}
+                                style={{ flex: 1, color: colors.foreground, fontSize: 14 }}
                                 returnKeyType="search"
                               />
                               {routeOrigin ? (
-                                <View style={{ backgroundColor: 'rgba(61,90,46,0.15)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                  <Text style={{ color: '#3D5A2E', fontSize: 12, fontWeight: '700' }}>{routeOrigin}</Text>
+                                <View style={{ backgroundColor: withAlpha(colors.primary, 0.15), borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                  <Text style={{ color: colors.textAccent, fontSize: 12, fontWeight: '700' }}>{routeOrigin}</Text>
                                 </View>
                               ) : null}
                             </View>
@@ -998,18 +1022,18 @@ function AddTransportModal({
                           <Text style={styles.inputLabel}>AEROPORTO DE DESTINO</Text>
                           <View style={{ position: 'relative' }}>
                             <View style={[styles.textInput, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 0, height: 48 }]}>
-                              <Ionicons name="airplane" size={16} color="rgba(82,183,136,0.6)" />
+                              <Ionicons name="airplane" size={16} color={withAlpha(colors.primary, 0.6)} />
                               <TextInput
                                 value={routeDestQuery}
                                 onChangeText={handleDestQueryChange}
                                 placeholder="Londres, LHR, Reino Unido..."
-                                placeholderTextColor="rgba(240,235,224,0.9)"
-                                style={{ flex: 1, color: '#F0EBE0', fontSize: 14 }}
+                                placeholderTextColor={colors.muted}
+                                style={{ flex: 1, color: colors.foreground, fontSize: 14 }}
                                 returnKeyType="search"
                               />
                               {routeDest ? (
-                                <View style={{ backgroundColor: 'rgba(61,90,46,0.15)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                  <Text style={{ color: '#3D5A2E', fontSize: 12, fontWeight: '700' }}>{routeDest}</Text>
+                                <View style={{ backgroundColor: withAlpha(colors.primary, 0.15), borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                  <Text style={{ color: colors.textAccent, fontSize: 12, fontWeight: '700' }}>{routeDest}</Text>
                                 </View>
                               ) : null}
                             </View>
@@ -1045,24 +1069,24 @@ function AddTransportModal({
 
                         {/* Airline filter (optional) */}
                         <View style={{ marginTop: 10 }}>
-                          <Text style={styles.inputLabel}>COMPANHIA AÉREA <Text style={{ color: 'rgba(240,235,224,0.9)', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</Text></Text>
+                          <Text style={styles.inputLabel}>COMPANHIA AÉREA <Text style={{ color: colors.muted, fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</Text></Text>
                           <View style={[styles.textInput, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 0, height: 48 }]}>
-                            <Ionicons name="business-outline" size={16} color="rgba(82,183,136,0.6)" />
+                            <Ionicons name="business-outline" size={16} color={withAlpha(colors.primary, 0.6)} />
                             <TextInput
                               value={routeAirline}
                               onChangeText={(v) => { setRouteAirline(v); setSearchError(''); }}
                               placeholder="LATAM, Gol, Azul, TAP..."
-                              placeholderTextColor="rgba(240,235,224,0.9)"
-                              style={{ flex: 1, color: '#F0EBE0', fontSize: 14 }}
+                              placeholderTextColor={colors.muted}
+                              style={{ flex: 1, color: colors.foreground, fontSize: 14 }}
                               returnKeyType="search"
                             />
                             {routeAirline.length > 0 && (
                               <TouchableOpacity onPress={() => setRouteAirline('')}>
-                                <Ionicons name="close-circle" size={16} color="rgba(240,235,224,0.9)" />
+                                <Ionicons name="close-circle" size={16} color={colors.muted} />
                               </TouchableOpacity>
                             )}
                           </View>
-                          <Text style={{ fontSize: 11, color: 'rgba(240,235,224,0.9)', marginTop: 4 }}>
+                          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>
                             Filtra os resultados por companhia. Deixe em branco para ver todos.
                           </Text>
                         </View>
@@ -1076,7 +1100,7 @@ function AddTransportModal({
                             value={flightNumber}
                             onChangeText={(v) => { setFlightNumber(v); setSearchError(''); }}
                             placeholder="LA8084"
-                            placeholderTextColor="rgba(240,235,224,0.9)"
+                            placeholderTextColor={colors.muted}
                             autoCapitalize="characters"
                             style={[styles.textInput, { letterSpacing: 2, fontSize: 18, fontWeight: '700' }]}
                           />
@@ -1094,7 +1118,7 @@ function AddTransportModal({
                     {/* Error */}
                     {searchError ? (
                       <View style={[styles.lookupErrorRow, { marginTop: 10 }]}>
-                        <Ionicons name="alert-circle-outline" size={14} color="#EF4444" />
+                        <Ionicons name="alert-circle-outline" size={14} color={colors.error} />
                         <Text style={styles.lookupErrorText}>{searchError}</Text>
                       </View>
                     ) : null}
@@ -1106,7 +1130,7 @@ function AddTransportModal({
                       disabled={isSearching}
                     >
                       {isSearching ? (
-                        <ActivityIndicator size="small" color="#F0EBE0" />
+                        <ActivityIndicator size="small" color={colors.textOnPrimary} />
                       ) : (
                         <Text style={styles.lookupBtnText}>
                           {searchMode === 'route' ? 'Buscar voos' : 'Buscar voo'}
@@ -1171,7 +1195,7 @@ function AddTransportModal({
                               setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError('');
                             }}
                           >
-                            <Ionicons name="bed-outline" size={11} color="#3D5A2E" />
+                            <Ionicons name="bed-outline" size={11} color={colors.textAccent} />
                             <Text style={styles.hotelSuggestionText} numberOfLines={1}>{a.name}</Text>
                           </TouchableOpacity>
                         ))}
@@ -1215,7 +1239,7 @@ function AddTransportModal({
                               setCarRouteResult(null); setCarRouteSearched(false); setCarRouteError('');
                             }}
                           >
-                            <Ionicons name="bed-outline" size={11} color="#3D5A2E" />
+                            <Ionicons name="bed-outline" size={11} color={colors.textAccent} />
                             <Text style={styles.hotelSuggestionText} numberOfLines={1}>{a.name}</Text>
                           </TouchableOpacity>
                         ))}
@@ -1238,7 +1262,7 @@ function AddTransportModal({
                     style={[styles.lookupBtn, { marginBottom: 12 }]}
                     onPress={handleCarRouteSearch}
                   >
-                    <Ionicons name="navigate-outline" size={16} color="#F0EBE0" />
+                    <Ionicons name="navigate-outline" size={16} color={colors.textOnPrimary} />
                     <Text style={[styles.lookupBtnText, { marginLeft: 6 }]}>Calcular rota</Text>
                   </TouchableOpacity>
                 )}
@@ -1246,7 +1270,7 @@ function AddTransportModal({
                 {/* Route error */}
                 {carRouteError ? (
                   <View style={[styles.lookupErrorRow, { marginBottom: 12 }]}>
-                    <Ionicons name="alert-circle-outline" size={14} color="#EF4444" />
+                    <Ionicons name="alert-circle-outline" size={14} color={colors.error} />
                     <Text style={styles.lookupErrorText}>{carRouteError}</Text>
                   </View>
                 ) : null}
@@ -1255,30 +1279,30 @@ function AddTransportModal({
                 {carRouteSearched && carRouteResult && (
                   <View style={styles.carRouteResultCard}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                      <Ionicons name="checkmark-circle" size={16} color="#3D5A2E" />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#3D5A2E' }}>Rota calculada</Text>
+                      <Ionicons name="checkmark-circle" size={16} color={colors.textAccent} />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textAccent }}>Rota calculada</Text>
                       <TouchableOpacity onPress={() => { setCarRouteResult(null); setCarRouteSearched(false); }} style={{ marginLeft: 'auto' }}>
-                        <Text style={{ fontSize: 12, color: 'rgba(240,235,224,0.9)', textDecorationLine: 'underline' }}>Recalcular</Text>
+                        <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: 'underline' }}>Recalcular</Text>
                       </TouchableOpacity>
                     </View>
                     <View style={{ flexDirection: 'row', gap: 16 }}>
                       <View style={{ alignItems: 'center', flex: 1 }}>
-                        <Text style={{ fontSize: 22, fontWeight: '800', color: '#F0EBE0' }}>{carRouteResult.duration}</Text>
-                        <Text style={{ fontSize: 11, color: 'rgba(240,235,224,0.9)', marginTop: 2 }}>Tempo estimado</Text>
+                        <Text style={{ fontSize: 22, fontWeight: '800', color: colors.foreground }}>{carRouteResult.duration}</Text>
+                        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Tempo estimado</Text>
                       </View>
                       {carRouteResult.distance ? (
                         <View style={{ alignItems: 'center', flex: 1 }}>
-                          <Text style={{ fontSize: 22, fontWeight: '800', color: '#F0EBE0' }}>{carRouteResult.distance}</Text>
-                          <Text style={{ fontSize: 11, color: 'rgba(240,235,224,0.9)', marginTop: 2 }}>Distância</Text>
+                          <Text style={{ fontSize: 22, fontWeight: '800', color: colors.foreground }}>{carRouteResult.distance}</Text>
+                          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Distância</Text>
                         </View>
                       ) : null}
                     </View>
                     {carArrival && carRouteResult.durationSeconds > 0 && (
-                      <View style={{ marginTop: 12, padding: 10, backgroundColor: 'rgba(196,163,90,0.1)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(196,163,90,0.2)' }}>
-                        <Text style={{ fontSize: 12, color: '#C4A35A', fontWeight: '600' }}>
+                      <View style={{ marginTop: 12, padding: 10, backgroundColor: withAlpha(colors.accent, 0.1), borderRadius: 10, borderWidth: 1, borderColor: withAlpha(colors.accent, 0.2) }}>
+                        <Text style={{ fontSize: 12, color: colors.accent, fontWeight: '600' }}>
                           ⏰ Sair às {new Date(carArrival.getTime() - carRouteResult.durationSeconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </Text>
-                        <Text style={{ fontSize: 11, color: 'rgba(240,235,224,0.9)', marginTop: 2 }}>Lembrete 1h antes da saída</Text>
+                        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Lembrete 1h antes da saída</Text>
                       </View>
                     )}
                   </View>
@@ -1291,13 +1315,13 @@ function AddTransportModal({
                     onPress={() => setCarNotifEnabled(!carNotifEnabled)}
                   >
                     <View style={[styles.notifToggleBox, carNotifEnabled && styles.notifToggleBoxActive]}>
-                      {carNotifEnabled && <Ionicons name="checkmark" size={13} color="#F0EBE0" />}
+                      {carNotifEnabled && <Ionicons name="checkmark" size={13} color={colors.textOnPrimary} />}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.notifToggleLabel}>Lembrete de saída</Text>
                       <Text style={styles.notifToggleDesc}>Aviso 1 hora antes de precisar sair</Text>
                     </View>
-                    <Ionicons name="notifications-outline" size={16} color="#C4A35A" />
+                    <Ionicons name="notifications-outline" size={16} color={colors.accent} />
                   </TouchableOpacity>
                 )}
 
@@ -1369,13 +1393,13 @@ function AddTransportModal({
                     onPress={() => setTbfNotifEnabled(!tbfNotifEnabled)}
                   >
                     <View style={[styles.notifToggleBox, tbfNotifEnabled && styles.notifToggleBoxActive]}>
-                      {tbfNotifEnabled && <Ionicons name="checkmark" size={13} color="#F0EBE0" />}
+                      {tbfNotifEnabled && <Ionicons name="checkmark" size={13} color={colors.textOnPrimary} />}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.notifToggleLabel}>Alerta 1h antes da saída</Text>
                       <Text style={styles.notifToggleDesc}>Aviso antes do horário de partida</Text>
                     </View>
-                    <Ionicons name="notifications-outline" size={16} color="#C4A35A" />
+                    <Ionicons name="notifications-outline" size={16} color={colors.accent} />
                   </TouchableOpacity>
                 )}
 
@@ -1434,11 +1458,13 @@ function InputRow({ label, value, onChange, placeholder, autoCapitalize, hint }:
   placeholder?: string; autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   hint?: string;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={{ marginBottom: 14 }}>
       <Text style={styles.inputLabel}>{label}</Text>
       <TextInput value={value} onChangeText={onChange} placeholder={placeholder}
-        placeholderTextColor="rgba(240,235,224,0.9)" autoCapitalize={autoCapitalize || 'sentences'}
+        placeholderTextColor={colors.muted} autoCapitalize={autoCapitalize || 'sentences'}
         style={styles.textInput} />
       {hint ? <Text style={styles.inputHint}>{hint}</Text> : null}
     </View>
@@ -1458,15 +1484,18 @@ function BoardingPassModal({
   onClose: () => void;
   onReplace: () => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.bpOverlay}>
         <TouchableOpacity style={styles.bpClose} onPress={onClose}>
-          <Ionicons name="close" size={22} color="#fff" />
+          <Ionicons name="close" size={22} color={colors.textOnPrimary} />
         </TouchableOpacity>
         <Image source={{ uri }} style={styles.bpImage} resizeMode="contain" />
         <TouchableOpacity style={styles.bpReplaceBtn} onPress={onReplace}>
-          <Ionicons name="refresh-outline" size={14} color="rgba(240,235,224,0.9)" />
+          {/* Fixed light icon: sits on the always-dark boarding-pass viewer scrim, not theme-driven */}
+          <Ionicons name="refresh-outline" size={14} color={colors.textOnPrimary} />
           <Text style={styles.bpReplaceText}>Substituir imagem</Text>
         </TouchableOpacity>
       </View>
@@ -1479,6 +1508,8 @@ function BoardingPassModal({
 function CityTransportSection({ tripId, cityMode }: { tripId: string; cityMode?: CityTransportMode }) {
   const { updateCityTransportMode } = useTripsStore();
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const selected = cityMode;
 
   const CITY_MODES = CITY_MODE_KEYS.map((m) => ({
@@ -1490,7 +1521,7 @@ function CityTransportSection({ tripId, cityMode }: { tripId: string; cityMode?:
   return (
     <View style={styles.citySection}>
       <View style={styles.citySectionHeader}>
-        <Ionicons name="map-outline" size={14} color="#3D5A2E" />
+        <Ionicons name="map-outline" size={14} color={colors.textAccent} />
         <Text style={styles.citySectionTitle}>{t.transport.cityTitle}</Text>
       </View>
       <Text style={styles.citySectionDesc}>{t.transport.cityDesc}</Text>
@@ -1503,9 +1534,9 @@ function CityTransportSection({ tripId, cityMode }: { tripId: string; cityMode?:
               onPress={() => updateCityTransportMode(tripId, m.key)}
               style={[styles.cityModeCard, isActive && styles.cityModeCardActive]}
             >
-              <Ionicons name={m.icon as any} size={20} color={isActive ? '#F0EBE0' : '#3D5A2E'} />
-              <Text style={[styles.cityModeLabel, isActive && { color: '#F0EBE0' }]}>{m.label}</Text>
-              <Text style={[styles.cityModeDesc, isActive && { color: 'rgba(44,36,22,0.5)' }]}>{m.desc}</Text>
+              <Ionicons name={m.icon as any} size={20} color={isActive ? colors.textOnPrimary : colors.textAccent} />
+              <Text style={[styles.cityModeLabel, isActive && { color: colors.textOnPrimary }]}>{m.label}</Text>
+              <Text style={[styles.cityModeDesc, isActive && { color: withAlpha(colors.textOnPrimary, 0.7) }]}>{m.desc}</Text>
             </TouchableOpacity>
           );
         })}
@@ -1530,6 +1561,8 @@ export function TransportBlock({
   accommodations?: Accommodation[];
 }) {
   const { addTransport, removeTransport, updateTransport } = useTripsStore();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [showModal, setShowModal] = useState(false);
   const [boardingPassTransportId, setBoardingPassTransportId] = useState<string | null>(null);
   const [viewingBoardingPass, setViewingBoardingPass] = useState<Transport | null>(null);
@@ -1640,17 +1673,17 @@ export function TransportBlock({
       {/* ── Entre Destinos ── */}
       <View style={styles.sectionHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Ionicons name="airplane-outline" size={15} color="#3D5A2E" />
+          <Ionicons name="airplane-outline" size={15} color={colors.textAccent} />
           <Text style={styles.sectionTitle}>ENTRE DESTINOS</Text>
         </View>
         <TouchableOpacity onPress={() => setShowModal(true)} style={styles.addIconBtn}>
-          <Ionicons name="add" size={18} color="#3D5A2E" />
+          <Ionicons name="add" size={18} color={colors.textAccent} />
         </TouchableOpacity>
       </View>
 
       {transports.length === 0 ? (
         <TouchableOpacity onPress={() => setShowModal(true)} style={styles.emptyState}>
-          <Ionicons name="airplane-outline" size={24} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="airplane-outline" size={24} color={colors.muted} />
           <Text style={styles.emptyText}>Adicione os transportes entre os destinos</Text>
           <Text style={styles.emptyCta}>Toque para configurar →</Text>
         </TouchableOpacity>
@@ -1663,14 +1696,14 @@ export function TransportBlock({
                 <View style={styles.legHeader}>
                   <View style={styles.legDot} />
                   <Text style={styles.legHeaderText}>{leg}</Text>
-                  <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(61,90,46,0.10)', marginLeft: 8 }} />
+                  <View style={{ flex: 1, height: 1, backgroundColor: withAlpha(colors.primary, 0.10), marginLeft: 8 }} />
                 </View>
                 {legTransports.length === 0 ? (
                   <TouchableOpacity
                     style={styles.legEmptyRow}
                     onPress={() => setShowModal(true)}
                   >
-                    <Ionicons name="add-circle-outline" size={16} color="rgba(82,183,136,0.4)" />
+                    <Ionicons name="add-circle-outline" size={16} color={withAlpha(colors.primary, 0.4)} />
                     <Text style={styles.legEmptyText}>Adicionar transporte para este trajeto</Text>
                   </TouchableOpacity>
                 ) : (
@@ -1754,111 +1787,112 @@ export function TransportBlock({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: { marginBottom: 16 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: 'rgba(240,235,224,0.9)' },
-  addIconBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(61,90,46,0.12)', alignItems: 'center', justifyContent: 'center' },
-  emptyState: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 20, alignItems: 'center', gap: 6 },
-  emptyText: { fontSize: 14, color: 'rgba(240,235,224,0.9)', textAlign: 'center', lineHeight: 20 },
-  emptyCta: { fontSize: 13, color: '#3D5A2E', fontWeight: '600' },
+  sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: colors.muted },
+  addIconBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: withAlpha(colors.primary, 0.12), alignItems: 'center', justifyContent: 'center' },
+  emptyState: { backgroundColor: withAlpha(colors.foreground, 0.05), borderRadius: 16, padding: 20, alignItems: 'center', gap: 6 },
+  emptyText: { fontSize: 14, color: colors.muted, textAlign: 'center', lineHeight: 20 },
+  emptyCta: { fontSize: 13, color: colors.textAccent, fontWeight: '600' },
 
   // Leg grouping
   legHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  legDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#3D5A2E' },
-  legHeaderText: { fontSize: 12, fontWeight: '700', color: 'rgba(240,235,224,0.9)', letterSpacing: 0.5 },
-  legEmptyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(82,183,136,0.1)', borderStyle: 'dashed' },
-  legEmptyText: { fontSize: 13, color: 'rgba(240,235,224,0.9)' },
+  legDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
+  legHeaderText: { fontSize: 12, fontWeight: '700', color: colors.muted, letterSpacing: 0.5 },
+  legEmptyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: withAlpha(colors.foreground, 0.03), borderRadius: 12, borderWidth: 1, borderColor: withAlpha(colors.primary, 0.1), borderStyle: 'dashed' },
+  legEmptyText: { fontSize: 13, color: colors.muted },
 
   // Transport cards
-  transportCard: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: 'rgba(61,90,46,0.10)' },
+  transportCard: { backgroundColor: withAlpha(colors.foreground, 0.06), borderRadius: 16, padding: 16, borderWidth: 1, borderColor: withAlpha(colors.primary, 0.10) },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   cardHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  modeIconBg: { width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(61,90,46,0.12)', alignItems: 'center', justifyContent: 'center' },
-  flightNumber: { fontSize: 15, fontWeight: '700', color: '#F0EBE0', letterSpacing: 0.5 },
-  airlineName: { fontSize: 12, color: 'rgba(240,235,224,0.9)', marginTop: 1 },
+  modeIconBg: { width: 32, height: 32, borderRadius: 10, backgroundColor: withAlpha(colors.primary, 0.12), alignItems: 'center', justifyContent: 'center' },
+  flightNumber: { fontSize: 15, fontWeight: '700', color: colors.foreground, letterSpacing: 0.5 },
+  airlineName: { fontSize: 12, color: colors.muted, marginTop: 1 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   statusDot: { width: 5, height: 5, borderRadius: 3 },
   statusText: { fontSize: 11, fontWeight: '600' },
-  notifBadge: { width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(196,163,90,0.15)', alignItems: 'center', justifyContent: 'center' },
+  notifBadge: { width: 20, height: 20, borderRadius: 10, backgroundColor: withAlpha(colors.accent, 0.15), alignItems: 'center', justifyContent: 'center' },
   removeBtn: { padding: 4 },
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   routeEndpoint: { alignItems: 'flex-start', minWidth: 48 },
-  routeCode: { fontSize: 22, fontWeight: '800', color: '#F0EBE0', letterSpacing: 1 },
-  routeTime: { fontSize: 12, color: 'rgba(240,235,224,0.9)', marginTop: 2 },
+  routeCode: { fontSize: 22, fontWeight: '800', color: colors.foreground, letterSpacing: 1 },
+  routeTime: { fontSize: 12, color: colors.muted, marginTop: 2 },
   routeMiddle: { flex: 1, alignItems: 'center', gap: 4 },
-  routeDuration: { fontSize: 11, color: 'rgba(240,235,224,0.9)' },
+  routeDuration: { fontSize: 11, color: colors.muted },
   routeLine: { flexDirection: 'row', alignItems: 'center', width: '100%', gap: 2 },
-  routeDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'rgba(82,183,136,0.5)' },
-  layoverText: { fontSize: 10, color: '#F59E0B' },
-  cardFooter: { flexDirection: 'row', gap: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' },
+  routeDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: withAlpha(colors.primary, 0.5) },
+  layoverText: { fontSize: 10, color: colors.warning },
+  cardFooter: { flexDirection: 'row', gap: 16, paddingTop: 10, borderTopWidth: 1, borderTopColor: withAlpha(colors.foreground, 0.06) },
   footerItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  footerText: { fontSize: 11, color: 'rgba(240,235,224,0.9)' },
-  legLabel: { fontSize: 12, color: 'rgba(240,235,224,0.9)', marginBottom: 8, marginTop: -8 },
+  footerText: { fontSize: 11, color: colors.muted },
+  legLabel: { fontSize: 12, color: colors.muted, marginBottom: 8, marginTop: -8 },
 
   // Boarding pass
-  boardingPassRow: { marginTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingTop: 10 },
-  boardingPassBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: 'rgba(61,90,46,0.10)', borderRadius: 10, alignSelf: 'flex-start' },
-  boardingPassText: { fontSize: 12, color: '#3D5A2E', fontWeight: '600' },
-  boardingPassBtnEmpty: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderStyle: 'dashed', alignSelf: 'flex-start' },
-  boardingPassTextEmpty: { fontSize: 12, color: 'rgba(240,235,224,0.9)' },
+  boardingPassRow: { marginTop: 10, borderTopWidth: 1, borderTopColor: withAlpha(colors.foreground, 0.06), paddingTop: 10 },
+  boardingPassBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: withAlpha(colors.primary, 0.10), borderRadius: 10, alignSelf: 'flex-start' },
+  boardingPassText: { fontSize: 12, color: colors.textAccent, fontWeight: '600' },
+  boardingPassBtnEmpty: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: withAlpha(colors.foreground, 0.04), borderRadius: 10, borderWidth: 1, borderColor: withAlpha(colors.foreground, 0.08), borderStyle: 'dashed', alignSelf: 'flex-start' },
+  boardingPassTextEmpty: { fontSize: 12, color: colors.muted },
 
   // Boarding pass viewer
-  bpOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
+  bpOverlay: { flex: 1, backgroundColor: colors.overlayScrim, justifyContent: 'center', alignItems: 'center' },
   bpClose: { position: 'absolute', top: 56, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 20, padding: 8 },
   bpImage: { width: '90%', height: '70%' },
   bpReplaceBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 20, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12 },
-  bpReplaceText: { color: 'rgba(240,235,224,0.9)', fontSize: 13 },
+  // Fixed light text: sits on the always-dark boarding-pass viewer scrim, not theme-driven
+  bpReplaceText: { color: colors.textOnPrimary, fontSize: 13 },
 
   // City transport
-  citySection: { marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(82,183,136,0.1)' },
+  citySection: { marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: withAlpha(colors.primary, 0.1) },
   citySectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  citySectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: 'rgba(240,235,224,0.9)' },
-  citySectionDesc: { fontSize: 12, color: 'rgba(240,235,224,0.9)', lineHeight: 17, marginBottom: 14 },
+  citySectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: colors.muted },
+  citySectionDesc: { fontSize: 12, color: colors.muted, lineHeight: 17, marginBottom: 14 },
   cityModeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  cityModeCard: { width: '47%', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 14, padding: 12, gap: 4, borderWidth: 1, borderColor: 'rgba(82,183,136,0.1)' },
-  cityModeCardActive: { backgroundColor: '#3D5A2E', borderColor: '#3D5A2E' },
-  cityModeLabel: { fontSize: 13, fontWeight: '700', color: '#F0EBE0', marginTop: 4 },
-  cityModeDesc: { fontSize: 11, color: 'rgba(240,235,224,0.9)', lineHeight: 15 },
+  cityModeCard: { width: '47%', backgroundColor: withAlpha(colors.foreground, 0.05), borderRadius: 14, padding: 12, gap: 4, borderWidth: 1, borderColor: withAlpha(colors.primary, 0.1) },
+  cityModeCardActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  cityModeLabel: { fontSize: 13, fontWeight: '700', color: colors.foreground, marginTop: 4 },
+  cityModeDesc: { fontSize: 11, color: colors.muted, lineHeight: 15 },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: '#EDE8DC', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: '92%' },
-  modalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center', marginBottom: 16 },
+  modalOverlay: { flex: 1, backgroundColor: colors.overlayModal, justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: '92%' },
+  modalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: withAlpha(colors.foreground, 0.2), alignSelf: 'center', marginBottom: 16 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#F0EBE0', fontStyle: 'italic' },
-  modalCloseBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  inputLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: 'rgba(240,235,224,0.9)', marginBottom: 6 },
-  inputHint: { fontSize: 11, color: 'rgba(240,235,224,0.9)', marginTop: 4 },
-  textInput: { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: 12, fontSize: 15, color: '#F0EBE0', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: colors.foreground, fontStyle: 'italic' },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: withAlpha(colors.foreground, 0.1), alignItems: 'center', justifyContent: 'center' },
+  inputLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: colors.muted, marginBottom: 6 },
+  inputHint: { fontSize: 11, color: colors.muted, marginTop: 4 },
+  textInput: { backgroundColor: withAlpha(colors.foreground, 0.07), borderRadius: 12, padding: 12, fontSize: 15, color: colors.foreground, borderWidth: 1, borderColor: withAlpha(colors.foreground, 0.08) },
 
   // Leg chips (modal)
-  legChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: 'rgba(82,183,136,0.1)', borderWidth: 1, borderColor: 'rgba(61,90,46,0.15)' },
-  legChipActive: { backgroundColor: '#3D5A2E', borderColor: '#3D5A2E' },
-  legChipText: { fontSize: 12, fontWeight: '600', color: '#3D5A2E' },
+  legChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: withAlpha(colors.primary, 0.1), borderWidth: 1, borderColor: withAlpha(colors.primary, 0.15) },
+  legChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  legChipText: { fontSize: 12, fontWeight: '600', color: colors.textAccent },
 
   // Mode chips
-  modeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: 'rgba(82,183,136,0.1)', borderWidth: 1, borderColor: 'rgba(61,90,46,0.15)' },
-  modeChipActive: { backgroundColor: '#3D5A2E', borderColor: '#3D5A2E' },
-  modeChipText: { fontSize: 13, fontWeight: '600', color: '#3D5A2E' },
+  modeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: withAlpha(colors.primary, 0.1), borderWidth: 1, borderColor: withAlpha(colors.primary, 0.15) },
+  modeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  modeChipText: { fontSize: 13, fontWeight: '600', color: colors.textAccent },
 
   // Notification toggle
-  notifToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: 'rgba(196,163,90,0.08)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(196,163,90,0.2)', marginBottom: 16 },
-  notifToggleBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: 'rgba(240,235,224,0.9)', alignItems: 'center', justifyContent: 'center' },
-  notifToggleBoxActive: { backgroundColor: '#3D5A2E', borderColor: '#3D5A2E' },
-  notifToggleLabel: { fontSize: 13, fontWeight: '600', color: '#F0EBE0' },
-  notifToggleDesc: { fontSize: 11, color: 'rgba(240,235,224,0.9)', marginTop: 1 },
+  notifToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: withAlpha(colors.accent, 0.08), borderRadius: 14, borderWidth: 1, borderColor: withAlpha(colors.accent, 0.2), marginBottom: 16 },
+  notifToggleBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: colors.muted, alignItems: 'center', justifyContent: 'center' },
+  notifToggleBoxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  notifToggleLabel: { fontSize: 13, fontWeight: '600', color: colors.foreground },
+  notifToggleDesc: { fontSize: 11, color: colors.muted, marginTop: 1 },
 
-  addBtn: { backgroundColor: '#3D5A2E', borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8, marginBottom: 8 },
-  addBtnText: { fontSize: 16, fontWeight: '700', color: '#F0EBE0' },
+  addBtn: { backgroundColor: colors.primary, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8, marginBottom: 8 },
+  addBtnText: { fontSize: 16, fontWeight: '700', color: colors.textOnPrimary },
 
   // ── New FlightCard (reference-style) ──────────────────────────────────────
   flightCard: {
-    backgroundColor: '#F0EBE0',
+    backgroundColor: colors.surface,
     borderRadius: 18,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(82,183,136,0.18)',
+    borderColor: withAlpha(colors.primary, 0.18),
   },
   flightCardTopRow: {
     flexDirection: 'row',
@@ -1868,7 +1902,7 @@ const styles = StyleSheet.create({
   },
   flightAirlineName: {
     fontSize: 12,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     letterSpacing: 0.3,
   },
   flightRouteRow: {
@@ -1882,21 +1916,21 @@ const styles = StyleSheet.create({
   },
   flightCityName: {
     fontSize: 11,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     letterSpacing: 0.3,
     marginBottom: 2,
   },
   flightIATA: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#F0EBE0',
+    color: colors.foreground,
     letterSpacing: 1,
     lineHeight: 36,
   },
   flightTime: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginTop: 4,
   },
   flightMiddle: {
@@ -1907,7 +1941,7 @@ const styles = StyleSheet.create({
   },
   flightNumberLabel: {
     fontSize: 11,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     letterSpacing: 0.5,
     marginBottom: 2,
   },
@@ -1921,16 +1955,16 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(240,235,224,0.9)',
+    backgroundColor: colors.border,
   },
   flightLineBar: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(240,235,224,0.9)',
+    backgroundColor: colors.border,
   },
   flightDurationLabel: {
     fontSize: 11,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginTop: 2,
   },
   flightBottomRow: {
@@ -1939,13 +1973,13 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
+    borderTopColor: withAlpha(colors.foreground, 0.06),
     flexWrap: 'wrap',
   },
   flightGateText: {
     fontSize: 11,
-    color: 'rgba(240,235,224,0.9)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    color: colors.muted,
+    backgroundColor: withAlpha(colors.foreground, 0.06),
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
@@ -1953,11 +1987,11 @@ const styles = StyleSheet.create({
 
   // ── Lookup modal card ─────────────────────────────────────────────────────
   lookupCard: {
-    backgroundColor: 'rgba(82,183,136,0.06)',
+    backgroundColor: withAlpha(colors.primary, 0.06),
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(61,90,46,0.12)',
+    borderColor: withAlpha(colors.primary, 0.12),
     marginBottom: 16,
     alignSelf: 'stretch',
     gap: 6,
@@ -1966,7 +2000,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(61,90,46,0.10)',
+    backgroundColor: withAlpha(colors.primary, 0.10),
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
@@ -1974,17 +2008,17 @@ const styles = StyleSheet.create({
   lookupTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#F0EBE0',
+    color: colors.foreground,
   },
   lookupDesc: {
     fontSize: 12,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 8,
   },
   lookupBtn: {
-    backgroundColor: '#3D5A2E',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: 13,
     paddingHorizontal: 32,
@@ -1995,28 +2029,28 @@ const styles = StyleSheet.create({
   lookupBtnText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#F0EBE0',
+    color: colors.textOnPrimary,
   },
   lookupErrorRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(239,68,68,0.1)',
+    backgroundColor: withAlpha(colors.error, 0.1),
     borderRadius: 10,
     padding: 10,
     width: '100%',
   },
   lookupErrorText: {
     fontSize: 12,
-    color: '#EF4444',
+    color: colors.error,
     flex: 1,
   },
   lookupResultCard: {
-    backgroundColor: 'rgba(82,183,136,0.08)',
+    backgroundColor: withAlpha(colors.primary, 0.08),
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(61,90,46,0.15)',
+    borderColor: withAlpha(colors.primary, 0.15),
     marginBottom: 14,
   },
   lookupResultHeader: {
@@ -2028,11 +2062,11 @@ const styles = StyleSheet.create({
   lookupResultTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#3D5A2E',
+    color: colors.textAccent,
   },
   lookupChangeText: {
     fontSize: 12,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     textDecorationLine: 'underline',
   },
   lookupResultRoute: {
@@ -2042,34 +2076,34 @@ const styles = StyleSheet.create({
   },
   lookupResultCity: {
     fontSize: 10,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginBottom: 1,
   },
   lookupResultIATA: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#F0EBE0',
+    color: colors.foreground,
     letterSpacing: 1,
     lineHeight: 28,
   },
   lookupResultTime: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginTop: 3,
   },
   lookupResultFlightNum: {
     fontSize: 10,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     letterSpacing: 0.5,
   },
   lookupResultDuration: {
     fontSize: 10,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
   },
   lookupResultAirline: {
     fontSize: 11,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginTop: 8,
     textAlign: 'center',
   },
@@ -2089,18 +2123,18 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: 'rgba(82,183,136,0.08)',
+    backgroundColor: withAlpha(colors.primary, 0.08),
     borderWidth: 1,
-    borderColor: 'rgba(61,90,46,0.15)',
+    borderColor: withAlpha(colors.primary, 0.15),
   },
   searchModeBtnActive: {
-    backgroundColor: '#3D5A2E',
-    borderColor: '#3D5A2E',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   searchModeBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#3D5A2E',
+    color: colors.textAccent,
   },
   routeInputRow: {
     flexDirection: 'row',
@@ -2121,11 +2155,11 @@ const styles = StyleSheet.create({
   flightResultRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: withAlpha(colors.foreground, 0.05),
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(61,90,46,0.12)',
+    borderColor: withAlpha(colors.primary, 0.12),
     gap: 8,
   },
   flightResultLeft: {
@@ -2136,7 +2170,7 @@ const styles = StyleSheet.create({
   flightResultIATA: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#F0EBE0',
+    color: colors.foreground,
     letterSpacing: 0.5,
   },
   flightResultMid: {
@@ -2146,11 +2180,11 @@ const styles = StyleSheet.create({
   flightResultNum: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#3D5A2E',
+    color: colors.textAccent,
   },
   flightResultAirline: {
     fontSize: 10,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
   },
   flightResultRight: {
     alignItems: 'flex-end',
@@ -2159,51 +2193,51 @@ const styles = StyleSheet.create({
   flightResultTime: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
   },
   flightResultDur: {
     fontSize: 10,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
   },
 
   // Car Card
-  carCard: { backgroundColor: '#F0EBE0', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'rgba(82,183,136,0.18)' },
+  carCard: { backgroundColor: colors.surface, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: withAlpha(colors.primary, 0.18) },
   carRouteRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   carEndpoint: { flex: 1, alignItems: 'flex-start' },
-  carEndpointLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1.2, color: 'rgba(240,235,224,0.9)', marginBottom: 3 },
-  carTime: { fontSize: 14, fontWeight: '700', color: '#F0EBE0', lineHeight: 18 },
-  carAddress: { fontSize: 10, color: 'rgba(240,235,224,0.9)', marginTop: 3, lineHeight: 14 },
+  carEndpointLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1.2, color: colors.muted, marginBottom: 3 },
+  carTime: { fontSize: 14, fontWeight: '700', color: colors.foreground, lineHeight: 18 },
+  carAddress: { fontSize: 10, color: colors.muted, marginTop: 3, lineHeight: 14 },
   carMiddle: { flex: 1, alignItems: 'center', gap: 4, paddingHorizontal: 4 },
   carLineRow: { flexDirection: 'row', alignItems: 'center', width: '100%', gap: 2 },
-  carLineDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'rgba(240,235,224,0.9)' },
-  carLineBar: { flex: 1, height: 1, backgroundColor: 'rgba(240,235,224,0.9)' },
-  carDuration: { fontSize: 11, color: 'rgba(240,235,224,0.9)' },
-  carDistance: { fontSize: 10, color: 'rgba(240,235,224,0.9)' },
-  carMapsBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: 'rgba(82,183,136,0.1)', borderRadius: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(61,90,46,0.15)' },
-  carMapsBtnText: { fontSize: 12, color: '#3D5A2E', fontWeight: '600' },
+  carLineDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.border },
+  carLineBar: { flex: 1, height: 1, backgroundColor: colors.border },
+  carDuration: { fontSize: 11, color: colors.muted },
+  carDistance: { fontSize: 10, color: colors.muted },
+  carMapsBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: withAlpha(colors.primary, 0.1), borderRadius: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: withAlpha(colors.primary, 0.15) },
+  carMapsBtnText: { fontSize: 12, color: colors.textAccent, fontWeight: '600' },
 
   // Car route result card
-  carRouteResultCard: { backgroundColor: 'rgba(82,183,136,0.06)', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: 'rgba(61,90,46,0.12)', marginBottom: 14 },
+  carRouteResultCard: { backgroundColor: withAlpha(colors.primary, 0.06), borderRadius: 16, padding: 14, borderWidth: 1, borderColor: withAlpha(colors.primary, 0.12), marginBottom: 14 },
 
   // Hotel suggestion chips
-  hotelSuggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(82,183,136,0.1)', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(61,90,46,0.15)' },
-  hotelSuggestionText: { fontSize: 11, color: '#3D5A2E', fontWeight: '600', maxWidth: 120 },
+  hotelSuggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: withAlpha(colors.primary, 0.1), borderRadius: 20, borderWidth: 1, borderColor: withAlpha(colors.primary, 0.15) },
+  hotelSuggestionText: { fontSize: 11, color: colors.textAccent, fontWeight: '600', maxWidth: 120 },
   airportDropdown: {
     position: 'absolute', top: 52, left: 0, right: 0, zIndex: 999,
-    backgroundColor: '#EDE8DC', borderRadius: 10, borderWidth: 1,
-    borderColor: 'rgba(82,183,136,0.25)', overflow: 'hidden', maxHeight: 220,
+    backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1,
+    borderColor: withAlpha(colors.primary, 0.25), overflow: 'hidden', maxHeight: 220,
   },
   airportDropdownItem: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(61,90,46,0.12)',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: withAlpha(colors.primary, 0.12),
   },
   airportIATABadge: {
-    backgroundColor: 'rgba(61,90,46,0.15)', borderRadius: 6,
+    backgroundColor: withAlpha(colors.primary, 0.15), borderRadius: 6,
     paddingHorizontal: 7, paddingVertical: 3, minWidth: 40, alignItems: 'center',
   },
-  airportIATAText: { color: '#3D5A2E', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
-  airportName: { color: '#F0EBE0', fontSize: 13, fontWeight: '600' },
-  airportCity: { color: 'rgba(240,235,224,0.9)', fontSize: 11, marginTop: 1 },
+  airportIATAText: { color: colors.textAccent, fontSize: 13, fontWeight: '800', letterSpacing: 1 },
+  airportName: { color: colors.foreground, fontSize: 13, fontWeight: '600' },
+  airportCity: { color: colors.muted, fontSize: 11, marginTop: 1 },
 });
 

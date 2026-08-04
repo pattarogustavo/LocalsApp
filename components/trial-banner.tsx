@@ -1,8 +1,15 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/hooks/use-subscription';
+import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 /**
  * Displays a banner at the top of the main app during the trial period.
@@ -12,6 +19,8 @@ import { useSubscription } from '@/hooks/use-subscription';
 export function TrialBanner() {
   const { isTrial, daysLeftInTrial } = useSubscription();
   const [dismissed, setDismissed] = useState(false);
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   if (!isTrial || dismissed) return null;
 
@@ -23,7 +32,7 @@ export function TrialBanner() {
         <Ionicons
           name={isUrgent ? 'warning-outline' : 'time-outline'}
           size={14}
-          color={isUrgent ? '#F59E0B' : '#3D5A2E'}
+          color={isUrgent ? colors.warning : colors.primary}
         />
         <Text style={styles.text}>
           {daysLeftInTrial === 0
@@ -44,27 +53,27 @@ export function TrialBanner() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setDismissed(true)} style={styles.dismissBtn}>
-          <Ionicons name="close" size={14} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="close" size={14} color={colors.muted} />
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(82,183,136,0.1)',
+    backgroundColor: withAlpha(colors.primary, 0.1),
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(61,90,46,0.15)',
+    borderBottomColor: withAlpha(colors.primary, 0.15),
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   containerUrgent: {
-    backgroundColor: 'rgba(245,158,11,0.1)',
-    borderBottomColor: 'rgba(245,158,11,0.2)',
+    backgroundColor: withAlpha(colors.warning, 0.1),
+    borderBottomColor: withAlpha(colors.warning, 0.2),
   },
   left: {
     flexDirection: 'row',
@@ -74,7 +83,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 12,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     fontWeight: '500',
   },
   right: {
@@ -83,24 +92,24 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   upgradeBtn: {
-    backgroundColor: 'rgba(61,90,46,0.15)',
+    backgroundColor: withAlpha(colors.primary, 0.15),
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(82,183,136,0.35)',
+    borderColor: withAlpha(colors.primary, 0.35),
   },
   upgradeBtnUrgent: {
-    backgroundColor: 'rgba(245,158,11,0.15)',
-    borderColor: 'rgba(245,158,11,0.35)',
+    backgroundColor: withAlpha(colors.warning, 0.15),
+    borderColor: withAlpha(colors.warning, 0.35),
   },
   upgradeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#3D5A2E',
+    color: colors.primary,
   },
   upgradeTextUrgent: {
-    color: '#F59E0B',
+    color: colors.warning,
   },
   dismissBtn: {
     padding: 2,

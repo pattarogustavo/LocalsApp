@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -18,14 +18,22 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth';
 import { useTranslation } from '@/hooks/use-translation';
+import { useColors } from '@/hooks/use-colors';
+import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
 
 // Validation is now done inside the component so it can use translations
+
+// Text/icon color for content drawn on top of the primary button color, which
+// is identical in both schemes — always the light-scheme background swatch.
+const ON_PRIMARY = SchemeColors.light.background;
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const { setSession } = useAuthStore();
   const [appleLoading, setAppleLoading] = useState(false);
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   function validate(n: string, e: string, p: string, c: string) {
     const errors: Record<string, string> = {};
@@ -119,7 +127,7 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#F0EBE0' }}
+      style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
@@ -130,7 +138,7 @@ export default function RegisterScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="#2C2416" />
+            <Ionicons name="arrow-back" size={22} color={colors.foreground} />
           </TouchableOpacity>
           <Text style={styles.title}>{t.auth.register.title}</Text>
           <Text style={styles.subtitle}>{t.auth.register.trialInfo}</Text>
@@ -147,7 +155,7 @@ export default function RegisterScreen() {
               onPress={handleAppleLogin}
             />
             {appleLoading && (
-              <ActivityIndicator color="#2C2416" style={{ marginBottom: 12 }} />
+              <ActivityIndicator color={colors.foreground} style={{ marginBottom: 12 }} />
             )}
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
@@ -163,7 +171,7 @@ export default function RegisterScreen() {
           <TextInput
             style={[styles.input, touched.name && errors.name ? styles.inputError : null]}
             placeholder={t.auth.register.namePlaceholder}
-            placeholderTextColor="#8A7F6E"
+            placeholderTextColor={colors.muted}
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
@@ -179,7 +187,7 @@ export default function RegisterScreen() {
           <TextInput
             style={[styles.input, touched.email && errors.email ? styles.inputError : null]}
             placeholder={t.auth.register.emailPlaceholder}
-            placeholderTextColor="#8A7F6E"
+            placeholderTextColor={colors.muted}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -198,7 +206,7 @@ export default function RegisterScreen() {
             <TextInput
               style={[styles.inputFlex, touched.password && errors.password ? styles.inputError : null]}
               placeholder={t.auth.register.passwordPlaceholder}
-              placeholderTextColor="#8A7F6E"
+              placeholderTextColor={colors.muted}
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
@@ -206,7 +214,7 @@ export default function RegisterScreen() {
               {...field('password')}
             />
             <TouchableOpacity onPress={() => setShowPassword((v) => !v)} style={styles.eyeBtn}>
-              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#8A7F6E" />
+              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.muted} />
             </TouchableOpacity>
           </View>
           {touched.password && errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
@@ -219,7 +227,7 @@ export default function RegisterScreen() {
             <TextInput
               style={[styles.inputFlex, touched.confirm && errors.confirm ? styles.inputError : null]}
               placeholder={t.auth.register.confirmPasswordPlaceholder}
-              placeholderTextColor="#8A7F6E"
+              placeholderTextColor={colors.muted}
               value={confirm}
               onChangeText={setConfirm}
               secureTextEntry={!showConfirm}
@@ -228,7 +236,7 @@ export default function RegisterScreen() {
               {...field('confirm')}
             />
             <TouchableOpacity onPress={() => setShowConfirm((v) => !v)} style={styles.eyeBtn}>
-              <Ionicons name={showConfirm ? 'eye-off-outline' : 'eye-outline'} size={18} color="#8A7F6E" />
+              <Ionicons name={showConfirm ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.muted} />
             </TouchableOpacity>
           </View>
           {touched.confirm && errors.confirm ? <Text style={styles.errorText}>{errors.confirm}</Text> : null}
@@ -237,7 +245,7 @@ export default function RegisterScreen() {
         {/* Terms checkbox */}
         <TouchableOpacity style={styles.checkRow} activeOpacity={0.8} onPress={() => setAgreed((v) => !v)}>
           <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-            {agreed && <Ionicons name="checkmark" size={12} color="#2C2416" />}
+            {agreed && <Ionicons name="checkmark" size={12} color={ON_PRIMARY} />}
           </View>
           <Text style={styles.checkText}>
             I agree to the{' '}
@@ -255,7 +263,7 @@ export default function RegisterScreen() {
           disabled={!canSubmit}
         >
           {loading ? (
-            <ActivityIndicator color="#F7F3EC" />
+            <ActivityIndicator color={ON_PRIMARY} />
           ) : (
             <Text style={styles.submitBtnText}>{t.auth.register.registerBtn}</Text>
           )}
@@ -273,7 +281,7 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   scroll: {
     paddingHorizontal: 24,
     gap: 0,
@@ -292,12 +300,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#2C2416',
+    color: colors.foreground,
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   appleBtn: { height: 50, marginBottom: 16 },
   divider: {
@@ -309,10 +317,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#DDD5C5',
+    backgroundColor: colors.border,
   },
   dividerText: {
-    color: '#2C2416',
+    color: colors.foreground,
     fontSize: 12,
   },
   fieldGroup: {
@@ -321,31 +329,31 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#2C2416',
+    color: colors.foreground,
     letterSpacing: 0.5,
     marginBottom: 8,
     textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#DDD5C5',
+    borderColor: colors.border,
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   inputError: {
-    borderColor: '#E74C3C',
+    borderColor: colors.error,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#DDD5C5',
+    borderColor: colors.border,
     paddingRight: 8,
   },
   inputFlex: {
@@ -353,14 +361,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   eyeBtn: {
     padding: 8,
   },
   errorText: {
     fontSize: 12,
-    color: '#E74C3C',
+    color: colors.error,
     marginTop: 4,
   },
   checkRow: {
@@ -375,27 +383,27 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 5,
     borderWidth: 1.5,
-    borderColor: '#DDD5C5',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
   },
   checkboxChecked: {
-    backgroundColor: '#3D5A2E',
-    borderColor: '#3D5A2E',
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   checkText: {
     flex: 1,
     fontSize: 13,
-    color: '#2C2416',
+    color: colors.foreground,
     lineHeight: 20,
   },
   link: {
-    color: '#3D5A2E',
+    color: colors.primary,
     fontWeight: '600',
   },
   submitBtn: {
-    backgroundColor: '#3D5A2E',
+    backgroundColor: colors.primary,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -405,7 +413,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   submitBtnText: {
-    color: '#F7F3EC',
+    color: ON_PRIMARY,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -416,11 +424,11 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontSize: 14,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   loginLink: {
     fontSize: 14,
-    color: '#3D5A2E',
+    color: colors.primary,
     fontWeight: '600',
   },
 });

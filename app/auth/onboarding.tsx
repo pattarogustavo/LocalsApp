@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '@/hooks/use-translation';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
+import { useColors } from '@/hooks/use-colors';
+import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
+
+// Text/icon color for content drawn on top of the primary button color, which
+// is identical in both schemes — always the light-scheme background swatch.
+const ON_PRIMARY = SchemeColors.light.background;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 // Logo occupies ~50% of screen width, matching the mockup proportion
@@ -19,6 +25,7 @@ const LOGO_SIZE = Math.round(SCREEN_WIDTH * 0.50);
 
 // Compass rose SVG matching the mockup — large, centered, with amber arc at bottom
 function CompassLogo({ size }: { size: number }) {
+  const colors = useColors();
   const c = size / 2;
   const r = size * 0.43;
   const tickLen = size * 0.065;
@@ -27,41 +34,41 @@ function CompassLogo({ size }: { size: number }) {
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       {/* Outer circle */}
-      <Circle cx={c} cy={c} r={r} stroke="#2C2416" strokeWidth={strokeW} fill="none" />
+      <Circle cx={c} cy={c} r={r} stroke={colors.foreground} strokeWidth={strokeW} fill="none" />
       {/* Cardinal tick marks */}
-      <Line x1={c} y1={c - r} x2={c} y2={c - r + tickLen} stroke="#2C2416" strokeWidth={strokeW} />
-      <Line x1={c} y1={c + r - tickLen} x2={c} y2={c + r} stroke="#2C2416" strokeWidth={strokeW} />
-      <Line x1={c - r} y1={c} x2={c - r + tickLen} y2={c} stroke="#2C2416" strokeWidth={strokeW} />
-      <Line x1={c + r - tickLen} y1={c} x2={c + r} y2={c} stroke="#2C2416" strokeWidth={strokeW} />
+      <Line x1={c} y1={c - r} x2={c} y2={c - r + tickLen} stroke={colors.foreground} strokeWidth={strokeW} />
+      <Line x1={c} y1={c + r - tickLen} x2={c} y2={c + r} stroke={colors.foreground} strokeWidth={strokeW} />
+      <Line x1={c - r} y1={c} x2={c - r + tickLen} y2={c} stroke={colors.foreground} strokeWidth={strokeW} />
+      <Line x1={c + r - tickLen} y1={c} x2={c + r} y2={c} stroke={colors.foreground} strokeWidth={strokeW} />
       {/* North point — tall, dark */}
       <Path
         d={`M${c},${c - r * 0.75} L${c - r * 0.13},${c + r * 0.05} L${c},${c - r * 0.08} Z`}
-        fill="#2C2416"
+        fill={colors.foreground}
       />
       {/* South point — shorter, faded */}
       <Path
         d={`M${c},${c + r * 0.75} L${c + r * 0.13},${c - r * 0.05} L${c},${c + r * 0.08} Z`}
-        fill="#2C2416"
+        fill={colors.foreground}
         opacity={0.30}
       />
       {/* East point */}
       <Path
         d={`M${c + r * 0.75},${c} L${c - r * 0.05},${c - r * 0.13} L${c + r * 0.08},${c} Z`}
-        fill="#2C2416"
+        fill={colors.foreground}
         opacity={0.30}
       />
       {/* West point */}
       <Path
         d={`M${c - r * 0.75},${c} L${c + r * 0.05},${c + r * 0.13} L${c - r * 0.08},${c} Z`}
-        fill="#2C2416"
+        fill={colors.foreground}
         opacity={0.30}
       />
       {/* Center dot */}
-      <Circle cx={c} cy={c} r={dotR} fill="#2C2416" />
+      <Circle cx={c} cy={c} r={dotR} fill={colors.foreground} />
       {/* Decorative amber arc at bottom */}
       <Path
         d={`M${c - r * 0.30},${c + r * 0.58} Q${c},${c + r * 0.72} ${c + r * 0.30},${c + r * 0.58}`}
-        stroke="#B8860B"
+        stroke={colors.accent}
         strokeWidth={strokeW * 1.1}
         fill="none"
       />
@@ -72,6 +79,8 @@ function CompassLogo({ size }: { size: number }) {
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const features = [
     { icon: 'map-outline' as const, text: t.auth.onboarding.feature1 },
@@ -81,7 +90,7 @@ export default function OnboardingScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F0EBE0" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
       {/* Large compass logo */}
       <View style={styles.logoSection}>
@@ -104,7 +113,7 @@ export default function OnboardingScreen() {
         {features.map((f) => (
           <View key={f.text} style={styles.featureRow}>
             <View style={styles.featureIconBg}>
-              <Ionicons name={f.icon} size={18} color="#3D5A2E" />
+              <Ionicons name={f.icon} size={18} color={colors.primary} />
             </View>
             <Text style={styles.featureText}>{f.text}</Text>
           </View>
@@ -134,10 +143,10 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0EBE0',
+    backgroundColor: colors.background,
     paddingHorizontal: 28,
     justifyContent: 'space-between',
   },
@@ -151,7 +160,7 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 56,
     fontWeight: '700',
-    color: '#2C2416',
+    color: colors.foreground,
     fontStyle: 'italic',
     letterSpacing: -1,
     lineHeight: 64,
@@ -165,17 +174,17 @@ const styles = StyleSheet.create({
   tagLine: {
     width: 36,
     height: 1,
-    backgroundColor: '#B8860B',
+    backgroundColor: colors.accent,
   },
   appTag: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#B8860B',
+    color: colors.accent,
     letterSpacing: 3,
   },
   subtitle: {
     fontSize: 15,
-    color: '#8A7F6E',
+    color: colors.muted,
     textAlign: 'center',
     lineHeight: 22,
     marginTop: 8,
@@ -192,45 +201,45 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 13,
-    backgroundColor: '#EDE8DC',
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   featureText: {
     fontSize: 15,
-    color: '#2C2416',
+    color: colors.foreground,
     fontWeight: '500',
   },
   buttons: {
     gap: 12,
   },
   primaryBtn: {
-    backgroundColor: '#3D5A2E',
+    backgroundColor: colors.primary,
     borderRadius: 14,
     paddingVertical: 17,
     alignItems: 'center',
   },
   primaryBtnText: {
-    color: '#F7F3EC',
+    color: ON_PRIMARY,
     fontSize: 16,
     fontWeight: '700',
   },
   secondaryBtn: {
-    backgroundColor: '#F7F3EC',
+    backgroundColor: colors.surface,
     borderRadius: 14,
     paddingVertical: 17,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#DDD5C5',
+    borderColor: colors.border,
   },
   secondaryBtnText: {
-    color: '#2C2416',
+    color: colors.foreground,
     fontSize: 16,
     fontWeight: '500',
   },
   trialNote: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#8A7F6E',
+    color: colors.muted,
   },
 });

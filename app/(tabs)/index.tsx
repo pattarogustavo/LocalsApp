@@ -27,8 +27,15 @@ import { useAuthStore } from '@/store/auth';
 import { useSubscription } from '@/hooks/use-subscription';
 import { useTranslation } from '@/hooks/use-translation';
 import { trpc } from '@/lib/trpc';
+import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 // Curated guides data (static)
 const CURATED_GUIDES_BASE = [
@@ -49,6 +56,8 @@ export default function HomeScreen() {
   const { user } = useAuthStore();
   const { isExpired } = useSubscription();
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -90,15 +99,15 @@ export default function HomeScreen() {
   });
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F0EBE0' }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Status bar background - extends bg color behind iPhone status bar */}
-      <View style={{ height: insets.top, backgroundColor: '#F0EBE0' }} />
+      <View style={{ height: insets.top, backgroundColor: colors.background }} />
       <TrialBanner />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2C2416" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
         }
       >
         {/* Header */}
@@ -107,7 +116,7 @@ export default function HomeScreen() {
           style={{ paddingTop: 12, paddingBottom: 16 }}
         >
           <View>
-            <Text style={{ fontSize: 32, fontFamily: 'serif', fontStyle: 'italic', color: '#2C2416', fontWeight: '400' }}>
+            <Text style={{ fontSize: 32, fontFamily: 'serif', fontStyle: 'italic', color: colors.foreground, fontWeight: '400' }}>
               LocalsApp
             </Text>
             <Text className="text-muted text-xs tracking-widest font-semibold uppercase" style={{ marginTop: -2 }}>
@@ -119,19 +128,19 @@ export default function HomeScreen() {
               onPress={() => setShowCreate(true)}
               className="w-10 h-10 rounded-full bg-primary items-center justify-center"
             >
-              <Ionicons name="add" size={20} color="#F0EBE0" />
+              <Ionicons name="add" size={20} color={colors.textOnPrimary} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => { setShowSearch(true); setSearchQuery(''); }}
               className="w-10 h-10 rounded-full bg-primary items-center justify-center"
             >
-              <Ionicons name="search" size={18} color="#F0EBE0" />
+              <Ionicons name="search" size={18} color={colors.textOnPrimary} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.push('/profile' as any)}
               className="w-10 h-10 rounded-full bg-primary items-center justify-center"
             >
-              <Ionicons name="person-outline" size={18} color="#F0EBE0" />
+              <Ionicons name="person-outline" size={18} color={colors.textOnPrimary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -156,11 +165,11 @@ export default function HomeScreen() {
                 colors={['rgba(44,36,22,0.5)', 'rgba(44,36,22,0.5)']}
                 style={{ flex: 1, borderRadius: 24, justifyContent: 'flex-end', padding: 20 }}
               >
-                <Text style={{ color: '#F0EBE0', fontSize: 20, fontFamily: 'serif', fontStyle: 'italic', fontWeight: '600', marginBottom: 4 }}>
+                <Text style={{ color: colors.textOnPrimary, fontSize: 20, fontFamily: 'serif', fontStyle: 'italic', fontWeight: '600', marginBottom: 4 }}>
                   {t.home.noTrips}
                 </Text>
                 <View className="flex-row items-center justify-between">
-                  <Text style={{ color: 'rgba(240,235,224,0.9)', fontSize: 14 }}>
+                  <Text style={{ color: withAlpha(colors.textOnPrimary, 0.9), fontSize: 14 }}>
                     {t.home.noTripsSubtitle}
                   </Text>
                   <TouchableOpacity
@@ -204,7 +213,7 @@ export default function HomeScreen() {
                     marginBottom: 10,
                     borderRadius: 16,
                     overflow: 'hidden',
-                    backgroundColor: '#fff',
+                    backgroundColor: colors.surface,
                     flexDirection: 'row',
                     alignItems: 'center',
                     padding: 14,
@@ -216,18 +225,18 @@ export default function HomeScreen() {
                     elevation: 2,
                   }}
                 >
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#2C241618', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="airplane-outline" size={22} color="#2C2416" />
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: withAlpha(colors.foreground, 0.094), alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="airplane-outline" size={22} color={colors.foreground} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: '#2C2416' }} numberOfLines={1}>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: colors.foreground }} numberOfLines={1}>
                       {tripData.destinations?.[0]?.name ?? t.sharing.tripFallback}
                     </Text>
-                    <Text style={{ fontSize: 12, color: '#687076', marginTop: 2 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
                       {s.shareRole === 'editor' ? `✏️ ${t.sharing.roleEditor}` : `👁 ${t.sharing.roleViewer}`}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color="#9BA1A6" />
+                  <Ionicons name="chevron-forward" size={18} color={colors.muted} />
                 </TouchableOpacity>
               );
             })}
@@ -237,7 +246,7 @@ export default function HomeScreen() {
         {/* Guias Curados */}
         <View>
           <Text
-            style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: '#2C2416', paddingHorizontal: 24, marginBottom: 12 }}
+            style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: colors.foreground, paddingHorizontal: 24, marginBottom: 12 }}
           >
             {t.home.curatedGuides}
           </Text>
@@ -264,10 +273,10 @@ export default function HomeScreen() {
                       colors={['transparent', 'rgba(0,0,0,0.75)']}
                       style={{ flex: 1, borderRadius: 16, justifyContent: 'flex-end', padding: 12 }}
                     >
-                      <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600', marginBottom: 2 }} numberOfLines={2}>
+                      <Text style={{ color: colors.textOnPrimary, fontSize: 13, fontWeight: '600', marginBottom: 2 }} numberOfLines={2}>
                         {guideTitle}
                       </Text>
-                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
+                      <Text style={{ color: withAlpha(colors.textOnPrimary, 0.7), fontSize: 11 }}>
                         {item.spots} {t.home.spotsLabel}
                       </Text>
                     </LinearGradient>
@@ -293,14 +302,14 @@ export default function HomeScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setShowSearch(false)}
       >
-        <View style={searchStyles.container}>
-          <View style={searchStyles.header}>
-            <View style={searchStyles.inputRow}>
-              <Ionicons name="search" size={18} color="rgba(44,36,22,0.5)" />
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <View style={styles.inputRow}>
+              <Ionicons name="search" size={18} color={colors.muted} />
               <TextInput
-                style={searchStyles.input}
+                style={styles.input}
                 placeholder={t.home.searchPlaceholder}
-                placeholderTextColor="rgba(44,36,22,0.5)"
+                placeholderTextColor={colors.muted}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 autoFocus
@@ -308,24 +317,24 @@ export default function HomeScreen() {
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={18} color="rgba(44,36,22,0.5)" />
+                  <Ionicons name="close-circle" size={18} color={colors.muted} />
                 </TouchableOpacity>
               )}
             </View>
-            <TouchableOpacity onPress={() => setShowSearch(false)} style={searchStyles.cancelBtn}>
-              <Text style={searchStyles.cancelText}>{t.common.cancel}</Text>
+            <TouchableOpacity onPress={() => setShowSearch(false)} style={styles.cancelBtn}>
+              <Text style={styles.cancelText}>{t.common.cancel}</Text>
             </TouchableOpacity>
           </View>
 
           {searchQuery.trim().length === 0 ? (
-            <View style={searchStyles.emptyState}>
-              <Ionicons name="search-outline" size={40} color="rgba(44,36,22,0.5)" />
-              <Text style={searchStyles.emptyText}>{t.home.searchPlaceholder}</Text>
+            <View style={styles.emptyState}>
+              <Ionicons name="search-outline" size={40} color={colors.muted} />
+              <Text style={styles.emptyText}>{t.home.searchPlaceholder}</Text>
             </View>
           ) : searchResults.length === 0 ? (
-            <View style={searchStyles.emptyState}>
-              <Ionicons name="alert-circle-outline" size={40} color="rgba(44,36,22,0.5)" />
-              <Text style={searchStyles.emptyText}>{t.common.noResults}</Text>
+            <View style={styles.emptyState}>
+              <Ionicons name="alert-circle-outline" size={40} color={colors.muted} />
+              <Text style={styles.emptyText}>{t.common.noResults}</Text>
             </View>
           ) : (
             <FlatList
@@ -334,16 +343,16 @@ export default function HomeScreen() {
               contentContainerStyle={{ padding: 16, gap: 12 }}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={searchStyles.resultCard}
+                  style={styles.resultCard}
                   onPress={() => { setShowSearch(false); router.push(`/trip/${item.id}`); }}
                 >
-                  <View style={searchStyles.resultLeft}>
-                    <Text style={searchStyles.resultName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={searchStyles.resultDest} numberOfLines={1}>
+                  <View style={styles.resultLeft}>
+                    <Text style={styles.resultName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.resultDest} numberOfLines={1}>
                       {item.destinations.map((d) => d.name).join(' · ')}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color="rgba(44,36,22,0.5)" />
+                  <Ionicons name="chevron-forward" size={18} color={colors.muted} />
                 </TouchableOpacity>
               )}
             />
@@ -354,10 +363,10 @@ export default function HomeScreen() {
   );
 }
 
-const searchStyles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0EBE0',
+    backgroundColor: colors.background,
     paddingTop: Platform.OS === 'android' ? 16 : 0,
   },
   header: {
@@ -368,13 +377,13 @@ const searchStyles = StyleSheet.create({
     paddingBottom: 12,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(44,36,22,0.5)',
+    borderBottomColor: colors.border,
   },
   inputRow: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(44,36,22,0.5)',
+    backgroundColor: withAlpha(colors.foreground, 0.5),
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -383,14 +392,14 @@ const searchStyles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   cancelBtn: {
     paddingVertical: 8,
   },
   cancelText: {
     fontSize: 15,
-    color: '#2C2416',
+    color: colors.foreground,
     fontWeight: '500',
   },
   emptyState: {
@@ -402,14 +411,14 @@ const searchStyles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 15,
-    color: 'rgba(44,36,22,0.5)',
+    color: colors.muted,
     textAlign: 'center',
     paddingHorizontal: 32,
   },
   resultCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 14,
     padding: 16,
     gap: 12,
@@ -423,11 +432,11 @@ const searchStyles = StyleSheet.create({
   resultName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2C2416',
+    color: colors.foreground,
     marginBottom: 3,
   },
   resultDest: {
     fontSize: 13,
-    color: 'rgba(44,36,22,0.5)',
+    color: colors.muted,
   },
 });

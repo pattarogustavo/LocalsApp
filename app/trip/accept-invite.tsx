@@ -11,9 +11,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/use-colors';
+import { SchemeColors } from '@/constants/theme';
 import { trpc } from '@/lib/trpc';
 import { useAuthStore } from '@/store/auth';
 import { useTripsStore } from '@/store/trips';
+
+// Text/icon color for content drawn on top of a solid brand-colored fill, which
+// is identical in both schemes — always the light-scheme background swatch.
+const ON_PRIMARY = SchemeColors.light.background;
 
 /**
  * Screen shown when user taps an invite link.
@@ -85,15 +90,15 @@ export default function AcceptInviteScreen() {
                 onPress={handleAccept}
                 style={[styles.btn, { backgroundColor: colors.primary }]}
               >
-                <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                <Ionicons name="checkmark-circle-outline" size={20} color={ON_PRIMARY} />
                 <Text style={styles.btnText}>Aceitar Convite</Text>
               </TouchableOpacity>
             )}
           </>
         ) : status === 'success' ? (
           <>
-            <View style={[styles.iconCircle, { backgroundColor: '#22C55E18' }]}>
-              <Ionicons name="checkmark-circle" size={40} color="#22C55E" />
+            <View style={[styles.iconCircle, { backgroundColor: colors.success + '18' }]}>
+              <Ionicons name="checkmark-circle" size={40} color={colors.success} />
             </View>
             <Text style={[styles.title, { color: colors.foreground }]}>
               Convite aceito! 🎉
@@ -103,16 +108,16 @@ export default function AcceptInviteScreen() {
             </Text>
             <TouchableOpacity
               onPress={() => router.replace('/' as any)}
-              style={[styles.btn, { backgroundColor: '#22C55E' }]}
+              style={[styles.btn, { backgroundColor: colors.success }]}
             >
-              <Ionicons name="home-outline" size={20} color="#fff" />
+              <Ionicons name="home-outline" size={20} color={ON_PRIMARY} />
               <Text style={styles.btnText}>Ver Minhas Viagens</Text>
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <View style={[styles.iconCircle, { backgroundColor: '#EF444418' }]}>
-              <Ionicons name="close-circle" size={40} color="#EF4444" />
+            <View style={[styles.iconCircle, { backgroundColor: colors.error + '18' }]}>
+              <Ionicons name="close-circle" size={40} color={colors.error} />
             </View>
             <Text style={[styles.title, { color: colors.foreground }]}>
               Erro ao aceitar convite
@@ -124,7 +129,7 @@ export default function AcceptInviteScreen() {
               onPress={() => router.replace('/' as any)}
               style={[styles.btn, { backgroundColor: colors.primary }]}
             >
-              <Ionicons name="home-outline" size={20} color="#fff" />
+              <Ionicons name="home-outline" size={20} color={ON_PRIMARY} />
               <Text style={styles.btnText}>Ir para o Início</Text>
             </TouchableOpacity>
           </>
@@ -162,5 +167,5 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginTop: 8,
   },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  btnText: { color: ON_PRIMARY, fontSize: 16, fontWeight: '700' },
 });

@@ -123,7 +123,7 @@ export function AIPreferencesModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, { backgroundColor: colors.overlayModal }]}>
         <View style={[styles.sheet, { backgroundColor: colors.background }]}>
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
 

@@ -15,8 +15,10 @@
 
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from '@/hooks/use-translation';
+import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
 import {
   Modal,
   Platform,
@@ -27,6 +29,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 interface DatePickerFieldProps {
   label?: string;
@@ -62,6 +69,8 @@ export function DatePickerField({
   compact = false,
 }: DatePickerFieldProps) {
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const lang = t.common.today === 'Hoje' ? 'pt' : t.common.today === 'Today' ? 'en' : t.common.today === 'Hoy' ? 'es' : 'pt';
   const locale = LOCALE_MAP[lang] || 'pt-BR';
   const [showPicker, setShowPicker] = useState(false);
@@ -83,7 +92,7 @@ export function DatePickerField({
             if (!isNaN(d.getTime())) onChange(d);
           }}
           placeholder="AAAA-MM-DD"
-          placeholderTextColor="rgba(240,235,224,0.9)"
+          placeholderTextColor={colors.muted}
           style={[styles.field, compact && styles.fieldCompact]}
         />
         {hint ? <Text style={styles.hint}>{hint}</Text> : null}
@@ -101,7 +110,7 @@ export function DatePickerField({
           onPress={() => { setTempDate(value ?? new Date()); setShowPicker(true); }}
           activeOpacity={0.75}
         >
-          <Ionicons name="calendar-outline" size={15} color="rgba(82,183,136,0.7)" />
+          <Ionicons name="calendar-outline" size={15} color={withAlpha(colors.textAccent, 0.7)} />
           <Text style={[styles.fieldText, !value && styles.placeholder]}>
             {value ? formatDisplay(value, locale) : t.common.selectDate || 'Selecionar data'}
           </Text>
@@ -134,7 +143,7 @@ export function DatePickerField({
               maximumDate={maximumDate}
               locale={locale}
               style={styles.iosPicker}
-              textColor="#F0EBE0"
+              textColor={colors.foreground}
             />
           </View>
         </Modal>
@@ -151,7 +160,7 @@ export function DatePickerField({
         onPress={() => setShowPicker(true)}
         activeOpacity={0.75}
       >
-        <Ionicons name="calendar-outline" size={15} color="rgba(82,183,136,0.7)" />
+        <Ionicons name="calendar-outline" size={15} color={withAlpha(colors.textAccent, 0.7)} />
         <Text style={[styles.fieldText, !value && styles.placeholder]}>
           {value ? formatDisplay(value, locale) : t.common.selectDate || 'Selecionar data'}
         </Text>
@@ -177,24 +186,24 @@ export function DatePickerField({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   label: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.5,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginBottom: 6,
   },
   field: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: withAlpha(colors.foreground, 0.07),
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 13,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: withAlpha(colors.foreground, 0.08),
   },
   fieldCompact: {
     paddingVertical: 10,
@@ -202,26 +211,26 @@ const styles = StyleSheet.create({
   },
   fieldText: {
     fontSize: 15,
-    color: '#F0EBE0',
+    color: colors.foreground,
     flex: 1,
   },
   placeholder: {
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     fontSize: 14,
   },
   hint: {
     fontSize: 11,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginTop: 4,
   },
 
   // iOS modal
   iosOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlayModal,
   },
   iosSheet: {
-    backgroundColor: '#EDE8DC',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 32,
@@ -234,16 +243,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
+    borderBottomColor: withAlpha(colors.foreground, 0.08),
   },
   iosCancelText: {
     fontSize: 15,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
   },
   iosDoneText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#3D5A2E',
+    color: colors.textAccent,
   },
   iosPicker: {
     height: 200,

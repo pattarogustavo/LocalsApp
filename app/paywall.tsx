@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -17,12 +17,25 @@ import { useAuthStore } from '@/store/auth';
 import { useSubscription } from '@/hooks/use-subscription';
 import { sendSubscriptionConfirmedNotification, scheduleRenewalReminder } from '@/lib/subscription-notifications';
 import { useTranslation } from '@/hooks/use-translation';
+import { useColors } from '@/hooks/use-colors';
+import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
+
+// Text/icon color for content drawn on top of the primary button color, which
+// is identical in both schemes — always the light-scheme background swatch.
+const ON_PRIMARY = SchemeColors.light.background;
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { blocking } = useLocalSearchParams<{ blocking?: string }>();
   const isBlocking = blocking === 'true';
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const { updateSubscription } = useAuthStore();
   const { isTrial, daysLeftInTrial } = useSubscription();
@@ -79,12 +92,12 @@ export default function PaywallScreen() {
       <View style={styles.header}>
         {!isBlocking && (
           <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-            <Ionicons name="close" size={22} color="#8A7F6E" />
+            <Ionicons name="close" size={22} color={colors.muted} />
           </TouchableOpacity>
         )}
         <View style={styles.headerCenter}>
           <View style={styles.logoCircle}>
-            <Ionicons name="airplane" size={24} color="#3D5A2E" />
+            <Ionicons name="airplane" size={24} color={colors.primary} />
           </View>
         </View>
       </View>
@@ -117,7 +130,7 @@ export default function PaywallScreen() {
           {FEATURES.map((f) => (
             <View key={f.text} style={styles.featureRow}>
               <View style={styles.featureIconBg}>
-                <Ionicons name={f.icon as any} size={16} color="#3D5A2E" />
+                <Ionicons name={f.icon as any} size={16} color={colors.primary} />
               </View>
               <Text style={styles.featureText}>{f.text}</Text>
             </View>
@@ -138,7 +151,7 @@ export default function PaywallScreen() {
               </View>
               {selectedPlan === 'annual' && (
                 <View style={styles.selectedDot}>
-                  <Ionicons name="checkmark-circle" size={18} color="#3D5A2E" />
+                  <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
                 </View>
               )}
             </View>
@@ -159,7 +172,7 @@ export default function PaywallScreen() {
             {selectedPlan === 'monthly' && (
               <View style={[styles.planBadgeRow, { justifyContent: 'flex-end' }]}>
                 <View style={styles.selectedDot}>
-                  <Ionicons name="checkmark-circle" size={18} color="#3D5A2E" />
+                  <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
                 </View>
               </View>
             )}
@@ -180,7 +193,7 @@ export default function PaywallScreen() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#2C2416" />
+            <ActivityIndicator color={ON_PRIMARY} />
           ) : (
             <Text style={styles.ctaBtnText}>
               {selectedPlan === 'annual' ? t.paywall.startAnnual : t.paywall.startMonthly}
@@ -199,7 +212,7 @@ export default function PaywallScreen() {
           disabled={restoring}
         >
           {restoring ? (
-            <ActivityIndicator size="small" color="#8A7F6E" />
+            <ActivityIndicator size="small" color={colors.muted} />
           ) : (
             <Text style={styles.restoreText}>{t.paywall.restore}</Text>
           )}
@@ -209,10 +222,10 @@ export default function PaywallScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0EBE0',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -227,7 +240,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 18,
-    backgroundColor: 'rgba(240,235,224,0.9)',
+    backgroundColor: colors.surface,
   },
   headerCenter: {
     position: 'absolute',
@@ -240,11 +253,11 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(61,90,46,0.10)',
+    backgroundColor: withAlpha(colors.primary, 0.1),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(82,183,136,0.25)',
+    borderColor: withAlpha(colors.primary, 0.25),
   },
   scroll: {
     paddingHorizontal: 20,
@@ -258,24 +271,26 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 26,
     fontWeight: '700',
-    color: '#F7F3EC',
+    color: colors.foreground,
     textAlign: 'center',
   },
   heroSubtitle: {
     fontSize: 14,
-    color: '#2C2416',
+    color: colors.foreground,
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: 16,
   },
+  // Cards use the same fill/border color so the border stays invisible until
+  // planCardSelected overrides it — avoids a layout shift on selection.
   featuresCard: {
-    backgroundColor: 'rgba(240,235,224,0.9)',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     gap: 12,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(240,235,224,0.9)',
+    borderColor: colors.surface,
   },
   featureRow: {
     flexDirection: 'row',
@@ -286,13 +301,13 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: 'rgba(82,183,136,0.1)',
+    backgroundColor: withAlpha(colors.primary, 0.1),
     alignItems: 'center',
     justifyContent: 'center',
   },
   featureText: {
     fontSize: 14,
-    color: '#2C2416',
+    color: colors.foreground,
     fontWeight: '500',
   },
   plans: {
@@ -302,17 +317,17 @@ const styles = StyleSheet.create({
   },
   planCard: {
     flex: 1,
-    backgroundColor: 'rgba(240,235,224,0.9)',
+    backgroundColor: colors.surface,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1.5,
-    borderColor: 'rgba(240,235,224,0.9)',
+    borderColor: colors.surface,
     minHeight: 120,
     justifyContent: 'flex-end',
   },
   planCardSelected: {
-    borderColor: '#3D5A2E',
-    backgroundColor: 'rgba(82,183,136,0.08)',
+    borderColor: colors.primary,
+    backgroundColor: withAlpha(colors.primary, 0.08),
   },
   planBadgeRow: {
     flexDirection: 'row',
@@ -321,7 +336,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   saveBadge: {
-    backgroundColor: 'rgba(61,90,46,0.15)',
+    backgroundColor: withAlpha(colors.primary, 0.15),
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -329,7 +344,7 @@ const styles = StyleSheet.create({
   saveBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#3D5A2E',
+    color: colors.primary,
     letterSpacing: 0.5,
   },
   selectedDot: {
@@ -338,7 +353,7 @@ const styles = StyleSheet.create({
   planName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#2C2416',
+    color: colors.foreground,
     marginBottom: 4,
   },
   planPriceRow: {
@@ -349,19 +364,19 @@ const styles = StyleSheet.create({
   planPrice: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#2C2416',
+    color: colors.foreground,
   },
   planPeriod: {
     fontSize: 11,
-    color: '#2C2416',
+    color: colors.foreground,
   },
   planBilled: {
     fontSize: 10,
-    color: '#2C2416',
+    color: colors.foreground,
     marginTop: 2,
   },
   ctaBtn: {
-    backgroundColor: '#3D5A2E',
+    backgroundColor: colors.primary,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -371,13 +386,13 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   ctaBtnText: {
-    color: '#F7F3EC',
+    color: ON_PRIMARY,
     fontSize: 16,
     fontWeight: '700',
   },
   legalText: {
     fontSize: 10,
-    color: '#2C2416',
+    color: colors.muted,
     textAlign: 'center',
     lineHeight: 16,
     marginBottom: 16,
@@ -389,7 +404,7 @@ const styles = StyleSheet.create({
   },
   restoreText: {
     fontSize: 13,
-    color: '#2C2416',
+    color: colors.muted,
     textDecorationLine: 'underline',
   },
 });

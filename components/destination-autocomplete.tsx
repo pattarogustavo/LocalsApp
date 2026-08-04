@@ -68,7 +68,7 @@ export function DestinationAutocomplete({ onSelect, placeholder = 'Adicionar des
           autoCorrect={false}
           autoCapitalize="words"
         />
-        {isFetching && <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />}
+        {isFetching && <ActivityIndicator size="small" color={colors.textAccent} style={styles.loader} />}
       </View>
 
       {showResults && query.length >= 2 && (

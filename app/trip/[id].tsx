@@ -27,6 +27,7 @@ import { AccommodationBlock } from '@/components/trip/accommodation-block';
 import { TripPhotosBlock } from '@/components/trip/photos-block';
 import { TransportSummaryCard } from '@/components/trip/next-transport-card';
 import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
 import { generateId } from '@/utils/trip-helpers';
 import * as ImagePicker from 'expo-image-picker';
 import type { Destination } from '@/types/voyage';
@@ -39,6 +40,11 @@ import { useTranslation } from '@/hooks/use-translation';
 
 const { height } = Dimensions.get('window');
 const HERO_HEIGHT = height * 0.38;
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 const DESTINATION_IMAGES: Record<string, string> = {
   // Europe
@@ -206,6 +212,7 @@ function EditDateModal({
   onConfirm: (newDate: string, newDuration: number) => void;
 }) {
   const colors = useColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
   const today = new Date();
   const [pickerDate, setPickerDate] = useState(new Date(currentDate));
@@ -237,13 +244,13 @@ function EditDateModal({
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.modalOverlay}>
         <View style={[styles.editCard, { backgroundColor: colors.background }]}>
-          <Text style={[styles.editCardTitle, { color: '#2C2416' }]}>{t.tripEdit.datesTitle}</Text>
+          <Text style={[styles.editCardTitle, { color: colors.foreground }]}>{t.tripEdit.datesTitle}</Text>
 
           {/* Start date */}
           <Text style={{ fontSize: 11, color: colors.muted, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{t.tripEdit.startDate}</Text>
           <View style={styles.datePickerRow}>
             <TouchableOpacity onPress={() => adjustDate(-1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="chevron-back" size={20} color="#2C2416" />
+              <Ionicons name="chevron-back" size={20} color={colors.foreground} />
             </TouchableOpacity>
             <View style={styles.dateCenter}>
               <Text style={[styles.dateDayNum, { color: colors.foreground }]}>{pickerDate.getDate()}</Text>
@@ -252,7 +259,7 @@ function EditDateModal({
               </Text>
             </View>
             <TouchableOpacity onPress={() => adjustDate(1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="chevron-forward" size={20} color="#2C2416" />
+              <Ionicons name="chevron-forward" size={20} color={colors.foreground} />
             </TouchableOpacity>
           </View>
 
@@ -260,14 +267,14 @@ function EditDateModal({
           <Text style={{ fontSize: 11, color: colors.muted, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, marginTop: 16 }}>{t.tripEdit.duration}</Text>
           <View style={[styles.datePickerRow, { marginBottom: 8 }]}>
             <TouchableOpacity onPress={() => adjustDuration(-1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="chevron-back" size={20} color="#2C2416" />
+              <Ionicons name="chevron-back" size={20} color={colors.foreground} />
             </TouchableOpacity>
             <View style={styles.dateCenter}>
               <Text style={[styles.dateDayNum, { color: colors.foreground }]}>{duration}</Text>
               <Text style={[styles.dateMonthText, { color: colors.muted }]}>{t.tripEdit.durationUnit}</Text>
             </View>
             <TouchableOpacity onPress={() => adjustDuration(1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="chevron-forward" size={20} color="#2C2416" />
+              <Ionicons name="chevron-forward" size={20} color={colors.foreground} />
             </TouchableOpacity>
           </View>
 
@@ -305,6 +312,7 @@ function EditDestinationsModal({
   onClose: () => void;
 }) {
   const colors = useColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
   const { updateDestinations } = useTripsStore();
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -388,21 +396,21 @@ function EditDestinationsModal({
         <View style={[styles.editSheet, { backgroundColor: colors.background }]}>
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
           <View style={styles.editSheetHeader}>
-            <Text style={[styles.editSheetTitle, { color: '#2C2416' }]}>{t.tripEdit.destsTitle}</Text>
+            <Text style={[styles.editSheetTitle, { color: colors.foreground }]}>{t.tripEdit.destsTitle}</Text>
             <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="close" size={16} color="#2C2416" />
+              <Ionicons name="close" size={16} color={colors.foreground} />
             </Pressable>
           </View>
 
           {/* Days summary */}
           <View style={{ paddingHorizontal: 24, marginBottom: 12 }}>
-            <View style={[styles.daysSummaryRow, { backgroundColor: allocatedDays > totalDays ? 'rgba(192,57,43,0.12)' : 'rgba(28,61,46,0.08)' }]}>
-              <Ionicons name="calendar-outline" size={14} color={allocatedDays > totalDays ? '#C0392B' : '#2D5A3D'} />
-              <Text style={[styles.daysSummaryText, { color: allocatedDays > totalDays ? '#C0392B' : '#2D5A3D' }]}>
+            <View style={[styles.daysSummaryRow, { backgroundColor: allocatedDays > totalDays ? withAlpha(colors.error, 0.12) : withAlpha(colors.primary, 0.08) }]}>
+              <Ionicons name="calendar-outline" size={14} color={allocatedDays > totalDays ? colors.error : colors.textAccent} />
+              <Text style={[styles.daysSummaryText, { color: allocatedDays > totalDays ? colors.error : colors.textAccent }]}>
                 {allocatedDays} de {totalDays} {t.tripEdit.daysAllocated}
               </Text>
               {allocatedDays > totalDays && (
-                <Text style={{ fontSize: 11, color: '#C0392B', marginLeft: 4 }}>{t.tripEdit.exceedsItinerary}</Text>
+                <Text style={{ fontSize: 11, color: colors.error, marginLeft: 4 }}>{t.tripEdit.exceedsItinerary}</Text>
               )}
             </View>
           </View>
@@ -418,14 +426,14 @@ function EditDestinationsModal({
                       style={[styles.miniBtn, { backgroundColor: idx === 0 ? 'transparent' : colors.surface }]}
                       disabled={idx === 0}
                     >
-                      <Ionicons name="chevron-up" size={12} color={idx === 0 ? 'transparent' : '#2C2416'} />
+                      <Ionicons name="chevron-up" size={12} color={idx === 0 ? 'transparent' : colors.foreground} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => handleMoveDown(idx)}
                       style={[styles.miniBtn, { backgroundColor: idx === destinations.length - 1 ? 'transparent' : colors.surface }]}
                       disabled={idx === destinations.length - 1}
                     >
-                      <Ionicons name="chevron-down" size={12} color={idx === destinations.length - 1 ? 'transparent' : '#2C2416'} />
+                      <Ionicons name="chevron-down" size={12} color={idx === destinations.length - 1 ? 'transparent' : colors.foreground} />
                     </TouchableOpacity>
                   </View>
 
@@ -441,7 +449,7 @@ function EditDestinationsModal({
                       onPress={() => handleUpdateDays(dest.id, -1)}
                       style={[styles.miniBtn, { backgroundColor: colors.surface }]}
                     >
-                      <Ionicons name="remove" size={12} color="#2C2416" />
+                      <Ionicons name="remove" size={12} color={colors.foreground} />
                     </TouchableOpacity>
                     <Text style={[styles.destDaysNum, { color: colors.foreground }]}>{dest.days}</Text>
                     <Text style={[styles.destDaysLabel, { color: colors.muted }]}>{t.tripEdit.durationUnit}</Text>
@@ -449,13 +457,13 @@ function EditDestinationsModal({
                       onPress={() => handleUpdateDays(dest.id, 1)}
                       style={[styles.miniBtn, { backgroundColor: colors.surface }]}
                     >
-                      <Ionicons name="add" size={12} color="#2C2416" />
+                      <Ionicons name="add" size={12} color={colors.foreground} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => handleRemove(dest.id)}
                       style={[styles.miniBtn, { backgroundColor: colors.surface, marginLeft: 4 }]}
                     >
-                      <Ionicons name="close" size={12} color="#C0392B" />
+                      <Ionicons name="close" size={12} color={colors.error} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -492,6 +500,8 @@ export default function TripDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const t = useTranslation();
+  const colors = useColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { getTripById, deleteTrip, updateStartDate, updateCoverImage, updateTrip } = useTripsStore();
   const trip = getTripById(id);
   const [activeTab, setActiveTab] = useState<TabKey>('geral');
@@ -524,10 +534,10 @@ export default function TripDetailScreen() {
 
   if (!trip) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#F0EBE0', alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: '#2C2416', fontSize: 18 }}>{t.common.noResults}</Text>
+      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: colors.foreground, fontSize: 18 }}>{t.common.noResults}</Text>
         <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 16 }}>
-          <Text style={{ color: '#3D5A47', fontSize: 16 }}>{t.common.back}</Text>
+          <Text style={{ color: colors.textAccent, fontSize: 16 }}>{t.common.back}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -565,7 +575,7 @@ export default function TripDetailScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F0EBE0' }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView showsVerticalScrollIndicator={false} stickyHeaderIndices={[1]}>
         {/* Hero */}
         <View style={{ height: HERO_HEIGHT }}>
@@ -632,7 +642,7 @@ export default function TripDetailScreen() {
               onPress={() => setShowEditDate(true)}
               style={styles.actionBtn}
             >
-              <Ionicons name="calendar-outline" size={14} color="#A8D5B5" />
+              <Ionicons name="calendar-outline" size={14} color={colors.textAccent} />
               <Text style={styles.actionBtnText}>{t.trip.overview.dates}</Text>
               <Text style={styles.actionBtnValue} numberOfLines={1}>{formatDateDisplay(trip.startDate)}</Text>
             </TouchableOpacity>
@@ -643,7 +653,7 @@ export default function TripDetailScreen() {
               onPress={() => setShowEditDests(true)}
               style={styles.actionBtn}
             >
-              <Ionicons name="location-outline" size={14} color="#A8D5B5" />
+              <Ionicons name="location-outline" size={14} color={colors.textAccent} />
               <Text style={styles.actionBtnText}>{t.trip.overview.destination}</Text>
               <Text style={styles.actionBtnValue} numberOfLines={1}>
                 {trip.destinations.map((d) => d.name).join(', ')}
@@ -653,7 +663,7 @@ export default function TripDetailScreen() {
         </View>
 
         {/* Tabs - sticky */}
-        <View style={{ backgroundColor: '#F0EBE0', paddingVertical: 4 }}>
+        <View style={{ backgroundColor: colors.background, paddingVertical: 4 }}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -668,21 +678,21 @@ export default function TripDetailScreen() {
                   style={[
                     styles.tabBtn,
                     {
-                      backgroundColor: isActive ? 'rgba(61,90,46,0.15)' : 'transparent',
+                      backgroundColor: isActive ? withAlpha(colors.tabIconActive, 0.15) : 'transparent',
                       borderWidth: isActive ? 1 : 0,
-                      borderColor: isActive ? '#3D5A2E' : 'transparent',
+                      borderColor: isActive ? colors.tabIconActive : 'transparent',
                     },
                   ]}
                 >
                   <Ionicons
                     name={tab.icon as any}
                     size={16}
-                    color={isActive ? '#3D5A2E' : '#8A7F6E'}
+                    color={isActive ? colors.tabIconActive : colors.tabIconInactive}
                   />
                   <Text
                     style={[
                       styles.tabBtnText,
-                      { color: isActive ? '#3D5A2E' : '#8A7F6E', fontWeight: isActive ? '600' : '400' },
+                      { color: isActive ? colors.tabIconActive : colors.tabIconInactive, fontWeight: isActive ? '600' : '400' },
                     ]}
                   >
                     {tab.label}
@@ -801,6 +811,8 @@ function FotosTab({ trip }: { trip: any }) {
 
 function TransportTab({ trip }: { trip: any }) {
   const t = useTranslation();
+  const colors = useColors();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   return (
     <View>
       <TransportBlock
@@ -812,7 +824,7 @@ function TransportTab({ trip }: { trip: any }) {
       />
       {trip.transport.length === 0 && (
         <View style={styles.emptyState}>
-          <Ionicons name="airplane-outline" size={48} color="#C4B89A" />
+          <Ionicons name="airplane-outline" size={48} color={colors.muted} />
           <Text style={styles.emptyStateTitle}>{t.transport.noTransport}</Text>
           <Text style={styles.emptyStateSubtitle}>{t.transport.addTransport}</Text>
         </View>
@@ -827,6 +839,8 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
   const [loading, setLoading] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
   const t = useTranslation();
+  const colors = useColors();
+  const infoStyles = React.useMemo(() => createInfoStyles(colors), [colors]);
 
   const load = async () => {
     if (loaded || loading) return;
@@ -849,11 +863,11 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
   React.useEffect(() => { load(); }, []);
 
   const crowdColor = (level: string) => {
-    if (!level) return '#3D5A2E';
+    if (!level) return colors.textAccent;
     const l = level.toLowerCase();
-    if (l.includes('alto') || l.includes('high')) return '#EF4444';
-    if (l.includes('médio') || l.includes('medium') || l.includes('medio')) return '#F59E0B';
-    return '#3D5A2E';
+    if (l.includes('alto') || l.includes('high')) return colors.error;
+    if (l.includes('médio') || l.includes('medium') || l.includes('medio')) return colors.warning;
+    return colors.textAccent;
   };
 
   return (
@@ -867,14 +881,14 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
 
       {loading && (
         <View style={infoStyles.loadingRow}>
-          <ActivityIndicator size="small" color="#3D5A2E" />
+          <ActivityIndicator size="small" color={colors.textAccent} />
           <Text style={infoStyles.loadingText}>{t.info.loading}</Text>
         </View>
       )}
 
       {!loading && !info && loaded && (
         <View style={infoStyles.loadingRow}>
-          <Ionicons name="alert-circle-outline" size={16} color="#C4B89A" />
+          <Ionicons name="alert-circle-outline" size={16} color={colors.muted} />
           <Text style={infoStyles.loadingText}>{t.info.loadError}</Text>
         </View>
       )}
@@ -884,7 +898,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
           {/* Climate */}
           <View style={infoStyles.section}>
             <View style={infoStyles.sectionHeader}>
-              <Ionicons name="partly-sunny-outline" size={16} color="#F59E0B" />
+              <Ionicons name="partly-sunny-outline" size={16} color={colors.warning} />
               <Text style={infoStyles.sectionTitle}>{t.info.climate}</Text>
               {info.climate?.avgTempC != null && (
                 <View style={infoStyles.tempBadge}>
@@ -895,7 +909,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
             <Text style={infoStyles.sectionBody}>{info.climate?.description}</Text>
             {info.climate?.recommendation && (
               <View style={infoStyles.tipRow}>
-                <Ionicons name="bulb-outline" size={13} color="#F59E0B" />
+                <Ionicons name="bulb-outline" size={13} color={colors.warning} />
                 <Text style={infoStyles.tipText}>{info.climate.recommendation}</Text>
               </View>
             )}
@@ -907,7 +921,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
               <Ionicons name="people-outline" size={16} color={crowdColor(info.crowd?.level)} />
               <Text style={infoStyles.sectionTitle}>{t.info.crowding}</Text>
               {info.crowd?.level && (
-                <View style={[infoStyles.levelBadge, { backgroundColor: crowdColor(info.crowd.level) + '22', borderColor: crowdColor(info.crowd.level) + '44' }]}>
+                <View style={[infoStyles.levelBadge, { backgroundColor: withAlpha(crowdColor(info.crowd.level), 0.13), borderColor: withAlpha(crowdColor(info.crowd.level), 0.27) }]}>
                   <Text style={[infoStyles.levelText, { color: crowdColor(info.crowd.level) }]}>{info.crowd.level}</Text>
                 </View>
               )}
@@ -915,7 +929,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
             <Text style={infoStyles.sectionBody}>{info.crowd?.description}</Text>
             {info.crowd?.tip && (
               <View style={infoStyles.tipRow}>
-                <Ionicons name="bulb-outline" size={13} color="#3D5A2E" />
+                <Ionicons name="bulb-outline" size={13} color={colors.textAccent} />
                 <Text style={infoStyles.tipText}>{info.crowd.tip}</Text>
               </View>
             )}
@@ -925,7 +939,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
           {info.population?.count && (
             <View style={infoStyles.section}>
               <View style={infoStyles.sectionHeader}>
-                <Ionicons name="business-outline" size={16} color="#C4B89A" />
+                <Ionicons name="business-outline" size={16} color={colors.muted} />
                 <Text style={infoStyles.sectionTitle}>{t.info.population}</Text>
               </View>
               <Text style={infoStyles.sectionBody}>{info.population.count} {t.info.population.toLowerCase()}</Text>
@@ -935,10 +949,10 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
           {/* Health */}
           <View style={infoStyles.section}>
             <View style={infoStyles.sectionHeader}>
-              <Ionicons name="medical-outline" size={16} color="#EF4444" />
+              <Ionicons name="medical-outline" size={16} color={colors.error} />
               <Text style={infoStyles.sectionTitle}>{t.info.health}</Text>
-              <View style={[infoStyles.levelBadge, { backgroundColor: info.health?.waterSafe ? '#3D5A2E22' : '#EF444422', borderColor: info.health?.waterSafe ? '#3D5A2E44' : '#EF444444' }]}>
-                <Text style={[infoStyles.levelText, { color: info.health?.waterSafe ? '#3D5A2E' : '#EF4444' }]}>
+              <View style={[infoStyles.levelBadge, { backgroundColor: info.health?.waterSafe ? withAlpha(colors.textAccent, 0.13) : withAlpha(colors.error, 0.13), borderColor: info.health?.waterSafe ? withAlpha(colors.textAccent, 0.27) : withAlpha(colors.error, 0.27) }]}>
+                <Text style={[infoStyles.levelText, { color: info.health?.waterSafe ? colors.textAccent : colors.error }]}>
                   {info.health?.waterSafe ? t.info.drinkableWater : `${t.common.no} ${t.info.drinkableWater.toLowerCase()}`}
                 </Text>
               </View>
@@ -958,10 +972,10 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
           {/* Visa */}
           <View style={infoStyles.section}>
             <View style={infoStyles.sectionHeader}>
-              <Ionicons name="document-text-outline" size={16} color="#3D5A2E" />
+              <Ionicons name="document-text-outline" size={16} color={colors.textAccent} />
               <Text style={infoStyles.sectionTitle}>{t.info.visa}</Text>
-              <View style={[infoStyles.levelBadge, { backgroundColor: info.visa?.required ? '#EF444422' : '#3D5A2E22', borderColor: info.visa?.required ? '#EF444444' : '#3D5A2E44' }]}>
-                <Text style={[infoStyles.levelText, { color: info.visa?.required ? '#EF4444' : '#3D5A2E' }]}>
+              <View style={[infoStyles.levelBadge, { backgroundColor: info.visa?.required ? withAlpha(colors.error, 0.13) : withAlpha(colors.textAccent, 0.13), borderColor: info.visa?.required ? withAlpha(colors.error, 0.27) : withAlpha(colors.textAccent, 0.27) }]}>
+                <Text style={[infoStyles.levelText, { color: info.visa?.required ? colors.error : colors.textAccent }]}>
                   {info.visa?.required ? t.info.visaRequired : t.info.visaNotRequired}
                 </Text>
               </View>
@@ -974,7 +988,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
           {info.tips?.length > 0 && (
             <View style={infoStyles.section}>
               <View style={infoStyles.sectionHeader}>
-                <Ionicons name="star-outline" size={16} color="#3D5A2E" />
+                <Ionicons name="star-outline" size={16} color={colors.textAccent} />
                 <Text style={infoStyles.sectionTitle}>{t.info.tips}</Text>
               </View>
               {info.tips.map((tip: string, i: number) => (
@@ -993,6 +1007,8 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
 
 function HistoryTab({ trip }: { trip: any }) {
   const t = useTranslation();
+  const colors = useColors();
+  const infoStyles = React.useMemo(() => createInfoStyles(colors), [colors]);
   const travelMonth = trip.startDate
     ? new Date(trip.startDate).toLocaleString('default', { month: 'long' })
     : undefined;
@@ -1005,7 +1021,7 @@ function HistoryTab({ trip }: { trip: any }) {
     >
       {trip.destinations.length === 0 ? (
         <View style={infoStyles.emptyState}>
-          <Ionicons name="information-circle-outline" size={40} color="#C4B89A" />
+          <Ionicons name="information-circle-outline" size={40} color={colors.muted} />
           <Text style={infoStyles.emptyText}>{t.info.selectDest}</Text>
         </View>
       ) : (
@@ -1017,14 +1033,14 @@ function HistoryTab({ trip }: { trip: any }) {
   );
 }
 
-const infoStyles = StyleSheet.create({
+const createInfoStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: withAlpha(colors.foreground, 0.05),
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: withAlpha(colors.foreground, 0.1),
   },
   destHeader: {
     flexDirection: 'row',
@@ -1033,14 +1049,14 @@ const infoStyles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    borderBottomColor: withAlpha(colors.foreground, 0.1),
   },
   destFlag: { fontSize: 24 },
-  destName: { flex: 1, fontSize: 18, fontWeight: '700', color: '#2C2416' },
+  destName: { flex: 1, fontSize: 18, fontWeight: '700', color: colors.foreground },
   destMonth: {
     fontSize: 12,
-    color: '#8A7F6E',
-    backgroundColor: 'rgba(61,90,46,0.08)',
+    color: colors.muted,
+    backgroundColor: withAlpha(colors.primary, 0.08),
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -1051,12 +1067,12 @@ const infoStyles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
   },
-  loadingText: { fontSize: 13, color: '#8A7F6E' },
+  loadingText: { fontSize: 13, color: colors.muted },
   section: {
     marginBottom: 14,
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.07)',
+    borderBottomColor: withAlpha(colors.foreground, 0.07),
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1064,17 +1080,17 @@ const infoStyles = StyleSheet.create({
     gap: 6,
     marginBottom: 6,
   },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: 'rgba(240,235,224,0.9)', flex: 1 },
-  sectionBody: { fontSize: 13, color: 'rgba(240,235,224,0.9)', lineHeight: 18 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.muted, flex: 1 },
+  sectionBody: { fontSize: 13, color: colors.muted, lineHeight: 18 },
   tempBadge: {
-    backgroundColor: 'rgba(245,158,11,0.15)',
+    backgroundColor: withAlpha(colors.warning, 0.15),
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderWidth: 0.5,
-    borderColor: 'rgba(245,158,11,0.3)',
+    borderColor: withAlpha(colors.warning, 0.3),
   },
-  tempText: { fontSize: 13, fontWeight: '700', color: '#F59E0B' },
+  tempText: { fontSize: 13, fontWeight: '700', color: colors.warning },
   levelBadge: {
     borderRadius: 8,
     paddingHorizontal: 8,
@@ -1084,22 +1100,23 @@ const infoStyles = StyleSheet.create({
   levelText: { fontSize: 11, fontWeight: '600' },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   tag: {
-    backgroundColor: 'rgba(239,68,68,0.1)',
+    backgroundColor: withAlpha(colors.error, 0.1),
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: 0.5,
-    borderColor: 'rgba(239,68,68,0.25)',
+    borderColor: withAlpha(colors.error, 0.25),
   },
-  tagText: { fontSize: 11, color: '#EF4444' },
+  tagText: { fontSize: 11, color: colors.error },
   tipRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 4 },
-  tipBullet: { fontSize: 13, color: '#3D5A2E', lineHeight: 18 },
-  tipText: { flex: 1, fontSize: 12, color: 'rgba(240,235,224,0.9)', lineHeight: 18 },
+  tipBullet: { fontSize: 13, color: colors.textAccent, lineHeight: 18 },
+  tipText: { flex: 1, fontSize: 12, color: colors.muted, lineHeight: 18 },
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
-  emptyText: { fontSize: 14, color: 'rgba(240,235,224,0.9)', textAlign: 'center', paddingHorizontal: 32 },
+  emptyText: { fontSize: 14, color: colors.muted, textAlign: 'center', paddingHorizontal: 32 },
 });
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
+  // Fixed dark/light pair — floats on the hero photo, not theme-driven.
   heroBtn: {
     width: 36,
     height: 36,
@@ -1108,6 +1125,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Fixed dark/light pair — floats on the hero photo, not theme-driven.
   currencyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1119,6 +1137,7 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: 'rgba(255,255,255,0.15)',
   },
+  // Fixed light text — sits on the hero photo gradient, not theme-driven.
   heroTitle: {
     color: '#F0EBE0',
     fontSize: 28,
@@ -1131,12 +1150,12 @@ const styles = StyleSheet.create({
     color: 'rgba(240,235,224,0.9)',
     fontSize: 14,
   },
-  // Action buttons row
+  // Action buttons row — sits below the hero, on the app's normal background.
   actionBtnRow: {
     flexDirection: 'row',
     borderRadius: 14,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: withAlpha(colors.foreground, 0.07),
   },
   actionBtn: {
     flex: 1,
@@ -1148,21 +1167,21 @@ const styles = StyleSheet.create({
   },
   actionBtnDivider: {
     width: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: withAlpha(colors.foreground, 0.15),
     marginVertical: 8,
   },
   actionBtnText: {
-    color: '#A8D5B5',
+    color: colors.textAccent,
     fontSize: 12,
     fontWeight: '600',
   },
   actionBtnValue: {
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     fontSize: 11,
     flex: 1,
   },
   actionBtnValueText: {
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     fontSize: 11,
     flex: 1,
   },
@@ -1183,16 +1202,18 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   emptyStateTitle: {
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     fontSize: 16,
     marginTop: 12,
   },
   emptyStateSubtitle: {
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     fontSize: 13,
     marginTop: 4,
     textAlign: 'center',
   },
+  // Unused today, but kept self-consistent (fixed dark card + fixed light
+  // text) in case it's re-enabled — not theme-driven.
   historyBlock: {
     backgroundColor: 'rgba(28,61,46,0.85)',
     borderRadius: 20,
@@ -1215,11 +1236,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   // Edit Date Modal
+  // Full-screen backdrop scrim behind the modal — universal UI pattern,
+  // intentionally theme-independent.
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlayModal,
   },
   editCard: {
     borderRadius: 24,

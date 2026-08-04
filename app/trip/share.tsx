@@ -15,9 +15,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/use-colors';
+import { SchemeColors } from '@/constants/theme';
 import { useTranslation } from '@/hooks/use-translation';
 import { trpc } from '@/lib/trpc';
 import { useAuthStore } from '@/store/auth';
+
+// Text/icon color for content drawn on top of a solid brand-colored fill, which
+// is identical in both schemes — always the light-scheme background swatch.
+const ON_PRIMARY = SchemeColors.light.background;
 
 export default function TripShareScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
@@ -84,9 +89,9 @@ export default function TripShareScreen() {
   }, [revokeMutation, sharesQuery, translations]);
 
   const statusLabel = (status: string) => {
-    if (status === 'accepted') return { label: 'Aceitou', color: '#22C55E' };
-    if (status === 'revoked') return { label: 'Revogado', color: '#EF4444' };
-    return { label: 'Pendente', color: '#F59E0B' };
+    if (status === 'accepted') return { label: 'Aceitou', color: colors.success };
+    if (status === 'revoked') return { label: 'Revogado', color: colors.error };
+    return { label: 'Pendente', color: colors.warning };
   };
 
   const roleLabel = (r: string) => r === 'editor' ? 'Editor' : 'Visualizador';
@@ -171,10 +176,10 @@ export default function TripShareScreen() {
               ]}
             >
               {sending ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={ON_PRIMARY} size="small" />
               ) : (
                 <>
-                  <Ionicons name="paper-plane-outline" size={16} color="#fff" />
+                  <Ionicons name="paper-plane-outline" size={16} color={ON_PRIMARY} />
                   <Text style={styles.inviteBtnText}>Enviar Convite</Text>
                 </>
               )}
@@ -295,7 +300,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 12,
   },
-  inviteBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  inviteBtnText: { color: ON_PRIMARY, fontSize: 15, fontWeight: '700' },
   emptyText: { fontSize: 14, textAlign: 'center', paddingVertical: 16 },
   shareRow: {
     flexDirection: 'row',

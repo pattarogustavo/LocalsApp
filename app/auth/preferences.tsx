@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useColors } from '@/hooks/use-colors';
+import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
+
+// Selection accent — a distinct brand green kept fixed across both schemes.
+const SELECT_GREEN = '#4CAF7D';
+// SELECT_GREEN is light/medium, so white text on it fails contrast
+// (2.71:1) — use the fixed light-scheme dark foreground instead (5.64:1).
+const TEXT_ON_SELECT_GREEN = SchemeColors.light.foreground;
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +55,8 @@ export default function PreferencesScreen() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const updateProfile = useAuthStore((s) => s.updateProfile);
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [step, setStep] = useState(0); // 0 = destinations, 1 = style, 2 = pace
   const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
@@ -161,7 +171,7 @@ export default function PreferencesScreen() {
                   </Text>
                   {selected && (
                     <View style={styles.checkBadge}>
-                      <Ionicons name="checkmark" size={12} color="#fff" />
+                      <Ionicons name="checkmark" size={12} color={TEXT_ON_SELECT_GREEN} />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -192,7 +202,7 @@ export default function PreferencesScreen() {
                     <Text style={styles.listDesc}>{opt.desc}</Text>
                   </View>
                   {selected && (
-                    <Ionicons name="checkmark-circle" size={22} color="#2C2416" />
+                    <Ionicons name="checkmark-circle" size={22} color={colors.foreground} />
                   )}
                 </TouchableOpacity>
               );
@@ -222,7 +232,7 @@ export default function PreferencesScreen() {
                     <Text style={styles.listDesc}>{opt.desc}</Text>
                   </View>
                   {selected && (
-                    <Ionicons name="checkmark-circle" size={22} color="#2C2416" />
+                    <Ionicons name="checkmark-circle" size={22} color={colors.foreground} />
                   )}
                 </TouchableOpacity>
               );
@@ -243,7 +253,7 @@ export default function PreferencesScreen() {
             {step === totalSteps - 1 ? 'Começar a Explorar 🚀' : 'Continuar'}
           </Text>
           {step < totalSteps - 1 && (
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
+            <Ionicons name="arrow-forward" size={18} color={TEXT_ON_SELECT_GREEN} />
           )}
         </TouchableOpacity>
       </View>
@@ -255,10 +265,10 @@ export default function PreferencesScreen() {
 
 const CARD_WIDTH = (width - 48 - 12) / 2;
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0EBE0',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -279,18 +289,18 @@ const styles = StyleSheet.create({
   },
   progressDotActive: {
     width: 24,
-    backgroundColor: '#4CAF7D',
+    backgroundColor: SELECT_GREEN,
   },
   progressDotInactive: {
     width: 8,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: colors.border,
   },
   skipBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   skipText: {
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.muted,
     fontSize: 14,
   },
   titleSection: {
@@ -299,20 +309,20 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   greeting: {
-    color: '#4CAF7D',
+    color: SELECT_GREEN,
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 6,
   },
   title: {
-    color: '#fff',
+    color: colors.foreground,
     fontSize: 26,
     fontWeight: '700',
     lineHeight: 32,
     marginBottom: 8,
   },
   subtitle: {
-    color: 'rgba(255,255,255,0.55)',
+    color: colors.muted,
     fontSize: 15,
     lineHeight: 20,
   },
@@ -336,22 +346,22 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   gridCardDefault: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.border,
   },
   gridCardSelected: {
     backgroundColor: 'rgba(76,175,125,0.18)',
     borderWidth: 1.5,
-    borderColor: '#4CAF7D',
+    borderColor: SELECT_GREEN,
   },
   gridEmoji: { fontSize: 28 },
   gridLabel: {
-    color: 'rgba(255,255,255,0.7)',
+    color: colors.foreground,
     fontSize: 13,
     fontWeight: '600',
   },
-  gridLabelSelected: { color: '#4CAF7D' },
+  gridLabelSelected: { color: SELECT_GREEN },
   checkBadge: {
     position: 'absolute',
     top: 8,
@@ -359,7 +369,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#4CAF7D',
+    backgroundColor: SELECT_GREEN,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -373,25 +383,25 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   listCardDefault: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.border,
   },
   listCardSelected: {
     backgroundColor: 'rgba(76,175,125,0.15)',
     borderWidth: 1.5,
-    borderColor: '#4CAF7D',
+    borderColor: SELECT_GREEN,
   },
   listEmoji: { fontSize: 26 },
   listLabel: {
-    color: '#fff',
+    color: colors.foreground,
     fontSize: 15,
     fontWeight: '600',
     marginBottom: 2,
   },
-  listLabelSelected: { color: '#4CAF7D' },
+  listLabelSelected: { color: SELECT_GREEN },
   listDesc: {
-    color: 'rgba(255,255,255,0.45)',
+    color: colors.muted,
     fontSize: 12,
     lineHeight: 16,
   },
@@ -399,10 +409,10 @@ const styles = StyleSheet.create({
   bottomSection: {
     paddingHorizontal: 24,
     paddingTop: 12,
-    backgroundColor: '#F0EBE0',
+    backgroundColor: colors.background,
   },
   nextBtn: {
-    backgroundColor: '#4CAF7D',
+    backgroundColor: SELECT_GREEN,
     borderRadius: 14,
     paddingVertical: 16,
     flexDirection: 'row',
@@ -414,7 +424,7 @@ const styles = StyleSheet.create({
     opacity: 0.35,
   },
   nextBtnText: {
-    color: '#fff',
+    color: TEXT_ON_SELECT_GREEN,
     fontSize: 16,
     fontWeight: '700',
   },

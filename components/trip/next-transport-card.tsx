@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Transport, Destination } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
+import { useColors } from '@/hooks/use-colors';
+import { type ThemeColorPalette } from '@/constants/theme';
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -15,14 +22,16 @@ const MODE_ICONS: Record<string, string> = {
   other: 'navigate',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  scheduled: '#3D5A2E',
-  delayed: '#F59E0B',
-  boarding: '#3B82F6',
-  departed: '#8B5CF6',
-  arrived: '#10B981',
-  cancelled: '#EF4444',
-};
+function getStatusColors(colors: ThemeColorPalette): Record<string, string> {
+  return {
+    scheduled: colors.textAccent,
+    delayed: colors.warning,
+    boarding: colors.statusBoarding,
+    departed: colors.statusDeparted,
+    arrived: colors.statusArrived,
+    cancelled: colors.error,
+  };
+}
 
 function formatTime(iso: string): string {
   if (!iso) return '--:--';
@@ -114,6 +123,9 @@ interface Props {
 
 export function NextTransportCard({ transports, destinations, startDate, onPress }: Props) {
   const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const STATUS_COLORS = useMemo(() => getStatusColors(colors), [colors]);
   const MODE_LABELS: Record<string, string> = {
     flight: t.transport.flight,
     train: t.transport.train,
@@ -138,11 +150,11 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
       <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Ionicons name="airplane-outline" size={15} color="#3D5A2E" />
+            <Ionicons name="airplane-outline" size={15} color={colors.textAccent} />
             <Text style={styles.sectionTitle}>{t.common.nextTransport}</Text>
           </View>
           <View style={styles.addHint}>
-            <Ionicons name="add-circle-outline" size={14} color="rgba(82,183,136,0.7)" />
+            <Ionicons name="add-circle-outline" size={14} color={withAlpha(colors.textAccent, 0.7)} />
             <Text style={styles.addHintText}>{t.common.add}</Text>
           </View>
         </View>
@@ -156,7 +168,7 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
   const modeIcon = MODE_ICONS[next.mode] || 'navigate';
   const modeLabel = MODE_LABELS[next.mode] || 'Transporte';
   const status = f?.status || 'scheduled';
-  const statusColor = STATUS_COLORS[status] || '#3D5A2E';
+  const statusColor = STATUS_COLORS[status] || colors.textAccent;
   const statusLabel = STATUS_LABELS[status] || 'No horário';
 
   // Days until departure
@@ -178,7 +190,7 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name={`${modeIcon}-outline` as any} size={15} color="#3D5A2E" />
+          <Ionicons name={`${modeIcon}-outline` as any} size={15} color={colors.textAccent} />
           <Text style={styles.sectionTitle}>{t.transport.saida.replace('SAÍDA', 'PRÓXIMO TRANSPORTE')}</Text>
         </View>
         <View style={styles.headerRight}>
@@ -189,7 +201,7 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
               </Text>
             </View>
           ) : null}
-          <Ionicons name="chevron-forward" size={14} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="chevron-forward" size={14} color={colors.muted} />
         </View>
       </View>
 
@@ -212,7 +224,7 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
           <View style={styles.routeLine}>
             <View style={styles.routeDot} />
             <View style={styles.routeLineBar} />
-            <Ionicons name={modeIcon as any} size={16} color="#3D5A2E" />
+            <Ionicons name={modeIcon as any} size={16} color={colors.textAccent} />
             <View style={styles.routeLineBar} />
             <View style={styles.routeDot} />
           </View>
@@ -261,14 +273,14 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(44,36,22,0.5)',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(61,90,46,0.12)',
+    borderColor: withAlpha(colors.primary, 0.12),
   },
   header: {
     flexDirection: 'row',
@@ -285,7 +297,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.5,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
   },
   headerRight: {
     flexDirection: 'row',
@@ -293,21 +305,21 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   countdownBadge: {
-    backgroundColor: 'rgba(61,90,46,0.12)',
+    backgroundColor: withAlpha(colors.primary, 0.12),
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   countdownToday: {
-    backgroundColor: 'rgba(61,90,46,0.25)',
+    backgroundColor: withAlpha(colors.primary, 0.25),
   },
   countdownText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#3D5A2E',
+    color: colors.textAccent,
   },
   countdownTodayText: {
-    color: '#A8D5B5',
+    color: colors.textAccent,
   },
   // Route
   routeRow: {
@@ -322,18 +334,18 @@ const styles = StyleSheet.create({
   airportCode: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#F0EBE0',
+    color: colors.foreground,
     letterSpacing: 0.5,
   },
   timeText: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginTop: 2,
   },
   dateText: {
     fontSize: 11,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginTop: 1,
   },
   routeMiddle: {
@@ -344,7 +356,7 @@ const styles = StyleSheet.create({
   },
   durationText: {
     fontSize: 11,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
   },
   routeLine: {
     flexDirection: 'row',
@@ -355,18 +367,18 @@ const styles = StyleSheet.create({
   routeLineBar: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(82,183,136,0.4)',
+    backgroundColor: withAlpha(colors.primary, 0.4),
   },
   routeDot: {
     width: 5,
     height: 5,
     borderRadius: 3,
-    backgroundColor: '#3D5A2E',
+    backgroundColor: colors.primary,
   },
   flightNumberText: {
     fontSize: 11,
     fontWeight: '600',
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     letterSpacing: 0.5,
   },
   // Footer
@@ -395,7 +407,7 @@ const styles = StyleSheet.create({
   },
   airlineText: {
     fontSize: 12,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     flex: 1,
   },
   gateRow: {
@@ -404,8 +416,8 @@ const styles = StyleSheet.create({
   },
   gateText: {
     fontSize: 11,
-    color: 'rgba(240,235,224,0.9)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    color: colors.muted,
+    backgroundColor: withAlpha(colors.foreground, 0.06),
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -413,12 +425,12 @@ const styles = StyleSheet.create({
   // Empty state
   emptyText: {
     fontSize: 14,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginBottom: 4,
   },
   emptySubText: {
     fontSize: 12,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     lineHeight: 18,
   },
   addHint: {
@@ -428,7 +440,7 @@ const styles = StyleSheet.create({
   },
   addHintText: {
     fontSize: 12,
-    color: 'rgba(82,183,136,0.7)',
+    color: withAlpha(colors.textAccent, 0.7),
     fontWeight: '600',
   },
 });
@@ -438,13 +450,22 @@ const styles = StyleSheet.create({
 
 import { Linking } from 'react-native';
 
-const FLIGHT_STATUS_COLORS_SUMMARY: Record<string, string> = {
-  scheduled: '#3D5A2E', delayed: '#F59E0B', boarding: '#3B82F6',
-  departed: '#8B5CF6', arrived: '#10B981', cancelled: '#EF4444',
-};
+function getSummaryStatusColors(colors: ThemeColorPalette): Record<string, string> {
+  return {
+    scheduled: colors.textAccent,
+    delayed: colors.warning,
+    boarding: colors.statusBoarding,
+    departed: colors.statusDeparted,
+    arrived: colors.statusArrived,
+    cancelled: colors.error,
+  };
+}
 
 function SummaryFlightCard({ transport }: { transport: Transport }) {
   const t = useTranslation();
+  const colors = useColors();
+  const summaryStyles = useMemo(() => createSummaryStyles(colors), [colors]);
+  const FLIGHT_STATUS_COLORS_SUMMARY = useMemo(() => getSummaryStatusColors(colors), [colors]);
   const f = transport.flight!;
   const statusColor = FLIGHT_STATUS_COLORS_SUMMARY[f.status || 'scheduled'];
   const FLIGHT_STATUS_LABELS_LOCAL: Record<string, string> = {
@@ -475,7 +496,7 @@ function SummaryFlightCard({ transport }: { transport: Transport }) {
           <View style={summaryStyles.lineRow}>
             <View style={summaryStyles.dot} />
             <View style={summaryStyles.bar} />
-            <Ionicons name="airplane" size={13} color="rgba(240,235,224,0.9)" />
+            <Ionicons name="airplane" size={13} color={colors.muted} />
             <View style={summaryStyles.bar} />
             <View style={summaryStyles.dot} />
           </View>
@@ -501,6 +522,8 @@ function SummaryFlightCard({ transport }: { transport: Transport }) {
 
 function SummaryCarCard({ transport }: { transport: Transport }) {
   const t = useTranslation();
+  const colors = useColors();
+  const summaryStyles = useMemo(() => createSummaryStyles(colors), [colors]);
   const c = transport.car!;
   const fmt = (iso: string) => {
     if (!iso) return '--:--';
@@ -511,7 +534,7 @@ function SummaryCarCard({ transport }: { transport: Transport }) {
     <View style={summaryStyles.flightCard}>
       <View style={summaryStyles.flightTopRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons name="car-outline" size={14} color="#3D5A2E" />
+          <Ionicons name="car-outline" size={14} color={colors.textAccent} />
           <Text style={summaryStyles.airlineName}>{transport.leg || t.transport.car}</Text>
         </View>
       </View>
@@ -525,7 +548,7 @@ function SummaryCarCard({ transport }: { transport: Transport }) {
           <View style={summaryStyles.lineRow}>
             <View style={summaryStyles.dot} />
             <View style={summaryStyles.bar} />
-            <Ionicons name="car" size={13} color="rgba(240,235,224,0.9)" />
+            <Ionicons name="car" size={13} color={colors.muted} />
             <View style={summaryStyles.bar} />
             <View style={summaryStyles.dot} />
           </View>
@@ -539,7 +562,7 @@ function SummaryCarCard({ transport }: { transport: Transport }) {
       </View>
       {c.mapsUrl ? (
         <TouchableOpacity style={summaryStyles.mapsBtn} onPress={() => Linking.openURL(c.mapsUrl!)}>
-          <Ionicons name="map-outline" size={12} color="#3D5A2E" />
+          <Ionicons name="map-outline" size={12} color={colors.textAccent} />
           <Text style={summaryStyles.mapsBtnText}>{t.transport.openMaps}</Text>
         </TouchableOpacity>
       ) : null}
@@ -549,6 +572,8 @@ function SummaryCarCard({ transport }: { transport: Transport }) {
 
 function SummaryGenericCard({ transport }: { transport: Transport }) {
   const t = useTranslation();
+  const colors = useColors();
+  const summaryStyles = useMemo(() => createSummaryStyles(colors), [colors]);
   const modeIcons: Record<string, string> = {
     flight: 'airplane-outline', car: 'car-outline', train: 'train-outline',
     bus: 'bus-outline', ferry: 'boat-outline', other: 'navigate-outline',
@@ -561,7 +586,7 @@ function SummaryGenericCard({ transport }: { transport: Transport }) {
     <View style={summaryStyles.flightCard}>
       <View style={summaryStyles.flightTopRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons name={modeIcons[transport.mode] as any || 'navigate-outline'} size={14} color="#3D5A2E" />
+          <Ionicons name={modeIcons[transport.mode] as any || 'navigate-outline'} size={14} color={colors.textAccent} />
           <Text style={summaryStyles.airlineName}>{modeLabels[transport.mode] || 'Transporte'}</Text>
         </View>
         {transport.travelTime ? <Text style={summaryStyles.duration}>{transport.travelTime}</Text> : null}
@@ -573,6 +598,8 @@ function SummaryGenericCard({ transport }: { transport: Transport }) {
 
 export function TransportSummaryCard({ transports, destinations, startDate, onPress }: Props) {
   const t = useTranslation();
+  const colors = useColors();
+  const summaryStyles = useMemo(() => createSummaryStyles(colors), [colors]);
   const hasTransports = transports && transports.length > 0;
 
   return (
@@ -580,18 +607,18 @@ export function TransportSummaryCard({ transports, destinations, startDate, onPr
       {/* Header */}
       <TouchableOpacity style={summaryStyles.header} onPress={onPress} activeOpacity={0.8}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons name="airplane-outline" size={15} color="#3D5A2E" />
+          <Ionicons name="airplane-outline" size={15} color={colors.textAccent} />
           <Text style={summaryStyles.sectionTitle}>{t.transport.title.toUpperCase()}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={summaryStyles.addHintText}>{t.common.manage}</Text>
-          <Ionicons name="chevron-forward" size={14} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="chevron-forward" size={14} color={colors.muted} />
         </View>
       </TouchableOpacity>
 
       {!hasTransports ? (
         <TouchableOpacity style={summaryStyles.emptyRow} onPress={onPress} activeOpacity={0.8}>
-          <Ionicons name="airplane-outline" size={20} color="rgba(240,235,224,0.9)" />
+          <Ionicons name="airplane-outline" size={20} color={colors.muted} />
           <Text style={summaryStyles.emptyText}>{t.transport.noTransport}</Text>
           <Text style={summaryStyles.emptyCta}>{t.transport.tapToConfigure}</Text>
         </TouchableOpacity>
@@ -612,14 +639,14 @@ export function TransportSummaryCard({ transports, destinations, startDate, onPr
   );
 }
 
-const summaryStyles = StyleSheet.create({
+const createSummaryStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   wrapper: {
-    backgroundColor: 'rgba(44,36,22,0.5)',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(61,90,46,0.12)',
+    borderColor: withAlpha(colors.primary, 0.12),
     gap: 12,
   },
   header: {
@@ -631,11 +658,11 @@ const summaryStyles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.5,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
   },
   addHintText: {
     fontSize: 12,
-    color: 'rgba(82,183,136,0.7)',
+    color: withAlpha(colors.textAccent, 0.7),
     fontWeight: '600',
   },
   emptyRow: {
@@ -645,19 +672,19 @@ const summaryStyles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
   },
   emptyCta: {
     fontSize: 12,
-    color: 'rgba(82,183,136,0.6)',
+    color: withAlpha(colors.textAccent, 0.6),
   },
   flightCard: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: withAlpha(colors.foreground, 0.04),
     borderRadius: 14,
     padding: 12,
     gap: 8,
     borderWidth: 1,
-    borderColor: 'rgba(82,183,136,0.08)',
+    borderColor: withAlpha(colors.primary, 0.08),
   },
   flightTopRow: {
     flexDirection: 'row',
@@ -666,13 +693,13 @@ const summaryStyles = StyleSheet.create({
   },
   airlineName: {
     fontSize: 12,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     fontWeight: '500',
   },
   flightNum: {
     fontSize: 12,
     fontWeight: '700',
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     letterSpacing: 0.5,
   },
   routeRow: {
@@ -685,19 +712,19 @@ const summaryStyles = StyleSheet.create({
   },
   cityName: {
     fontSize: 11,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginBottom: 1,
   },
   iata: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#F0EBE0',
+    color: colors.foreground,
     letterSpacing: 0.5,
   },
   time: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginTop: 2,
   },
   middle: {
@@ -716,16 +743,16 @@ const summaryStyles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#3D5A2E',
+    backgroundColor: colors.primary,
   },
   bar: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(82,183,136,0.35)',
+    backgroundColor: withAlpha(colors.primary, 0.35),
   },
   duration: {
     fontSize: 10,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
   },
   footer: {
     flexDirection: 'row',
@@ -752,8 +779,8 @@ const summaryStyles = StyleSheet.create({
   },
   gateText: {
     fontSize: 10,
-    color: 'rgba(240,235,224,0.9)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    color: colors.muted,
+    backgroundColor: withAlpha(colors.foreground, 0.06),
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 5,
@@ -762,12 +789,12 @@ const summaryStyles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 1,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginBottom: 2,
   },
   address: {
     fontSize: 10,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
     marginTop: 2,
     maxWidth: 90,
   },
@@ -776,18 +803,18 @@ const summaryStyles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(82,183,136,0.1)',
+    backgroundColor: withAlpha(colors.primary, 0.1),
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   mapsBtnText: {
     fontSize: 11,
-    color: '#3D5A2E',
+    color: colors.textAccent,
     fontWeight: '600',
   },
   legLabel: {
     fontSize: 12,
-    color: 'rgba(240,235,224,0.9)',
+    color: colors.muted,
   },
 });
