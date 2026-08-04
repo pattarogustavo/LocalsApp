@@ -1,6 +1,7 @@
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { searchIslands } from "../constants/islands-regions";
 import * as db from "./db";
@@ -895,14 +896,20 @@ Importante:
             { role: "user", content: prompt },
           ],
           response_format: { type: "json_object" },
+          max_tokens: 16000,
         });
 
         const content = response.choices[0].message.content as string;
         try {
           const parsed = JSON.parse(content);
           return { days: parsed.days || [] };
-        } catch {
-          return { days: [] };
+        } catch (err) {
+          console.error("[ai.generateItinerary] Failed to parse LLM response as JSON. Raw content (first 500 chars):", content.slice(0, 500));
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Não foi possível gerar o roteiro: a resposta da IA veio incompleta ou inválida. Tente novamente.",
+            cause: err,
+          });
         }
       }),
 
@@ -992,14 +999,20 @@ Importante:
             { role: "user", content: prompt },
           ],
           response_format: { type: "json_object" },
+          max_tokens: 16000,
         });
 
         const content = response.choices[0].message.content as string;
         try {
           const parsed = JSON.parse(content);
           return { days: parsed.days || [], suggestedPlaces: parsed.suggestedPlaces || [] };
-        } catch {
-          return { days: [], suggestedPlaces: [] };
+        } catch (err) {
+          console.error("[ai.generateFromScratch] Failed to parse LLM response as JSON. Raw content (first 500 chars):", content.slice(0, 500));
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Não foi possível gerar o roteiro: a resposta da IA veio incompleta ou inválida. Tente novamente.",
+            cause: err,
+          });
         }
       }),
 
@@ -1032,21 +1045,28 @@ Cada lugar deve ter: { name (string), category (attraction|restaurant|cafe|museu
             { role: "user", content: prompt },
           ],
           response_format: { type: "json_object" },
+          max_tokens: 16000,
         });
 
         const content = response.choices[0].message.content as string;
+        let parsed: any;
         try {
-          const parsed = JSON.parse(content);
-          // Handle both flat array and nested object formats
-          let places = parsed.places || [];
-          if (!Array.isArray(places)) {
-            // Flatten nested categories
-            places = Object.values(places).flat();
-          }
-          return { places };
-        } catch {
-          return { places: [] };
+          parsed = JSON.parse(content);
+        } catch (err) {
+          console.error("[ai.suggestPlaces] Failed to parse LLM response as JSON. Raw content (first 500 chars):", content.slice(0, 500));
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Não foi possível sugerir lugares: a resposta da IA veio incompleta ou inválida. Tente novamente.",
+            cause: err,
+          });
         }
+        // Handle both flat array and nested object formats
+        let places = parsed.places || [];
+        if (!Array.isArray(places)) {
+          // Flatten nested categories
+          places = Object.values(places).flat();
+        }
+        return { places };
       }),
     }),
 
