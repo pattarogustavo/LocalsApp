@@ -117,11 +117,8 @@ export default function HomeScreen() {
         >
           <View>
             <Text style={{ fontSize: 32, fontFamily: 'serif', fontStyle: 'italic', color: colors.foreground, fontWeight: '400' }}>
-              LocalsApp
+              Locals
             </Text>
-            <Text className="text-muted text-xs tracking-widest font-semibold uppercase" style={{ marginTop: -2 }}>
-            {t.home.curatedRoutes}
-          </Text>
           </View>
           <View className="flex-row gap-2">
             <TouchableOpacity
@@ -155,33 +152,40 @@ export default function HomeScreen() {
           </View>
         ) : (
           /* Empty state - Create first trip CTA */
-          <View className="mx-6 mb-6 rounded-3xl overflow-hidden" style={{ height: 200 }}>
-            <ImageBackground
-              source={{ uri: 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=800' }}
-              style={{ flex: 1 }}
-              imageStyle={{ borderRadius: 24 }}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setShowCreate(true)}
+            style={{
+              marginHorizontal: 24,
+              marginBottom: 24,
+              height: 200,
+              borderRadius: 24,
+              backgroundColor: colors.emptyStateBackground,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: 24,
+              gap: 12,
+            }}
+          >
+            <View
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                backgroundColor: colors.primary,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
-              <LinearGradient
-                colors={['rgba(44,36,22,0.5)', 'rgba(44,36,22,0.5)']}
-                style={{ flex: 1, borderRadius: 24, justifyContent: 'flex-end', padding: 20 }}
-              >
-                <Text style={{ color: colors.textOnPrimary, fontSize: 20, fontFamily: 'serif', fontStyle: 'italic', fontWeight: '600', marginBottom: 4 }}>
-                  {t.home.noTrips}
-                </Text>
-                <View className="flex-row items-center justify-between">
-                  <Text style={{ color: withAlpha(colors.textOnPrimary, 0.9), fontSize: 14 }}>
-                    {t.home.noTripsSubtitle}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setShowCreate(true)}
-                    className="bg-background rounded-full px-5 py-2"
-                  >
-                    <Text className="text-foreground font-semibold text-sm">{t.common.add}</Text>
-                  </TouchableOpacity>
-                </View>
-              </LinearGradient>
-            </ImageBackground>
-          </View>
+              <Ionicons name="add" size={26} color={colors.textOnPrimary} />
+            </View>
+            <Text style={{ color: colors.foreground, fontSize: 20, fontFamily: 'serif', fontStyle: 'italic', fontWeight: '600', textAlign: 'center' }}>
+              {t.home.noTrips}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 14, textAlign: 'center' }}>
+              {t.home.noTripsSubtitle}
+            </Text>
+          </TouchableOpacity>
         )}
 
         {/* Já Aconteceram section */}

@@ -116,7 +116,7 @@ export const pt = {
   home: {
     title: 'Minhas Viagens',
     curatedRoutes: 'Rotas Curadas',
-    curatedGuides: 'Guias Curados',
+    curatedGuides: 'Guias mais Populares',
     spotsLabel: 'Lugares',
     newTrip: 'Nova viagem',
     noTrips: 'Nenhuma viagem ainda',

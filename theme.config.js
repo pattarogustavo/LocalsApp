@@ -29,6 +29,10 @@ const themeColors = {
   // (ex: modal de detalhe, bottom sheet). Um degrau mais claro que `surface`,
   // ainda com contraste garantido para todos os tokens de texto/status.
   cardElevated: { light: '#FDFBF7', dark: '#26261A' },
+  // Fundo do card de estado vazio (ex: "Nenhuma viagem ainda"). Bege sólido
+  // ~18% mais escuro que `background`, para diferenciar o card do fundo da
+  // tela sem depender de foto/gradiente.
+  emptyStateBackground: { light: '#C5C1B8', dark: '#151510' },
 
   // ── Texto ─────────────────────────────────────────────────────────────────
   // Texto principal (títulos, valores, corpo de texto de destaque).

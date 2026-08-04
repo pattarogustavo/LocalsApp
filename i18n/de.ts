@@ -115,7 +115,7 @@ export const de: Translations = {
   home: {
     title: 'Meine Reisen',
     curatedRoutes: 'Kuratierte Routen',
-    curatedGuides: 'Kuratierte Reiseführer',
+    curatedGuides: 'Beliebteste Reiseführer',
     spotsLabel: 'Sehenswürdigkeiten',
     newTrip: 'Neue Reise',
     noTrips: 'Noch keine Reisen',

@@ -33,12 +33,12 @@ function withAlpha(hex: string, alpha: number): string {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const LANGUAGES = [
-  { code: 'pt', label: 'Português', flag: '🇧🇷' },
-  { code: 'en', label: 'English', flag: '🇺🇸' },
-  { code: 'es', label: 'Español', flag: '🇪🇸' },
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
-  { code: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { code: 'pt', label: 'Português', initials: 'PT' },
+  { code: 'en', label: 'English', initials: 'EN' },
+  { code: 'es', label: 'Español', initials: 'ES' },
+  { code: 'fr', label: 'Français', initials: 'FR' },
+  { code: 'de', label: 'Deutsch', initials: 'DE' },
+  { code: 'it', label: 'Italiano', initials: 'IT' },
 ];
 
 const LOCALE_MAP: Record<string, string> = {
@@ -116,7 +116,7 @@ function LanguageModal({
               style={[styles.langRow, current === lang.code && styles.langRowActive]}
               onPress={() => { onSelect(lang.code); onClose(); }}
             >
-              <Text style={styles.langFlag}>{lang.flag}</Text>
+              <Text style={styles.langFlag}>{lang.initials}</Text>
               <Text style={[styles.langLabel, current === lang.code && styles.langLabelActive]}>
                 {lang.label}
               </Text>
@@ -809,7 +809,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     gap: 12,
   },
   langRowActive: { backgroundColor: withAlpha(colors.primary, 0.10) },
-  langFlag: { fontSize: 22 },
+  langFlag: { fontSize: 13, fontWeight: '700', color: colors.muted, width: 28 },
   langLabel: { flex: 1, fontSize: 16, color: withAlpha(colors.foreground, 0.7) },
   langLabelActive: { color: colors.foreground, fontWeight: '600' },
   langCancelBtn: {

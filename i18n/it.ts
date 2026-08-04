@@ -115,7 +115,7 @@ export const it: Translations = {
   home: {
     title: 'I Miei Viaggi',
     curatedRoutes: 'Percorsi Selezionati',
-    curatedGuides: 'Guide Selezionate',
+    curatedGuides: 'Guide più Popolari',
     spotsLabel: 'Luoghi',
     newTrip: 'Nuovo viaggio',
     noTrips: 'Nessun viaggio ancora',

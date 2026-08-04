@@ -11,6 +11,9 @@ function withAlpha(hex: string, alpha: number): string {
   return `${hex}${a}`;
 }
 
+// Upgrade badge/button accent color, same in both light and dark schemes.
+const UPGRADE_COLOR = '#91876E';
+
 /**
  * Displays a banner at the top of the main app during the trial period.
  * Shows days remaining and a CTA to upgrade.
@@ -92,12 +95,12 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     gap: 8,
   },
   upgradeBtn: {
-    backgroundColor: withAlpha(colors.primary, 0.15),
+    backgroundColor: withAlpha(UPGRADE_COLOR, 0.15),
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: withAlpha(colors.primary, 0.35),
+    borderColor: withAlpha(UPGRADE_COLOR, 0.35),
   },
   upgradeBtnUrgent: {
     backgroundColor: withAlpha(colors.warning, 0.15),
@@ -106,7 +109,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   upgradeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.primary,
+    color: UPGRADE_COLOR,
   },
   upgradeTextUrgent: {
     color: colors.warning,

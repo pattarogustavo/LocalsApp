@@ -5,6 +5,7 @@ export const themeColors: {
   surface: { light: string; dark: string };
   card: { light: string; dark: string };
   cardElevated: { light: string; dark: string };
+  emptyStateBackground: { light: string; dark: string };
   foreground: { light: string; dark: string };
   muted: { light: string; dark: string };
   textPlaceholder: { light: string; dark: string };

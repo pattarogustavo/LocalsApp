@@ -14,6 +14,12 @@ import { useTranslation } from '@/hooks/use-translation';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { useColors } from '@/hooks/use-colors';
 import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
+import { useAuthStore } from '@/store/auth';
+
+const ONBOARDING_LANGUAGES = [
+  { code: 'pt', label: 'PT' },
+  { code: 'en', label: 'EN' },
+] as const;
 
 // Text/icon color for content drawn on top of the primary button color, which
 // is identical in both schemes — always the light-scheme background swatch.
@@ -76,6 +82,33 @@ function CompassLogo({ size }: { size: number }) {
   );
 }
 
+function LanguageSwitcher() {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage ?? 'pt');
+  const setLanguage = useAuthStore((s) => s.setLanguage);
+
+  return (
+    <View style={styles.langSwitcher}>
+      {ONBOARDING_LANGUAGES.map((lang) => {
+        const active = preferredLanguage.slice(0, 2) === lang.code;
+        return (
+          <TouchableOpacity
+            key={lang.code}
+            style={[styles.langOption, active && styles.langOptionActive]}
+            activeOpacity={0.8}
+            onPress={() => setLanguage(lang.code)}
+          >
+            <Text style={[styles.langOptionText, active && styles.langOptionTextActive]}>
+              {lang.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const t = useTranslation();
@@ -91,6 +124,8 @@ export default function OnboardingScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+
+      <LanguageSwitcher />
 
       {/* Large compass logo */}
       <View style={styles.logoSection}>
@@ -152,6 +187,30 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   },
   logoSection: {
     alignItems: 'center',
+  },
+  langSwitcher: {
+    flexDirection: 'row',
+    alignSelf: 'flex-end',
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 3,
+    gap: 2,
+  },
+  langOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 17,
+  },
+  langOptionActive: {
+    backgroundColor: colors.primary,
+  },
+  langOptionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.muted,
+  },
+  langOptionTextActive: {
+    color: colors.textOnPrimary,
   },
   titleBlock: {
     alignItems: 'center',
