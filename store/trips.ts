@@ -55,6 +55,7 @@ interface TripsState {
   setItinerary: (tripId: string, days: DayItinerary[]) => Promise<void>;
   // Edit trip dates/destinations
   updateDestinations: (tripId: string, destinations: Destination[]) => Promise<void>;
+  updateDestinationSuggestedPlaces: (tripId: string, destinationId: string, places: Place[]) => Promise<void>;
   updateStartDate: (tripId: string, startDate: string) => Promise<void>;
   // Photos
   addPhoto: (tripId: string, photo: TripPhoto) => Promise<void>;
@@ -484,6 +485,24 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, destinations, totalDays, endDate: endDate.toISOString(), updatedAt: new Date().toISOString() }
+        : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
+  },
+
+  updateDestinationSuggestedPlaces: async (tripId: string, destinationId: string, places: Place[]) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId
+        ? {
+            ...t,
+            destinations: t.destinations.map((d) =>
+              d.id === destinationId ? { ...d, aiSuggestedPlaces: places } : d
+            ),
+            updatedAt: new Date().toISOString(),
+          }
         : t
     );
     set({ trips });

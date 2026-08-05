@@ -317,6 +317,7 @@ function AvailPlaceRow({
 
 function AIPanel({
   destination,
+  tripId,
   addedPlaces,
   onAdd,
   onRemove,
@@ -324,6 +325,7 @@ function AIPanel({
   searchQuery,
 }: {
   destination: Destination;
+  tripId: string;
   addedPlaces: Place[];
   onAdd: (place: Place) => void;
   onRemove: (id: string) => void;
@@ -337,6 +339,7 @@ function AIPanel({
   const [loaded, setLoaded] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const fetchedRef = useRef(false);
+  const { updateDestinationSuggestedPlaces } = useTripsStore();
 
   const suggestPlaces = trpc.ai.suggestPlaces.useMutation();
 
@@ -352,7 +355,9 @@ function AIPanel({
         existingPlaces: addedPlaces.map((p) => p.name),
       });
       if (result?.places) {
-        setSuggestions(result.places.map((p: any) => ({ ...p, id: generateId() })));
+        const withIds = result.places.map((p: any) => ({ ...p, id: generateId() }));
+        setSuggestions(withIds);
+        await updateDestinationSuggestedPlaces(tripId, destination.id, withIds);
       }
     } catch (e) {
       console.error('AI suggest places error:', e);
@@ -360,10 +365,17 @@ function AIPanel({
       setLoading(false);
       setLoaded(true);
     }
-  }, [destination.name, destination.country]);
+  }, [destination.name, destination.country, destination.id, tripId]);
 
-  // Auto-load on mount
+  // Auto-load on mount: hydrate from cache if this destination already has
+  // saved AI suggestions, otherwise fetch once and persist the result.
   useEffect(() => {
+    if (destination.aiSuggestedPlaces && destination.aiSuggestedPlaces.length > 0) {
+      fetchedRef.current = true;
+      setSuggestions(destination.aiSuggestedPlaces);
+      setLoaded(true);
+      return;
+    }
     loadSuggestions();
   }, []);
 
@@ -721,6 +733,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
             )}
             <AIPanel
               destination={dest}
+              tripId={tripId}
               addedPlaces={places.filter((p) => p.destinationId === dest.id)}
               onAdd={(place) => handleAddPlace({ ...place, destinationId: dest.id })}
               onRemove={handleRemovePlace}

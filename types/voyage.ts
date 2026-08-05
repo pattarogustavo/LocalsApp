@@ -86,6 +86,8 @@ export interface Destination {
   imageUrl?: string;
   // Currency used in this destination country
   currency?: string;
+  // Cached AI-suggested places for this destination, generated once and persisted
+  aiSuggestedPlaces?: Place[];
 }
 
 // ─── Place ────────────────────────────────────────────────────────────────────
