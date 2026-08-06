@@ -400,10 +400,14 @@ Responda APENAS com JSON válido neste formato exato:
         await Promise.all(origIatas.slice(0, 3).map(async (iata) => {
           const from = `${date}T00:00`;
           const to   = `${date}T23:59`;
-          const url = `https://${AERODATABOX_HOST}/flights/airports/iata/${iata}/${from}/${to}/Departure?withLeg=true&withCancelled=false&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
+          const url = `https://${AERODATABOX_HOST}/flights/airports/iata/${iata}/${from}/${to}?direction=Departure&withLeg=true&withCancelled=false&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
           try {
             const res = await fetch(url, { headers: adbHeaders() });
-            if (!res.ok) return;
+            if (!res.ok) {
+              const errBody = await res.text().catch(() => '');
+              console.error(`[flights.searchByRoute] AeroDataBox request failed for iata=${iata}: status=${res.status}`, errBody);
+              return;
+            }
             const json = (await res.json()) as any;
             const departures: any[] = json?.departures || [];
             const filtered = departures.filter((f: any) =>
