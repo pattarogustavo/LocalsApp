@@ -394,12 +394,15 @@ Responda APENAS com JSON válido neste formato exato:
         const [origIatas, destIatas] = await Promise.all([resolveIatas(orig), resolveIatas(dest)]);
         if (origIatas.length === 0 || destIatas.length === 0) return { flights: [] };
 
-        // Fetch departures for each origin airport and filter by any destination IATA
+        // Fetch departures for each origin airport and filter by any destination IATA.
+        // AeroDataBox caps each request window at 12h, so the day is split into two windows.
         const destSet = new Set(destIatas);
         const allFlights: any[] = [];
-        await Promise.all(origIatas.slice(0, 3).map(async (iata) => {
-          const from = `${date}T00:00`;
-          const to   = `${date}T23:59`;
+        const windows: Array<[string, string]> = [
+          [`${date}T00:00`, `${date}T11:59`],
+          [`${date}T12:00`, `${date}T23:59`],
+        ];
+        const fetchWindow = async (iata: string, from: string, to: string) => {
           const url = `https://${AERODATABOX_HOST}/flights/airports/iata/${iata}/${from}/${to}?direction=Departure&withLeg=true&withCancelled=false&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
           try {
             const res = await fetch(url, { headers: adbHeaders() });
@@ -415,7 +418,12 @@ Responda APENAS com JSON válido neste formato exato:
             );
             allFlights.push(...filtered.map((f: any) => mapAdbFlight(f, iata, '')));
           } catch { /* skip */ }
-        }));
+        };
+        await Promise.all(
+          origIatas.slice(0, 3).flatMap((iata) =>
+            windows.map(([from, to]) => fetchWindow(iata, from, to))
+          )
+        );
 
         return { flights: allFlights.slice(0, 8) };
       }),
