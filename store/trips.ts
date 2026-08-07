@@ -482,9 +482,13 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     const totalDays = destinations.reduce((sum, d) => sum + d.days, 0);
     const endDate = new Date(trip.startDate);
     endDate.setDate(endDate.getDate() + totalDays - 1);
+    const firstName = destinations[0].name;
+    const name = destinations.length === 1
+      ? `${totalDays} ${totalDays === 1 ? 'Dia' : 'Dias'} em ${firstName}`
+      : destinations.map((d) => d.name).join(' + ');
     const trips = get().trips.map((t) =>
       t.id === tripId
-        ? { ...t, destinations, totalDays, endDate: endDate.toISOString(), updatedAt: new Date().toISOString() }
+        ? { ...t, name, destinations, totalDays, endDate: endDate.toISOString(), updatedAt: new Date().toISOString() }
         : t
     );
     set({ trips });

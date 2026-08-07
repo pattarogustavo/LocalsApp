@@ -1742,7 +1742,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   regenBtnText: { fontSize: 12, color: colors.textAccent, fontWeight: '600' },
   deleteAllBtn: { padding: 4, borderRadius: 10 },
 
-  itineraryCard: { backgroundColor: withAlpha(colors.foreground, 0.04), borderRadius: 20, padding: 16, borderWidth: 1, borderColor: withAlpha(colors.primary, 0.1) },
+  itineraryCard: { backgroundColor: colors.surface, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: withAlpha(colors.primary, 0.1) },
 
   // Day selector chips
   dayChip: { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: withAlpha(colors.foreground, 0.06), minWidth: 52 },
