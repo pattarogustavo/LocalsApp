@@ -12,6 +12,7 @@ const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
 const AERODATABOX_HOST = 'aerodatabox.p.rapidapi.com';
 const GOOGLE_DIRECTIONS_KEY = process.env.GOOGLE_DIRECTIONS_API_KEY || "";
 const OPENWEATHER_KEY = process.env.OPENWEATHERMAP_API_KEY || "";
+const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY || "";
 
 // ─── Photo helpers ────────────────────────────────────────────────────────────
 
@@ -48,6 +49,51 @@ async function fetchWikipediaPhoto(cityName: string, country?: string): Promise<
     }
   }
   return undefined;
+}
+
+/**
+ * Resolve a Google Places photo_reference to a stable public photo URL,
+ * following the redirect so we store an lh3.googleusercontent.com URL
+ * (no API key exposed to the client).
+ */
+async function resolveGooglePhotoUrl(photoReference: string): Promise<string | undefined> {
+  try {
+    const photoUrl = new URL("https://maps.googleapis.com/maps/api/place/photo");
+    photoUrl.searchParams.set("maxwidth", "1200");
+    photoUrl.searchParams.set("photo_reference", photoReference);
+    photoUrl.searchParams.set("key", GOOGLE_PLACES_KEY);
+    const photoRes = await fetch(photoUrl.toString(), { redirect: "follow" });
+    if (photoRes.ok && photoRes.url.includes("googleusercontent.com")) {
+      return photoRes.url;
+    }
+    // Fallback: return the redirect URL (React Native follows redirects natively)
+    return photoUrl.toString();
+  } catch (photoErr) {
+    console.error("[places.details] photo fetch failed:", photoErr);
+    return undefined;
+  }
+}
+
+/**
+ * Fetch a representative photo from Unsplash's search API.
+ * Last-resort fallback when Google Places and Wikipedia both have nothing.
+ */
+async function fetchUnsplashPhoto(query: string): Promise<string | undefined> {
+  if (!UNSPLASH_ACCESS_KEY || !query) return undefined;
+  try {
+    const url = new URL("https://api.unsplash.com/search/photos");
+    url.searchParams.set("query", query);
+    url.searchParams.set("per_page", "1");
+    url.searchParams.set("orientation", "landscape");
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` },
+    });
+    const data = (await res.json()) as any;
+    return data?.results?.[0]?.urls?.regular;
+  } catch (unsplashErr) {
+    console.error(`[places.details] Unsplash photo search failed for "${query}":`, unsplashErr);
+    return undefined;
+  }
 }
 
 // ─── Google Directions helper ─────────────────────────────────────────────────
@@ -652,37 +698,52 @@ Responda APENAS com JSON válido neste formato exato:
         const lat = result?.geometry?.location?.lat;
         const lng = result?.geometry?.location?.lng;
 
-        // Get a photo URL if available — follow the redirect so we store a stable
-        // lh3.googleusercontent.com URL (no API key exposed to the client).
+        // Get a photo URL if available for the specific place.
         let imageUrl: string | undefined;
         if (result?.photos?.[0]?.photo_reference) {
-          try {
-            const photoUrl = new URL("https://maps.googleapis.com/maps/api/place/photo");
-            photoUrl.searchParams.set("maxwidth", "1200");
-            photoUrl.searchParams.set("photo_reference", result.photos[0].photo_reference);
-            photoUrl.searchParams.set("key", GOOGLE_PLACES_KEY);
-            // Follow the redirect so the client gets a stable public URL
-            const photoRes = await fetch(photoUrl.toString(), { redirect: "follow" });
-            if (photoRes.ok && photoRes.url.includes("googleusercontent.com")) {
-              imageUrl = photoRes.url;
-            } else {
-              // Fallback: return the redirect URL (React Native follows redirects natively)
-              imageUrl = photoUrl.toString();
+          imageUrl = await resolveGooglePhotoUrl(result.photos[0].photo_reference);
+        }
+
+        // If the specific place has no photo, try a broader city-level search
+        // before falling back to Wikipedia.
+        if (!imageUrl) {
+          const localityComp = result?.address_components?.find((c: any) => c.types.includes("locality"));
+          const adminAreaComp = result?.address_components?.find((c: any) => c.types.includes("administrative_area_level_1"));
+          const cityName = localityComp?.long_name || adminAreaComp?.long_name || result?.name || "";
+          if (cityName) {
+            try {
+              const citySearchUrl = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
+              citySearchUrl.searchParams.set("query", cityName);
+              citySearchUrl.searchParams.set("language", "pt-BR");
+              citySearchUrl.searchParams.set("key", GOOGLE_PLACES_KEY);
+              const cityRes = await fetch(citySearchUrl.toString());
+              const cityData = (await cityRes.json()) as any;
+              const cityPhotoRef = cityData?.results?.[0]?.photos?.[0]?.photo_reference;
+              if (cityPhotoRef) {
+                imageUrl = await resolveGooglePhotoUrl(cityPhotoRef);
+              }
+            } catch (cityErr) {
+              console.error(`[places.details] city photo search failed for "${cityName}":`, cityErr);
             }
-          } catch (photoErr) {
-            console.error(`[places.details] photo fetch failed for place_id=${input.placeId}:`, photoErr);
           }
         }
 
+        const placeName = result?.name || "";
+        const countryComp = result?.address_components?.find((c: any) => c.types.includes("country"));
+        const countryName = countryComp?.long_name || "";
+
         // If Google Places has no photo, try Wikipedia as fallback
         if (!imageUrl) {
-          const placeName = result?.name || "";
-          const countryComp = result?.address_components?.find((c: any) => c.types.includes("country"));
-          const countryName = countryComp?.long_name || "";
           imageUrl = await fetchWikipediaPhoto(placeName, countryName);
-          if (!imageUrl) {
-            console.warn(`[places.details] no photo found for "${placeName}" (${countryName}), place_id=${input.placeId}`);
-          }
+        }
+
+        // Last resort: Unsplash search
+        if (!imageUrl) {
+          imageUrl = await fetchUnsplashPhoto(placeName);
+        }
+
+        if (!imageUrl) {
+          console.warn(`[places.details] no photo found for "${placeName}" (${countryName}), place_id=${input.placeId}`);
         }
 
         // Extract country from address_components
