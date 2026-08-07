@@ -222,6 +222,9 @@ export const pt = {
     recreateMsg: 'Isso vai substituir o roteiro atual. Deseja continuar?',
     unscheduled: 'Lugares não agendados',
     unscheduledHint: 'Toque em + para adicionar ao dia selecionado',
+    updateRoute: 'Atualizar trajeto',
+    deleteItineraryTitle: 'Apagar roteiro',
+    deleteItineraryMsg: 'Isso vai apagar todos os dias do roteiro. Deseja continuar?',
   },
 
   // ── Places ──────────────────────────────────────────────────────────────────

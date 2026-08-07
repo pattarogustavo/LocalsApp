@@ -133,6 +133,37 @@ function getHotelForDay(date: string, accommodations: Accommodation[]): Accommod
   return null;
 }
 
+// Builds the full stops list for a day (real stops + virtual hotel stop, if any),
+// supporting both the new stops[] format and the legacy morning/afternoon/evening one.
+function computeDayStops(
+  day: DayItinerary | undefined,
+  accommodations?: Accommodation[]
+): { rawStops: StopLike[]; hotelStop: StopLike | null; stops: StopLike[] } {
+  const rawStops: StopLike[] = day
+    ? ((day as any).stops && (day as any).stops.length > 0
+        ? (day as any).stops
+        : [
+            day.morning   ? { id: 'm', time: day.morning.time   || '09:00', placeName: day.morning.activity,   placeCategory: 'attraction', description: day.morning.tip   } : null,
+            day.afternoon ? { id: 'a', time: day.afternoon.time || '14:00', placeName: day.afternoon.activity, placeCategory: 'restaurant', description: day.afternoon.tip } : null,
+            day.evening   ? { id: 'e', time: day.evening.time   || '19:00', placeName: day.evening.activity,   placeCategory: 'other',      description: day.evening.tip   } : null,
+          ].filter(Boolean) as StopLike[])
+    : [];
+
+  const dayDate = day?.date || '';
+  const hotelForDay = getHotelForDay(dayDate, accommodations || []);
+  const hotelStop: StopLike | null = hotelForDay ? {
+    id: undefined, // virtual — not persisted
+    time: '',
+    placeName: hotelForDay.name || 'Hospedagem',
+    placeCategory: 'hotel' as any,
+    description: hotelForDay.address,
+    address: hotelForDay.address,
+  } : null;
+
+  const stops: StopLike[] = hotelStop ? [hotelStop, ...rawStops] : rawStops;
+  return { rawStops, hotelStop, stops };
+}
+
 // ─── Stop Item ────────────────────────────────────────────────────────────────
 
 interface StopLike {
@@ -577,6 +608,7 @@ function DayView({
   dayIndex,
   tripId,
   totalDays,
+  allDays,
   cityTransportMode,
   accommodations,
   onGoToPlaces,
@@ -587,6 +619,7 @@ function DayView({
   dayIndex: number;
   tripId: string;
   totalDays: number;
+  allDays: DayItinerary[];
   cityTransportMode?: string;
   accommodations?: Accommodation[];
   onGoToPlaces: () => void;
@@ -603,31 +636,7 @@ function DayView({
   const [showMoveModal, setShowMoveModal] = useState(false);
   // 'position' = move within same day (before/after), 'day' = move to another day
   const [moveMode, setMoveMode] = useState<'position' | 'day'>('position');
-  // Support both new stops[] format and legacy morning/afternoon/evening
-  const rawStops: StopLike[] = day
-    ? ((day as any).stops && (day as any).stops.length > 0
-        ? (day as any).stops
-        : [
-            day.morning   ? { id: 'm', time: day.morning.time   || '09:00', placeName: day.morning.activity,   placeCategory: 'attraction', description: day.morning.tip   } : null,
-            day.afternoon ? { id: 'a', time: day.afternoon.time || '14:00', placeName: day.afternoon.activity, placeCategory: 'restaurant', description: day.afternoon.tip } : null,
-            day.evening   ? { id: 'e', time: day.evening.time   || '19:00', placeName: day.evening.activity,   placeCategory: 'other',      description: day.evening.tip   } : null,
-          ].filter(Boolean) as StopLike[])
-    : [];
-
-  // Inject hotel as a virtual first stop if there's an active accommodation for this day
-  const dayDate = day?.date || '';
-  const hotelForDay = getHotelForDay(dayDate, accommodations || []);
-  const hotelStop: StopLike | null = hotelForDay ? {
-    id: undefined, // virtual — not persisted
-    time: '',
-    placeName: hotelForDay.name || 'Hospedagem',
-    placeCategory: 'hotel' as any,
-    description: hotelForDay.address,
-    address: hotelForDay.address,
-  } : null;
-
-  // Full stops list: hotel (virtual) + real stops
-  const stops: StopLike[] = hotelStop ? [hotelStop, ...rawStops] : rawStops;
+  const { rawStops, hotelStop, stops } = computeDayStops(day, accommodations);
 
   if (stops.length === 0) {
     return (
@@ -674,38 +683,42 @@ function DayView({
   };
 
   const handleUpdateRoutes = async () => {
-    // Use all stops with location (including virtual hotel stop as origin)
-    const stopsWithLocation = stops.filter((s) => (s.lat && s.lng) || s.address);
-    if (stopsWithLocation.length < 2) return;
-    setUpdatingRoutes(true);
-    try {
-      const mode = toDirectionsMode(cityTransportMode);
-      const pairs = [];
+    const mode = toDirectionsMode(cityTransportMode);
+    // Build origin/destination pairs for every day in the itinerary, tracking
+    // which day + stop each pair belongs to so results can be applied back correctly.
+    const pairs: { origin: string; destination: string; mode: typeof mode }[] = [];
+    const pairMeta: { dayIdx: number; stopId?: string }[] = [];
+
+    allDays.forEach((d, dIdx) => {
+      const { stops: dayStops } = computeDayStops(d, accommodations);
+      const stopsWithLocation = dayStops.filter((s) => (s.lat && s.lng) || s.address);
       for (let i = 0; i < stopsWithLocation.length - 1; i++) {
         const from = stopsWithLocation[i];
         const to   = stopsWithLocation[i + 1];
         const origin      = from.lat && from.lng ? `${from.lat},${from.lng}` : (from.address || '');
         const destination = to.lat   && to.lng   ? `${to.lat},${to.lng}`     : (to.address   || '');
-        if (origin && destination) pairs.push({ origin, destination, mode });
+        if (origin && destination) {
+          pairs.push({ origin, destination, mode });
+          pairMeta.push({ dayIdx: dIdx, stopId: from.id });
+        }
       }
-      if (pairs.length === 0) return;
+    });
+
+    if (pairs.length === 0) return;
+    setUpdatingRoutes(true);
+    try {
       const result = await batchRoute.mutateAsync({ pairs });
-      // Apply results back to the stops that have IDs
-      // Note: hotel stop has no id (virtual), so we skip it but still consume its pair result
-      let pairIdx = 0;
-      for (let i = 0; i < stopsWithLocation.length - 1; i++) {
-        const s = stopsWithLocation[i];
-        const r = result.results[pairIdx];
-        pairIdx++;
-        if (!s.id) continue; // virtual hotel stop — skip persisting but still advance pairIdx
+      result.results.forEach((r, i) => {
+        const meta = pairMeta[i];
+        if (!meta?.stopId) return; // virtual hotel stop as origin — nothing to persist
         if (r?.found) {
-          updateItineraryStop(tripId, dayIndex, s.id, {
+          updateItineraryStop(tripId, meta.dayIdx, meta.stopId, {
             travelTimeToNext: r.durationText,
             travelModeToNext: mode as any,
             mapsUrlToNext: r.mapsUrl,
           });
         }
-      }
+      });
     } catch (e) {
       console.error('Directions error:', e);
     } finally {
@@ -728,7 +741,7 @@ function DayView({
             <Ionicons name="navigate-outline" size={13} color={colors.textAccent} />
           )}
           <Text style={styles.updateRoutesBtnText}>
-            {updatingRoutes ? t.common.loading : t.itinerary.title}
+            {updatingRoutes ? t.common.loading : t.itinerary.updateRoute}
           </Text>
         </TouchableOpacity>
       )}
@@ -1001,6 +1014,9 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const [showManualPicker, setShowManualPicker] = useState(false);
   // Manual mode: selected day for each place (placeId -> dayIndex)
   const [manualPickerDays, setManualPickerDays] = useState<Record<string, number>>({});
+  // Unscheduled panel: place awaiting day confirmation via the day-picker modal
+  const [dayPickPlace, setDayPickPlace] = useState<Place | null>(null);
+  const [dayPickIndex, setDayPickIndex] = useState(0);
   // Profile state
   const [profileTravelStyles, setProfileTravelStyles] = useState<string[]>([]);
   const [profileBudget, setProfileBudget] = useState<'econômico' | 'moderado' | 'luxo'>('moderado');
@@ -1228,6 +1244,17 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
     addItineraryStop(trip.id, dayIdx, newStop);
   };
 
+  const handleDeleteAllItinerary = () => {
+    Alert.alert(
+      t.itinerary.deleteItineraryTitle,
+      t.itinerary.deleteItineraryMsg,
+      [
+        { text: t.common.cancel, style: 'cancel' },
+        { text: t.common.delete, style: 'destructive', onPress: () => setItinerary(trip.id, []) },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Header — no Regerar button */}
@@ -1236,6 +1263,15 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           <Ionicons name="calendar-outline" size={15} color={colors.textAccent} />
           <Text style={styles.sectionTitle}>ROTEIRO DIA-A-DIA</Text>
         </View>
+        {hasItinerary && (
+          <TouchableOpacity
+            onPress={handleDeleteAllItinerary}
+            style={styles.deleteAllBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="trash-outline" size={15} color={colors.muted} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Day selector — always visible */}
@@ -1282,6 +1318,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           dayIndex={selectedDay}
           tripId={trip.id}
           totalDays={totalDays}
+          allDays={trip.itinerary}
           startDate={trip.startDate}
           cityTransportMode={cityTransportMode || trip.cityTransportMode}
           accommodations={trip.accommodations}
@@ -1337,7 +1374,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
             <UnscheduledPlaceRow
               key={place.id}
               place={place}
-              onAdd={() => handleAddUnscheduledPlace(place)}
+              onAdd={() => { setDayPickIndex(selectedDay); setDayPickPlace(place); }}
             />
           ))}
         </View>
@@ -1358,25 +1395,6 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               </TouchableOpacity>
             </View>
             <Text style={styles.paceModalSubtitle}>{t.itinerary.createSubtitle}</Text>
-
-            {/* Pace selector (shared by all AI modes) */}
-            <View style={{ marginBottom: 4 }}>
-              <Text style={styles.unscheduledSubtitle}>{t.itinerary.pace}</Text>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
-                {PACE_OPTIONS.map((p) => (
-                  <TouchableOpacity
-                    key={p.id}
-                    onPress={() => setPace(p.id)}
-                    style={[
-                      styles.paceMiniChip,
-                      pace === p.id && styles.paceMiniChipActive,
-                    ]}
-                  >
-                    <Text style={[styles.paceMiniChipText, pace === p.id && { color: colors.textOnPrimary }]}>{p.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
 
             {/* Mode options */}
             <TouchableOpacity
@@ -1408,11 +1426,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                     : 'Adicione lugares na aba Lugares primeiro'}
                 </Text>
               </View>
-              {trip.places.length === 0 ? (
-                <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
-              ) : (
-                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-              )}
+              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1446,7 +1460,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               onPress={() => setShowCreateModal(false)}
               style={[styles.paceModalBtn, { backgroundColor: withAlpha(colors.foreground, 0.08), marginTop: 4 }]}
             >
-              <Text style={{ color: colors.muted, fontWeight: '600' }}>Cancelar</Text>
+              <Text style={{ color: colors.foreground, fontWeight: '600' }}>Voltar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1671,6 +1685,49 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           </View>
         </View>
       </Modal>
+
+      {/* ── Day picker modal for adding an unscheduled place ── */}
+      <Modal visible={!!dayPickPlace} transparent animationType="fade" onRequestClose={() => setDayPickPlace(null)}>
+        <View style={styles.paceModalOverlay}>
+          <View style={styles.paceModalCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+              <Text style={[styles.paceModalTitle, { flex: 1 }]} numberOfLines={1}>
+                {dayPickPlace?.name}
+              </Text>
+              <TouchableOpacity onPress={() => setDayPickPlace(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.paceModalSubtitle}>Escolha o dia para adicionar este lugar</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+              {Array.from({ length: totalDays }, (_, di) => {
+                const isSelected = dayPickIndex === di;
+                return (
+                  <TouchableOpacity
+                    key={di}
+                    onPress={() => setDayPickIndex(di)}
+                    style={[styles.manualDayChip, isSelected && styles.manualDayChipActive]}
+                  >
+                    <Text style={[styles.manualDayChipText, isSelected && { color: colors.textOnPrimary }]}>
+                      Dia {di + 1}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity
+              onPress={() => {
+                if (dayPickPlace) handleAddUnscheduledPlace(dayPickPlace, dayPickIndex);
+                setDayPickPlace(null);
+              }}
+              style={[styles.paceModalBtn, { backgroundColor: colors.primary, marginTop: 8 }]}
+            >
+              <Ionicons name="add" size={16} color={colors.textOnPrimary} />
+              <Text style={{ color: colors.textOnPrimary, fontWeight: '700' }}>Adicionar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1683,6 +1740,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   sectionTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: colors.muted },
   regenBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: withAlpha(colors.primary, 0.10), minWidth: 80, justifyContent: 'center' },
   regenBtnText: { fontSize: 12, color: colors.textAccent, fontWeight: '600' },
+  deleteAllBtn: { padding: 4, borderRadius: 10 },
 
   itineraryCard: { backgroundColor: withAlpha(colors.foreground, 0.04), borderRadius: 20, padding: 16, borderWidth: 1, borderColor: withAlpha(colors.primary, 0.1) },
 

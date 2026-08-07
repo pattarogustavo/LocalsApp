@@ -218,6 +218,9 @@ export const it: Translations = {
     recreateMsg: "Questo sostituirà l'itinerario attuale. Continuare?",
     unscheduled: 'Luoghi non pianificati',
     unscheduledHint: 'Tocca + per aggiungere al giorno selezionato',
+    updateRoute: 'Aggiorna percorso',
+    deleteItineraryTitle: 'Elimina itinerario',
+    deleteItineraryMsg: "Questo eliminerà tutti i giorni dell'itinerario. Vuoi continuare?",
   },
 
   places: {

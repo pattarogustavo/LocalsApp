@@ -218,6 +218,9 @@ export const de: Translations = {
     recreateMsg: 'Dadurch wird der aktuelle Reiseplan ersetzt. Fortfahren?',
     unscheduled: 'Nicht geplante Orte',
     unscheduledHint: 'Tippe auf +, um zum ausgewählten Tag hinzuzufügen',
+    updateRoute: 'Route aktualisieren',
+    deleteItineraryTitle: 'Reiseplan löschen',
+    deleteItineraryMsg: 'Dadurch werden alle Tage des Reiseplans gelöscht. Möchtest du fortfahren?',
   },
 
   places: {

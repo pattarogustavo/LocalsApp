@@ -624,7 +624,18 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   addItineraryStop: async (tripId: string, dayIndex: number, stop: ItineraryStop) => {
     const trips = get().trips.map((t) => {
       if (t.id !== tripId) return t;
-      const itinerary = t.itinerary.map((day, idx) => {
+      const baseItinerary = [...t.itinerary];
+      for (let i = baseItinerary.length; i <= dayIndex; i++) {
+        const d = new Date(t.startDate);
+        d.setDate(d.getDate() + i);
+        baseItinerary.push({
+          date: d.toISOString().split('T')[0],
+          destination: '',
+          dayNumber: i + 1,
+          stops: [],
+        });
+      }
+      const itinerary = baseItinerary.map((day, idx) => {
         if (idx !== dayIndex) return day;
         return { ...day, stops: [...day.stops, stop] };
       });
