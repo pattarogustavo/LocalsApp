@@ -345,6 +345,7 @@ function AIPanel({
 
   const loadSuggestions = useCallback(async () => {
     if (fetchedRef.current) return;
+    console.log('[AIPanel DEBUG] disparando nova chamada de IA', destination.id, destination.name);
     fetchedRef.current = true;
     setLoading(true);
     try {
@@ -370,6 +371,7 @@ function AIPanel({
   // Auto-load on mount: hydrate from cache if this destination already has
   // saved AI suggestions, otherwise fetch once and persist the result.
   useEffect(() => {
+    console.log('[AIPanel DEBUG] auto-load', destination.id, destination.name, destination.aiSuggestedPlaces?.length ?? 'undefined');
     if (destination.aiSuggestedPlaces && destination.aiSuggestedPlaces.length > 0) {
       fetchedRef.current = true;
       setSuggestions(destination.aiSuggestedPlaces);
