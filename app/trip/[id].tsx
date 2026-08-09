@@ -833,8 +833,9 @@ function TransportTab({ trip }: { trip: any }) {
   );
 }
 
-function DestinationInfoCard({ destination, travelMonth }: { destination: Destination; travelMonth?: string }) {
+function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: string; destination: Destination; travelMonth?: string }) {
   const generateInfo = trpc.destinationInfo.generate.useMutation();
+  const { updateDestinationInfo } = useTripsStore();
   const [info, setInfo] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
@@ -853,6 +854,7 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
       });
       setInfo(result.data);
       setLoaded(true);
+      await updateDestinationInfo(tripId, destination.id, result.data);
     } catch {
       setLoaded(true);
     } finally {
@@ -860,7 +862,16 @@ function DestinationInfoCard({ destination, travelMonth }: { destination: Destin
     }
   };
 
-  React.useEffect(() => { load(); }, []);
+  // Auto-load on mount: hydrate from cache if this destination already has
+  // saved AI info, otherwise fetch once and persist the result.
+  React.useEffect(() => {
+    if (destination.aiDestinationInfo) {
+      setInfo(destination.aiDestinationInfo);
+      setLoaded(true);
+      return;
+    }
+    load();
+  }, []);
 
   const crowdColor = (level: string) => {
     if (!level) return colors.textAccent;
@@ -1026,7 +1037,7 @@ function HistoryTab({ trip }: { trip: any }) {
         </View>
       ) : (
         trip.destinations.map((dest: Destination) => (
-          <DestinationInfoCard key={dest.id} destination={dest} travelMonth={travelMonth} />
+          <DestinationInfoCard key={dest.id} tripId={trip.id} destination={dest} travelMonth={travelMonth} />
         ))
       )}
     </ScrollView>

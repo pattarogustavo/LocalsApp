@@ -88,6 +88,8 @@ export interface Destination {
   currency?: string;
   // Cached AI-suggested places for this destination, generated once and persisted
   aiSuggestedPlaces?: Place[];
+  // Cached AI-generated destination info (climate, crowd, population, health, visa, tips), generated once and persisted
+  aiDestinationInfo?: any;
 }
 
 // ─── Place ────────────────────────────────────────────────────────────────────
