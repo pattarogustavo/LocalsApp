@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   StyleSheet,
   Pressable,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -92,6 +93,10 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
       );
       const json = await res.json();
       const details = json?.result?.data?.json;
+      Alert.alert(
+        "[places.details DEBUG]",
+        `imageUrl: ${details?.imageUrl ?? "nenhuma"}\n\n${(details?.debugSteps || []).join("\n")}`
+      );
       if (details?.imageUrl || details?.lat) {
         setDestinations((prev) =>
           prev.map((d) =>
@@ -101,8 +106,9 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
           )
         );
       }
-    } catch {
+    } catch (err) {
       // Non-critical — hero image will use Unsplash fallback
+      Alert.alert("[places.details DEBUG] Erro na requisição", String(err));
     }
   };
 
