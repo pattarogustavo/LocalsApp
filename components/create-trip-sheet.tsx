@@ -19,6 +19,7 @@ import { DestinationAutocomplete } from '@/components/destination-autocomplete';
 import { AIPreferencesModal } from '@/components/ai-preferences-modal';
 import { PaywallModal } from '@/components/paywall-modal';
 import { trpc } from '@/lib/trpc';
+import { getApiBaseUrl } from '@/constants/api';
 import type { Trip, Destination } from '@/types/voyage';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
@@ -89,7 +90,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
     // Fetch details in background for lat/lng/imageUrl
     try {
       const res = await fetch(
-        `/api/trpc/places.details?input=${encodeURIComponent(JSON.stringify({ json: { placeId: prediction.placeId } }))}`
+        `${getApiBaseUrl()}/api/trpc/places.details?input=${encodeURIComponent(JSON.stringify({ json: { placeId: prediction.placeId } }))}`
       );
       const json = await res.json();
       const details = json?.result?.data?.json;

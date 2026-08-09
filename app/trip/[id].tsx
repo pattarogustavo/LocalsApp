@@ -34,6 +34,7 @@ import type { Destination } from '@/types/voyage';
 import { DestinationAutocomplete } from '@/components/destination-autocomplete';
 import { useTripsStore as useTripsStoreForDuration } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
+import { getApiBaseUrl } from '@/constants/api';
 import { ActivityIndicator } from 'react-native';
 import { getCountryFlag } from '@/utils/trip-helpers';
 import { useTranslation } from '@/hooks/use-translation';
@@ -367,7 +368,7 @@ function EditDestinationsModal({
     // Fetch details in background for lat/lng/imageUrl
     try {
       const res = await fetch(
-        `/api/trpc/places.details?input=${encodeURIComponent(JSON.stringify({ json: { placeId: prediction.placeId } }))}`
+        `${getApiBaseUrl()}/api/trpc/places.details?input=${encodeURIComponent(JSON.stringify({ json: { placeId: prediction.placeId } }))}`
       );
       const json = await res.json();
       const details = json?.result?.data?.json;
