@@ -221,7 +221,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
               >
                 {/* Header */}
                 <View style={styles.header}>
-                  <Text style={[styles.title, { color: colors.foreground }]}>{t.createTrip.title}</Text>
+                  <Text style={[styles.title, { color: colors.foreground }]}>TESTE123</Text>
                   <TouchableOpacity
                     onPress={handleClose}
                     style={[styles.closeBtn, { backgroundColor: colors.surface }]}
