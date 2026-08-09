@@ -80,15 +80,20 @@ async function resolveGooglePhotoUrl(photoReference: string): Promise<string | u
  */
 async function fetchUnsplashPhoto(query: string): Promise<string | undefined> {
   if (!UNSPLASH_ACCESS_KEY || !query) return undefined;
-  const url = new URL("https://api.unsplash.com/search/photos");
-  url.searchParams.set("query", query);
-  url.searchParams.set("per_page", "1");
-  url.searchParams.set("orientation", "landscape");
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` },
-  });
-  const data = (await res.json()) as any;
-  return data?.results?.[0]?.urls?.regular;
+  try {
+    const url = new URL("https://api.unsplash.com/search/photos");
+    url.searchParams.set("query", query);
+    url.searchParams.set("per_page", "1");
+    url.searchParams.set("orientation", "landscape");
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` },
+    });
+    const data = (await res.json()) as any;
+    return data?.results?.[0]?.urls?.regular;
+  } catch (unsplashErr) {
+    console.error(`[places.details] Unsplash photo search failed for "${query}":`, unsplashErr);
+    return undefined;
+  }
 }
 
 // ─── Google Directions helper ─────────────────────────────────────────────────
@@ -678,9 +683,6 @@ Responda APENAS com JSON válido neste formato exato:
 
         if (!GOOGLE_PLACES_KEY) return null;
 
-        // TEMP DEBUG: track why cover-photo lookup returns nothing for some cities.
-        const debugSteps: string[] = [];
-
         const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
         url.searchParams.set("place_id", input.placeId);
         url.searchParams.set("fields", "geometry,photos,name,address_components,formatted_address");
@@ -701,7 +703,6 @@ Responda APENAS com JSON válido neste formato exato:
         if (result?.photos?.[0]?.photo_reference) {
           imageUrl = await resolveGooglePhotoUrl(result.photos[0].photo_reference);
         }
-        debugSteps.push(imageUrl ? "foto do place_id específico: ok" : "foto do place_id específico: sem foto");
 
         // If the specific place has no photo, try a broader city-level search
         // before falling back to Wikipedia.
@@ -721,10 +722,8 @@ Responda APENAS com JSON válido neste formato exato:
               if (cityPhotoRef) {
                 imageUrl = await resolveGooglePhotoUrl(cityPhotoRef);
               }
-              debugSteps.push(imageUrl ? `busca por cidade (${cityName}): ok` : "busca por cidade: sem foto");
             } catch (cityErr) {
               console.error(`[places.details] city photo search failed for "${cityName}":`, cityErr);
-              debugSteps.push(`busca por cidade: erro - ${cityErr instanceof Error ? cityErr.message : String(cityErr)}`);
             }
           }
         }
@@ -736,18 +735,11 @@ Responda APENAS com JSON válido neste formato exato:
         // If Google Places has no photo, try Wikipedia as fallback
         if (!imageUrl) {
           imageUrl = await fetchWikipediaPhoto(placeName, countryName);
-          debugSteps.push(imageUrl ? "wikipedia: ok" : "wikipedia: sem foto");
         }
 
         // Last resort: Unsplash search
         if (!imageUrl) {
-          try {
-            imageUrl = await fetchUnsplashPhoto(placeName);
-            debugSteps.push(imageUrl ? "unsplash: ok" : "unsplash: sem foto (UNSPLASH_ACCESS_KEY ausente?)");
-          } catch (unsplashErr) {
-            console.error(`[places.details] Unsplash photo search failed for "${placeName}":`, unsplashErr);
-            debugSteps.push(`unsplash: erro - ${unsplashErr instanceof Error ? unsplashErr.message : String(unsplashErr)}`);
-          }
+          imageUrl = await fetchUnsplashPhoto(placeName);
         }
 
         if (!imageUrl) {
@@ -760,7 +752,7 @@ Responda APENAS com JSON válido neste formato exato:
         );
         const country = countryComponent?.long_name || "";
         const address = result?.formatted_address || "";
-        return { lat, lng, imageUrl, country, address, debugSteps };
+        return { lat, lng, imageUrl, country, address };
       }),
 
     /**
