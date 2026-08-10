@@ -55,6 +55,16 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function updateUserProfile(openId: string, data: { name?: string; bio?: string }): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const updateSet: Record<string, unknown> = {};
+  if (data.name !== undefined) updateSet.name = data.name;
+  if (data.bio !== undefined) updateSet.bio = data.bio;
+  if (Object.keys(updateSet).length === 0) return;
+  await db.update(users).set({ ...updateSet, updatedAt: new Date() }).where(eq(users.openId, openId));
+}
+
 export async function updateSubscriptionStatus(userId: number, data: {
   subscriptionStatus: "trial" | "active" | "expired" | "cancelled";
   subscriptionPlan?: "monthly" | "annual" | null;

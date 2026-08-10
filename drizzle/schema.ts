@@ -15,6 +15,7 @@ export const users = pgTable("users", {
   /** Supabase Auth user UUID. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
+  bio: text("bio"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: userRoleEnum("role").default("user").notNull(),

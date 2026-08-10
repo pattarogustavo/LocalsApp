@@ -194,6 +194,23 @@ async function fetchFlightData(flightNumber: string, date: string) {
 export const appRouter = router({
   system: systemRouter,
 
+  // ─── User Profile ─────────────────────────────────────────────────────────
+  user: router({
+    /**
+     * Update the authenticated user's profile (name and/or bio).
+     * Looks up the row by openId, same auth pattern used by sdk.authenticateRequest.
+     */
+    updateProfile: protectedProcedure
+      .input(z.object({
+        name: z.string().max(200).optional(),
+        bio: z.string().max(2000).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await db.updateUserProfile(ctx.user.openId, input);
+        return { success: true };
+      }),
+  }),
+
   // ─── Destination Info (AI) ───────────────────────────────────────────────
   destinationInfo: router({
     /**
