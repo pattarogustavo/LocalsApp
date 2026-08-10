@@ -164,7 +164,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
       places: [],
       documents: [],
       expenses: [],
-      travelers: [{ id: generateId(), name: t.travelers.you, initials: t.travelers.you.charAt(0).toUpperCase(), color: '#2C2416' }],
+      travelers: [],
       accommodations: [],
       itinerary: [],
       currency: 'BRL',
