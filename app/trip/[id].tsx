@@ -31,7 +31,7 @@ import { type ThemeColorPalette } from '@/constants/theme';
 import { generateId } from '@/utils/trip-helpers';
 import * as ImagePicker from 'expo-image-picker';
 import type { Destination } from '@/types/voyage';
-import { DestinationAutocomplete } from '@/components/destination-autocomplete';
+import { PlacesAutocompleteInput } from '@/components/ui/places-autocomplete-input';
 import { useTripsStore as useTripsStoreForDuration } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
 import { getApiBaseUrl } from '@/constants/api';
@@ -477,7 +477,7 @@ function EditDestinationsModal({
             {/* Add new destination */}
             <View style={{ marginTop: 16, marginBottom: 8 }}>
               <Text style={[styles.destDaysLabel, { color: colors.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }]}>{t.tripEdit.addDestination}</Text>
-              <DestinationAutocomplete onSelect={handleAddDestination} placeholder={t.tripEdit.searchCity} />
+              <PlacesAutocompleteInput onSelect={handleAddDestination} placeholder={t.tripEdit.searchCity} searchTypes="cities" />
             </View>
 
             <TouchableOpacity

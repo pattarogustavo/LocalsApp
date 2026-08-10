@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTripsStore } from '@/store/trips';
 import { generateId } from '@/utils/trip-helpers';
-import { DestinationAutocomplete } from '@/components/destination-autocomplete';
+import { PlacesAutocompleteInput } from '@/components/ui/places-autocomplete-input';
 import { AIPreferencesModal } from '@/components/ai-preferences-modal';
 import { PaywallModal } from '@/components/paywall-modal';
 import { trpc } from '@/lib/trpc';
@@ -317,9 +317,10 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
 
                 {/* Autocomplete input */}
                 <View style={styles.autocompleteWrapper}>
-                  <DestinationAutocomplete
+                  <PlacesAutocompleteInput
                     onSelect={handleSelectDestination}
                     placeholder={t.createTrip.destinationPlaceholder}
+                    searchTypes="cities"
                   />
                 </View>
 
