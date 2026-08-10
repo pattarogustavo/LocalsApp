@@ -15,6 +15,7 @@ import { DateTimePickerField } from '@/components/ui/datetime-picker-field';
 import * as Linking from 'expo-linking';
 import type { Transport, TransportMode, CityTransportMode, Destination, Accommodation, CarInfo } from '@/types/voyage';
 import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
+import { AirportSearchModal, type AirportResult } from '@/components/ui/airport-search-modal';
 import { DocAttachField } from '@/components/ui/doc-attach-field';
 import { getApiBaseUrl } from '@/constants/api';
 import { useTranslation } from '@/hooks/use-translation';
@@ -463,17 +464,12 @@ function AddTransportModal({
   // Route search fields
   const [routeOrigin, setRouteOrigin] = useState(''); // IATA code
   const [routeOriginQuery, setRouteOriginQuery] = useState(''); // display text
-  const [routeOriginResults, setRouteOriginResults] = useState<any[]>([]);
-  const [showOriginDropdown, setShowOriginDropdown] = useState(false);
   const [routeDest, setRouteDest] = useState(''); // IATA code
   const [routeDestQuery, setRouteDestQuery] = useState(''); // display text
-  const [routeDestResults, setRouteDestResults] = useState<any[]>([]);
-  const [showDestDropdown, setShowDestDropdown] = useState(false);
   const [routeDate, setRouteDate] = useState<Date | null>(null);
   const [routeAirline, setRouteAirline] = useState(''); // optional airline filter
   const [routeResults, setRouteResults] = useState<any[]>([]);
   const [routeSearched, setRouteSearched] = useState(false);
-  const [airportSearchTimer, setAirportSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   // Number search fields
   const [flightNumber, setFlightNumber] = useState('');
@@ -520,55 +516,17 @@ function AddTransportModal({
 
   const lookupMutation = trpc.flights.lookup.useMutation();
   const searchByRouteMutation = trpc.flights.searchByRoute.useMutation();
-  // Airport search helpers
-  const searchAirports = async (query: string, isOrigin: boolean) => {
-    if (query.length < 2) {
-      if (isOrigin) { setRouteOriginResults([]); setShowOriginDropdown(false); }
-      else { setRouteDestResults([]); setShowDestDropdown(false); }
-      return;
-    }
-    try {
-      const base = getApiBaseUrl();
-      const url = `${base}/api/trpc/airports.search?input=${encodeURIComponent(JSON.stringify({ json: { query } }))}`;
-      const res = await fetch(url);
-      const json = await res.json();
-      const airports = json?.result?.data?.json?.airports || [];
-      if (isOrigin) { setRouteOriginResults(airports); setShowOriginDropdown(airports.length > 0); }
-      else { setRouteDestResults(airports); setShowDestDropdown(airports.length > 0); }
-    } catch {
-      if (isOrigin) { setRouteOriginResults([]); setShowOriginDropdown(false); }
-      else { setRouteDestResults([]); setShowDestDropdown(false); }
-    }
-  };
 
-  const handleOriginQueryChange = (text: string) => {
-    setRouteOriginQuery(text);
-    setRouteOrigin(''); // clear IATA until selected
-    setSearchError('');
-    if (airportSearchTimer) clearTimeout(airportSearchTimer);
-    setAirportSearchTimer(setTimeout(() => searchAirports(text, true), 350));
-  };
-
-  const handleDestQueryChange = (text: string) => {
-    setRouteDestQuery(text);
-    setRouteDest(''); // clear IATA until selected
-    setSearchError('');
-    if (airportSearchTimer) clearTimeout(airportSearchTimer);
-    setAirportSearchTimer(setTimeout(() => searchAirports(text, false), 350));
-  };
-
-  const selectOriginAirport = (airport: any) => {
+  const selectOriginAirport = (airport: AirportResult) => {
     setRouteOrigin(airport.iata);
     setRouteOriginQuery(`${airport.city || airport.name} (${airport.iata})`);
-    setShowOriginDropdown(false);
-    setRouteOriginResults([]);
+    setSearchError('');
   };
 
-  const selectDestAirport = (airport: any) => {
+  const selectDestAirport = (airport: AirportResult) => {
     setRouteDest(airport.iata);
     setRouteDestQuery(`${airport.city || airport.name} (${airport.iata})`);
-    setShowDestDropdown(false);
-    setRouteDestResults([]);
+    setSearchError('');
   };
 
   // Resolve formatted address for car origin when an establishment is selected
@@ -978,85 +936,25 @@ function AddTransportModal({
                         {/* Origin airport */}
                         <View style={{ marginTop: 4 }}>
                           <Text style={styles.inputLabel}>AEROPORTO DE ORIGEM</Text>
-                          <View style={{ position: 'relative' }}>
-                            <View style={[styles.textInput, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 0, height: 48 }]}>
-                              <Ionicons name="airplane-outline" size={16} color={withAlpha(colors.primary, 0.6)} />
-                              <TextInput
-                                value={routeOriginQuery}
-                                onChangeText={handleOriginQueryChange}
-                                placeholder="São Paulo, GRU, Brasil..."
-                                placeholderTextColor={colors.muted}
-                                style={{ flex: 1, color: colors.foreground, fontSize: 14 }}
-                                returnKeyType="search"
-                              />
-                              {routeOrigin ? (
-                                <View style={{ backgroundColor: withAlpha(colors.primary, 0.15), borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                  <Text style={{ color: colors.textAccent, fontSize: 12, fontWeight: '700' }}>{routeOrigin}</Text>
-                                </View>
-                              ) : null}
-                            </View>
-                            {showOriginDropdown && routeOriginResults.length > 0 && (
-                              <View style={styles.airportDropdown}>
-                                {routeOriginResults.map((ap: any) => (
-                                  <TouchableOpacity
-                                    key={ap.iata}
-                                    style={styles.airportDropdownItem}
-                                    onPress={() => selectOriginAirport(ap)}
-                                  >
-                                    <View style={styles.airportIATABadge}>
-                                      <Text style={styles.airportIATAText}>{ap.iata}</Text>
-                                    </View>
-                                    <View style={{ flex: 1 }}>
-                                      <Text style={styles.airportName} numberOfLines={1}>{ap.name}</Text>
-                                      <Text style={styles.airportCity} numberOfLines={1}>{ap.city}{ap.country ? ` · ${ap.country}` : ''}</Text>
-                                    </View>
-                                  </TouchableOpacity>
-                                ))}
-                              </View>
-                            )}
-                          </View>
+                          <AirportSearchModal
+                            placeholder="São Paulo, GRU, Brasil..."
+                            value={routeOriginQuery}
+                            onSelect={selectOriginAirport}
+                            icon="airplane-outline"
+                            dark
+                          />
                         </View>
 
                         {/* Destination airport */}
                         <View style={{ marginTop: 10 }}>
                           <Text style={styles.inputLabel}>AEROPORTO DE DESTINO</Text>
-                          <View style={{ position: 'relative' }}>
-                            <View style={[styles.textInput, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 0, height: 48 }]}>
-                              <Ionicons name="airplane" size={16} color={withAlpha(colors.primary, 0.6)} />
-                              <TextInput
-                                value={routeDestQuery}
-                                onChangeText={handleDestQueryChange}
-                                placeholder="Londres, LHR, Reino Unido..."
-                                placeholderTextColor={colors.muted}
-                                style={{ flex: 1, color: colors.foreground, fontSize: 14 }}
-                                returnKeyType="search"
-                              />
-                              {routeDest ? (
-                                <View style={{ backgroundColor: withAlpha(colors.primary, 0.15), borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                  <Text style={{ color: colors.textAccent, fontSize: 12, fontWeight: '700' }}>{routeDest}</Text>
-                                </View>
-                              ) : null}
-                            </View>
-                            {showDestDropdown && routeDestResults.length > 0 && (
-                              <View style={styles.airportDropdown}>
-                                {routeDestResults.map((ap: any) => (
-                                  <TouchableOpacity
-                                    key={ap.iata}
-                                    style={styles.airportDropdownItem}
-                                    onPress={() => selectDestAirport(ap)}
-                                  >
-                                    <View style={styles.airportIATABadge}>
-                                      <Text style={styles.airportIATAText}>{ap.iata}</Text>
-                                    </View>
-                                    <View style={{ flex: 1 }}>
-                                      <Text style={styles.airportName} numberOfLines={1}>{ap.name}</Text>
-                                      <Text style={styles.airportCity} numberOfLines={1}>{ap.city}{ap.country ? ` · ${ap.country}` : ''}</Text>
-                                    </View>
-                                  </TouchableOpacity>
-                                ))}
-                              </View>
-                            )}
-                          </View>
+                          <AirportSearchModal
+                            placeholder="Londres, LHR, Reino Unido..."
+                            value={routeDestQuery}
+                            onSelect={selectDestAirport}
+                            icon="airplane"
+                            dark
+                          />
                         </View>
 
                         <View style={{ marginTop: 10 }}>
@@ -2222,22 +2120,5 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // Hotel suggestion chips
   hotelSuggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: withAlpha(colors.primary, 0.1), borderRadius: 20, borderWidth: 1, borderColor: withAlpha(colors.primary, 0.15) },
   hotelSuggestionText: { fontSize: 11, color: colors.textAccent, fontWeight: '600', maxWidth: 120 },
-  airportDropdown: {
-    position: 'absolute', top: 52, left: 0, right: 0, zIndex: 999,
-    backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1,
-    borderColor: withAlpha(colors.primary, 0.25), overflow: 'hidden', maxHeight: 220,
-  },
-  airportDropdownItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: withAlpha(colors.primary, 0.12),
-  },
-  airportIATABadge: {
-    backgroundColor: withAlpha(colors.primary, 0.15), borderRadius: 6,
-    paddingHorizontal: 7, paddingVertical: 3, minWidth: 40, alignItems: 'center',
-  },
-  airportIATAText: { color: colors.textAccent, fontSize: 13, fontWeight: '800', letterSpacing: 1 },
-  airportName: { color: colors.foreground, fontSize: 13, fontWeight: '600' },
-  airportCity: { color: colors.muted, fontSize: 11, marginTop: 1 },
 });
 

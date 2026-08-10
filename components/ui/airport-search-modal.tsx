@@ -1,0 +1,321 @@
+import React, { useState, useCallback, useRef } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  FlatList,
+  Pressable,
+  ActivityIndicator,
+  StyleSheet,
+  Modal,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { trpc } from '@/lib/trpc';
+import { useColors } from '@/hooks/use-colors';
+import { useTranslation } from '@/hooks/use-translation';
+
+function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${hex}${a}`;
+}
+
+export interface AirportResult {
+  iata: string;
+  name: string;
+  city: string;
+  country: string;
+  fullName: string;
+}
+
+interface AirportSearchModalProps {
+  label?: string;
+  placeholder?: string;
+  value?: string;
+  onSelect: (airport: AirportResult) => void;
+  icon?: string;
+  /** Dark mode for use inside dark modals (transport/hotel sheets) */
+  dark?: boolean;
+}
+
+/**
+ * A reusable airport search input, styled to match PlacesAutocompleteInput.
+ * Opens a full-screen search modal on tap for better UX inside bottom sheets.
+ */
+export function AirportSearchModal({
+  label,
+  placeholder,
+  value,
+  onSelect,
+  icon = 'airplane-outline',
+  dark = false,
+}: AirportSearchModalProps) {
+  const colors = useColors();
+  const t = useTranslation();
+  const defaultPlaceholder = placeholder || t.common.search + '...';
+  const [modalVisible, setModalVisible] = useState(false);
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data, isFetching } = trpc.airports.search.useQuery(
+    { query: debouncedQuery },
+    { enabled: debouncedQuery.length >= 2 }
+  );
+
+  const handleChangeText = useCallback((text: string) => {
+    setQuery(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedQuery(text);
+    }, 350);
+  }, []);
+
+  const handleSelect = useCallback((airport: AirportResult) => {
+    setModalVisible(false);
+    setQuery('');
+    setDebouncedQuery('');
+    onSelect(airport);
+  }, [onSelect]);
+
+  const handleClose = () => {
+    setModalVisible(false);
+    setQuery('');
+    setDebouncedQuery('');
+  };
+
+  const bg = dark ? withAlpha(colors.foreground, 0.08) : colors.surface;
+  const textColor = colors.foreground;
+  const mutedColor = colors.muted;
+  const borderColor = dark ? withAlpha(colors.foreground, 0.12) : colors.border;
+
+  const airports = data?.airports || [];
+
+  return (
+    <>
+      {label && (
+        <Text style={[styles.label, { color: mutedColor }]}>{label}</Text>
+      )}
+      <Pressable
+        onPress={() => setModalVisible(true)}
+        style={[styles.trigger, { backgroundColor: bg, borderColor }]}
+      >
+        <Ionicons name={icon as any} size={16} color={mutedColor} style={styles.triggerIcon} />
+        <Text
+          style={[styles.triggerText, { color: value ? textColor : mutedColor }]}
+          numberOfLines={1}
+        >
+          {value || defaultPlaceholder}
+        </Text>
+        {value ? (
+          <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
+        ) : (
+          <Ionicons name="chevron-forward" size={14} color={mutedColor} />
+        )}
+      </Pressable>
+
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={handleClose}
+      >
+        <View style={[styles.modal, { backgroundColor: colors.background }]}>
+          {/* Header */}
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <Pressable onPress={handleClose} style={styles.cancelBtn}>
+              <Text style={[styles.cancelText, { color: colors.primary }]}>{t.common.cancel}</Text>
+            </Pressable>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              {label || t.common.search}
+            </Text>
+            <View style={{ width: 70 }} />
+          </View>
+
+          {/* Search input */}
+          <View style={[styles.searchRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Ionicons name="search" size={16} color={colors.muted} style={styles.searchIcon} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.foreground }]}
+              placeholder={defaultPlaceholder}
+              placeholderTextColor={colors.muted}
+              value={query}
+              onChangeText={handleChangeText}
+              autoFocus
+              returnKeyType="search"
+              autoCorrect={false}
+              autoCapitalize="words"
+            />
+            {isFetching && <ActivityIndicator size="small" color={colors.primary} />}
+            {query.length > 0 && !isFetching && (
+              <Pressable onPress={() => { setQuery(''); setDebouncedQuery(''); }}>
+                <Ionicons name="close-circle" size={18} color={colors.muted} />
+              </Pressable>
+            )}
+          </View>
+
+          {/* Results */}
+          {query.length >= 2 ? (
+            <FlatList
+              data={airports}
+              keyExtractor={(item, index) => `${item.iata}-${index}`}
+              keyboardShouldPersistTaps="always"
+              contentContainerStyle={styles.resultsList}
+              ListEmptyComponent={
+                !isFetching ? (
+                  <View style={styles.emptyRow}>
+                    <Text style={[styles.emptyText, { color: colors.muted }]}>
+                      {t.common.noResults}
+                    </Text>
+                  </View>
+                ) : null
+              }
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => handleSelect(item)}
+                  style={({ pressed }) => [
+                    styles.resultRow,
+                    { borderBottomColor: colors.border },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <View style={[styles.resultIcon, { backgroundColor: colors.surface }]}>
+                    <Text style={[styles.resultIataText, { color: colors.primary }]}>{item.iata}</Text>
+                  </View>
+                  <View style={styles.resultInfo}>
+                    <Text style={[styles.resultName, { color: colors.foreground }]} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={[styles.resultDesc, { color: colors.muted }]} numberOfLines={1}>
+                      {item.city}{item.country ? ` · ${item.country}` : ''}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color={colors.muted} />
+                </Pressable>
+              )}
+            />
+          ) : (
+            <View style={styles.hintRow}>
+              <Text style={[styles.hintText, { color: colors.muted }]}>
+                {t.common.typeToSearch || 'Digite pelo menos 2 caracteres para buscar'}
+              </Text>
+            </View>
+          )}
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  label: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  trigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 10,
+  },
+  triggerIcon: {
+    flexShrink: 0,
+  },
+  triggerText: {
+    flex: 1,
+    fontSize: 15,
+  },
+  modal: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  cancelBtn: {
+    width: 70,
+  },
+  cancelText: {
+    fontSize: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  searchIcon: {},
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 0,
+  },
+  resultsList: {
+    paddingHorizontal: 16,
+  },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  resultIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  resultIataText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  resultInfo: {
+    flex: 1,
+  },
+  resultName: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  resultDesc: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  emptyRow: {
+    paddingVertical: 32,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+  },
+  hintRow: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    alignItems: 'center',
+  },
+  hintText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+});
