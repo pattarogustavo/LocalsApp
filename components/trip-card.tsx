@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   Text,
@@ -6,14 +6,21 @@ import {
   ImageBackground,
   Dimensions,
   StyleSheet,
-  LayoutAnimation,
   Platform,
   UIManager,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Swipeable } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import type { Trip } from '@/types/voyage';
 import { getTripBadge, getTripName, formatDate } from '@/utils/trip-helpers';
+import { useTripsStore } from '@/store/trips';
+import { useTranslation } from '@/hooks/use-translation';
+import { SchemeColors } from '@/constants/theme';
+
+const ERROR_FILL = SchemeColors.light.error;
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -64,6 +71,23 @@ function getImageForTrip(trip: Trip): string {
   return DESTINATION_IMAGES.default;
 }
 
+// Shared: haptic + confirmation Alert before deleting a trip (used by swipe-to-delete)
+function confirmDeleteTrip(trip: Trip, t: ReturnType<typeof useTranslation>, deleteTrip: (id: string) => Promise<void>) {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  Alert.alert(
+    t.trip.deleteTrip,
+    t.trip.deleteTripConfirm,
+    [
+      { text: t.common.cancel, style: 'cancel' },
+      {
+        text: t.common.delete,
+        style: 'destructive',
+        onPress: () => { deleteTrip(trip.id); },
+      },
+    ]
+  );
+}
+
 // ─── Standalone TripCard (used outside of stacked context) ───────────────────
 
 interface TripCardProps {
@@ -73,38 +97,62 @@ interface TripCardProps {
 }
 
 export function TripCard({ trip, onPress, style }: TripCardProps) {
+  const t = useTranslation();
+  const deleteTrip = useTripsStore((s) => s.deleteTrip);
+  const swipeableRef = useRef<Swipeable>(null);
   const badge = getTripBadge(trip);
   const name = getTripName(trip);
   const imageUrl = getImageForTrip(trip);
   const dateRange = `${formatDate(trip.startDate, 'short')} – ${formatDate(trip.endDate, 'short')}`;
   const destNames = trip.destinations.map((d) => d.name).join(' · ');
 
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.93} style={[styles.card, style]}>
-      <ImageBackground source={{ uri: imageUrl }} style={styles.image} imageStyle={styles.imageStyle}>
-        <LinearGradient
-          colors={['rgba(0,0,0,0.55)', 'transparent', 'rgba(0,0,0,0.6)']}
-          style={styles.gradient}
-        >
-          <View style={styles.topRow}>
-            <View style={styles.infoBadge}>
-              <Ionicons name="calendar-outline" size={11} color="rgba(255,255,255,0.9)" />
-              <Text style={styles.infoText}>{dateRange}</Text>
-            </View>
-            <View style={[styles.infoBadge, { flexShrink: 1, maxWidth: '55%' }]}>
-              <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.9)" />
-              <Text style={styles.infoText} numberOfLines={1}>{destNames}</Text>
-            </View>
-          </View>
-          <View style={styles.bottomRow}>
-            <Text style={styles.tripName} numberOfLines={2}>{name}</Text>
-            <View style={styles.badgePill}>
-              <Text style={styles.badgeText}>{badge}</Text>
-            </View>
-          </View>
-        </LinearGradient>
-      </ImageBackground>
+  const renderRightActions = () => (
+    <TouchableOpacity
+      onPress={() => {
+        swipeableRef.current?.close();
+        confirmDeleteTrip(trip, t, deleteTrip);
+      }}
+      style={styles.swipeDeleteAction}
+    >
+      <Ionicons name="trash-outline" size={20} color="#fff" />
+      <Text style={styles.swipeDeleteText}>{t.common.delete}</Text>
     </TouchableOpacity>
+  );
+
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      rightThreshold={40}
+      overshootRight={false}
+      friction={2}
+    >
+      <TouchableOpacity onPress={onPress} activeOpacity={0.93} style={[styles.card, style]}>
+        <ImageBackground source={{ uri: imageUrl }} style={styles.image} imageStyle={styles.imageStyle}>
+          <LinearGradient
+            colors={['rgba(0,0,0,0.55)', 'transparent', 'rgba(0,0,0,0.6)']}
+            style={styles.gradient}
+          >
+            <View style={styles.topRow}>
+              <View style={styles.infoBadge}>
+                <Ionicons name="calendar-outline" size={11} color="rgba(255,255,255,0.9)" />
+                <Text style={styles.infoText}>{dateRange}</Text>
+              </View>
+              <View style={[styles.infoBadge, { flexShrink: 1, maxWidth: '55%' }]}>
+                <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.9)" />
+                <Text style={styles.infoText} numberOfLines={1}>{destNames}</Text>
+              </View>
+            </View>
+            <View style={styles.bottomRow}>
+              <Text style={styles.tripName} numberOfLines={2}>{name}</Text>
+              <View style={styles.badgePill}>
+                <Text style={styles.badgeText}>{badge}</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </ImageBackground>
+      </TouchableOpacity>
+    </Swipeable>
   );
 }
 
@@ -140,73 +188,110 @@ export function TripCardStacked({ trips, onPressTrip }: TripCardStackedProps) {
   return (
     <View style={{ paddingHorizontal: 16 }}>
       <View style={{ height: containerHeight, position: 'relative' }}>
-        {trips.map((trip, idx) => {
-          const imageUrl = getImageForTrip(trip);
-          const name = getTripName(trip);
-          const badge = getTripBadge(trip);
-          const dateRange = `${formatDate(trip.startDate, 'short')} – ${formatDate(trip.endDate, 'short')}`;
-          const destNames = trip.destinations.map((d) => d.name).join(' · ');
-
-          // Each card sits at its natural stacked position — never moves
-          const topOffset = idx * PEEK_HEIGHT;
-
-          // zIndex: higher index = visually on top (later cards cover earlier ones)
-          const zIndex = idx;
-
-          return (
-            <TouchableOpacity
-              key={trip.id}
-              activeOpacity={0.88}
-              onPress={() => {
-                // Always open the trip directly — no deck reorganization
-                onPressTrip(trip);
-              }}
-              style={[
-                styles.card,
-                {
-                  position: 'absolute',
-                  top: topOffset,
-                  left: 0,
-                  right: 0,
-                  zIndex,
-                  height: CARD_HEIGHT,
-                },
-              ]}
-            >
-              <ImageBackground
-                source={{ uri: imageUrl }}
-                style={styles.image}
-                imageStyle={styles.imageStyle}
-              >
-                <LinearGradient
-                  colors={['rgba(0,0,0,0.60)', 'rgba(0,0,0,0.15)', 'rgba(0,0,0,0.65)']}
-                  style={styles.gradient}
-                >
-                  {/* Top peek area: name left, badge right */}
-                  <View style={styles.topRow}>
-                    <Text style={styles.tripName} numberOfLines={1}>{name}</Text>
-                    <View style={styles.badgePill}>
-                      <Text style={styles.badgeText}>{badge}</Text>
-                    </View>
-                  </View>
-
-                  {/* Second line: date + destination (always in peek area) */}
-                  <View style={styles.peekSecondLine}>
-                    <View style={styles.peekInfoItem}>
-                      <Ionicons name="calendar-outline" size={10} color="rgba(255,255,255,0.75)" />
-                      <Text style={styles.peekInfoText}>{dateRange}</Text>
-                    </View>
-                    <View style={styles.peekInfoItem}>
-                      <Ionicons name="location-outline" size={10} color="rgba(255,255,255,0.75)" />
-                      <Text style={styles.peekInfoText} numberOfLines={1}>{destNames}</Text>
-                    </View>
-                  </View>
-                </LinearGradient>
-              </ImageBackground>
-            </TouchableOpacity>
-          );
-        })}
+        {trips.map((trip, idx) => (
+          <StackedCardRow
+            key={trip.id}
+            trip={trip}
+            topOffset={idx * PEEK_HEIGHT}
+            zIndex={idx}
+            onPress={() => onPressTrip(trip)}
+          />
+        ))}
       </View>
+    </View>
+  );
+}
+
+// One row of the Apple Wallet stack — its own component so each card can hold
+// an independent Swipeable ref for swipe-to-delete.
+function StackedCardRow({
+  trip,
+  topOffset,
+  zIndex,
+  onPress,
+}: {
+  trip: Trip;
+  topOffset: number;
+  zIndex: number;
+  onPress: () => void;
+}) {
+  const t = useTranslation();
+  const deleteTrip = useTripsStore((s) => s.deleteTrip);
+  const swipeableRef = useRef<Swipeable>(null);
+  const imageUrl = getImageForTrip(trip);
+  const name = getTripName(trip);
+  const badge = getTripBadge(trip);
+  const dateRange = `${formatDate(trip.startDate, 'short')} – ${formatDate(trip.endDate, 'short')}`;
+  const destNames = trip.destinations.map((d) => d.name).join(' · ');
+
+  const renderRightActions = () => (
+    <TouchableOpacity
+      onPress={() => {
+        swipeableRef.current?.close();
+        confirmDeleteTrip(trip, t, deleteTrip);
+      }}
+      style={[styles.swipeDeleteAction, { height: CARD_HEIGHT }]}
+    >
+      <Ionicons name="trash-outline" size={20} color="#fff" />
+      <Text style={styles.swipeDeleteText}>{t.common.delete}</Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        top: topOffset,
+        left: 0,
+        right: 0,
+        zIndex,
+        height: CARD_HEIGHT,
+      }}
+    >
+      <Swipeable
+        ref={swipeableRef}
+        renderRightActions={renderRightActions}
+        rightThreshold={40}
+        overshootRight={false}
+        friction={2}
+      >
+        <TouchableOpacity
+          activeOpacity={0.88}
+          onPress={onPress}
+          style={[styles.card, { height: CARD_HEIGHT }]}
+        >
+          <ImageBackground
+            source={{ uri: imageUrl }}
+            style={styles.image}
+            imageStyle={styles.imageStyle}
+          >
+            <LinearGradient
+              colors={['rgba(0,0,0,0.60)', 'rgba(0,0,0,0.15)', 'rgba(0,0,0,0.65)']}
+              style={styles.gradient}
+            >
+              {/* Top peek area: name left, badge right */}
+              <View style={styles.topRow}>
+                <Text style={styles.tripName} numberOfLines={1}>{name}</Text>
+                <View style={styles.badgePill}>
+                  <Text style={styles.badgeText}>{badge}</Text>
+                </View>
+              </View>
+
+              {/* Second line: date + destination (always in peek area) */}
+              <View style={styles.peekSecondLine}>
+                <View style={styles.peekInfoItem}>
+                  <Ionicons name="calendar-outline" size={10} color="rgba(255,255,255,0.75)" />
+                  <Text style={styles.peekInfoText}>{dateRange}</Text>
+                </View>
+                <View style={styles.peekInfoItem}>
+                  <Ionicons name="location-outline" size={10} color="rgba(255,255,255,0.75)" />
+                  <Text style={styles.peekInfoText} numberOfLines={1}>{destNames}</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </ImageBackground>
+        </TouchableOpacity>
+      </Swipeable>
     </View>
   );
 }
@@ -304,4 +389,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 'auto' as any,
   },
+  swipeDeleteAction: {
+    backgroundColor: ERROR_FILL,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 80,
+    borderRadius: 20,
+    marginLeft: 8,
+    gap: 4,
+  },
+  swipeDeleteText: { fontSize: 11, fontWeight: '700', color: '#fff' },
 });
