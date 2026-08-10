@@ -621,6 +621,26 @@ export const pt = {
     languageTitle: 'Idioma do Aplicativo',
     languageSubtitle: 'Selecione o idioma de exibição do LocalsApp',
     languageCancel: 'Cancelar',
+    // Edit profile modal
+    editProfile: 'Editar perfil',
+    editProfileTitle: 'Editar Perfil',
+    name: 'Nome',
+    namePlaceholder: 'Seu nome',
+    bio: 'Descrição',
+    bioPlaceholder: 'Conte um pouco sobre você...',
+    saveProfile: 'Salvar perfil',
+    profileUpdated: 'Perfil atualizado com sucesso.',
+    profileUpdateError: 'Não foi possível atualizar o perfil.',
+    // Edit email modal
+    editEmail: 'Alterar email',
+    editEmailTitle: 'Alterar Email',
+    currentEmail: 'Email atual',
+    newEmail: 'Novo email',
+    newEmailPlaceholder: 'novo@email.com',
+    sendConfirmation: 'Enviar confirmação',
+    emailChangeSent: 'Enviamos um link de confirmação para {email}. Sua alteração só terá efeito depois de você confirmar.',
+    emailInvalid: 'Por favor, insira um email válido.',
+    emailChangeError: 'Não foi possível iniciar a troca de email.',
   },
 
   // ── Paywall ──────────────────────────────────────────────────────────────────

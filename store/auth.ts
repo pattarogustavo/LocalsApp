@@ -11,6 +11,7 @@ export interface AuthUser {
   id: string;           // Supabase UUID
   email: string | null;
   name: string | null;
+  bio?: string | null;
   subscriptionStatus: 'trial' | 'active' | 'expired' | 'cancelled' | null;
   subscriptionPlan: 'monthly' | 'annual' | null;
   subscriptionExpiresAt: string | null;
@@ -47,6 +48,7 @@ function supabaseUserToAuthUser(
     id: supabaseUser.id,
     email: supabaseUser.email ?? null,
     name: meta.full_name ?? meta.name ?? profile?.name ?? null,
+    bio: profile?.bio ?? null,
     subscriptionStatus: profile?.subscriptionStatus ?? null,
     subscriptionPlan: profile?.subscriptionPlan ?? null,
     subscriptionExpiresAt: profile?.subscriptionExpiresAt ?? null,

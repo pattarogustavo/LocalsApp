@@ -601,6 +601,26 @@ export const it: Translations = {
     languageTitle: "Lingua dell'app",
     languageSubtitle: 'Seleziona la lingua di visualizzazione di LocalsApp',
     languageCancel: 'Annulla',
+    // Edit profile modal
+    editProfile: 'Modifica profilo',
+    editProfileTitle: 'Modifica Profilo',
+    name: 'Nome',
+    namePlaceholder: 'Il tuo nome',
+    bio: 'Descrizione',
+    bioPlaceholder: 'Raccontaci qualcosa di te...',
+    saveProfile: 'Salva profilo',
+    profileUpdated: 'Profilo aggiornato con successo.',
+    profileUpdateError: 'Impossibile aggiornare il profilo.',
+    // Edit email modal
+    editEmail: 'Cambia email',
+    editEmailTitle: 'Cambia Email',
+    currentEmail: 'Email attuale',
+    newEmail: 'Nuova email',
+    newEmailPlaceholder: 'nuova@email.com',
+    sendConfirmation: 'Invia conferma',
+    emailChangeSent: 'Abbiamo inviato un link di conferma a {email}. La modifica avrà effetto solo dopo la conferma.',
+    emailInvalid: 'Inserisci un indirizzo email valido.',
+    emailChangeError: 'Impossibile avviare la modifica email.',
   },
 
   paywall: {
