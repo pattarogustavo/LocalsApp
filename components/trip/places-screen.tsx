@@ -725,24 +725,6 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
           )}
         </View>
 
-        {/* AI suggestions per destination — auto-loads */}
-        {destinations.map((dest) => (
-          <View key={dest.id} style={styles.destAiBlock}>
-            {destinations.length > 1 && (
-              <Text style={styles.destGroupLabel}>{dest.name}</Text>
-            )}
-            <AIPanel
-              destination={dest}
-              tripId={tripId}
-              addedPlaces={places.filter((p) => p.destinationId === dest.id)}
-              onAdd={(place) => handleAddPlace({ ...place, destinationId: dest.id })}
-              onRemove={handleRemovePlace}
-              activeCategory={activeCategory}
-              searchQuery={availSearch}
-            />
-          </View>
-        ))}
-
         {/* ── Pesquisa personalizada via Google Places ── */}
         <TouchableOpacity
           style={styles.customSearchToggleBtn}
@@ -818,6 +800,24 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
             ))}
           </View>
         )}
+
+        {/* AI suggestions per destination — auto-loads */}
+        {destinations.map((dest) => (
+          <View key={dest.id} style={styles.destAiBlock}>
+            {destinations.length > 1 && (
+              <Text style={styles.destGroupLabel}>{dest.name}</Text>
+            )}
+            <AIPanel
+              destination={dest}
+              tripId={tripId}
+              addedPlaces={places.filter((p) => p.destinationId === dest.id)}
+              onAdd={(place) => handleAddPlace({ ...place, destinationId: dest.id })}
+              onRemove={handleRemovePlace}
+              activeCategory={activeCategory}
+              searchQuery={availSearch}
+            />
+          </View>
+        ))}
       </View>
 
       {/* My place detail modal */}
