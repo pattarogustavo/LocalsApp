@@ -7,6 +7,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
+import * as Haptics from 'expo-haptics';
+import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
 import { generateId } from '@/utils/trip-helpers';
 import { trpc } from '@/lib/trpc';
@@ -599,6 +601,7 @@ function AddTransportModal({
         setCarRouteError('Não foi possível calcular a rota. Verifique os endereços.');
       }
     } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setCarRouteError('Erro ao calcular rota. Tente novamente.');
     }
   };
@@ -648,6 +651,7 @@ function AddTransportModal({
         }
       }
     } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setSearchError('Erro ao buscar voos. Tente novamente.');
     }
   };
@@ -666,6 +670,7 @@ function AddTransportModal({
         setSearchError('Voo não encontrado. Verifique o número e a data.');
       }
     } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setSearchError('Erro ao buscar voo. Tente novamente.');
     }
   };

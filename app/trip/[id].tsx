@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
 import { getTripName, formatDate, getCurrencySymbol, getTripCurrencies } from '@/utils/trip-helpers';
 import { TransportBlock } from '@/components/trip/transport-block';
@@ -334,6 +336,7 @@ function EditDestinationsModal({
   };
 
   const handleRemove = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setDestinations((prev) => prev.filter((d) => d.id !== id));
   };
 
@@ -388,6 +391,7 @@ function EditDestinationsModal({
 
   const handleSave = async () => {
     await updateDestinations(trip.id, destinations);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onClose();
   };
 
@@ -549,6 +553,7 @@ export default function TripDetailScreen() {
   const countryName = trip.destinations.map((d) => d.country || d.name).join(', ');
 
   const handleDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       t.trip.deleteTrip,
       t.trip.deleteTripConfirm,
@@ -675,7 +680,7 @@ export default function TripDetailScreen() {
               return (
                 <TouchableOpacity
                   key={tab.key}
-                  onPress={() => setActiveTab(tab.key)}
+                  onPress={() => { Haptics.selectionAsync(); setActiveTab(tab.key); }}
                   style={[
                     styles.tabBtn,
                     {

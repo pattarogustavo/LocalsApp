@@ -5,6 +5,7 @@ import {
   FlatList, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useTripsStore } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
 import type { Place, Destination, PlaceAttachment } from '@/types/voyage';
@@ -546,12 +547,14 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
       rating: result.rating,
       addedByAI: false,
     };
+    Haptics.selectionAsync();
     await addPlace(tripId, place);
   };
 
   const generateItinerary = trpc.ai.generateItinerary.useMutation();
 
   const handleAddPlace = useCallback(async (place: Place) => {
+    Haptics.selectionAsync();
     await addPlace(tripId, { ...place, id: generateId() });
   }, [tripId, addPlace]);
 

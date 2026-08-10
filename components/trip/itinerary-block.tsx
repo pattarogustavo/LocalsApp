@@ -6,6 +6,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
+import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
 import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop } from '@/types/voyage';
@@ -96,7 +98,7 @@ function DaySelector({
         const isSelected = i === selectedIndex;
         return (
           <TouchableOpacity
-            key={i} onPress={() => onSelect(i)}
+            key={i} onPress={() => { Haptics.selectionAsync(); onSelect(i); }}
             style={[styles.dayChip, isSelected && styles.dayChipActive]}
           >
             <Text style={[styles.dayChipName, isSelected && styles.dayChipNameActive]}>
@@ -654,6 +656,7 @@ function DayView({
     if (!stop.id) return;
     // Find the placeId to also remove from Places tab
     const placeId = (stop as any).placeId as string | undefined;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       t.itinerary.deleteStop,
       `${t.itinerary.deleteStop} "${stop.placeName || stop.activity || ''}"?`,
@@ -1138,9 +1141,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         })));
         await setItinerary(trip.id, patchedDays);
         setSelectedDay(0);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (e) {
       console.error('Itinerary generation error:', e);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(t.common.error, getGenerationErrorMessage(e, t.ai.error));
     } finally {
       setGenerating(false);
@@ -1200,9 +1205,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         }));
         await setItinerary(trip.id, patchedDays);
         setSelectedDay(0);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (e) {
       console.error('Generate from scratch error:', e);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(t.common.error, getGenerationErrorMessage(e, t.ai.error));
     } finally {
       setGenerating(false);
@@ -1245,6 +1252,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   };
 
   const handleDeleteAllItinerary = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       t.itinerary.deleteItineraryTitle,
       t.itinerary.deleteItineraryMsg,

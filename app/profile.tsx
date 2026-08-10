@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@/store/auth';
 import { useSubscription } from '@/hooks/use-subscription';
 import { trpc } from '@/lib/trpc';
@@ -177,10 +178,12 @@ function ChangePasswordModal({
       // Update to new password
       const { error: updateError } = await supabase.auth.updateUser({ password: next });
       if (updateError) throw updateError;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(t.common.success, t.profile.passwordChanged);
       setCurrent(''); setNext(''); setConfirm('');
       onClose();
     } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(t.common.error, e?.message ?? t.profile.passwordError);
     } finally {
       setLoading(false);
@@ -287,6 +290,7 @@ export default function ProfileScreen() {
       }
     } catch {
       setUploadingAvatar(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(t.common.error, 'Não foi possível selecionar a foto.');
     }
   }, [updateProfile, t]);
