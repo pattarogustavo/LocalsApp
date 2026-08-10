@@ -209,6 +209,7 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
 
               <TouchableOpacity
                 onPress={handleAdd}
+                activeOpacity={0.7}
                 style={{
                   backgroundColor: colors.primary,
                   borderRadius: 16,

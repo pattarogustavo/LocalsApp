@@ -420,6 +420,7 @@ function StopItem({
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.timeModalConfirm}
+                activeOpacity={0.7}
                 onPress={() => {
                   if (onTimeChange && timeInput.trim()) {
                     onTimeChange(timeInput.trim());
@@ -548,6 +549,7 @@ function StopItem({
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.editStopSave}
+                  activeOpacity={0.7}
                   onPress={() => {
                     onEdit({
                       placeName: editName.trim() || undefined,
@@ -1588,14 +1590,14 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 >
                   <Text style={{ color: colors.muted, fontWeight: '600' }}>Voltar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
+                <ScalePressable
                   onPress={handleGenerateFromScratch}
                   style={[styles.paceModalBtn, { backgroundColor: colors.primary, flex: 1.5 }]}
                   disabled={generating}
                 >
                   <Ionicons name="sparkles-outline" size={15} color={colors.textOnPrimary} />
                   <Text style={{ color: colors.textOnPrimary, fontWeight: '700' }}>Criar Roteiro</Text>
-                </TouchableOpacity>
+                </ScalePressable>
               </View>
             </ScrollView>
           </View>

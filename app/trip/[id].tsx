@@ -293,6 +293,7 @@ function EditDateModal({
             <TouchableOpacity
               onPress={() => { onConfirm(pickerDate.toISOString(), duration); onClose(); }}
               style={[styles.confirmBtn, { backgroundColor: '#2C2416' }]}
+              activeOpacity={0.7}
             >
               <Text style={styles.confirmBtnText}>{t.common.confirm}</Text>
             </TouchableOpacity>
@@ -484,12 +485,12 @@ function EditDestinationsModal({
               <PlacesAutocompleteInput onSelect={handleAddDestination} placeholder={t.tripEdit.searchCity} searchTypes="cities" />
             </View>
 
-            <TouchableOpacity
+            <ScalePressable
               onPress={handleSave}
               style={[styles.saveBtn, { backgroundColor: '#2C2416', marginTop: 16 }]}
             >
               <Text style={styles.saveBtnText}>{t.tripEdit.saveChanges}</Text>
-            </TouchableOpacity>
+            </ScalePressable>
             <View style={{ height: 40 }} />
           </ScrollView>
         </View>

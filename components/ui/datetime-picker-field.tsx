@@ -106,6 +106,7 @@ export function DateTimePickerField({
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.confirmBtn}
+                  activeOpacity={0.7}
                   onPress={() => { setShowDatePicker(false); setShowTimePicker(true); }}
                 >
                   <Text style={styles.confirmText}>{t.common.next || 'Próximo →'}</Text>
@@ -135,6 +136,7 @@ export function DateTimePickerField({
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.confirmBtn}
+                  activeOpacity={0.7}
                   onPress={() => { setShowTimePicker(false); onChange(tempDate); }}
                 >
                   <Text style={styles.confirmText}>{t.common.confirm}</Text>

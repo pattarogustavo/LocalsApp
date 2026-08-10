@@ -321,6 +321,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
 
               <TouchableOpacity
                 onPress={handleAdd}
+                activeOpacity={0.7}
                 style={{ backgroundColor: colors.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
               >
                 <Text style={{ color: colors.textOnPrimary, fontWeight: '600', fontSize: 16 }}>{t.common.add}</Text>

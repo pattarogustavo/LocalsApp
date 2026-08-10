@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
 import { generateId } from '@/utils/trip-helpers';
 import { PlacesAutocompleteInput } from '@/components/ui/places-autocomplete-input';
@@ -114,6 +116,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
   };
 
   const handleRemoveDest = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setDestinations((prev) => prev.filter((d) => d.id !== id));
   };
 
@@ -174,6 +177,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
 
     await addTrip(trip);
     setIsCreating(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onCreated?.(trip);
     handleClose();
   };
@@ -325,7 +329,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                 </View>
 
                 {/* Create button */}
-                <TouchableOpacity
+                <ScalePressable
                   onPress={canCreate ? handleCreate : undefined}
                   disabled={!canCreate || isCreating}
                   style={[
@@ -342,7 +346,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                       ? t.createTrip.generating
                       : t.createTrip.createBtn}
                   </Text>
-                </TouchableOpacity>
+                </ScalePressable>
 
                 <View style={{ height: 8 }} />
               </ScrollView>

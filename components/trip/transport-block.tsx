@@ -1343,9 +1343,9 @@ function AddTransportModal({
               ((mode === 'train' || mode === 'bus' || mode === 'ferry') && !!tbfOriginStation && !!tbfDestStation && !!tbfDeparture) ||
               (mode === 'other' && otherName.trim().length > 0)
             ) && (
-              <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
+              <ScalePressable style={styles.addBtn} onPress={handleAdd}>
                 <Text style={styles.addBtnText}>Adicionar</Text>
-              </TouchableOpacity>
+              </ScalePressable>
             )}
             <View style={{ height: 20 }} />
           </ScrollView>

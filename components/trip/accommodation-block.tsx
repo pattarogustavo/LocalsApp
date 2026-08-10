@@ -316,6 +316,7 @@ function AddAccommodationModal({
             <TouchableOpacity
               onPress={handleSave}
               disabled={!canSave}
+              activeOpacity={0.7}
               style={[styles.saveBtn, { backgroundColor: canSave ? colors.primary : colors.border }]}
             >
               <Text style={[styles.saveBtnText, { color: canSave ? colors.textOnPrimary : colors.muted }]}>

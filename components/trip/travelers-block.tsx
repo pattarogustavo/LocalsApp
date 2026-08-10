@@ -227,6 +227,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
                   style={[styles.confirmBtn, !nameInput.trim() && styles.confirmBtnDisabled]}
                   onPress={handleAdd}
                   disabled={!nameInput.trim()}
+                  activeOpacity={0.7}
                 >
                   <Text style={styles.confirmText}>{t.common.add}</Text>
                 </TouchableOpacity>
