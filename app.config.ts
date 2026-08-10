@@ -42,6 +42,12 @@ const config: ExpoConfig = {
       projectId: "c8ca51b9-bf49-4b50-b5f0-466a78f72c6c",
     },
   },
+  runtimeVersion: {
+    policy: "appVersion",
+  },
+  updates: {
+    url: "https://u.expo.dev/c8ca51b9-bf49-4b50-b5f0-466a78f72c6c",
+  },
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
