@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useTripsStore } from '@/store/trips';
 import { TripCard, TripCardStacked } from '@/components/trip-card';
 import { CreateTripSheet } from '@/components/create-trip-sheet';
@@ -53,6 +54,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [pastExpanded, setPastExpanded] = useState(false);
   const { user } = useAuthStore();
   const { isExpired } = useSubscription();
   const t = useTranslation();
@@ -188,13 +190,25 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Já Aconteceram section */}
+        {/* Já Aconteceram section — collapsed by default */}
         {pastTrips.length > 0 && (
           <View className="mb-6">
-            <Text className="text-muted text-xs tracking-widest font-semibold uppercase px-6 mb-3">
-              {t.home.past}
-            </Text>
-            <TripCardStacked trips={pastTrips} onPressTrip={handleTripPress} />
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.selectionAsync();
+                setPastExpanded((v) => !v);
+              }}
+              className="flex-row items-center justify-between px-6 mb-3"
+              activeOpacity={0.7}
+            >
+              <Text className="text-muted text-xs tracking-widest font-semibold uppercase">
+                {t.home.past} ({pastTrips.length})
+              </Text>
+              <Ionicons name={pastExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
+            </TouchableOpacity>
+            {pastExpanded && (
+              <TripCardStacked trips={pastTrips} onPressTrip={handleTripPress} />
+            )}
           </View>
         )}
 
