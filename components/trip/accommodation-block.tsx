@@ -79,7 +79,8 @@ function AddAccommodationModal({
   const [checkIn, setCheckIn] = useState<Date>(new Date(tripStartDate));
   const [checkOut, setCheckOut] = useState<Date>(() => {
     const d = new Date(tripStartDate);
-    d.setDate(d.getDate() + destination.days);
+    // A trip of N days spans N-1 nights of hotel stay (e.g. a 3-day trip is 2 nights).
+    d.setDate(d.getDate() + Math.max(1, destination.days - 1));
     return d;
   });
 
