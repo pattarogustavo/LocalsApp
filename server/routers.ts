@@ -97,21 +97,26 @@ async function resolveGooglePhotoUrl(photoReference: string): Promise<string | u
 }
 
 /**
- * Fetch a representative photo from Unsplash's search API.
- * Last-resort fallback when Google Places and Wikipedia both have nothing.
+ * Fetch the best photo from Unsplash's search API for a destination.
+ * Requests a handful of landscape results and picks the most-liked one
+ * instead of just the first, since Unsplash's default ordering (relevance)
+ * doesn't guarantee the top result is the best shot.
  */
 async function fetchUnsplashPhoto(query: string): Promise<string | undefined> {
   if (!UNSPLASH_ACCESS_KEY || !query) return undefined;
   try {
     const url = new URL("https://api.unsplash.com/search/photos");
     url.searchParams.set("query", query);
-    url.searchParams.set("per_page", "1");
+    url.searchParams.set("per_page", "5");
     url.searchParams.set("orientation", "landscape");
     const res = await fetch(url.toString(), {
       headers: { Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` },
     });
     const data = (await res.json()) as any;
-    return data?.results?.[0]?.urls?.regular;
+    const results: any[] = data?.results || [];
+    if (results.length === 0) return undefined;
+    const best = [...results].sort((a, b) => (b.likes || 0) - (a.likes || 0))[0];
+    return best?.urls?.regular;
   } catch (unsplashErr) {
     console.error(`[places.details] Unsplash photo search failed for "${query}":`, unsplashErr);
     return undefined;
@@ -736,16 +741,26 @@ Responda APENAS com JSON válido neste formato exato:
         const result = data.result;
         const lat = result?.geometry?.location?.lat;
         const lng = result?.geometry?.location?.lng;
+        const placeName = result?.name || "";
+        const countryComp = result?.address_components?.find((c: any) => c.types.includes("country"));
+        const countryName = countryComp?.long_name || "";
 
-        // Get a photo URL if available for the specific place.
+        const debugSteps: string[] = [];
         let imageUrl: string | undefined;
-        const bestPhotoRef = pickBestGooglePhoto(result?.photos);
-        if (bestPhotoRef) {
-          imageUrl = await resolveGooglePhotoUrl(bestPhotoRef);
+
+        // 1. Try Unsplash first, using the destination name — curated, landscape-oriented photos.
+        imageUrl = await fetchUnsplashPhoto(placeName);
+        debugSteps.push(imageUrl ? "unsplash: found" : "unsplash: no results");
+
+        // 2. Fallback chain if Unsplash has nothing: Google place_id photo -> Google city search -> Wikipedia.
+        if (!imageUrl) {
+          const bestPhotoRef = pickBestGooglePhoto(result?.photos);
+          if (bestPhotoRef) {
+            imageUrl = await resolveGooglePhotoUrl(bestPhotoRef);
+          }
+          debugSteps.push(imageUrl ? "google-place: found" : "google-place: no photo");
         }
 
-        // If the specific place has no photo, try a broader city-level search
-        // before falling back to Wikipedia.
         if (!imageUrl) {
           const localityComp = result?.address_components?.find((c: any) => c.types.includes("locality"));
           const adminAreaComp = result?.address_components?.find((c: any) => c.types.includes("administrative_area_level_1"));
@@ -766,24 +781,18 @@ Responda APENAS com JSON válido neste formato exato:
               console.error(`[places.details] city photo search failed for "${cityName}":`, cityErr);
             }
           }
+          debugSteps.push(imageUrl ? "google-city: found" : "google-city: no photo");
         }
 
-        const placeName = result?.name || "";
-        const countryComp = result?.address_components?.find((c: any) => c.types.includes("country"));
-        const countryName = countryComp?.long_name || "";
-
-        // If Google Places has no photo, try Wikipedia as fallback
         if (!imageUrl) {
           imageUrl = await fetchWikipediaPhoto(placeName, countryName);
-        }
-
-        // Last resort: Unsplash search
-        if (!imageUrl) {
-          imageUrl = await fetchUnsplashPhoto(placeName);
+          debugSteps.push(imageUrl ? "wikipedia: found" : "wikipedia: no photo");
         }
 
         if (!imageUrl) {
-          console.warn(`[places.details] no photo found for "${placeName}" (${countryName}), place_id=${input.placeId}`);
+          console.warn(`[places.details] no photo found for "${placeName}" (${countryName}), place_id=${input.placeId}`, debugSteps);
+        } else {
+          console.log(`[places.details] photo resolution steps for "${placeName}":`, debugSteps);
         }
 
         // Extract country from address_components
