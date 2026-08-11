@@ -931,6 +931,13 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
             includeBreakfast: z.boolean().optional(),
             includeLunch: z.boolean().optional(),
             includeDinner: z.boolean().optional(),
+            attractionsBudget: z.string().optional(),
+            restaurantsBudget: z.string().optional(),
+            bedtime: z.string().optional(),
+            arrivalTime: z.string().optional(),
+            departureTime: z.string().optional(),
+            tripPurpose: z.string().optional(),
+            mustSee: z.string().optional(),
           }).optional(),
         })
       )
@@ -961,6 +968,15 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
           ? `\n- Meio de transporte dentro da cidade: ${transportLabel[cityTransportMode] || cityTransportMode}`
           : '';
 
+        const wakeUpTime = preferences?.wakeUpTime || "08:00";
+        const bedtime = preferences?.bedtime || "23:00";
+        const arrivalTime = preferences?.arrivalTime || wakeUpTime;
+        const departureTime = preferences?.departureTime || "18:00";
+        const attractionsBudget = preferences?.attractionsBudget;
+        const restaurantsBudget = preferences?.restaurantsBudget;
+        const tripPurpose = preferences?.tripPurpose;
+        const mustSee = preferences?.mustSee;
+
         const prompt = `Crie um roteiro de viagem dia a dia detalhado para ${totalDays} dias.
 
 Data de início: ${startDate}
@@ -968,11 +984,24 @@ Destinos: ${destSummary}
 ${placesSummary}
 
 Preferências:
-- Ritmo: ${preferences?.pace || "moderado"} (${paceStops} paradas por dia)
-- Horário de acordar: ${preferences?.wakeUpTime || "08:00"}${transportHint}
+- Ritmo: ${preferences?.pace || "moderado"} (${paceStops} paradas de ATRAÇÕES/PASSEIOS por dia — café da manhã, almoço e jantar são ADICIONAIS a esse número, não descontados dele; ex: ritmo moderado = ${paceStops} atrações/passeios por dia, MAIS café da manhã, almoço e jantar quando aplicável)
+- Horário de acordar: ${wakeUpTime}
+- Horário de dormir: ${bedtime}
+- Horário de chegada (dia 1): ${arrivalTime}
+- Horário de saída (último dia): ${departureTime}${transportHint}
+${attractionsBudget ? `- Orçamento para atrações: ${attractionsBudget}` : ""}
+${restaurantsBudget ? `- Orçamento para restaurantes: ${restaurantsBudget}` : ""}
 ${preferences?.includeBreakfast !== false ? "- Incluir café da manhã" : ""}
 ${preferences?.includeLunch !== false ? "- Incluir almoço" : ""}
 ${preferences?.includeDinner !== false ? "- Incluir jantar" : ""}
+${tripPurpose ? `- Motivo da viagem: ${tripPurpose}. Leve isso em conta na escolha de lugares e no tom das descrições (ex: lua de mel → lugares/restaurantes românticos; aniversário → sugerir algo especial em um dos dias).` : ""}
+${mustSee ? `- O usuário mencionou que gostaria de incluir, se possível: ${mustSee}. Tente incorporar isso no roteiro quando fizer sentido geograficamente, mas sem tratar como obrigatório (diferente da lista de lugares selecionados acima, que é obrigatória).` : ""}
+
+Regras de horário:
+- No primeiro dia (chegada), a primeira parada deve começar depois de ${arrivalTime}, com folga de pelo menos 1h30 para deslocamento e check-in.
+- No último dia (partida), a última parada deve terminar com pelo menos 2h de folga antes de ${departureTime}, para dar tempo de chegar ao aeroporto/estação.
+- Nos demais dias, a primeira parada deve começar depois do horário de acordar (${wakeUpTime}), com 30 a 60 minutos para o café da manhã.
+- A última parada de cada dia deve terminar antes do horário de dormir (${bedtime}), com folga de pelo menos 1h.
 
 Retorne um JSON com o array "days". Cada dia deve ter:
 - date: data no formato YYYY-MM-DD
@@ -984,10 +1013,11 @@ Retorne um JSON com o array "days". Cada dia deve ter:
   { time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other), description, hours (horário de funcionamento), address (endereço completo), lat (latitude numérica), lng (longitude numérica), travelTimeToNext (ex: "15 min a pé"), travelModeToNext (walking|driving|transit|bicycling) }
 
 Importante:
-- Inclua ${paceStops} paradas por dia. Distribua bem os horários ao longo do dia.
-- Para restaurantes, use horários de refeição (08:00 café, 13:00 almoço, 20:00 jantar).
+- Inclua ${paceStops} paradas de atrações/passeios por dia (café da manhã, almoço e jantar contam à parte, não fazem parte desse número). Distribua bem os horários ao longo do dia.
+- TODO dia (exceto talvez o dia de chegada, se chegar muito tarde) deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00, sem exceção${(preferences?.includeLunch === false || preferences?.includeDinner === false) ? ", salvo as refeições desmarcadas acima" : ""}.
 - Sempre inclua lat/lng reais para cada parada (coordenadas geográficas precisas).
-- O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista. Distribua os lugares selecionados pelos dias de forma ótima considerando proximidade geográfica e tempo de trânsito.' : ''}`;
+- O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
+- Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista.' : ''}`;
 
         const response = await invokeLLM({
           messages: [
@@ -1036,11 +1066,18 @@ Importante:
           cityTransportMode: z.string().optional(),
           profile: z.object({
             travelStyle: z.array(z.string()),   // e.g. ["cultura", "gastronomia"]
-            budget: z.enum(["econômico", "moderado", "luxo"]),
+            budget: z.enum(["econômico", "moderado", "luxo"]).optional(), // legacy single-budget field, kept for old callers
             pace: z.enum(["relaxado", "moderado", "intenso"]),
             travelProfile: z.enum(["casal", "família", "solo", "amigos", "negócios"]),
             interests: z.string().optional(),   // free text
             wakeUpTime: z.string().optional(),
+            attractionsBudget: z.string().optional(),
+            restaurantsBudget: z.string().optional(),
+            bedtime: z.string().optional(),
+            arrivalTime: z.string().optional(),
+            departureTime: z.string().optional(),
+            tripPurpose: z.string().optional(),
+            mustSee: z.string().optional(),
           }),
         })
       )
@@ -1065,6 +1102,13 @@ Importante:
           ? `\n- Meio de transporte: ${transportLabel[cityTransportMode] || cityTransportMode}`
           : '';
 
+        const wakeUpTime = profile.wakeUpTime || "08:00";
+        const bedtime = profile.bedtime || "23:00";
+        const arrivalTime = profile.arrivalTime || wakeUpTime;
+        const departureTime = profile.departureTime || "18:00";
+        const attractionsBudget = profile.attractionsBudget || profile.budget || "moderado";
+        const restaurantsBudget = profile.restaurantsBudget || profile.budget || "moderado";
+
         const prompt = `Crie um roteiro de viagem personalizado para ${totalDays} dias.
 
 Data de início: ${startDate}
@@ -1072,13 +1116,25 @@ Destinos: ${destSummary}
 
 Perfil do viajante:
 - Estilo: ${profile.travelStyle.join(", ")}
-- Orçamento: ${profile.budget}
-- Ritmo: ${profile.pace} (${paceStops} paradas/dia)
+- Orçamento para atrações: ${attractionsBudget}
+- Orçamento para restaurantes: ${restaurantsBudget}
+- Ritmo: ${profile.pace} (${paceStops} paradas de ATRAÇÕES/PASSEIOS por dia — café da manhã, almoço e jantar são ADICIONAIS a esse número, não descontados dele; ex: ritmo moderado = ${paceStops} atrações/passeios por dia, MAIS café da manhã, almoço e jantar quando aplicável)
 - Tipo de viagem: ${profile.travelProfile}
 ${profile.interests ? `- Interesses específicos: ${profile.interests}` : ""}
-- Horário de acordar: ${profile.wakeUpTime || "08:00"}${transportHint}
+- Horário de acordar: ${wakeUpTime}
+- Horário de dormir: ${bedtime}
+- Horário de chegada (dia 1): ${arrivalTime}
+- Horário de saída (último dia): ${departureTime}${transportHint}
+${profile.tripPurpose ? `- Motivo da viagem: ${profile.tripPurpose}. Leve isso em conta na escolha de lugares e no tom das descrições (ex: lua de mel → lugares/restaurantes românticos; aniversário → sugerir algo especial em um dos dias).` : ""}
+${profile.mustSee ? `- O usuário mencionou que gostaria de incluir, se possível: ${profile.mustSee}. Tente incorporar isso no roteiro quando fizer sentido geograficamente, mas sem tratar como obrigatório.` : ""}
 
 Crie o roteiro completo com lugares autênticos que combinem com o perfil acima.
+
+Regras de horário:
+- No primeiro dia (chegada), a primeira parada deve começar depois de ${arrivalTime}, com folga de pelo menos 1h30 para deslocamento e check-in.
+- No último dia (partida), a última parada deve terminar com pelo menos 2h de folga antes de ${departureTime}, para dar tempo de chegar ao aeroporto/estação.
+- Nos demais dias, a primeira parada deve começar depois do horário de acordar (${wakeUpTime}), com 30 a 60 minutos para o café da manhã.
+- A última parada de cada dia deve terminar antes do horário de dormir (${bedtime}), com folga de pelo menos 1h.
 
 Retorne um JSON com:
 1. "suggestedPlaces": array de todos os lugares usados no roteiro, cada um com:
@@ -1087,10 +1143,13 @@ Retorne um JSON com:
    { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, stops: [{ id (uuid), time (HH:MM), placeId (deve corresponder ao id em suggestedPlaces), placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
 
 Importante:
+- Inclua ${paceStops} paradas de atrações/passeios por dia (café da manhã, almoço e jantar contam à parte, não fazem parte desse número).
+- TODO dia (exceto talvez o dia de chegada, se chegar muito tarde) deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00, sem exceção.
 - Inclua lat/lng reais para cada lugar.
-- O travelModeToNext deve ser: ${cityTransportMode || 'driving'}.
+- O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
+- Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.
 - Distribua bem os horários ao longo do dia.
-- Respeite o orçamento e o ritmo do viajante.`;
+- Respeite o orçamento (atrações e restaurantes separadamente) e o ritmo do viajante.`;
 
         const response = await invokeLLM({
           messages: [

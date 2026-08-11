@@ -988,10 +988,16 @@ const TRAVEL_STYLES = [
   { id: 'arte', label: 'Arte', icon: 'color-palette-outline' },
 ];
 
-const BUDGET_OPTIONS = [
-  { id: 'econômico', label: 'Econômico', desc: 'Hostels, street food, transporte público', icon: 'wallet-outline' },
-  { id: 'moderado', label: 'Moderado', desc: 'Hotéis 3★, restaurantes locais', icon: 'card-outline' },
-  { id: 'luxo', label: 'Luxo', desc: 'Hotéis 5★, restaurantes premiados', icon: 'diamond-outline' },
+const ATTRACTIONS_BUDGET_OPTIONS = [
+  { id: 'econômico', label: 'Econômico', desc: 'Grátis a ~$15/atração', icon: 'wallet-outline' },
+  { id: 'moderado', label: 'Moderado', desc: '~$15-40/atração', icon: 'card-outline' },
+  { id: 'luxo', label: 'Luxo', desc: 'Sem restrição, experiências exclusivas', icon: 'diamond-outline' },
+];
+
+const RESTAURANTS_BUDGET_OPTIONS = [
+  { id: 'econômico', label: 'Econômico', desc: '~$5-15/refeição, street food e self-service', icon: 'wallet-outline' },
+  { id: 'moderado', label: 'Moderado', desc: '~$15-40/refeição, restaurantes locais', icon: 'card-outline' },
+  { id: 'luxo', label: 'Luxo', desc: '$40+/refeição, alta gastronomia', icon: 'diamond-outline' },
 ];
 
 const PROFILE_OPTIONS = [
@@ -1024,10 +1030,16 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const [dayPickIndex, setDayPickIndex] = useState(0);
   // Profile state
   const [profileTravelStyles, setProfileTravelStyles] = useState<string[]>([]);
-  const [profileBudget, setProfileBudget] = useState<'econômico' | 'moderado' | 'luxo'>('moderado');
+  const [profileAttractionsBudget, setProfileAttractionsBudget] = useState<'econômico' | 'moderado' | 'luxo'>('moderado');
+  const [profileRestaurantsBudget, setProfileRestaurantsBudget] = useState<'econômico' | 'moderado' | 'luxo'>('moderado');
   const [profileTravelProfile, setProfileTravelProfile] = useState<'casal' | 'família' | 'solo' | 'amigos' | 'negócios'>('casal');
   const [profileInterests, setProfileInterests] = useState('');
   const [profileWakeUp, setProfileWakeUp] = useState('08:00');
+  const [profileBedtime, setProfileBedtime] = useState('23:00');
+  const [profileArrivalTime, setProfileArrivalTime] = useState('15:00');
+  const [profileDepartureTime, setProfileDepartureTime] = useState('15:00');
+  const [profileTripPurpose, setProfileTripPurpose] = useState('');
+  const [profileMustSee, setProfileMustSee] = useState('');
 
   const generateItinerary = trpc.ai.generateItinerary.useMutation();
   const generateFromScratch = trpc.ai.generateFromScratch.useMutation();
@@ -1166,11 +1178,17 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         cityTransportMode: cityTransportMode || trip.cityTransportMode,
         profile: {
           travelStyle: profileTravelStyles.length > 0 ? profileTravelStyles : ['cultura', 'gastronomia'],
-          budget: profileBudget,
           pace,
           travelProfile: profileTravelProfile,
           interests: profileInterests || undefined,
           wakeUpTime: profileWakeUp,
+          attractionsBudget: profileAttractionsBudget,
+          restaurantsBudget: profileRestaurantsBudget,
+          bedtime: profileBedtime,
+          arrivalTime: profileArrivalTime,
+          departureTime: profileDepartureTime,
+          tripPurpose: profileTripPurpose || undefined,
+          mustSee: profileMustSee || undefined,
         },
       });
       if (result?.days && result.days.length > 0) {
@@ -1506,20 +1524,37 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 })}
               </View>
 
-              {/* Budget */}
-              <Text style={styles.profileSectionLabel}>Orçamento</Text>
-              {BUDGET_OPTIONS.map((b) => (
+              {/* Attractions budget */}
+              <Text style={styles.profileSectionLabel}>Orçamento para atrações</Text>
+              {ATTRACTIONS_BUDGET_OPTIONS.map((b) => (
                 <TouchableOpacity
                   key={b.id}
-                  onPress={() => setProfileBudget(b.id as any)}
-                  style={[styles.paceModalOption, profileBudget === b.id && styles.paceModalOptionActive, { marginBottom: 8 }]}
+                  onPress={() => setProfileAttractionsBudget(b.id as any)}
+                  style={[styles.paceModalOption, profileAttractionsBudget === b.id && styles.paceModalOptionActive, { marginBottom: 8 }]}
                 >
-                  <Ionicons name={b.icon as any} size={18} color={profileBudget === b.id ? colors.textOnPrimary : colors.textAccent} />
+                  <Ionicons name={b.icon as any} size={18} color={profileAttractionsBudget === b.id ? colors.textOnPrimary : colors.textAccent} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.paceModalOptionLabel, profileBudget === b.id && { color: colors.textOnPrimary }]}>{b.label}</Text>
-                    <Text style={[styles.paceModalOptionDesc, profileBudget === b.id && { color: withAlpha(colors.textOnPrimary, 0.5) }]}>{b.desc}</Text>
+                    <Text style={[styles.paceModalOptionLabel, profileAttractionsBudget === b.id && { color: colors.textOnPrimary }]}>{b.label}</Text>
+                    <Text style={[styles.paceModalOptionDesc, profileAttractionsBudget === b.id && { color: withAlpha(colors.textOnPrimary, 0.5) }]}>{b.desc}</Text>
                   </View>
-                  {profileBudget === b.id && <Ionicons name="checkmark" size={18} color={colors.textOnPrimary} />}
+                  {profileAttractionsBudget === b.id && <Ionicons name="checkmark" size={18} color={colors.textOnPrimary} />}
+                </TouchableOpacity>
+              ))}
+
+              {/* Restaurants budget */}
+              <Text style={styles.profileSectionLabel}>Orçamento para restaurantes</Text>
+              {RESTAURANTS_BUDGET_OPTIONS.map((b) => (
+                <TouchableOpacity
+                  key={b.id}
+                  onPress={() => setProfileRestaurantsBudget(b.id as any)}
+                  style={[styles.paceModalOption, profileRestaurantsBudget === b.id && styles.paceModalOptionActive, { marginBottom: 8 }]}
+                >
+                  <Ionicons name={b.icon as any} size={18} color={profileRestaurantsBudget === b.id ? colors.textOnPrimary : colors.textAccent} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.paceModalOptionLabel, profileRestaurantsBudget === b.id && { color: colors.textOnPrimary }]}>{b.label}</Text>
+                    <Text style={[styles.paceModalOptionDesc, profileRestaurantsBudget === b.id && { color: withAlpha(colors.textOnPrimary, 0.5) }]}>{b.desc}</Text>
+                  </View>
+                  {profileRestaurantsBudget === b.id && <Ionicons name="checkmark" size={18} color={colors.textOnPrimary} />}
                 </TouchableOpacity>
               ))}
 
@@ -1570,6 +1605,48 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 ))}
               </View>
 
+              {/* Bedtime */}
+              <Text style={styles.profileSectionLabel}>Horário de dormir</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                {['22:00', '23:00', '00:00', '01:00'].map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    onPress={() => setProfileBedtime(t)}
+                    style={[styles.paceMiniChip, profileBedtime === t && styles.paceMiniChipActive]}
+                  >
+                    <Text style={[styles.paceMiniChipText, profileBedtime === t && { color: colors.textOnPrimary }]}>{t}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Arrival time (day 1) */}
+              <Text style={styles.profileSectionLabel}>Horário de chegada (dia 1)</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                {['09:00', '12:00', '15:00', '18:00', '21:00'].map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    onPress={() => setProfileArrivalTime(t)}
+                    style={[styles.paceMiniChip, profileArrivalTime === t && styles.paceMiniChipActive]}
+                  >
+                    <Text style={[styles.paceMiniChipText, profileArrivalTime === t && { color: colors.textOnPrimary }]}>{t}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Departure time (last day) */}
+              <Text style={styles.profileSectionLabel}>Horário de saída (último dia)</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                {['09:00', '12:00', '15:00', '18:00', '21:00'].map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    onPress={() => setProfileDepartureTime(t)}
+                    style={[styles.paceMiniChip, profileDepartureTime === t && styles.paceMiniChipActive]}
+                  >
+                    <Text style={[styles.paceMiniChipText, profileDepartureTime === t && { color: colors.textOnPrimary }]}>{t}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               {/* Interests */}
               <Text style={styles.profileSectionLabel}>Interesses específicos (opcional)</Text>
               <TextInput
@@ -1582,6 +1659,35 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 numberOfLines={2}
                 returnKeyType="done"
               />
+
+              {/* Trip purpose */}
+              <Text style={styles.profileSectionLabel}>Motivo da viagem (opcional)</Text>
+              <TextInput
+                value={profileTripPurpose}
+                onChangeText={setProfileTripPurpose}
+                placeholder="Ex: lua de mel, aniversário, comemoração de formatura..."
+                placeholderTextColor={colors.muted}
+                style={styles.profileTextInput}
+                multiline
+                numberOfLines={2}
+                returnKeyType="done"
+              />
+
+              {/* Must-see places */}
+              <Text style={styles.profileSectionLabel}>Tem algum lugar ou restaurante imperdível? (opcional)</Text>
+              <TextInput
+                value={profileMustSee}
+                onChangeText={setProfileMustSee}
+                placeholder="Ex: quero muito comer no restaurante X, não posso perder o museu Y..."
+                placeholderTextColor={colors.muted}
+                style={styles.profileTextInput}
+                multiline
+                numberOfLines={2}
+                returnKeyType="done"
+              />
+              <Text style={styles.profileHintText}>
+                Pra garantir que um lugar específico entre no roteiro, a forma mais confiável é voltar para a tela inicial, ir em Lugares, selecionar ele lá, e depois voltar pra criar o roteiro.
+              </Text>
 
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16, marginBottom: 8 }}>
                 <TouchableOpacity
@@ -1866,6 +1972,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   profileChipActive: { backgroundColor: colors.primary },
   profileChipText: { fontSize: 13, fontWeight: '600', color: colors.textAccent },
   profileTextInput: { backgroundColor: withAlpha(colors.foreground, 0.07), borderRadius: 12, padding: 12, fontSize: 14, color: colors.foreground, borderWidth: 1, borderColor: withAlpha(colors.primary, 0.15), lineHeight: 20, minHeight: 64 },
+  profileHintText: { fontSize: 11, color: colors.muted, lineHeight: 15, marginTop: 6 },
 
   // Manual picker
   manualDayChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: withAlpha(colors.foreground, 0.07), borderWidth: 1, borderColor: withAlpha(colors.primary, 0.15) },
