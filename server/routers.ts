@@ -52,6 +52,28 @@ async function fetchWikipediaPhoto(cityName: string, country?: string): Promise<
 }
 
 /**
+ * Pick the best photo from a Google Places `photos` array.
+ * User-submitted photos vary wildly in subject and orientation, so we prefer
+ * landscape shots (width >= height) — more likely to be a view of the place
+ * rather than a close-up of food, an interior, or a menu — and among those
+ * pick the highest resolution. If no landscape photo exists, fall back to
+ * the highest-resolution photo overall so we never end up without an image.
+ */
+function pickBestGooglePhoto(
+  photos: { photo_reference: string; width?: number; height?: number }[] | undefined
+): string | undefined {
+  if (!photos || photos.length === 0) return undefined;
+
+  const byResolutionDesc = (a: typeof photos[number], b: typeof photos[number]) =>
+    (b.width || 0) * (b.height || 0) - (a.width || 0) * (a.height || 0);
+
+  const landscape = photos.filter((p) => (p.width || 0) >= (p.height || 0));
+  const pool = landscape.length > 0 ? landscape : photos;
+
+  return [...pool].sort(byResolutionDesc)[0]?.photo_reference;
+}
+
+/**
  * Resolve a Google Places photo_reference to a stable public photo URL,
  * following the redirect so we store an lh3.googleusercontent.com URL
  * (no API key exposed to the client).
@@ -717,8 +739,9 @@ Responda APENAS com JSON válido neste formato exato:
 
         // Get a photo URL if available for the specific place.
         let imageUrl: string | undefined;
-        if (result?.photos?.[0]?.photo_reference) {
-          imageUrl = await resolveGooglePhotoUrl(result.photos[0].photo_reference);
+        const bestPhotoRef = pickBestGooglePhoto(result?.photos);
+        if (bestPhotoRef) {
+          imageUrl = await resolveGooglePhotoUrl(bestPhotoRef);
         }
 
         // If the specific place has no photo, try a broader city-level search
@@ -735,7 +758,7 @@ Responda APENAS com JSON válido neste formato exato:
               citySearchUrl.searchParams.set("key", GOOGLE_PLACES_KEY);
               const cityRes = await fetch(citySearchUrl.toString());
               const cityData = (await cityRes.json()) as any;
-              const cityPhotoRef = cityData?.results?.[0]?.photos?.[0]?.photo_reference;
+              const cityPhotoRef = pickBestGooglePhoto(cityData?.results?.[0]?.photos);
               if (cityPhotoRef) {
                 imageUrl = await resolveGooglePhotoUrl(cityPhotoRef);
               }
