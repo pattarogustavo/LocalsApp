@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
-import { useAuthStore } from '@/store/auth';
+import { useAuthStore, type ThemeMode } from '@/store/auth';
 import { useSubscription } from '@/hooks/use-subscription';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from '@/hooks/use-translation';
@@ -50,6 +50,12 @@ const LOCALE_MAP: Record<string, string> = {
   de: 'de-DE',
   it: 'it-IT',
 };
+
+const THEME_OPTIONS: { mode: ThemeMode; icon: string }[] = [
+  { mode: 'system', icon: 'phone-portrait-outline' },
+  { mode: 'light', icon: 'sunny-outline' },
+  { mode: 'dark', icon: 'moon-outline' },
+];
 
 function getSubscriptionBadgeConfig(colors: ThemeColorPalette) {
   return {
@@ -457,7 +463,7 @@ export default function ProfileScreen() {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { user, logout, updateProfile } = useAuthStore();
+  const { user, logout, updateProfile, themeMode, setThemeMode } = useAuthStore();
   const { status, isTrial, isActive, isExpired, daysLeftInTrial, trialEndsAt, subscriptionExpiresAt, plan } = useSubscription();
   const [loggingOut, setLoggingOut] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -711,6 +717,29 @@ export default function ProfileScreen() {
               <Text style={styles.menuValue}>{currentLangLabel}</Text>
               <Ionicons name="chevron-forward" size={14} color={withAlpha(colors.foreground, 0.25)} />
             </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ── Theme ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t.profile.theme}</Text>
+          <View style={styles.card}>
+            {THEME_OPTIONS.map((opt) => {
+              const active = themeMode === opt.mode;
+              const label = opt.mode === 'system' ? t.profile.themeSystem : opt.mode === 'light' ? t.profile.themeLight : t.profile.themeDark;
+              return (
+                <TouchableOpacity
+                  key={opt.mode}
+                  style={[styles.langRow, active && styles.langRowActive]}
+                  activeOpacity={0.7}
+                  onPress={() => { Haptics.selectionAsync(); setThemeMode(opt.mode); }}
+                >
+                  <Ionicons name={opt.icon as any} size={18} color={active ? colors.textAccent : withAlpha(colors.foreground, 0.5)} style={{ width: 28 }} />
+                  <Text style={[styles.langLabel, active && styles.langLabelActive]}>{label}</Text>
+                  {active && <Ionicons name="checkmark-circle" size={18} color={colors.textAccent} />}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 

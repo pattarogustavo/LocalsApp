@@ -6,6 +6,9 @@ import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 const LANG_KEY = 'voyage_preferred_language';
 const PROFILE_KEY = 'voyage_user_profile';
+const THEME_KEY = 'voyage_theme_mode';
+
+export type ThemeMode = 'system' | 'light' | 'dark';
 
 export interface AuthUser {
   id: string;           // Supabase UUID
@@ -26,6 +29,7 @@ interface AuthState {
   loading: boolean;
   initialized: boolean;
   preferredLanguage: string;
+  themeMode: ThemeMode;
 
   // Actions
   setSession: (session: Session | null) => Promise<void>;
@@ -34,6 +38,7 @@ interface AuthState {
   updateProfile: (data: Partial<AuthUser>) => void;
   updateSubscription: (data: Partial<AuthUser>) => void;
   setLanguage: (lang: string) => void;
+  setThemeMode: (mode: ThemeMode) => void;
 
   // Computed helpers
   get token(): string | null;
@@ -64,6 +69,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: true,
   initialized: false,
   preferredLanguage: 'pt',
+  themeMode: 'system',
 
   get token() {
     return get().session?.access_token ?? null;
@@ -97,6 +103,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     let initializedSafely = false;
     try {
       const savedLang = await withTimeout(AsyncStorage.getItem(LANG_KEY), null);
+      const savedTheme = await withTimeout(AsyncStorage.getItem(THEME_KEY), null) as ThemeMode | null;
+      const themeMode: ThemeMode = savedTheme ?? 'system';
       const { data: { session } } = await withTimeout(
         supabase.auth.getSession(),
         { data: { session: null }, error: null },
@@ -110,9 +118,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } catch {}
         const user = supabaseUserToAuthUser(session.user, profile);
         const lang = user.preferredLanguage ?? savedLang ?? 'pt';
-        set({ session, user, loading: false, initialized: true, preferredLanguage: lang });
+        set({ session, user, loading: false, initialized: true, preferredLanguage: lang, themeMode });
       } else {
-        set({ session: null, user: null, loading: false, initialized: true, preferredLanguage: savedLang ?? 'pt' });
+        set({ session: null, user: null, loading: false, initialized: true, preferredLanguage: savedLang ?? 'pt', themeMode });
       }
       initializedSafely = true;
     } catch {
@@ -135,6 +143,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: updated });
       AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
     }
+  },
+
+  setThemeMode: (mode: ThemeMode) => {
+    set({ themeMode: mode });
+    AsyncStorage.setItem(THEME_KEY, mode);
   },
 
   updateProfile: (data) => {
