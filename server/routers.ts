@@ -54,7 +54,7 @@ async function fetchWikipediaPhoto(cityName: string, country?: string): Promise<
 /**
  * Pick the best photo from a Google Places `photos` array.
  * User-submitted photos vary wildly in subject and orientation, so we prefer
- * landscape shots (width >= height) — more likely to be a view of the place
+ * strictly landscape shots (width > height) — more likely to be a view of the place
  * rather than a close-up of food, an interior, or a menu — and among those
  * pick the highest resolution. If no landscape photo exists, fall back to
  * the highest-resolution photo overall so we never end up without an image.
@@ -67,7 +67,7 @@ function pickBestGooglePhoto(
   const byResolutionDesc = (a: typeof photos[number], b: typeof photos[number]) =>
     (b.width || 0) * (b.height || 0) - (a.width || 0) * (a.height || 0);
 
-  const landscape = photos.filter((p) => (p.width || 0) >= (p.height || 0));
+  const landscape = photos.filter((p) => (p.width || 0) > (p.height || 0));
   const pool = landscape.length > 0 ? landscape : photos;
 
   return [...pool].sort(byResolutionDesc)[0]?.photo_reference;
@@ -97,17 +97,17 @@ async function resolveGooglePhotoUrl(photoReference: string): Promise<string | u
 }
 
 /**
- * Fetch the best photo from Unsplash's search API for a destination.
- * Requests a handful of landscape results and picks the most-liked one
- * instead of just the first, since Unsplash's default ordering (relevance)
- * doesn't guarantee the top result is the best shot.
+ * Fetch a photo from Unsplash's search API for a destination.
+ * Requests the top 4 results (already ranked by Unsplash's relevance) and
+ * picks one at random rather than always the first, for some visual
+ * variety across repeated lookups of the same destination.
  */
 async function fetchUnsplashPhoto(query: string): Promise<string | undefined> {
   if (!UNSPLASH_ACCESS_KEY || !query) return undefined;
   try {
     const url = new URL("https://api.unsplash.com/search/photos");
     url.searchParams.set("query", query);
-    url.searchParams.set("per_page", "5");
+    url.searchParams.set("per_page", "4");
     url.searchParams.set("orientation", "landscape");
     const res = await fetch(url.toString(), {
       headers: { Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` },
@@ -115,8 +115,8 @@ async function fetchUnsplashPhoto(query: string): Promise<string | undefined> {
     const data = (await res.json()) as any;
     const results: any[] = data?.results || [];
     if (results.length === 0) return undefined;
-    const best = [...results].sort((a, b) => (b.likes || 0) - (a.likes || 0))[0];
-    return best?.urls?.regular;
+    const pick = results[Math.floor(Math.random() * results.length)];
+    return pick?.urls?.regular;
   } catch (unsplashErr) {
     console.error(`[places.details] Unsplash photo search failed for "${query}":`, unsplashErr);
     return undefined;
@@ -748,11 +748,11 @@ Responda APENAS com JSON válido neste formato exato:
         const debugSteps: string[] = [];
         let imageUrl: string | undefined;
 
-        // 1. Try Unsplash first, using the destination name — curated, landscape-oriented photos.
+        // 1. Unsplash first, using the destination name.
         imageUrl = await fetchUnsplashPhoto(placeName);
         debugSteps.push(imageUrl ? "unsplash: found" : "unsplash: no results");
 
-        // 2. Fallback chain if Unsplash has nothing: Google place_id photo -> Google city search -> Wikipedia.
+        // 2. Curated Google Places photo for the specific place_id, only if Unsplash has nothing.
         if (!imageUrl) {
           const bestPhotoRef = pickBestGooglePhoto(result?.photos);
           if (bestPhotoRef) {
@@ -761,32 +761,9 @@ Responda APENAS com JSON válido neste formato exato:
           debugSteps.push(imageUrl ? "google-place: found" : "google-place: no photo");
         }
 
+        // 3. Nothing found — leave imageUrl undefined; the client falls back to its default photo.
         if (!imageUrl) {
-          const localityComp = result?.address_components?.find((c: any) => c.types.includes("locality"));
-          const adminAreaComp = result?.address_components?.find((c: any) => c.types.includes("administrative_area_level_1"));
-          const cityName = localityComp?.long_name || adminAreaComp?.long_name || result?.name || "";
-          if (cityName) {
-            try {
-              const citySearchUrl = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
-              citySearchUrl.searchParams.set("query", cityName);
-              citySearchUrl.searchParams.set("language", "pt-BR");
-              citySearchUrl.searchParams.set("key", GOOGLE_PLACES_KEY);
-              const cityRes = await fetch(citySearchUrl.toString());
-              const cityData = (await cityRes.json()) as any;
-              const cityPhotoRef = pickBestGooglePhoto(cityData?.results?.[0]?.photos);
-              if (cityPhotoRef) {
-                imageUrl = await resolveGooglePhotoUrl(cityPhotoRef);
-              }
-            } catch (cityErr) {
-              console.error(`[places.details] city photo search failed for "${cityName}":`, cityErr);
-            }
-          }
-          debugSteps.push(imageUrl ? "google-city: found" : "google-city: no photo");
-        }
-
-        if (!imageUrl) {
-          imageUrl = await fetchWikipediaPhoto(placeName, countryName);
-          debugSteps.push(imageUrl ? "wikipedia: found" : "wikipedia: no photo");
+          debugSteps.push("default: no photo found, app fallback applies");
         }
 
         if (!imageUrl) {
