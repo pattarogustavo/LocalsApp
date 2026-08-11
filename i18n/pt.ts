@@ -213,7 +213,7 @@ export const pt = {
     createItinerary: 'Criar Roteiro',
     editItinerary: 'Editar / Recriar Roteiro',
     createTitle: 'Como criar o roteiro?',
-    createSubtitle: 'Escolha como a IA vai montar seu dia-a-dia',
+    createSubtitle: 'Escolha como vamos montar seu dia-a-dia',
     pace: 'Ritmo da viagem',
     noPlacesTitle: 'Nenhum lugar selecionado',
     noPlacesMsg: 'Adicione lugares na aba Lugares antes de criar o roteiro com IA.',

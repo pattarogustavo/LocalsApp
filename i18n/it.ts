@@ -209,7 +209,7 @@ export const it: Translations = {
     createItinerary: "Crea l'itinerario",
     editItinerary: "Modifica / Ricrea l'itinerario",
     createTitle: "Come creare l'itinerario?",
-    createSubtitle: "Scegli come l'IA pianificherà il tuo viaggio giorno per giorno",
+    createSubtitle: "Scegli come pianificheremo il tuo viaggio giorno per giorno",
     pace: 'Ritmo di viaggio',
     noPlacesTitle: 'Nessun luogo selezionato',
     noPlacesMsg: "Aggiungi luoghi nella scheda Luoghi prima di creare l'itinerario con l'IA.",

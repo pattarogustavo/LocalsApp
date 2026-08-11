@@ -1433,8 +1433,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 <Ionicons name="sparkles" size={20} color={colors.textAccent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.createModeLabel}>IA do zero</Text>
-                <Text style={styles.createModeDesc}>A IA cria tudo com base no seu perfil de viajante</Text>
+                <Text style={styles.createModeLabel}>Criação Automática</Text>
+                <Text style={styles.createModeDesc}>Criamos tudo com base no seu perfil de viajante</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.muted} />
             </TouchableOpacity>
@@ -1447,10 +1447,10 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 <Ionicons name="map" size={20} color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.createModeLabel}>IA com meus lugares</Text>
+                <Text style={styles.createModeLabel}>A Partir dos Meus Lugares</Text>
                 <Text style={styles.createModeDesc}>
                   {trip.places.length > 0
-                    ? `Usa seus ${trip.places.length} lugares salvos como base`
+                    ? `Organizamos seu roteiro dia a dia com base nos seus ${trip.places.length} lugares já selecionados`
                     : 'Adicione lugares na aba Lugares primeiro'}
                 </Text>
               </View>
@@ -1482,13 +1482,6 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setShowCreateModal(false)}
-              style={[styles.paceModalBtn, { backgroundColor: withAlpha(colors.foreground, 0.08), marginTop: 4 }]}
-            >
-              <Text style={{ color: colors.foreground, fontWeight: '600' }}>Voltar</Text>
             </TouchableOpacity>
           </View>
         </View>

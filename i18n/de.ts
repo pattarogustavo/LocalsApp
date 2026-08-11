@@ -209,7 +209,7 @@ export const de: Translations = {
     createItinerary: 'Reiseplan erstellen',
     editItinerary: 'Reiseplan bearbeiten / neu erstellen',
     createTitle: 'Wie soll der Reiseplan erstellt werden?',
-    createSubtitle: 'Wähle, wie die KI deinen Tag plant',
+    createSubtitle: 'Wähle, wie wir deinen Tagesablauf planen',
     pace: 'Reisegeschwindigkeit',
     noPlacesTitle: 'Keine Orte ausgewählt',
     noPlacesMsg: 'Füge Orte im Tab Orte hinzu, bevor du den Reiseplan mit KI erstellst.',
