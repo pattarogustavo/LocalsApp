@@ -673,9 +673,13 @@ function DayView({
     );
   };
 
-  const handleTimeChange = (stop: StopLike, newTime: string) => {
+  const handleTimeChange = async (stop: StopLike, newTime: string) => {
     if (!stop.id) return;
-    updateItineraryStop(tripId, dayIndex, stop.id, { time: newTime });
+    await updateItineraryStop(tripId, dayIndex, stop.id, { time: newTime });
+    // Keep the day chronological: re-sort stops by their (possibly just-changed) time.
+    const updated = rawStops.map((s) => (s.id === stop.id ? { ...s, time: newTime } : s)) as ItineraryStop[];
+    const sorted = [...updated].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    await reorderItineraryStops(tripId, dayIndex, sorted);
   };
 
   const handleMoveStop = async (toDayIndex: number) => {
