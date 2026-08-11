@@ -97,6 +97,102 @@ async function resolveGooglePhotoUrl(photoReference: string): Promise<string | u
 }
 
 /**
+ * Resolve a destination name to a center lat/lng via Places Text Search.
+ * Used as a fallback when the client doesn't have coordinates cached yet
+ * (e.g. a destination added before coordinates were persisted).
+ */
+async function resolveDestinationCenter(destinationName: string, country?: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
+    url.searchParams.set("query", country ? `${destinationName}, ${country}` : destinationName);
+    url.searchParams.set("language", "pt-BR");
+    url.searchParams.set("key", GOOGLE_PLACES_KEY);
+    const res = await fetch(url.toString());
+    const data = (await res.json()) as any;
+    const loc = data?.results?.[0]?.geometry?.location;
+    if (typeof loc?.lat === "number" && typeof loc?.lng === "number") {
+      return { lat: loc.lat, lng: loc.lng };
+    }
+    return null;
+  } catch (err) {
+    console.error(`[ai.suggestPlaces] failed to resolve center point for "${destinationName}":`, err);
+    return null;
+  }
+}
+
+interface NearbyCandidate {
+  name: string;
+  placeId: string;
+  rating?: number;
+  userRatingsTotal: number;
+  types: string[];
+  hasPhoto: boolean;
+}
+
+/**
+ * Nearby Search for a single Google Places `type` around a center point.
+ * Returns the raw candidates (name, place_id, rating, review count, types).
+ */
+async function nearbySearchCandidates(lat: number, lng: number, type: string): Promise<NearbyCandidate[]> {
+  try {
+    const url = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
+    url.searchParams.set("location", `${lat},${lng}`);
+    url.searchParams.set("radius", "5000");
+    url.searchParams.set("type", type);
+    url.searchParams.set("language", "pt-BR");
+    url.searchParams.set("key", GOOGLE_PLACES_KEY);
+    const res = await fetch(url.toString());
+    const data = (await res.json()) as any;
+    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") return [];
+    return ((data.results || []) as any[])
+      .filter((r) => r.place_id && r.name)
+      .map((r) => ({
+        name: r.name as string,
+        placeId: r.place_id as string,
+        rating: r.rating,
+        userRatingsTotal: r.user_ratings_total || 0,
+        types: r.types || [],
+        hasPhoto: !!r.photos?.[0],
+      }));
+  } catch (err) {
+    console.error(`[ai.suggestPlaces] nearby search failed for type="${type}":`, err);
+    return [];
+  }
+}
+
+/**
+ * Fetch real address/hours/phone/photo for a single place_id via Place Details,
+ * reusing the same landscape + highest-resolution photo curation as places.details.
+ */
+async function fetchCuratedPlaceDetails(placeId: string): Promise<{ address?: string; hours?: string; phone?: string; imageUrl?: string }> {
+  try {
+    const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
+    url.searchParams.set("place_id", placeId);
+    url.searchParams.set("fields", "formatted_address,opening_hours,formatted_phone_number,photos");
+    url.searchParams.set("language", "pt-BR");
+    url.searchParams.set("key", GOOGLE_PLACES_KEY);
+    const res = await fetch(url.toString());
+    const data = (await res.json()) as any;
+    if (data.status !== "OK") return {};
+    const result = data.result;
+    let imageUrl: string | undefined;
+    const bestPhotoRef = pickBestGooglePhoto(result?.photos);
+    if (bestPhotoRef) {
+      imageUrl = await resolveGooglePhotoUrl(bestPhotoRef);
+    }
+    return {
+      address: result?.formatted_address,
+      hours: result?.opening_hours?.weekday_text?.join("\n"),
+      phone: result?.formatted_phone_number,
+      imageUrl,
+    };
+  } catch (err) {
+    console.error(`[ai.suggestPlaces] place details fetch failed for place_id=${placeId}:`, err);
+    return {};
+  }
+}
+
+/**
  * Fetch a photo from Unsplash's search API for a destination.
  * Requests the top 4 results (already ranked by Unsplash's relevance) and
  * picks one at random rather than always the first, for some visual
@@ -1174,6 +1270,15 @@ Importante:
         }
       }),
 
+    /**
+     * Suggest places for a destination using a two-stage flow:
+     * 1. Real candidates from Google Places Nearby Search (verified to exist,
+     *    with real ratings/review counts).
+     * 2. The AI curates that real list — picks the best subset, classifies
+     *    category, writes a 1-sentence description — but can't invent places.
+     * Finally, Place Details resolves address/hours/phone/photo only for the
+     * places the AI actually picked.
+     */
     suggestPlaces: publicProcedure
       .input(
         z.object({
@@ -1181,29 +1286,88 @@ Importante:
           country: z.string().optional(),
           categories: z.array(z.string()).optional(),
           existingPlaces: z.array(z.string()).optional(),
+          lat: z.number().optional(),
+          lng: z.number().optional(),
         })
       )
       .mutation(async ({ input }) => {
-        const { destinationName, country, categories, existingPlaces } = input;
+        const { destinationName, country, existingPlaces } = input;
+        const debugSteps: string[] = [];
 
-        const existing = existingPlaces && existingPlaces.length > 0
-          ? `\nExclua estes lugares que o usuário já tem: ${existingPlaces.join(", ")}`
-          : "";
+        if (!GOOGLE_PLACES_KEY) {
+          console.warn(`[ai.suggestPlaces] no GOOGLE_PLACES_API_KEY configured — returning empty list for "${destinationName}"`);
+          return { places: [], debugSteps: ["google-places-key: missing"] };
+        }
 
-        const prompt = `Sugira os melhores lugares para visitar em ${destinationName}${country ? `, ${country}` : ""}.
+        // ── Stage 1: real candidates from Google Places ──────────────────────
+        let center: { lat: number; lng: number } | null =
+          input.lat != null && input.lng != null ? { lat: input.lat, lng: input.lng } : null;
 
-Categorias solicitadas: ${(categories || ["attraction", "restaurant", "cafe", "museum", "hidden_gem"]).join(", ")}${existing}
+        if (center) {
+          debugSteps.push(`center: provided (${center.lat},${center.lng})`);
+        } else {
+          center = await resolveDestinationCenter(destinationName, country);
+          debugSteps.push(center ? `center: resolved via text search (${center.lat},${center.lng})` : "center: failed to resolve");
+        }
 
-Retorne um JSON com o array "places" (lista plana, máx 20 lugares no total).
-Cada lugar deve ter: { name (string), category (attraction|restaurant|cafe|museum|hidden_gem|other), address (string), hours (string, ex: "09:00 - 18:00"), description (string, 1 frase), phone (string, opcional) }`;
+        if (!center) {
+          console.warn(`[ai.suggestPlaces] could not resolve a center point for "${destinationName}" — returning empty list`, debugSteps);
+          return { places: [], debugSteps };
+        }
+
+        const NEARBY_TYPES = ['tourist_attraction', 'restaurant', 'cafe', 'museum'];
+        const nearbyResults = await Promise.all(
+          NEARBY_TYPES.map((type) => nearbySearchCandidates(center!.lat, center!.lng, type))
+        );
+
+        const candidatesByPlaceId = new Map<string, NearbyCandidate>();
+        NEARBY_TYPES.forEach((type, i) => {
+          const results = nearbyResults[i];
+          debugSteps.push(`nearby-search[${type}]: ${results.length} results`);
+          for (const c of results) {
+            if (!candidatesByPlaceId.has(c.placeId)) {
+              candidatesByPlaceId.set(c.placeId, c);
+            }
+          }
+        });
+
+        const candidates = Array.from(candidatesByPlaceId.values())
+          .sort((a, b) => b.userRatingsTotal - a.userRatingsTotal)
+          .slice(0, 60);
+        debugSteps.push(`candidates: ${candidates.length} unique (after dedupe/sort/limit)`);
+
+        if (candidates.length === 0) {
+          console.warn(`[ai.suggestPlaces] no real candidates found near "${destinationName}"`, debugSteps);
+          return { places: [], debugSteps };
+        }
+
+        // ── Stage 2: AI curates the real list (can't invent places) ──────────
+        const existingList = existingPlaces && existingPlaces.length > 0 ? existingPlaces.join(", ") : "";
+        const candidatesList = candidates
+          .map((c) => `[${c.placeId}] ${c.name} — tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}${c.hasPhoto ? "" : " (sem foto)"}`)
+          .join("\n");
+
+        const prompt = `Você vai curar uma lista de lugares REAIS (já verificados no Google Places) para ${destinationName}${country ? `, ${country}` : ""}.
+
+Candidatos disponíveis (${candidates.length} no total):
+${candidatesList}
+${existingList ? `\nExclua estes lugares que o usuário já tem: ${existingList}` : ""}
+
+Sua tarefa:
+- Escolha os MELHORES candidatos dessa lista. NÃO invente nenhum lugar que não esteja nela — use apenas os place_id fornecidos entre colchetes.
+- A quantidade escolhida deve refletir a qualidade/quantidade real dos candidatos: se houver poucos candidatos bons (destino pequeno), escolha poucos (pode ser só 5-8); se houver muitos candidatos de qualidade (destino grande/turístico), escolha mais (até uns 25). NÃO force preencher um número fixo com opções fracas.
+- Classifique cada escolhido em uma categoria: attraction, restaurant, cafe, museum, ou hidden_gem (hidden_gem = rating bom mas número de avaliações relativamente baixo comparado aos outros candidatos — "descoberto por poucos"), ou other.
+- Escreva uma descrição de 1 frase para cada.
+
+Retorne um JSON com o array "places": [{ placeId (exatamente o place_id entre colchetes do candidato escolhido), category, description }]`;
 
         const response = await invokeLLM({
           messages: [
-            { role: "system", content: "Você é um especialista em viagens e gastronomia local. Sugira lugares autênticos e relevantes. Responda em JSON válido." },
+            { role: "system", content: "Você é um especialista em viagens que cura listas de lugares reais já verificados no Google Places. Nunca invente lugares fora da lista fornecida. Responda em JSON válido." },
             { role: "user", content: prompt },
           ],
           response_format: { type: "json_object" },
-          max_tokens: 16000,
+          max_tokens: 6000,
         });
 
         const content = response.choices[0].message.content as string;
@@ -1218,13 +1382,45 @@ Cada lugar deve ter: { name (string), category (attraction|restaurant|cafe|museu
             cause: err,
           });
         }
-        // Handle both flat array and nested object formats
-        let places = parsed.places || [];
-        if (!Array.isArray(places)) {
-          // Flatten nested categories
-          places = Object.values(places).flat();
-        }
-        return { places };
+
+        let curated: any[] = Array.isArray(parsed.places) ? parsed.places : [];
+        debugSteps.push(`ai curation: chose ${curated.length}`);
+
+        const VALID_CATEGORIES = new Set(['attraction', 'restaurant', 'cafe', 'museum', 'hidden_gem', 'other']);
+        const existingLower = new Set((existingPlaces || []).map((n) => n.toLowerCase()));
+
+        // Guard against hallucination: only keep picks that reference a real candidate
+        // and aren't in the user's existing list (in case the AI didn't fully comply).
+        const validCurated = curated
+          .filter((c) => typeof c?.placeId === "string" && candidatesByPlaceId.has(c.placeId))
+          .filter((c) => !existingLower.has(candidatesByPlaceId.get(c.placeId)!.name.toLowerCase()))
+          .map((c) => ({
+            placeId: c.placeId as string,
+            category: VALID_CATEGORIES.has(c.category) ? c.category : 'other',
+            description: typeof c.description === 'string' ? c.description : '',
+          }));
+        debugSteps.push(`ai curation: ${validCurated.length} valid after guard`);
+
+        // ── Stage 3: real details (address/hours/phone/photo) for the curated picks only ──
+        const detailed = await Promise.all(
+          validCurated.map(async (c) => {
+            const candidate = candidatesByPlaceId.get(c.placeId)!;
+            const details = await fetchCuratedPlaceDetails(c.placeId);
+            return {
+              name: candidate.name,
+              category: c.category,
+              description: c.description,
+              address: details.address,
+              hours: details.hours,
+              phone: details.phone,
+              imageUrl: details.imageUrl,
+            };
+          })
+        );
+        debugSteps.push(`place-details: resolved ${detailed.filter((d) => d.address || d.imageUrl).length}/${detailed.length}`);
+
+        console.log(`[ai.suggestPlaces] "${destinationName}": returning ${detailed.length} curated places`, debugSteps);
+        return { places: detailed, debugSteps };
       }),
     }),
 

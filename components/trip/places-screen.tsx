@@ -354,6 +354,8 @@ function AIPanel({
         country: destination.country || '',
         categories: ['attraction', 'restaurant', 'cafe', 'museum', 'hidden_gem'],
         existingPlaces: addedPlaces.map((p) => p.name),
+        lat: destination.lat,
+        lng: destination.lng,
       });
       if (result?.places) {
         const withIds = result.places.map((p: any) => ({ ...p, id: generateId() }));
@@ -366,7 +368,7 @@ function AIPanel({
       setLoading(false);
       setLoaded(true);
     }
-  }, [destination.name, destination.country, destination.id, tripId]);
+  }, [destination.name, destination.country, destination.id, destination.lat, destination.lng, tripId]);
 
   // Auto-load on mount: hydrate from cache if this destination already has
   // saved AI suggestions, otherwise fetch once and persist the result.
