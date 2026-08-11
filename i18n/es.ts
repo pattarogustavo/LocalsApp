@@ -707,7 +707,7 @@ export const es: Translations = {
     shareTrip: 'Compartir Viaje',
   },
   info: {
-    loading: 'Cargando información...',
+    loading: (destination: string) => `Reuniendo todo sobre ${destination} para ti...`,
     loadError: 'No se pudo cargar la información.',
     retry: 'Intentar de nuevo',
     climate: 'Clima',
@@ -724,7 +724,7 @@ export const es: Translations = {
   },
   ai: {
     generating: 'Generando con IA...',
-    generatingItinerary: 'Creando tu itinerario personalizado...',
+    generatingItinerary: 'Creando un itinerario único para tu viaje...',
     generatingPlaces: 'Buscando los mejores lugares...',
     error: 'Error al generar contenido con IA.',
     retry: 'Intentar de nuevo',

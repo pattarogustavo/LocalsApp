@@ -396,7 +396,7 @@ function AIPanel({
     return (
       <View style={styles.aiLoadingRow}>
         <ActivityIndicator size="small" color={colors.textAccent} />
-        <Text style={styles.aiLoadingText}>Buscando sugestões para {destination.name}...</Text>
+        <Text style={styles.aiLoadingText}>Preparando sugestões só pra sua viagem a {destination.name}...</Text>
       </View>
     );
   }

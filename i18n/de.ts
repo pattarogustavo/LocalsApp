@@ -724,7 +724,7 @@ export const de: Translations = {
     shareTrip: 'Reise teilen',
   },
   info: {
-    loading: 'Informationen werden geladen...',
+    loading: (destination: string) => `Wir sammeln alles über ${destination} für dich...`,
     loadError: 'Informationen konnten nicht geladen werden.',
     retry: 'Erneut versuchen',
     climate: 'Klima',
@@ -741,7 +741,7 @@ export const de: Translations = {
   },
   ai: {
     generating: 'Mit KI generieren...',
-    generatingItinerary: 'Deinen personalisierten Reiseplan erstellen...',
+    generatingItinerary: 'Wir gestalten eine einzigartige Reiseroute nur für dich...',
     generatingPlaces: 'Die besten Orte finden...',
     error: 'Fehler beim Generieren von KI-Inhalten.',
     retry: 'Try again',

@@ -751,7 +751,7 @@ export const pt = {
 
   // ── Info Tab ──────────────────────────────────────────────────────────────────
   info: {
-    loading: 'Carregando informações...',
+    loading: (destination: string) => `Reunindo tudo sobre ${destination} pra você...`,
     loadError: 'Não foi possível carregar as informações.',
     retry: 'Tentar novamente',
     climate: 'Clima',
@@ -770,7 +770,7 @@ export const pt = {
   // ── AI ───────────────────────────────────────────────────────────────────────
   ai: {
     generating: 'Gerando com IA...',
-    generatingItinerary: 'Criando seu roteiro personalizado...',
+    generatingItinerary: 'Criando um roteiro único pra sua viagem...',
     generatingPlaces: 'Buscando melhores lugares...',
     error: 'Erro ao gerar conteúdo com IA.',
     retry: 'Tentar novamente',
@@ -793,6 +793,8 @@ type DeepStringify<T> = T extends string
   ? string
   : T extends (n: number) => string
   ? (n: number) => string
+  : T extends (s: string) => string
+  ? (s: string) => string
   : T extends object
   ? { [K in keyof T]: DeepStringify<T[K]> }
   : T;

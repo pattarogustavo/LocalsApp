@@ -900,7 +900,7 @@ function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: str
       {loading && (
         <View style={infoStyles.loadingRow}>
           <ActivityIndicator size="small" color={colors.textAccent} />
-          <Text style={infoStyles.loadingText}>{t.info.loading}</Text>
+          <Text style={infoStyles.loadingText}>{t.info.loading(destination.name)}</Text>
         </View>
       )}
 
