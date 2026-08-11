@@ -1833,7 +1833,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 if (dayPickPlace) handleAddUnscheduledPlace(dayPickPlace, dayPickIndex);
                 setDayPickPlace(null);
               }}
-              style={[styles.paceModalBtn, { backgroundColor: colors.primary, marginTop: 8 }]}
+              style={[styles.paceModalBtn, { flex: 0, backgroundColor: colors.primary, marginTop: 8, paddingVertical: 16 }]}
             >
               <Ionicons name="add" size={16} color={colors.textOnPrimary} />
               <Text style={{ color: colors.textOnPrimary, fontWeight: '700' }}>Adicionar</Text>
