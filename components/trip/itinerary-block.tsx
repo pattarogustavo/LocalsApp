@@ -1102,7 +1102,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
     try {
       const result = await generateItinerary.mutateAsync({
         tripId: trip.id,
-        destinations: trip.destinations.map((d) => ({ name: d.name, country: d.country, days: d.days })),
+        destinations: trip.destinations.map((d) => ({ name: d.name, country: d.country, days: d.days, lat: d.lat, lng: d.lng })),
         selectedPlaces: trip.places.map((p) => ({
           name: p.name,
           category: p.category,
@@ -1181,7 +1181,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         tripId: trip.id,
         startDate: trip.startDate,
         totalDays,
-        destinations: trip.destinations.map((d) => ({ name: d.name, country: d.country, days: d.days })),
+        destinations: trip.destinations.map((d) => ({ name: d.name, country: d.country, days: d.days, lat: d.lat, lng: d.lng })),
         cityTransportMode: cityTransportMode || trip.cityTransportMode,
         selectedPlaces: (profileConsiderSelectedPlaces && trip.places.length > 0)
           ? trip.places.map((p) => ({

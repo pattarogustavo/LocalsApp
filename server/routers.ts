@@ -127,17 +127,22 @@ interface NearbyCandidate {
   userRatingsTotal: number;
   types: string[];
   hasPhoto: boolean;
+  businessStatus?: string;
+  lat?: number;
+  lng?: number;
 }
 
 /**
  * Nearby Search for a single Google Places `type` around a center point.
- * Returns the raw candidates (name, place_id, rating, review count, types).
+ * Returns the raw candidates (name, place_id, rating, review count, types,
+ * business status, coordinates) — business_status is part of Nearby Search's
+ * default response shape, no extra request param needed.
  */
-async function nearbySearchCandidates(lat: number, lng: number, type: string): Promise<NearbyCandidate[]> {
+async function nearbySearchCandidates(lat: number, lng: number, type: string, radius = 5000): Promise<NearbyCandidate[]> {
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
     url.searchParams.set("location", `${lat},${lng}`);
-    url.searchParams.set("radius", "5000");
+    url.searchParams.set("radius", String(radius));
     url.searchParams.set("type", type);
     url.searchParams.set("language", "pt-BR");
     url.searchParams.set("key", GOOGLE_PLACES_KEY);
@@ -153,11 +158,66 @@ async function nearbySearchCandidates(lat: number, lng: number, type: string): P
         userRatingsTotal: r.user_ratings_total || 0,
         types: r.types || [],
         hasPhoto: !!r.photos?.[0],
+        businessStatus: r.business_status as string | undefined,
+        lat: r.geometry?.location?.lat,
+        lng: r.geometry?.location?.lng,
       }));
   } catch (err) {
-    console.error(`[ai.suggestPlaces] nearby search failed for type="${type}":`, err);
+    console.error(`[places] nearby search failed for type="${type}":`, err);
     return [];
   }
+}
+
+/**
+ * Gather real, currently-open place candidates near a point across the
+ * standard category set (attractions/restaurants/cafes/museums), deduped by
+ * place_id, ranked by review count, and capped at `limit`. Filters out
+ * permanently/temporarily closed places. Shared by every AI flow that needs
+ * a grounded pool of real places instead of letting the model invent its own.
+ */
+async function fetchRealPlaceCandidates(lat: number, lng: number, radius = 5000, limit = 60): Promise<NearbyCandidate[]> {
+  const NEARBY_TYPES = ['tourist_attraction', 'restaurant', 'cafe', 'museum'];
+  const nearbyResults = await Promise.all(
+    NEARBY_TYPES.map((type) => nearbySearchCandidates(lat, lng, type, radius))
+  );
+  const byPlaceId = new Map<string, NearbyCandidate>();
+  for (const results of nearbyResults) {
+    for (const c of results) {
+      if (c.businessStatus === 'CLOSED_PERMANENTLY' || c.businessStatus === 'CLOSED_TEMPORARILY') continue;
+      if (!byPlaceId.has(c.placeId)) byPlaceId.set(c.placeId, c);
+    }
+  }
+  return Array.from(byPlaceId.values())
+    .sort((a, b) => b.userRatingsTotal - a.userRatingsTotal)
+    .slice(0, limit);
+}
+
+/**
+ * Same as `fetchRealPlaceCandidates`, but for a trip spanning multiple
+ * destinations at once: resolves each destination's center (from its own
+ * lat/lng, falling back to a text-search lookup), fetches real candidates
+ * around each, and merges them into one deduped pool tagged with the
+ * destination they belong to.
+ */
+async function fetchRealCandidatesForDestinations(
+  destinations: { name: string; country?: string; lat?: number; lng?: number }[]
+): Promise<(NearbyCandidate & { destinationName: string })[]> {
+  if (!GOOGLE_PLACES_KEY) return [];
+
+  const byPlaceId = new Map<string, NearbyCandidate & { destinationName: string }>();
+  await Promise.all(
+    destinations.map(async (d) => {
+      const center = (d.lat != null && d.lng != null)
+        ? { lat: d.lat, lng: d.lng }
+        : await resolveDestinationCenter(d.name, d.country);
+      if (!center) return;
+      const found = await fetchRealPlaceCandidates(center.lat, center.lng);
+      for (const c of found) {
+        if (!byPlaceId.has(c.placeId)) byPlaceId.set(c.placeId, { ...c, destinationName: d.name });
+      }
+    })
+  );
+  return Array.from(byPlaceId.values());
 }
 
 /**
@@ -1032,6 +1092,8 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
               name: z.string(),
               country: z.string().optional(),
               days: z.number(),
+              lat: z.number().optional(),
+              lng: z.number().optional(),
             })
           ),
           selectedPlaces: z.array(
@@ -1074,6 +1136,16 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
           ? `\nLugares OBRIGATÓRIOS selecionados pelo usuário (use APENAS estes lugares nas paradas, não adicione outros):\n${selectedPlaces!.map((p) => `- ${p.name} (${p.category}) em ${p.destinationName}${p.hours ? `, horário: ${p.hours}` : ""}${p.address ? `, endereço: ${p.address}` : ""}${p.lat && p.lng ? `, coordenadas: ${p.lat},${p.lng}` : ""}`).join("\n")}`
           : "\nUse sua expertise para sugerir os melhores lugares para visitar.";
 
+        // Ground any place the AI adds beyond the (optional) obligatory list in
+        // real, currently-open places from Google Places — same principle as
+        // ai.suggestPlaces — instead of letting it invent places from memory.
+        const selectedNamesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
+        const extraCandidates = (await fetchRealCandidatesForDestinations(destinations))
+          .filter((c) => !selectedNamesLower.has(c.name.toLowerCase()));
+        const realCandidatesSummary = extraCandidates.length > 0
+          ? `\nLugares reais e verificados no Google Places disponíveis${hasSelectedPlaces ? ' para completar o roteiro além dos obrigatórios acima' : ''} (use o nome EXATAMENTE como aparece na lista; NÃO invente nenhum lugar fora desta lista${hasSelectedPlaces ? ' nem da lista de obrigatórios' : ''}):\n${extraCandidates.map((c) => `- ${c.name} (${c.destinationName})${c.rating ? `, rating ${c.rating}` : ''}`).join("\n")}`
+          : '';
+
         const paceStops = preferences?.pace === 'relaxado' ? 3 : preferences?.pace === 'intenso' ? 6 : 4;
 
         // Map cityTransportMode to a human-readable label for the prompt
@@ -1102,7 +1174,7 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
 
 Data de início: ${startDate}
 Destinos: ${destSummary}
-${placesSummary}
+${placesSummary}${realCandidatesSummary}
 
 Preferências:
 - Ritmo: ${preferences?.pace || "moderado"} (${paceStops} paradas de ATRAÇÕES/PASSEIOS por dia — café da manhã, almoço e jantar são ADICIONAIS a esse número, não descontados dele; ex: ritmo moderado = ${paceStops} atrações/passeios por dia, MAIS café da manhã, almoço e jantar quando aplicável)
@@ -1138,7 +1210,7 @@ Importante:
 - TODO dia (exceto talvez o dia de chegada, se chegar muito tarde) deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00, sem exceção${(preferences?.includeLunch === false || preferences?.includeDinner === false) ? ", salvo as refeições desmarcadas acima" : ""}.
 - Sempre inclua lat/lng reais para cada parada (coordenadas geográficas precisas).
 - O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
-- Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista.' : ''}`;
+- Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista.' : ''}${extraCandidates.length > 0 ? '\n- Use SOMENTE lugares da(s) lista(s) acima (obrigatórios e/ou candidatos reais). NÃO invente nenhum lugar de memória.' : ''}`;
 
         const response = await invokeLLM({
           messages: [
@@ -1182,6 +1254,8 @@ Importante:
               name: z.string(),
               country: z.string().optional(),
               days: z.number(),
+              lat: z.number().optional(),
+              lng: z.number().optional(),
             })
           ),
           cityTransportMode: z.string().optional(),
@@ -1225,6 +1299,15 @@ Importante:
           ? `\nLugares que o usuário já selecionou e quer manter no roteiro (inclua todos estes, e complete o restante do roteiro com mais sugestões que combinem com o perfil abaixo):\n${selectedPlaces!.map((p) => `- ${p.name} (${p.category}) em ${p.destinationName}${p.hours ? `, horário: ${p.hours}` : ""}${p.address ? `, endereço: ${p.address}` : ""}${p.lat && p.lng ? `, coordenadas: ${p.lat},${p.lng}` : ""}`).join("\n")}`
           : "";
 
+        // Ground the whole itinerary in real, currently-open places from Google
+        // Places — same principle as ai.suggestPlaces — instead of letting the
+        // model invent places from memory.
+        const realCandidates = await fetchRealCandidatesForDestinations(destinations);
+        const candidatesByPlaceId = new Map(realCandidates.map((c) => [c.placeId, c]));
+        const realCandidatesSummary = realCandidates.length > 0
+          ? `\nLugares reais e verificados no Google Places disponíveis para montar o roteiro:\n${realCandidates.map((c) => `[${c.placeId}] ${c.name} — destino: ${c.destinationName}, tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}`).join("\n")}`
+          : "";
+
         const paceStops = profile.pace === 'relaxado' ? 3 : profile.pace === 'intenso' ? 6 : 4;
 
         const transportLabel: Record<string, string> = {
@@ -1250,7 +1333,7 @@ Importante:
 
 Data de início: ${startDate}
 Destinos: ${destSummary}
-${selectedPlacesSummary}
+${selectedPlacesSummary}${realCandidatesSummary}
 
 Perfil do viajante:
 - Estilo: ${profile.travelStyle.join(", ")}
@@ -1266,7 +1349,9 @@ ${profile.interests ? `- Interesses específicos: ${profile.interests}` : ""}
 ${profile.tripPurpose ? `- Motivo da viagem: ${profile.tripPurpose}. Leve isso em conta na escolha de lugares e no tom das descrições (ex: lua de mel → lugares/restaurantes românticos; aniversário → sugerir algo especial em um dos dias).` : ""}
 ${profile.mustSee ? `- O usuário mencionou que gostaria de incluir, se possível: ${profile.mustSee}. Tente incorporar isso no roteiro quando fizer sentido geograficamente, mas sem tratar como obrigatório.` : ""}
 
-Crie o roteiro completo com lugares autênticos que combinem com o perfil acima.
+${realCandidates.length > 0
+  ? 'Monte o roteiro dia a dia usando SOMENTE os lugares da lista de candidatos reais acima (e os lugares já selecionados pelo usuário, se houver), referenciando o placeId de cada um. NÃO invente lugares fora dessas listas.'
+  : 'Crie o roteiro completo com lugares autênticos que combinem com o perfil acima.'}
 
 Regras de horário:
 - No primeiro dia (chegada), a primeira parada deve começar depois de ${arrivalTime}, com folga de pelo menos 1h30 para deslocamento e check-in.
@@ -1274,11 +1359,8 @@ Regras de horário:
 - Nos demais dias, a primeira parada deve começar depois do horário de acordar (${wakeUpTime}), com 30 a 60 minutos para o café da manhã.
 - A última parada de cada dia deve terminar antes do horário de dormir (${bedtime}), com folga de pelo menos 1h.
 
-Retorne um JSON com:
-1. "suggestedPlaces": array de todos os lugares usados no roteiro, cada um com:
-   { id (string uuid único), name, category (attraction|restaurant|cafe|museum|hidden_gem|other), address, hours, description, lat, lng, destinationName }
-2. "days": array dia-a-dia, cada dia com:
-   { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, stops: [{ id (uuid), time (HH:MM), placeId (deve corresponder ao id em suggestedPlaces), placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
+Retorne um JSON com "days": array dia-a-dia, cada dia com:
+   { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, stops: [{ id (uuid), time (HH:MM), placeId${realCandidates.length > 0 ? ' (exatamente o placeId entre colchetes do candidato real escolhido, ou vazio se a parada for um dos lugares já selecionados pelo usuário)' : ''}, placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
 
 Importante:
 - Inclua ${paceStops} paradas de atrações/passeios por dia (café da manhã, almoço e jantar contam à parte, não fazem parte desse número).
@@ -1287,7 +1369,7 @@ Importante:
 - O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
 - Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.
 - Distribua bem os horários ao longo do dia.
-- Respeite o orçamento (atrações e restaurantes separadamente) e o ritmo do viajante.`;
+- Respeite o orçamento (atrações e restaurantes separadamente) e o ritmo do viajante.${realCandidates.length > 0 ? '\n- NÃO invente nenhum lugar fora da lista de candidatos reais e da lista de lugares já selecionados pelo usuário.' : ''}`;
 
         const response = await invokeLLM({
           messages: [
@@ -1314,43 +1396,66 @@ Importante:
         const days: any[] = parsed.days || [];
 
         // Rebuild suggestedPlaces from the stops actually used in the itinerary,
-        // discarding the AI's own "suggestedPlaces" list (which can include places
-        // that never made it into any day). Also backfills a placeId on any stop
-        // that's missing one, so every stop links to a real suggestedPlaces entry.
+        // discarding whatever "suggestedPlaces" the AI may still have volunteered
+        // (which can include places that never made it into any day). Also
+        // backfills a placeId on any stop that's missing one, so every stop
+        // links to a real suggestedPlaces entry.
+        //
+        // Guard against hallucination — same principle as ai.suggestPlaces: when
+        // real candidates were available, a stop only survives if its placeId
+        // matches one of them or its name matches a place the user selected;
+        // anything else means the AI ignored the "don't invent" instruction, so
+        // the stop is dropped rather than trusting an unverifiable place.
+        const selectedPlacesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
+        let droppedHallucinatedStops = 0;
         const placesByKey = new Map<string, {
           id: string; name: string; category: string; address?: string;
           description?: string; lat?: number; lng?: number; hours?: string; destinationName?: string;
         }>();
-        const patchedDays = days.map((day: any) => ({
-          ...day,
-          stops: (day.stops || []).map((stop: any) => {
-            const key = stop.placeId || stop.placeName;
-            if (!key || !stop.placeName) return stop;
+        const patchedDays = days.map((day: any) => {
+          const stops = (day.stops || []).map((stop: any) => {
+            if (!stop.placeName) return null;
+
+            const candidate = stop.placeId ? candidatesByPlaceId.get(stop.placeId) : undefined;
+            const isSelectedPlace = selectedPlacesLower.has(stop.placeName.toLowerCase());
+            if (realCandidates.length > 0 && !candidate && !isSelectedPlace) {
+              droppedHallucinatedStops++;
+              return null;
+            }
+
+            const key = candidate?.placeId || stop.placeId || stop.placeName;
             if (!placesByKey.has(key)) {
               placesByKey.set(key, {
-                id: stop.placeId || crypto.randomUUID(),
-                name: stop.placeName,
+                id: candidate?.placeId || stop.placeId || crypto.randomUUID(),
+                name: candidate?.name || stop.placeName,
                 category: stop.placeCategory || 'attraction',
                 address: stop.address,
                 description: stop.description,
-                lat: stop.lat,
-                lng: stop.lng,
+                lat: candidate?.lat ?? stop.lat,
+                lng: candidate?.lng ?? stop.lng,
                 hours: stop.hours,
-                destinationName: day.destination,
+                destinationName: candidate?.destinationName || day.destination,
               });
             }
             const place = placesByKey.get(key)!;
-            return stop.placeId ? stop : { ...stop, placeId: place.id };
-          }),
-        }));
+            return { ...stop, placeId: place.id, placeName: place.name };
+          }).filter(Boolean);
+          return { ...day, stops };
+        });
+
+        if (droppedHallucinatedStops > 0) {
+          console.warn(`[ai.generateFromScratch] dropped ${droppedHallucinatedStops} stop(s) that referenced places outside the real candidates / selected-places lists`);
+        }
 
         // Fetch a real photo for each unique place, reusing the same landscape /
-        // highest-resolution curation as ai.suggestPlaces.
+        // highest-resolution curation as ai.suggestPlaces. Places backed by a
+        // real candidate already have a verified place_id; only the (rare)
+        // fallback places need the name-based lookup.
         const suggestedPlaces = await Promise.all(
           Array.from(placesByKey.values()).map(async (place) => {
             let imageUrl: string | undefined;
             if (GOOGLE_PLACES_KEY) {
-              const placeId = await resolvePlaceIdByName(place.name, place.lat, place.lng);
+              const placeId = candidatesByPlaceId.has(place.id) ? place.id : await resolvePlaceIdByName(place.name, place.lat, place.lng);
               if (placeId) imageUrl = (await fetchCuratedPlaceDetails(placeId)).imageUrl;
             }
             return { ...place, imageUrl };
@@ -1405,26 +1510,9 @@ Importante:
           return { places: [], debugSteps };
         }
 
-        const NEARBY_TYPES = ['tourist_attraction', 'restaurant', 'cafe', 'museum'];
-        const nearbyResults = await Promise.all(
-          NEARBY_TYPES.map((type) => nearbySearchCandidates(center!.lat, center!.lng, type))
-        );
-
-        const candidatesByPlaceId = new Map<string, NearbyCandidate>();
-        NEARBY_TYPES.forEach((type, i) => {
-          const results = nearbyResults[i];
-          debugSteps.push(`nearby-search[${type}]: ${results.length} results`);
-          for (const c of results) {
-            if (!candidatesByPlaceId.has(c.placeId)) {
-              candidatesByPlaceId.set(c.placeId, c);
-            }
-          }
-        });
-
-        const candidates = Array.from(candidatesByPlaceId.values())
-          .sort((a, b) => b.userRatingsTotal - a.userRatingsTotal)
-          .slice(0, 60);
-        debugSteps.push(`candidates: ${candidates.length} unique (after dedupe/sort/limit)`);
+        const candidates = await fetchRealPlaceCandidates(center.lat, center.lng);
+        const candidatesByPlaceId = new Map(candidates.map((c) => [c.placeId, c]));
+        debugSteps.push(`candidates: ${candidates.length} unique (after dedupe/sort/limit/closed-filter)`);
 
         if (candidates.length === 0) {
           console.warn(`[ai.suggestPlaces] no real candidates found near "${destinationName}"`, debugSteps);
