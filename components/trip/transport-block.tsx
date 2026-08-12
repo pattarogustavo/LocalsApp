@@ -1408,7 +1408,7 @@ function BoardingPassModal({
 
 // ─── City Transport Section ────────────────────────────────────────────────────
 
-function CityTransportSection({ tripId, cityMode }: { tripId: string; cityMode?: CityTransportMode }) {
+export function CityTransportSection({ tripId, cityMode }: { tripId: string; cityMode?: CityTransportMode }) {
   const { updateCityTransportMode } = useTripsStore();
   const t = useTranslation();
   const colors = useColors();
