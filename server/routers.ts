@@ -193,6 +193,31 @@ async function fetchCuratedPlaceDetails(placeId: string): Promise<{ address?: st
 }
 
 /**
+ * Resolve a place name (optionally biased toward a lat/lng) to a Google Places
+ * place_id via Find Place From Text, so a place invented by the LLM (name +
+ * coordinates only) can be matched to real Place Details for a photo.
+ */
+async function resolvePlaceIdByName(name: string, lat?: number, lng?: number): Promise<string | undefined> {
+  try {
+    const url = new URL("https://maps.googleapis.com/maps/api/place/findplacefromtext/json");
+    url.searchParams.set("input", name);
+    url.searchParams.set("inputtype", "textquery");
+    url.searchParams.set("fields", "place_id");
+    url.searchParams.set("language", "pt-BR");
+    if (lat != null && lng != null) {
+      url.searchParams.set("locationbias", `point:${lat},${lng}`);
+    }
+    url.searchParams.set("key", GOOGLE_PLACES_KEY);
+    const res = await fetch(url.toString());
+    const data = (await res.json()) as any;
+    return data?.candidates?.[0]?.place_id;
+  } catch (err) {
+    console.error(`[ai.generateFromScratch] findPlaceFromText failed for "${name}":`, err);
+    return undefined;
+  }
+}
+
+/**
  * Fetch a photo from Unsplash's search API for a destination.
  * Requests the top 4 results (already ranked by Unsplash's relevance) and
  * picks one at random rather than always the first, for some visual
@@ -1160,6 +1185,17 @@ Importante:
             })
           ),
           cityTransportMode: z.string().optional(),
+          selectedPlaces: z.array(
+            z.object({
+              name: z.string(),
+              category: z.string(),
+              destinationName: z.string(),
+              hours: z.string().optional(),
+              address: z.string().optional(),
+              lat: z.number().optional(),
+              lng: z.number().optional(),
+            })
+          ).optional(),
           profile: z.object({
             travelStyle: z.array(z.string()),   // e.g. ["cultura", "gastronomia"]
             budget: z.enum(["econômico", "moderado", "luxo"]).optional(), // legacy single-budget field, kept for old callers
@@ -1178,11 +1214,16 @@ Importante:
         })
       )
       .mutation(async ({ input }) => {
-        const { startDate, totalDays, destinations, cityTransportMode, profile } = input;
+        const { startDate, totalDays, destinations, cityTransportMode, selectedPlaces, profile } = input;
 
         const destSummary = destinations
           .map((d) => `${d.name} (${d.country || ""}) — ${d.days} dias`)
           .join(", ");
+
+        const hasSelectedPlaces = selectedPlaces && selectedPlaces.length > 0;
+        const selectedPlacesSummary = hasSelectedPlaces
+          ? `\nLugares que o usuário já selecionou e quer manter no roteiro (inclua todos estes, e complete o restante do roteiro com mais sugestões que combinem com o perfil abaixo):\n${selectedPlaces!.map((p) => `- ${p.name} (${p.category}) em ${p.destinationName}${p.hours ? `, horário: ${p.hours}` : ""}${p.address ? `, endereço: ${p.address}` : ""}${p.lat && p.lng ? `, coordenadas: ${p.lat},${p.lng}` : ""}`).join("\n")}`
+          : "";
 
         const paceStops = profile.pace === 'relaxado' ? 3 : profile.pace === 'intenso' ? 6 : 4;
 
@@ -1209,6 +1250,7 @@ Importante:
 
 Data de início: ${startDate}
 Destinos: ${destSummary}
+${selectedPlacesSummary}
 
 Perfil do viajante:
 - Estilo: ${profile.travelStyle.join(", ")}
@@ -1257,9 +1299,9 @@ Importante:
         });
 
         const content = response.choices[0].message.content as string;
+        let parsed: any;
         try {
-          const parsed = JSON.parse(content);
-          return { days: parsed.days || [], suggestedPlaces: parsed.suggestedPlaces || [] };
+          parsed = JSON.parse(content);
         } catch (err) {
           console.error("[ai.generateFromScratch] Failed to parse LLM response as JSON. Raw content (first 500 chars):", content.slice(0, 500));
           throw new TRPCError({
@@ -1268,6 +1310,54 @@ Importante:
             cause: err,
           });
         }
+
+        const days: any[] = parsed.days || [];
+
+        // Rebuild suggestedPlaces from the stops actually used in the itinerary,
+        // discarding the AI's own "suggestedPlaces" list (which can include places
+        // that never made it into any day). Also backfills a placeId on any stop
+        // that's missing one, so every stop links to a real suggestedPlaces entry.
+        const placesByKey = new Map<string, {
+          id: string; name: string; category: string; address?: string;
+          description?: string; lat?: number; lng?: number; hours?: string; destinationName?: string;
+        }>();
+        const patchedDays = days.map((day: any) => ({
+          ...day,
+          stops: (day.stops || []).map((stop: any) => {
+            const key = stop.placeId || stop.placeName;
+            if (!key || !stop.placeName) return stop;
+            if (!placesByKey.has(key)) {
+              placesByKey.set(key, {
+                id: stop.placeId || crypto.randomUUID(),
+                name: stop.placeName,
+                category: stop.placeCategory || 'attraction',
+                address: stop.address,
+                description: stop.description,
+                lat: stop.lat,
+                lng: stop.lng,
+                hours: stop.hours,
+                destinationName: day.destination,
+              });
+            }
+            const place = placesByKey.get(key)!;
+            return stop.placeId ? stop : { ...stop, placeId: place.id };
+          }),
+        }));
+
+        // Fetch a real photo for each unique place, reusing the same landscape /
+        // highest-resolution curation as ai.suggestPlaces.
+        const suggestedPlaces = await Promise.all(
+          Array.from(placesByKey.values()).map(async (place) => {
+            let imageUrl: string | undefined;
+            if (GOOGLE_PLACES_KEY) {
+              const placeId = await resolvePlaceIdByName(place.name, place.lat, place.lng);
+              if (placeId) imageUrl = (await fetchCuratedPlaceDetails(placeId)).imageUrl;
+            }
+            return { ...place, imageUrl };
+          })
+        );
+
+        return { days: patchedDays, suggestedPlaces };
       }),
 
     /**
