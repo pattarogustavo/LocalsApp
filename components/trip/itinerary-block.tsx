@@ -10,7 +10,8 @@ import * as Haptics from 'expo-haptics';
 import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
-import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop } from '@/types/voyage';
+import { CityTransportSection } from '@/components/trip/transport-block';
+import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop, CityTransportMode } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
@@ -1032,6 +1033,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   // Unscheduled panel: place awaiting day confirmation via the day-picker modal
   const [dayPickPlace, setDayPickPlace] = useState<Place | null>(null);
   const [dayPickIndex, setDayPickIndex] = useState(0);
+  // Unscheduled panel: collapsed by default when there are many places
+  const [unscheduledExpanded, setUnscheduledExpanded] = useState(false);
   // Profile state
   const [profileTravelStyles, setProfileTravelStyles] = useState<string[]>([]);
   const [profileAttractionsBudget, setProfileAttractionsBudget] = useState<'econômico' | 'moderado' | 'luxo'>('moderado');
@@ -1043,7 +1046,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const [profileArrivalTime, setProfileArrivalTime] = useState('15:00');
   const [profileDepartureTime, setProfileDepartureTime] = useState('15:00');
   const [profileTripPurpose, setProfileTripPurpose] = useState('');
-  const [profileMustSee, setProfileMustSee] = useState('');
+  const [profileConsiderSelectedPlaces, setProfileConsiderSelectedPlaces] = useState(true);
 
   const generateItinerary = trpc.ai.generateItinerary.useMutation();
   const generateFromScratch = trpc.ai.generateFromScratch.useMutation();
@@ -1180,6 +1183,17 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         totalDays,
         destinations: trip.destinations.map((d) => ({ name: d.name, country: d.country, days: d.days })),
         cityTransportMode: cityTransportMode || trip.cityTransportMode,
+        selectedPlaces: (profileConsiderSelectedPlaces && trip.places.length > 0)
+          ? trip.places.map((p) => ({
+              name: p.name,
+              category: p.category,
+              destinationName: trip.destinations.find((d) => d.id === p.destinationId)?.name || '',
+              hours: p.hours,
+              address: p.address,
+              lat: p.lat,
+              lng: p.lng,
+            }))
+          : undefined,
         profile: {
           travelStyle: profileTravelStyles.length > 0 ? profileTravelStyles : ['cultura', 'gastronomia'],
           pace,
@@ -1192,7 +1206,6 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           arrivalTime: profileArrivalTime,
           departureTime: profileDepartureTime,
           tripPurpose: profileTripPurpose || undefined,
-          mustSee: profileMustSee || undefined,
         },
       });
       if (result?.days && result.days.length > 0) {
@@ -1208,13 +1221,14 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
             await addPlace(trip.id, {
               id: localId,
               name: sp.name,
-              category: sp.category || 'attraction',
+              category: (sp.category as Place['category']) || 'attraction',
               destinationId: destId,
               address: sp.address,
               hours: sp.hours,
               description: sp.description,
               lat: sp.lat,
               lng: sp.lng,
+              imageUrl: sp.imageUrl,
               addedByAI: true,
             });
           }
@@ -1394,23 +1408,41 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
       </View>
 
       {/* Unscheduled places panel */}
-      {unscheduledPlaces.length > 0 && (
-        <View style={styles.unscheduledPanel}>
-          <View style={styles.unscheduledHeader}>
-            <Ionicons name="location-outline" size={14} color={colors.accent} />
-            <Text style={styles.unscheduledTitle}>{t.itinerary.unscheduled.toUpperCase()}</Text>
-            <Text style={styles.unscheduledCount}>{unscheduledPlaces.length}</Text>
+      {unscheduledPlaces.length > 0 && (() => {
+        const shouldCollapse = unscheduledPlaces.length > 4;
+        const visiblePlaces = (shouldCollapse && !unscheduledExpanded)
+          ? unscheduledPlaces.slice(0, 3)
+          : unscheduledPlaces;
+        const hiddenCount = unscheduledPlaces.length - visiblePlaces.length;
+        return (
+          <View style={styles.unscheduledPanel}>
+            <View style={styles.unscheduledHeader}>
+              <Ionicons name="location-outline" size={14} color={colors.accent} />
+              <Text style={styles.unscheduledTitle}>{t.itinerary.unscheduled.toUpperCase()}</Text>
+              <Text style={styles.unscheduledCount}>{unscheduledPlaces.length}</Text>
+            </View>
+            <Text style={styles.unscheduledSubtitle}>{t.itinerary.unscheduledHint}</Text>
+            {visiblePlaces.map((place) => (
+              <UnscheduledPlaceRow
+                key={place.id}
+                place={place}
+                onAdd={() => { setDayPickIndex(selectedDay); setDayPickPlace(place); }}
+              />
+            ))}
+            {shouldCollapse && (
+              <TouchableOpacity
+                onPress={() => setUnscheduledExpanded((v) => !v)}
+                style={styles.unscheduledToggleBtn}
+              >
+                <Text style={styles.unscheduledToggleText}>
+                  {unscheduledExpanded ? 'Ver menos' : `Ver mais ${hiddenCount} lugares`}
+                </Text>
+                <Ionicons name={unscheduledExpanded ? 'chevron-up' : 'chevron-down'} size={13} color={colors.accent} />
+              </TouchableOpacity>
+            )}
           </View>
-          <Text style={styles.unscheduledSubtitle}>{t.itinerary.unscheduledHint}</Text>
-          {unscheduledPlaces.map((place) => (
-            <UnscheduledPlaceRow
-              key={place.id}
-              place={place}
-              onAdd={() => { setDayPickIndex(selectedDay); setDayPickPlace(place); }}
-            />
-          ))}
-        </View>
-      )}
+        );
+      })()}
 
       {/* ── Three-mode creation modal ── */}
       <Modal visible={showCreateModal} transparent animationType="fade" onRequestClose={() => setShowCreateModal(false)}>
@@ -1500,8 +1532,16 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         <View style={[styles.paceModalOverlay, { justifyContent: 'flex-end', padding: 0 }]}>
           <View style={[styles.paceModalCard, { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, maxHeight: '90%' }]}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <Text style={styles.paceModalTitle}>Seu perfil de viajante</Text>
-              <Text style={styles.paceModalSubtitle}>A IA vai personalizar o roteiro com base nas suas respostas</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                <Text style={styles.paceModalTitle}>Seu perfil de viajante</Text>
+                <TouchableOpacity
+                  onPress={() => setShowProfileModal(false)}
+                  style={{ padding: 4, borderRadius: 20, backgroundColor: withAlpha(colors.foreground, 0.08) }}
+                >
+                  <Ionicons name="close" size={18} color={colors.muted} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.paceModalSubtitle}>Vamos personalizar o roteiro com base nas suas respostas</Text>
 
               {/* Travel styles */}
               <Text style={styles.profileSectionLabel}>Estilo de viagem (escolha vários)</Text>
@@ -1644,6 +1684,9 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 ))}
               </View>
 
+              {/* City transport mode — synced with the Transportes tab */}
+              <CityTransportSection tripId={trip.id} cityMode={(cityTransportMode || trip.cityTransportMode) as CityTransportMode | undefined} />
+
               {/* Interests */}
               <Text style={styles.profileSectionLabel}>Interesses específicos (opcional)</Text>
               <TextInput
@@ -1671,20 +1714,45 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               />
 
               {/* Must-see places */}
-              <Text style={styles.profileSectionLabel}>Tem algum lugar ou restaurante imperdível? (opcional)</Text>
-              <TextInput
-                value={profileMustSee}
-                onChangeText={setProfileMustSee}
-                placeholder="Ex: quero muito comer no restaurante X, não posso perder o museu Y..."
-                placeholderTextColor={colors.muted}
-                style={styles.profileTextInput}
-                multiline
-                numberOfLines={2}
-                returnKeyType="done"
-              />
-              <Text style={styles.profileHintText}>
-                Pra garantir que um lugar específico entre no roteiro, a forma mais confiável é voltar para a tela inicial, ir em Lugares, selecionar ele lá, e depois voltar pra criar o roteiro.
-              </Text>
+              {trip.places.length > 0 ? (
+                <>
+                  <Text style={styles.profileSectionLabel}>Lugar imperdível</Text>
+                  <Text style={styles.profileHintText}>
+                    Você já selecionou {trip.places.length} lugar{trip.places.length !== 1 ? 'es' : ''} na aba Lugares. Quer considerar eles no roteiro?
+                  </Text>
+                  <View style={{ gap: 8, marginTop: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => setProfileConsiderSelectedPlaces(true)}
+                      style={[styles.paceModalOption, profileConsiderSelectedPlaces && styles.paceModalOptionActive]}
+                    >
+                      <Ionicons name="checkmark-circle-outline" size={18} color={profileConsiderSelectedPlaces ? colors.textOnPrimary : colors.textAccent} />
+                      <Text style={[styles.paceModalOptionLabel, { flex: 1 }, profileConsiderSelectedPlaces && { color: colors.textOnPrimary }]}>
+                        Sim, considerar e completar com mais sugestões
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setProfileConsiderSelectedPlaces(false)}
+                      style={[styles.paceModalOption, !profileConsiderSelectedPlaces && styles.paceModalOptionActive]}
+                    >
+                      <Ionicons name="close-circle-outline" size={18} color={!profileConsiderSelectedPlaces ? colors.textOnPrimary : colors.textAccent} />
+                      <Text style={[styles.paceModalOptionLabel, { flex: 1 }, !profileConsiderSelectedPlaces && { color: colors.textOnPrimary }]}>
+                        Não, seguir só com as recomendações
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.profileSectionLabel}>Quer garantir que algum lugar específico entre no roteiro?</Text>
+                  <TouchableOpacity
+                    onPress={() => { setShowProfileModal(false); onGoToPlaces(); }}
+                    style={[styles.goToPlacesBtn, { alignSelf: 'flex-start' }]}
+                  >
+                    <Ionicons name="location-outline" size={14} color={colors.textOnPrimary} />
+                    <Text style={styles.goToPlacesBtnText}>Selecionar lugares</Text>
+                  </TouchableOpacity>
+                </>
+              )}
 
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16, marginBottom: 8 }}>
                 <TouchableOpacity
@@ -2001,6 +2069,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   unscheduledName: { fontSize: 14, fontWeight: '600', color: colors.foreground },
   unscheduledCat: { fontSize: 11, color: colors.muted, marginTop: 1 },
   unscheduledAddBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: withAlpha(colors.primary, 0.12), alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: withAlpha(colors.primary, 0.25) },
+  unscheduledToggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, marginTop: 4 },
+  unscheduledToggleText: { fontSize: 12, fontWeight: '700', color: colors.accent },
 
   // Edit stop modal
   editStopOverlay: { flex: 1, backgroundColor: colors.overlayModal, justifyContent: 'flex-end' },
