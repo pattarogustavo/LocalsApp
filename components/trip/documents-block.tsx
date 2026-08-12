@@ -76,8 +76,20 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
             {t.documents.title}
           </Text>
         </View>
-        <TouchableOpacity onPress={() => setShowModal(true)}>
-          <Text style={{ color: colors.textAccent, fontSize: 13 }}>{t.documents.openDocument}</Text>
+        <TouchableOpacity
+          onPress={() => setShowModal(true)}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+            backgroundColor: withAlpha(colors.primary, 0.15),
+            borderRadius: 20,
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+          }}
+        >
+          <Ionicons name="add" size={14} color={colors.textAccent} />
+          <Text style={{ color: colors.textAccent, fontSize: 12, fontWeight: '600' }}>{t.common.add}</Text>
         </TouchableOpacity>
       </View>
 
