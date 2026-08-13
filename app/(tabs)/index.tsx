@@ -147,7 +147,7 @@ export default function HomeScreen() {
         {/* Por Vir section */}
         {upcomingTrips.length > 0 ? (
           <View className="mb-6">
-            <Text className="text-muted text-xs tracking-widest font-semibold uppercase px-6 mb-3">
+            <Text className="text-muted text-[14px] tracking-widest font-semibold uppercase px-6 mb-3">
               {t.home.upcoming}
             </Text>
             <TripCardStacked trips={upcomingTrips} onPressTrip={handleTripPress} />
@@ -201,7 +201,7 @@ export default function HomeScreen() {
               className="flex-row items-center justify-between px-6 mb-3"
               activeOpacity={0.7}
             >
-              <Text className="text-muted text-xs tracking-widest font-semibold uppercase">
+              <Text className="text-muted text-[14px] tracking-widest font-semibold uppercase">
                 {t.home.past} ({pastTrips.length})
               </Text>
               <Ionicons name={pastExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
