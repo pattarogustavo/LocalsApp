@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
 import { useColors } from '@/hooks/use-colors';
 import { useTranslation } from '@/hooks/use-translation';
+import { useAuthStore } from '@/store/auth';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -53,6 +54,7 @@ export function PlacesAutocompleteInput({
 }: PlacesAutocompleteInputProps) {
   const colors = useColors();
   const t = useTranslation();
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const defaultPlaceholder = placeholder || t.common.search + '...';
   const [modalVisible, setModalVisible] = useState(false);
   const [query, setQuery] = useState('');
@@ -60,7 +62,7 @@ export function PlacesAutocompleteInput({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, isFetching } = trpc.places.autocomplete.useQuery(
-    { query: debouncedQuery, types: searchTypes },
+    { query: debouncedQuery, types: searchTypes, language: preferredLanguage },
     { enabled: debouncedQuery.length >= 2 }
   );
 

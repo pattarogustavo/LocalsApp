@@ -14,6 +14,23 @@ const GOOGLE_DIRECTIONS_KEY = process.env.GOOGLE_DIRECTIONS_API_KEY || "";
 const OPENWEATHER_KEY = process.env.OPENWEATHERMAP_API_KEY || "";
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY || "";
 
+// Maps the app's internal language codes to the codes Google's APIs
+// (Places, Directions) expect. Falls back to pt-BR for unrecognized or
+// missing values, so callers that don't pass a language keep working as before.
+const GOOGLE_LANGUAGE_MAP: Record<string, string> = {
+  pt: "pt-BR",
+  en: "en",
+  es: "es",
+  fr: "fr",
+  de: "de",
+  it: "it",
+};
+
+function mapToGoogleLanguage(lang?: string): string {
+  const code = lang?.slice(0, 2).toLowerCase();
+  return (code && GOOGLE_LANGUAGE_MAP[code]) || "pt-BR";
+}
+
 // ─── Photo helpers ────────────────────────────────────────────────────────────
 
 /**
@@ -101,11 +118,11 @@ async function resolveGooglePhotoUrl(photoReference: string): Promise<string | u
  * Used as a fallback when the client doesn't have coordinates cached yet
  * (e.g. a destination added before coordinates were persisted).
  */
-async function resolveDestinationCenter(destinationName: string, country?: string): Promise<{ lat: number; lng: number } | null> {
+async function resolveDestinationCenter(destinationName: string, country?: string, language?: string): Promise<{ lat: number; lng: number } | null> {
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
     url.searchParams.set("query", country ? `${destinationName}, ${country}` : destinationName);
-    url.searchParams.set("language", "pt-BR");
+    url.searchParams.set("language", mapToGoogleLanguage(language));
     url.searchParams.set("key", GOOGLE_PLACES_KEY);
     const res = await fetch(url.toString());
     const data = (await res.json()) as any;
@@ -138,13 +155,13 @@ interface NearbyCandidate {
  * business status, coordinates) — business_status is part of Nearby Search's
  * default response shape, no extra request param needed.
  */
-async function nearbySearchCandidates(lat: number, lng: number, type: string, radius = 5000): Promise<NearbyCandidate[]> {
+async function nearbySearchCandidates(lat: number, lng: number, type: string, radius = 5000, language?: string): Promise<NearbyCandidate[]> {
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
     url.searchParams.set("location", `${lat},${lng}`);
     url.searchParams.set("radius", String(radius));
     url.searchParams.set("type", type);
-    url.searchParams.set("language", "pt-BR");
+    url.searchParams.set("language", mapToGoogleLanguage(language));
     url.searchParams.set("key", GOOGLE_PLACES_KEY);
     const res = await fetch(url.toString());
     const data = (await res.json()) as any;
@@ -175,10 +192,10 @@ async function nearbySearchCandidates(lat: number, lng: number, type: string, ra
  * permanently/temporarily closed places. Shared by every AI flow that needs
  * a grounded pool of real places instead of letting the model invent its own.
  */
-async function fetchRealPlaceCandidates(lat: number, lng: number, radius = 5000, limit = 60): Promise<NearbyCandidate[]> {
+async function fetchRealPlaceCandidates(lat: number, lng: number, radius = 5000, limit = 60, language?: string): Promise<NearbyCandidate[]> {
   const NEARBY_TYPES = ['tourist_attraction', 'restaurant', 'cafe', 'museum'];
   const nearbyResults = await Promise.all(
-    NEARBY_TYPES.map((type) => nearbySearchCandidates(lat, lng, type, radius))
+    NEARBY_TYPES.map((type) => nearbySearchCandidates(lat, lng, type, radius, language))
   );
   const byPlaceId = new Map<string, NearbyCandidate>();
   for (const results of nearbyResults) {
@@ -200,7 +217,8 @@ async function fetchRealPlaceCandidates(lat: number, lng: number, radius = 5000,
  * destination they belong to.
  */
 async function fetchRealCandidatesForDestinations(
-  destinations: { name: string; country?: string; lat?: number; lng?: number }[]
+  destinations: { name: string; country?: string; lat?: number; lng?: number }[],
+  language?: string
 ): Promise<(NearbyCandidate & { destinationName: string })[]> {
   if (!GOOGLE_PLACES_KEY) return [];
 
@@ -209,9 +227,9 @@ async function fetchRealCandidatesForDestinations(
     destinations.map(async (d) => {
       const center = (d.lat != null && d.lng != null)
         ? { lat: d.lat, lng: d.lng }
-        : await resolveDestinationCenter(d.name, d.country);
+        : await resolveDestinationCenter(d.name, d.country, language);
       if (!center) return;
-      const found = await fetchRealPlaceCandidates(center.lat, center.lng);
+      const found = await fetchRealPlaceCandidates(center.lat, center.lng, undefined, undefined, language);
       for (const c of found) {
         if (!byPlaceId.has(c.placeId)) byPlaceId.set(c.placeId, { ...c, destinationName: d.name });
       }
@@ -224,12 +242,12 @@ async function fetchRealCandidatesForDestinations(
  * Fetch real address/hours/phone/photo for a single place_id via Place Details,
  * reusing the same landscape + highest-resolution photo curation as places.details.
  */
-async function fetchCuratedPlaceDetails(placeId: string): Promise<{ address?: string; hours?: string; phone?: string; imageUrl?: string }> {
+async function fetchCuratedPlaceDetails(placeId: string, language?: string): Promise<{ address?: string; hours?: string; phone?: string; imageUrl?: string }> {
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
     url.searchParams.set("place_id", placeId);
     url.searchParams.set("fields", "formatted_address,opening_hours,formatted_phone_number,photos");
-    url.searchParams.set("language", "pt-BR");
+    url.searchParams.set("language", mapToGoogleLanguage(language));
     url.searchParams.set("key", GOOGLE_PLACES_KEY);
     const res = await fetch(url.toString());
     const data = (await res.json()) as any;
@@ -257,13 +275,13 @@ async function fetchCuratedPlaceDetails(placeId: string): Promise<{ address?: st
  * place_id via Find Place From Text, so a place invented by the LLM (name +
  * coordinates only) can be matched to real Place Details for a photo.
  */
-async function resolvePlaceIdByName(name: string, lat?: number, lng?: number): Promise<string | undefined> {
+async function resolvePlaceIdByName(name: string, lat?: number, lng?: number, language?: string): Promise<string | undefined> {
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/findplacefromtext/json");
     url.searchParams.set("input", name);
     url.searchParams.set("inputtype", "textquery");
     url.searchParams.set("fields", "place_id");
-    url.searchParams.set("language", "pt-BR");
+    url.searchParams.set("language", mapToGoogleLanguage(language));
     if (lat != null && lng != null) {
       url.searchParams.set("locationbias", `point:${lat},${lng}`);
     }
@@ -337,6 +355,7 @@ async function fetchDirections(
   origin: string,
   destination: string,
   mode: TravelMode = 'driving',
+  language?: string,
 ) {
   if (!GOOGLE_DIRECTIONS_KEY) return null;
   const url = new URL('https://maps.googleapis.com/maps/api/directions/json');
@@ -344,7 +363,7 @@ async function fetchDirections(
   url.searchParams.set('destination', destination);
   url.searchParams.set('mode', mode);
   url.searchParams.set('key', GOOGLE_DIRECTIONS_KEY);
-  url.searchParams.set('language', 'pt-BR');
+  url.searchParams.set('language', mapToGoogleLanguage(language));
   try {
     const res = await fetch(url.toString());
     if (!res.ok) return null;
@@ -753,9 +772,10 @@ Responda APENAS com JSON válido neste formato exato:
         origin: z.string().min(1),
         destination: z.string().min(1),
         mode: z.enum(["driving", "walking", "transit", "bicycling"]).default("driving"),
+        language: z.string().optional(),
       }))
       .query(async ({ input }) => {
-        const data = await fetchDirections(input.origin, input.destination, input.mode);
+        const data = await fetchDirections(input.origin, input.destination, input.mode, input.language);
         if (!data) return { found: false as const };
         return { found: true as const, ...data };
       }),
@@ -766,11 +786,12 @@ Responda APENAS com JSON válido neste formato exato:
           destination: z.string(),
           mode: z.enum(["driving", "walking", "transit", "bicycling"]).default("driving"),
         })).max(20),
+        language: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
         const results = await Promise.all(
           input.pairs.map(async (p) => {
-            const data = await fetchDirections(p.origin, p.destination, p.mode);
+            const data = await fetchDirections(p.origin, p.destination, p.mode, input.language);
             return data ? { found: true as const, ...data } : { found: false as const };
           })
         );
@@ -789,6 +810,7 @@ Responda APENAS com JSON válido neste formato exato:
       .input(z.object({
         query: z.string().min(1),
         types: z.enum(['address', 'establishment', 'cities', 'geocode', 'mixed']).optional(),
+        language: z.string().optional(),
       }))
       .query(async ({ input }) => {
         if (!GOOGLE_PLACES_KEY) return { predictions: [] };
@@ -797,7 +819,7 @@ Responda APENAS com JSON válido neste formato exato:
           const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
           url.searchParams.set("input", input.query);
           url.searchParams.set("types", types);
-          url.searchParams.set("language", "pt-BR");
+          url.searchParams.set("language", mapToGoogleLanguage(input.language));
           url.searchParams.set("key", GOOGLE_PLACES_KEY!);
           return url.toString();
         };
@@ -898,7 +920,7 @@ Responda APENAS com JSON válido neste formato exato:
      * Get place details (lat/lng, photo) for a given placeId.
      */
     details: publicProcedure
-      .input(z.object({ placeId: z.string() }))
+      .input(z.object({ placeId: z.string(), language: z.string().optional() }))
       .query(async ({ input }) => {
         // Handle local island entries (placeId starts with "island:")
         if (input.placeId.startsWith("island:")) {
@@ -936,7 +958,7 @@ Responda APENAS com JSON válido neste formato exato:
         const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
         url.searchParams.set("place_id", input.placeId);
         url.searchParams.set("fields", "geometry,photos,name,address_components,formatted_address");
-        url.searchParams.set("language", "pt-BR");
+        url.searchParams.set("language", mapToGoogleLanguage(input.language));
         url.searchParams.set("key", GOOGLE_PLACES_KEY);
 
         const res = await fetch(url.toString());
@@ -996,6 +1018,7 @@ Responda APENAS com JSON válido neste formato exato:
       .input(z.object({
         query: z.string().min(1),
         locationBias: z.string().optional(), // e.g. "Paris, France"
+        language: z.string().optional(),
       }))
       .query(async ({ input }) => {
         if (!GOOGLE_PLACES_KEY) return { places: [] };
@@ -1004,7 +1027,7 @@ Responda APENAS com JSON válido neste formato exato:
           ? `${input.query} em ${input.locationBias}`
           : input.query;
         url.searchParams.set("query", q);
-        url.searchParams.set("language", "pt-BR");
+        url.searchParams.set("language", mapToGoogleLanguage(input.language));
         url.searchParams.set("key", GOOGLE_PLACES_KEY);
         try {
           const res = await fetch(url.toString());
@@ -1147,6 +1170,7 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
             tripPurpose: z.string().optional(),
             mustSee: z.string().optional(),
           }).optional(),
+          language: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -1165,7 +1189,7 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
         // real, currently-open places from Google Places — same principle as
         // ai.suggestPlaces — instead of letting it invent places from memory.
         const selectedNamesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
-        const extraCandidates = (await fetchRealCandidatesForDestinations(destinations))
+        const extraCandidates = (await fetchRealCandidatesForDestinations(destinations, input.language))
           .filter((c) => !selectedNamesLower.has(c.name.toLowerCase()));
         const realCandidatesSummary = extraCandidates.length > 0
           ? `\nLugares reais e verificados no Google Places disponíveis${hasSelectedPlaces ? ' para completar o roteiro além dos obrigatórios acima' : ''} (use o nome EXATAMENTE como aparece na lista; NÃO invente nenhum lugar fora desta lista${hasSelectedPlaces ? ' nem da lista de obrigatórios' : ''}):\n${extraCandidates.map((c) => `- ${c.name} (${c.destinationName})${c.rating ? `, rating ${c.rating}` : ''}`).join("\n")}`
@@ -1306,6 +1330,7 @@ Importante:
             tripPurpose: z.string().optional(),
             mustSee: z.string().optional(),
           }),
+          language: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -1323,7 +1348,7 @@ Importante:
         // Ground the whole itinerary in real, currently-open places from Google
         // Places — same principle as ai.suggestPlaces — instead of letting the
         // model invent places from memory.
-        const realCandidates = await fetchRealCandidatesForDestinations(destinations);
+        const realCandidates = await fetchRealCandidatesForDestinations(destinations, input.language);
         const candidatesByPlaceId = new Map(realCandidates.map((c) => [c.placeId, c]));
         const realCandidatesSummary = realCandidates.length > 0
           ? `\nLugares reais e verificados no Google Places disponíveis para montar o roteiro:\n${realCandidates.map((c) => `[${c.placeId}] ${c.name} — destino: ${c.destinationName}, tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}`).join("\n")}`
@@ -1472,8 +1497,8 @@ Importante:
           Array.from(placesByKey.values()).map(async (place) => {
             let imageUrl: string | undefined;
             if (GOOGLE_PLACES_KEY) {
-              const placeId = candidatesByPlaceId.has(place.id) ? place.id : await resolvePlaceIdByName(place.name, place.lat, place.lng);
-              if (placeId) imageUrl = (await fetchCuratedPlaceDetails(placeId)).imageUrl;
+              const placeId = candidatesByPlaceId.has(place.id) ? place.id : await resolvePlaceIdByName(place.name, place.lat, place.lng, input.language);
+              if (placeId) imageUrl = (await fetchCuratedPlaceDetails(placeId, input.language)).imageUrl;
             }
             return { ...place, imageUrl };
           })
@@ -1500,6 +1525,7 @@ Importante:
           existingPlaces: z.array(z.string()).optional(),
           lat: z.number().optional(),
           lng: z.number().optional(),
+          language: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -1518,7 +1544,7 @@ Importante:
         if (center) {
           debugSteps.push(`center: provided (${center.lat},${center.lng})`);
         } else {
-          center = await resolveDestinationCenter(destinationName, country);
+          center = await resolveDestinationCenter(destinationName, country, input.language);
           debugSteps.push(center ? `center: resolved via text search (${center.lat},${center.lng})` : "center: failed to resolve");
         }
 
@@ -1527,7 +1553,7 @@ Importante:
           return { places: [], debugSteps };
         }
 
-        const candidates = await fetchRealPlaceCandidates(center.lat, center.lng);
+        const candidates = await fetchRealPlaceCandidates(center.lat, center.lng, undefined, undefined, input.language);
         const candidatesByPlaceId = new Map(candidates.map((c) => [c.placeId, c]));
         debugSteps.push(`candidates: ${candidates.length} unique (after dedupe/sort/limit/closed-filter)`);
 
@@ -1600,7 +1626,7 @@ Retorne um JSON com o array "places": [{ placeId (exatamente o place_id entre co
         const detailed = await Promise.all(
           validCurated.map(async (c) => {
             const candidate = candidatesByPlaceId.get(c.placeId)!;
-            const details = await fetchCuratedPlaceDetails(c.placeId);
+            const details = await fetchCuratedPlaceDetails(c.placeId, input.language);
             return {
               name: candidate.name,
               category: c.category,

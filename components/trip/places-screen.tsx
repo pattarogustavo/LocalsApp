@@ -7,6 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTripsStore } from '@/store/trips';
+import { useAuthStore } from '@/store/auth';
 import { trpc } from '@/lib/trpc';
 import type { Place, Destination, PlaceAttachment } from '@/types/voyage';
 import { generateId } from '@/utils/trip-helpers';
@@ -521,10 +522,12 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
   const [customQuery, setCustomQuery] = useState('');
   const [customDestId, setCustomDestId] = useState(destinations[0]?.id || '');
   const [customSearchEnabled, setCustomSearchEnabled] = useState(false);
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const customSearchQuery = trpc.places.textSearch.useQuery(
     {
       query: customQuery,
       locationBias: destinations.find((d) => d.id === customDestId)?.name || undefined,
+      language: preferredLanguage,
     },
     { enabled: customSearchEnabled && customQuery.length >= 2 }
   );

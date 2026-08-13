@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
+import { useAuthStore } from '@/store/auth';
 import { generateId } from '@/utils/trip-helpers';
 import { PlacesAutocompleteInput } from '@/components/ui/places-autocomplete-input';
 import { AIPreferencesModal } from '@/components/ai-preferences-modal';
@@ -90,8 +91,9 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
 
     // Fetch details in background for lat/lng/imageUrl
     try {
+      const language = useAuthStore.getState().preferredLanguage;
       const res = await fetch(
-        `${getApiBaseUrl()}/api/trpc/places.details?input=${encodeURIComponent(JSON.stringify({ json: { placeId: prediction.placeId } }))}`
+        `${getApiBaseUrl()}/api/trpc/places.details?input=${encodeURIComponent(JSON.stringify({ json: { placeId: prediction.placeId, language } }))}`
       );
       const json = await res.json();
       const details = json?.result?.data?.json;

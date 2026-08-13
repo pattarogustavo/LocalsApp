@@ -533,12 +533,13 @@ function AddTransportModal({
   };
 
   // Resolve formatted address for car origin when an establishment is selected
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const carOriginDetailsQuery = trpc.places.details.useQuery(
-    { placeId: carOriginPlaceId },
+    { placeId: carOriginPlaceId, language: preferredLanguage },
     { enabled: carOriginPlaceId.length > 0 }
   );
   const carDestDetailsQuery = trpc.places.details.useQuery(
-    { placeId: carDestPlaceId },
+    { placeId: carDestPlaceId, language: preferredLanguage },
     { enabled: carDestPlaceId.length > 0 }
   );
 
@@ -586,7 +587,7 @@ function AddTransportModal({
     setCarRouteSearched(false);
     try {
       // Use fetch directly to call the tRPC query endpoint
-      const res = await fetch(`${getApiBaseUrl()}/api/trpc/directions.route?input=${encodeURIComponent(JSON.stringify({ json: { origin: o, destination: d, mode: 'driving' } }))}`);
+      const res = await fetch(`${getApiBaseUrl()}/api/trpc/directions.route?input=${encodeURIComponent(JSON.stringify({ json: { origin: o, destination: d, mode: 'driving', language: preferredLanguage } }))}`);
       const json = await res.json();
       // tRPC with superjson: response is { result: { data: { json: { ... } } } }
       const data = json?.result?.data?.json ?? json?.result?.data;

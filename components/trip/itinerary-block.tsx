@@ -9,6 +9,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
+import { useAuthStore } from '@/store/auth';
 import { trpc } from '@/lib/trpc';
 import { CityTransportSection } from '@/components/trip/transport-block';
 import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop, CityTransportMode } from '@/types/voyage';
@@ -637,6 +638,7 @@ function DayView({
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const { removeItineraryStop, updateItineraryStop, moveItineraryStop, reorderItineraryStops, removeItineraryStopAndPlace } = useTripsStore();
   const batchRoute = trpc.directions.batchRoute.useMutation();
   const [updatingRoutes, setUpdatingRoutes] = useState(false);
@@ -720,7 +722,7 @@ function DayView({
     if (pairs.length === 0) return;
     setUpdatingRoutes(true);
     try {
-      const result = await batchRoute.mutateAsync({ pairs });
+      const result = await batchRoute.mutateAsync({ pairs, language: preferredLanguage });
       result.results.forEach((r, i) => {
         const meta = pairMeta[i];
         if (!meta?.stopId) return; // virtual hotel stop as origin — nothing to persist

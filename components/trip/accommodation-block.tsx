@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 import { useTripsStore } from '@/store/trips';
+import { useAuthStore } from '@/store/auth';
 import { generateId } from '@/utils/trip-helpers';
 import type { Trip, Accommodation, AccommodationType, Destination } from '@/types/voyage';
 import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
@@ -102,8 +103,9 @@ function AddAccommodationModal({
   const [confirmationDocUri, setConfirmationDocUri] = useState<string | null>(null);
 
   // Fetch hotel details (address) when a hotel place is selected
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const detailsQuery = trpc.places.details.useQuery(
-    { placeId: hotelPlaceId },
+    { placeId: hotelPlaceId, language: preferredLanguage },
     { enabled: hotelPlaceId.length > 0 }
   );
 
