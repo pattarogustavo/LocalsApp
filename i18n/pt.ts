@@ -119,8 +119,6 @@ export const pt = {
   home: {
     title: 'Minhas Viagens',
     curatedRoutes: 'Rotas Curadas',
-    curatedGuides: 'Guias mais Populares',
-    spotsLabel: 'Lugares',
     newTrip: 'Nova viagem',
     noTrips: 'Nenhuma viagem ainda',
     noTripsSubtitle: 'Crie sua primeira viagem e comece a planejar.',
@@ -132,12 +130,7 @@ export const pt = {
     days: 'dias',
     day: 'dia',
     sharedWithMe: 'Compartilhadas Comigo',
-    guides: {
-      'paris-1day': { title: 'Roteiro de 1 dia em Paris', destination: 'Paris, França' },
-      'rome-1day': { title: 'Roteiro de 1 dia em Roma', destination: 'Roma, Itália' },
-      'london-3day': { title: 'Roteiro de 3 dias em Londres', destination: 'Londres, Reino Unido' },
-      'tokyo-4day': { title: 'Roteiro de 4 dias em Tóquio', destination: 'Tóquio, Japão' },
-    },
+    favoriteGuides: 'Guias Favoritos',
   },
 
   // ── Create Trip ─────────────────────────────────────────────────────────────

@@ -116,8 +116,6 @@ export const es: Translations = {
   home: {
     title: 'Mis Viajes',
     curatedRoutes: 'Rutas Curadas',
-    curatedGuides: 'Guías más Populares',
-    spotsLabel: 'Lugares',
     newTrip: 'Nuevo viaje',
     noTrips: 'Aún no hay viajes',
     noTripsSubtitle: 'Crea tu primer viaje y empieza a planificar.',
@@ -129,12 +127,7 @@ export const es: Translations = {
     days: 'días',
     day: 'día',
     sharedWithMe: 'Compartido Conmigo',
-    guides: {
-      'paris-1day': { title: 'Viaje de 1 día a París', destination: 'París, Francia' },
-      'rome-1day': { title: 'Viaje de 1 día a Roma', destination: 'Roma, Italia' },
-      'london-3day': { title: 'Viaje de 3 días a Londres', destination: 'Londres, Reino Unido' },
-      'tokyo-4day': { title: 'Viaje de 4 días a Tokio', destination: 'Tokio, Japón' },
-    },
+    favoriteGuides: 'Guías Favoritas',
   },
   createTrip: {
     title: 'Nuevo Viaje',

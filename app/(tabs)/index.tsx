@@ -19,9 +19,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTripsStore } from '@/store/trips';
-import { TripCard, TripCardStacked } from '@/components/trip-card';
+import { TripCard, TripCardStacked, getImageForTrip } from '@/components/trip-card';
 import { CreateTripSheet } from '@/components/create-trip-sheet';
-import { isTripUpcoming, isTripPast, isTripOngoing } from '@/utils/trip-helpers';
+import { isTripUpcoming, isTripPast, isTripOngoing, getTripName } from '@/utils/trip-helpers';
 import type { Trip } from '@/types/voyage';
 import { TrialBanner } from '@/components/trial-banner';
 import { useAuthStore } from '@/store/auth';
@@ -37,14 +37,6 @@ function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
   return `${hex}${a}`;
 }
-
-// Curated guides data (static)
-const CURATED_GUIDES_BASE = [
-  { id: 'paris-1day' as const, days: 1, spots: 9, imageUrl: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=600' },
-  { id: 'rome-1day' as const, days: 1, spots: 7, imageUrl: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=600' },
-  { id: 'london-3day' as const, days: 3, spots: 19, imageUrl: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=600' },
-  { id: 'tokyo-4day' as const, days: 4, spots: 14, imageUrl: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=600' },
-];
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -69,6 +61,8 @@ export default function HomeScreen() {
       t.destinations.some((d: { name: string }) => d.name.toLowerCase().includes(q))
     );
   }, [trips, searchQuery]);
+
+  const favoriteTrips = useMemo(() => trips.filter((t) => t.isFavorite), [trips]);
 
   useEffect(() => {
     loadTrips();
@@ -261,29 +255,28 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Guias Curados */}
-        <View>
-          <Text
-            style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: colors.foreground, paddingHorizontal: 24, marginBottom: 12 }}
-          >
-            {t.home.curatedGuides}
-          </Text>
-          <FlatList
-            data={CURATED_GUIDES_BASE}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => {
-              const guideI18n = (t.home.guides as Record<string, { title: string; destination: string }>)[item.id];
-              const guideTitle = guideI18n?.title ?? item.id;
-              return (
+        {/* Guias Favoritos — trips marked as favorite by the user */}
+        {favoriteTrips.length > 0 && (
+          <View>
+            <Text
+              style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: colors.foreground, paddingHorizontal: 24, marginBottom: 12 }}
+            >
+              {t.home.favoriteGuides}
+            </Text>
+            <FlatList
+              data={favoriteTrips}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
                 <TouchableOpacity
                   activeOpacity={0.9}
+                  onPress={() => handleTripPress(item)}
                   style={{ width: 140, height: 180, borderRadius: 16, overflow: 'hidden' }}
                 >
                   <ImageBackground
-                    source={{ uri: item.imageUrl }}
+                    source={{ uri: getImageForTrip(item) }}
                     style={{ flex: 1 }}
                     imageStyle={{ borderRadius: 16 }}
                   >
@@ -291,19 +284,16 @@ export default function HomeScreen() {
                       colors={['transparent', 'rgba(0,0,0,0.75)']}
                       style={{ flex: 1, borderRadius: 16, justifyContent: 'flex-end', padding: 12 }}
                     >
-                      <Text style={{ color: colors.textOnPrimary, fontSize: 13, fontWeight: '600', marginBottom: 2 }} numberOfLines={2}>
-                        {guideTitle}
-                      </Text>
-                      <Text style={{ color: withAlpha(colors.textOnPrimary, 0.7), fontSize: 11 }}>
-                        {item.spots} {t.home.spotsLabel}
+                      <Text style={{ color: colors.textOnPrimary, fontSize: 13, fontWeight: '600' }} numberOfLines={2}>
+                        {getTripName(item)}
                       </Text>
                     </LinearGradient>
                   </ImageBackground>
                 </TouchableOpacity>
-              );
-            }}
-          />
-        </View>
+              )}
+            />
+          </View>
+        )}
       </ScrollView>
 
       {/* Create Trip Sheet */}

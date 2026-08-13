@@ -260,20 +260,9 @@ export interface Trip {
   aiGeneratedItinerary?: boolean;
   cityTransportMode?: CityTransportMode;
   photos?: TripPhoto[];  // shared photo album
+  isFavorite?: boolean;
   createdAt: string;
   updatedAt: string;
-}
-
-// ─── Curated Guides ───────────────────────────────────────────────────────────
-
-export interface CuratedGuide {
-  id: string;
-  title: string;
-  destination: string;
-  days: number;
-  spots: number;
-  imageUrl: string;
-  description?: string;
 }
 
 // ─── Subscription / Plan ──────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ interface TripsState {
   addTrip: (trip: Trip) => Promise<void>;
   updateTrip: (id: string, updates: Partial<Trip>) => Promise<void>;
   deleteTrip: (id: string) => Promise<void>;
+  toggleFavorite: (tripId: string) => Promise<void>;
   loadTrips: () => Promise<void>;
   syncWithCloud: () => Promise<void>;
   getTripById: (id: string) => Trip | undefined;
@@ -246,6 +247,16 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     set({ trips });
     await saveToStorage(trips);
     await deleteTripFromCloud(id);
+  },
+
+  toggleFavorite: async (tripId: string) => {
+    const trips = get().trips.map((t) =>
+      t.id === tripId ? { ...t, isFavorite: !t.isFavorite, updatedAt: new Date().toISOString() } : t
+    );
+    set({ trips });
+    await saveToStorage(trips);
+    const updated = trips.find((t) => t.id === tripId);
+    if (updated) await pushTripToCloud(updated);
   },
 
   // ─── Places ────────────────────────────────────────────────────────────────

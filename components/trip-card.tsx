@@ -58,7 +58,7 @@ const DESTINATION_IMAGES: Record<string, string> = {
   default: 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=800',
 };
 
-function getImageForTrip(trip: Trip): string {
+export function getImageForTrip(trip: Trip): string {
   // 1. Explicit cover image set by user
   if (trip.coverImageUrl) return trip.coverImageUrl;
   // 2. Google Places photo fetched when destination was selected
@@ -85,6 +85,31 @@ function confirmDeleteTrip(trip: Trip, t: ReturnType<typeof useTranslation>, del
         onPress: () => { deleteTrip(trip.id); },
       },
     ]
+  );
+}
+
+// Heart button overlaid on the cover image, top-right corner. A quick tap
+// doesn't fight the wrapping Swipeable's pan gesture (which needs horizontal
+// drag to activate), but stopPropagation keeps the press from also bubbling
+// to the card's own onPress (which opens the trip).
+function FavoriteButton({ trip }: { trip: Trip }) {
+  const toggleFavorite = useTripsStore((s) => s.toggleFavorite);
+  return (
+    <TouchableOpacity
+      onPress={(e) => {
+        e.stopPropagation?.();
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        toggleFavorite(trip.id);
+      }}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      style={styles.favoriteBtn}
+    >
+      <Ionicons
+        name={trip.isFavorite ? 'heart' : 'heart-outline'}
+        size={16}
+        color={trip.isFavorite ? '#FF5A6E' : '#fff'}
+      />
+    </TouchableOpacity>
   );
 }
 
@@ -138,9 +163,12 @@ export function TripCard({ trip, onPress, style }: TripCardProps) {
                 <Ionicons name="calendar-outline" size={11} color="rgba(255,255,255,0.9)" />
                 <Text style={styles.infoText}>{dateRange}</Text>
               </View>
-              <View style={[styles.infoBadge, { flexShrink: 1, maxWidth: '55%' }]}>
-                <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.9)" />
-                <Text style={styles.infoText} numberOfLines={1}>{destNames}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
+                <View style={[styles.infoBadge, { flexShrink: 1, maxWidth: '80%' }]}>
+                  <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.infoText} numberOfLines={1}>{destNames}</Text>
+                </View>
+                <FavoriteButton trip={trip} />
               </View>
             </View>
             <View style={styles.bottomRow}>
@@ -269,11 +297,14 @@ function StackedCardRow({
               colors={['rgba(0,0,0,0.60)', 'rgba(0,0,0,0.15)', 'rgba(0,0,0,0.65)']}
               style={styles.gradient}
             >
-              {/* Top peek area: name left, badge right */}
+              {/* Top peek area: name left, badge + favorite right */}
               <View style={styles.topRow}>
                 <Text style={styles.tripName} numberOfLines={1}>{name}</Text>
-                <View style={styles.badgePill}>
-                  <Text style={styles.badgeText}>{badge}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <View style={styles.badgePill}>
+                    <Text style={styles.badgeText}>{badge}</Text>
+                  </View>
+                  <FavoriteButton trip={trip} />
                 </View>
               </View>
 
@@ -352,6 +383,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 11,
     fontWeight: '600',
+  },
+  favoriteBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   peekSecondLine: {
     flexDirection: 'row',
