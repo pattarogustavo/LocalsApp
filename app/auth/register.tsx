@@ -71,7 +71,7 @@ export default function RegisterScreen() {
         options: { data: { full_name: name.trim() } },
       });
       if (error) {
-        Alert.alert('Erro ao criar conta', error.message);
+        Alert.alert(t.auth.register.errorTitle, error.message);
         return;
       }
       if (data.session) {
@@ -79,13 +79,13 @@ export default function RegisterScreen() {
         router.replace('/(tabs)');
       } else {
         Alert.alert(
-          'Confirme seu e-mail',
-          'Enviamos um link de confirmação para ' + email.trim().toLowerCase() + '. Verifique sua caixa de entrada.',
-          [{ text: 'OK', onPress: () => router.replace('/auth/login' as any) }],
+          t.auth.register.confirmEmailTitle,
+          t.auth.register.confirmEmailMsg(email.trim().toLowerCase()),
+          [{ text: t.common.ok, onPress: () => router.replace('/auth/login' as any) }],
         );
       }
     } catch (e: any) {
-      Alert.alert('Erro', e.message ?? 'Tente novamente.');
+      Alert.alert(t.common.error, e.message ?? t.common.tryAgain);
     } finally {
       setLoading(false);
     }

@@ -166,10 +166,10 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
 
   const f = next.flight;
   const modeIcon = MODE_ICONS[next.mode] || 'navigate';
-  const modeLabel = MODE_LABELS[next.mode] || 'Transporte';
+  const modeLabel = MODE_LABELS[next.mode] || t.transport.genericLabel;
   const status = f?.status || 'scheduled';
   const statusColor = STATUS_COLORS[status] || colors.textAccent;
-  const statusLabel = STATUS_LABELS[status] || 'No horário';
+  const statusLabel = STATUS_LABELS[status] || t.transport.statusScheduled;
 
   // Days until departure
   const daysUntil = f?.departureTime ? getDaysUntil(f.departureTime) : null;
@@ -191,7 +191,7 @@ export function NextTransportCard({ transports, destinations, startDate, onPress
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Ionicons name={`${modeIcon}-outline` as any} size={15} color={colors.textAccent} />
-          <Text style={styles.sectionTitle}>{t.transport.saida.replace('SAÍDA', 'PRÓXIMO TRANSPORTE')}</Text>
+          <Text style={styles.sectionTitle}>{t.common.nextTransport}</Text>
         </View>
         <View style={styles.headerRight}>
           {countdownLabel ? (

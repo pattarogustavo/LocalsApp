@@ -15,6 +15,7 @@ import { SchemeColors } from '@/constants/theme';
 import { trpc } from '@/lib/trpc';
 import { useAuthStore } from '@/store/auth';
 import { useTripsStore } from '@/store/trips';
+import { useTranslation } from '@/hooks/use-translation';
 
 // Text/icon color for content drawn on top of a solid brand-colored fill, which
 // is identical in both schemes — always the light-scheme background swatch.
@@ -31,6 +32,7 @@ export default function AcceptInviteScreen() {
   const colors = useColors();
   const user = useAuthStore((s) => s.user);
   const { syncWithCloud } = useTripsStore();
+  const t = useTranslation();
 
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
@@ -41,11 +43,11 @@ export default function AcceptInviteScreen() {
     if (!token) return;
     if (!user) {
       Alert.alert(
-        'Login necessário',
-        'Você precisa estar logado para aceitar um convite.',
+        t.sharing.loginRequired,
+        t.sharing.loginRequiredMsg,
         [
-          { text: 'Cancelar', style: 'cancel', onPress: () => router.back() },
-          { text: 'Fazer login', onPress: () => router.replace('/auth/login' as any) },
+          { text: t.common.cancel, style: 'cancel', onPress: () => router.back() },
+          { text: t.sharing.loginBtn, onPress: () => router.replace('/auth/login' as any) },
         ]
       );
       return;
@@ -57,7 +59,7 @@ export default function AcceptInviteScreen() {
       await syncWithCloud();
       setStatus('success');
     } catch (err: any) {
-      setErrorMsg(err?.message ?? 'Erro ao aceitar convite.');
+      setErrorMsg(err?.message ?? t.sharing.errorTitle);
       setStatus('error');
     }
   };
@@ -78,10 +80,10 @@ export default function AcceptInviteScreen() {
               <Ionicons name="airplane-outline" size={40} color={colors.primary} />
             </View>
             <Text style={[styles.title, { color: colors.foreground }]}>
-              Convite de Viagem
+              {t.sharing.tripInviteTitle}
             </Text>
             <Text style={[styles.desc, { color: colors.muted }]}>
-              Você foi convidado(a) para participar de uma viagem no LocalsApp.
+              {t.sharing.acceptDesc}
             </Text>
             {status === 'loading' ? (
               <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 24 }} />
@@ -91,7 +93,7 @@ export default function AcceptInviteScreen() {
                 style={[styles.btn, { backgroundColor: colors.primary }]}
               >
                 <Ionicons name="checkmark-circle-outline" size={20} color={ON_PRIMARY} />
-                <Text style={styles.btnText}>Aceitar Convite</Text>
+                <Text style={styles.btnText}>{t.sharing.acceptBtn}</Text>
               </TouchableOpacity>
             )}
           </>
@@ -101,17 +103,17 @@ export default function AcceptInviteScreen() {
               <Ionicons name="checkmark-circle" size={40} color={colors.success} />
             </View>
             <Text style={[styles.title, { color: colors.foreground }]}>
-              Convite aceito! 🎉
+              {t.sharing.successTitle} 🎉
             </Text>
             <Text style={[styles.desc, { color: colors.muted }]}>
-              A viagem foi adicionada à sua lista. Você já pode visualizá-la na tela inicial.
+              {t.sharing.successMsg}
             </Text>
             <TouchableOpacity
               onPress={() => router.replace('/' as any)}
               style={[styles.btn, { backgroundColor: colors.success }]}
             >
               <Ionicons name="home-outline" size={20} color={ON_PRIMARY} />
-              <Text style={styles.btnText}>Ver Minhas Viagens</Text>
+              <Text style={styles.btnText}>{t.sharing.goToTrips}</Text>
             </TouchableOpacity>
           </>
         ) : (
@@ -120,17 +122,17 @@ export default function AcceptInviteScreen() {
               <Ionicons name="close-circle" size={40} color={colors.error} />
             </View>
             <Text style={[styles.title, { color: colors.foreground }]}>
-              Erro ao aceitar convite
+              {t.sharing.errorTitle}
             </Text>
             <Text style={[styles.desc, { color: colors.muted }]}>
-              {errorMsg || 'O convite pode ter expirado ou já foi usado.'}
+              {errorMsg || t.sharing.expiredOrUsed}
             </Text>
             <TouchableOpacity
               onPress={() => router.replace('/' as any)}
               style={[styles.btn, { backgroundColor: colors.primary }]}
             >
               <Ionicons name="home-outline" size={20} color={ON_PRIMARY} />
-              <Text style={styles.btnText}>Ir para o Início</Text>
+              <Text style={styles.btnText}>{t.sharing.goHome}</Text>
             </TouchableOpacity>
           </>
         )}

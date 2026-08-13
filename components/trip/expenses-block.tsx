@@ -6,6 +6,7 @@ import { useTripsStore } from '@/store/trips';
 import { generateId, getCurrencySymbol } from '@/utils/trip-helpers';
 import type { Expense } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
+import type { Translations } from '@/i18n';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 
@@ -28,20 +29,22 @@ interface ExpensesBlockProps {
   travelers?: Traveler[];
 }
 
-const CATEGORIES = [
-  { key: 'food', label: 'Alimentação', icon: 'restaurant' },
-  { key: 'transport', label: 'Transporte', icon: 'car' },
-  { key: 'accommodation', label: 'Hospedagem', icon: 'bed' },
-  { key: 'activity', label: 'Atividade', icon: 'ticket' },
-  { key: 'shopping', label: 'Compras', icon: 'bag' },
-  { key: 'other', label: 'Outro', icon: 'ellipsis-horizontal' },
-];
+function getCategories(t: Translations) {
+  return [
+    { key: 'food', label: t.expenses.categories.food, icon: 'restaurant' },
+    { key: 'transport', label: t.expenses.categories.transport, icon: 'car' },
+    { key: 'accommodation', label: t.expenses.categories.accommodation, icon: 'bed' },
+    { key: 'activity', label: t.expenses.categories.activities, icon: 'ticket' },
+    { key: 'shopping', label: t.expenses.categories.shopping, icon: 'bag' },
+    { key: 'other', label: t.expenses.categories.other, icon: 'ellipsis-horizontal' },
+  ];
+}
 
 // ─── Settlement Calculator ────────────────────────────────────────────────────
 
-function computeSettlement(expenses: Expense[], travelers: Traveler[]) {
-  // Build list of all participant names (including "Você" as the implicit self)
-  const allNames = new Set<string>(['Você']);
+function computeSettlement(expenses: Expense[], travelers: Traveler[], selfLabel: string) {
+  // Build list of all participant names (including the self label as the implicit self)
+  const allNames = new Set<string>([selfLabel]);
   travelers.forEach((t) => allNames.add(t.name));
 
   // Balance map: positive = is owed money, negative = owes money
@@ -49,7 +52,7 @@ function computeSettlement(expenses: Expense[], travelers: Traveler[]) {
   allNames.forEach((n) => { balance[n] = 0; });
 
   expenses.forEach((e) => {
-    const payer = e.paidBy || 'Você';
+    const payer = e.paidBy || selfLabel;
     const participants = e.splitWith && e.splitWith.length > 0 ? e.splitWith : Array.from(allNames);
     const share = e.amount / participants.length;
     // Payer gets credited
@@ -88,6 +91,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const CATEGORIES = useMemo(() => getCategories(t), [t]);
   const addExpense = useTripsStore((s) => s.addExpense);
   const removeExpense = useTripsStore((s) => s.removeExpense);
   const [showModal, setShowModal] = useState(false);
@@ -109,8 +113,8 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
   const symbol = getCurrencySymbol(currency);
 
   const { balance, transactions } = useMemo(
-    () => computeSettlement(expenses, travelers),
-    [expenses, travelers]
+    () => computeSettlement(expenses, travelers, selfName),
+    [expenses, travelers, selfName]
   );
 
   const toggleParticipant = (name: string) => {

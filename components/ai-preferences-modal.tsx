@@ -12,6 +12,7 @@ import {
 import { useColors } from '@/hooks/use-colors';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from '@/hooks/use-translation';
+import type { Translations } from '@/i18n';
 import type { TravelStyle, TravelBudget, TravelPace, TravelPreferences, Destination } from '@/types/voyage';
 
 interface AIPreferencesModalProps {
@@ -22,30 +23,39 @@ interface AIPreferencesModalProps {
   onDestinationsSelected: (destinations: Destination[]) => void;
 }
 
-const STYLE_OPTIONS: { id: TravelStyle; label: string; emoji: string }[] = [
-  { id: 'cultura', label: 'Cultura', emoji: '🏛️' },
-  { id: 'gastronomia', label: 'Gastronomia', emoji: '🍽️' },
-  { id: 'natureza', label: 'Natureza', emoji: '🌿' },
-  { id: 'aventura', label: 'Aventura', emoji: '🧗' },
-  { id: 'relaxamento', label: 'Relaxamento', emoji: '🏖️' },
-  { id: 'compras', label: 'Compras', emoji: '🛍️' },
-  { id: 'historia', label: 'História', emoji: '📜' },
-  { id: 'praia', label: 'Praia', emoji: '🌊' },
-  { id: 'montanha', label: 'Montanha', emoji: '⛰️' },
-  { id: 'cidade', label: 'Cidade', emoji: '🏙️' },
-];
+function getStyleOptions(t: Translations): { id: TravelStyle; label: string; emoji: string }[] {
+  const s = t.ai.styleOptions;
+  return [
+    { id: 'cultura', label: s.cultura, emoji: '🏛️' },
+    { id: 'gastronomia', label: s.gastronomia, emoji: '🍽️' },
+    { id: 'natureza', label: s.natureza, emoji: '🌿' },
+    { id: 'aventura', label: s.aventura, emoji: '🧗' },
+    { id: 'relaxamento', label: s.relaxamento, emoji: '🏖️' },
+    { id: 'compras', label: s.compras, emoji: '🛍️' },
+    { id: 'historia', label: s.historia, emoji: '📜' },
+    { id: 'praia', label: s.praia, emoji: '🌊' },
+    { id: 'montanha', label: s.montanha, emoji: '⛰️' },
+    { id: 'cidade', label: s.cidade, emoji: '🏙️' },
+  ];
+}
 
-const BUDGET_OPTIONS: { id: TravelBudget; label: string; desc: string }[] = [
-  { id: 'econômico', label: 'Econômico', desc: 'Hostels, transporte público' },
-  { id: 'moderado', label: 'Moderado', desc: 'Hotéis 3★, conforto razoável' },
-  { id: 'luxo', label: 'Luxo', desc: 'Hotéis 5★, experiências premium' },
-];
+function getBudgetOptions(t: Translations): { id: TravelBudget; label: string; desc: string }[] {
+  const b = t.ai.budgetOptions;
+  return [
+    { id: 'econômico', label: b['econômico'].label, desc: b['econômico'].desc },
+    { id: 'moderado', label: b.moderado.label, desc: b.moderado.desc },
+    { id: 'luxo', label: b.luxo.label, desc: b.luxo.desc },
+  ];
+}
 
-const PACE_OPTIONS: { id: TravelPace; label: string; desc: string }[] = [
-  { id: 'relaxado', label: 'Relaxado', desc: '2-3 atividades por dia' },
-  { id: 'moderado', label: 'Moderado', desc: '4-5 atividades por dia' },
-  { id: 'intenso', label: 'Intenso', desc: '6+ atividades por dia' },
-];
+function getPaceOptions(t: Translations): { id: TravelPace; label: string; desc: string }[] {
+  const p = t.ai.paceOptions;
+  return [
+    { id: 'relaxado', label: p.relaxado.label, desc: p.relaxado.desc },
+    { id: 'moderado', label: p.moderado.label, desc: p.moderado.desc },
+    { id: 'intenso', label: p.intenso.label, desc: p.intenso.desc },
+  ];
+}
 
 export function AIPreferencesModal({
   visible,
@@ -57,6 +67,9 @@ export function AIPreferencesModal({
   const colors = useColors();
   const t = useTranslation();
   const ai = t.ai;
+  const STYLE_OPTIONS = React.useMemo(() => getStyleOptions(t), [t]);
+  const BUDGET_OPTIONS = React.useMemo(() => getBudgetOptions(t), [t]);
+  const PACE_OPTIONS = React.useMemo(() => getPaceOptions(t), [t]);
   const [step, setStep] = useState<'preferences' | 'results'>('preferences');
   const [selectedStyles, setSelectedStyles] = useState<TravelStyle[]>([]);
   const [budget, setBudget] = useState<TravelBudget>('moderado');
@@ -235,7 +248,7 @@ export function AIPreferencesModal({
                 <View style={[styles.textInputRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <TextInput
                     style={[styles.textInput, { color: colors.foreground }]}
-                    placeholder="Ex: São Paulo"
+                    placeholder={t.ai.originCityPlaceholder}
                     placeholderTextColor={colors.muted}
                     value={originCity}
                     onChangeText={setOriginCity}
@@ -295,7 +308,7 @@ export function AIPreferencesModal({
                     ]}
                   >
                     <Text style={[styles.optionCardTitle, { color: selectedOption === idx ? '#fff' : colors.foreground }]}>
-                      {option.name || `Opção ${idx + 1}`}
+                      {option.name || t.ai.optionFallback(idx + 1)}
                     </Text>
                     {option.highlight && (
                       <Text style={[styles.optionCardHighlight, { color: selectedOption === idx ? 'rgba(255,255,255,0.8)' : colors.muted }]}>

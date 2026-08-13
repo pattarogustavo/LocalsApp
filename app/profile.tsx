@@ -498,7 +498,7 @@ export default function ProfileScreen() {
     } catch {
       setUploadingAvatar(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(t.common.error, 'Não foi possível selecionar a foto.');
+      Alert.alert(t.common.error, t.profile.photoPickError);
     }
   }, [updateProfile, t]);
 

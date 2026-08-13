@@ -13,6 +13,7 @@ import { trpc } from '@/lib/trpc';
 import { CityTransportSection } from '@/components/trip/transport-block';
 import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop, CityTransportMode } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
+import type { Translations } from '@/i18n';
 import { useColors } from '@/hooks/use-colors';
 import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
 
@@ -49,11 +50,13 @@ const CATEGORY_COLORS: Record<string, string> = {
   other: '#A8D5B5',
 };
 
-const PACE_OPTIONS: { id: TravelPace; label: string; icon: string; desc: string }[] = [
-  { id: 'relaxado', label: 'Relaxado', icon: 'sunny-outline', desc: '2–3 paradas/dia' },
-  { id: 'moderado', label: 'Moderado', icon: 'partly-sunny-outline', desc: '4–5 paradas/dia' },
-  { id: 'intenso', label: 'Intenso', icon: 'flash-outline', desc: '6+ paradas/dia' },
-];
+function getPaceOptions(t: Translations): { id: TravelPace; label: string; icon: string; desc: string }[] {
+  return [
+    { id: 'relaxado', label: t.itinerary.paceOptionsLabels.relaxado, icon: 'sunny-outline', desc: t.itinerary.paceOptionsDesc.relaxado },
+    { id: 'moderado', label: t.itinerary.paceOptionsLabels.moderado, icon: 'partly-sunny-outline', desc: t.itinerary.paceOptionsDesc.moderado },
+    { id: 'intenso', label: t.itinerary.paceOptionsLabels.intenso, icon: 'flash-outline', desc: t.itinerary.paceOptionsDesc.intenso },
+  ];
+}
 
 const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const DAY_NAMES   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -350,7 +353,7 @@ function StopItem({
                     style={styles.stopActionBtn}
                   >
                     <Ionicons name="globe-outline" size={13} color={colors.textAccent} />
-                    <Text style={styles.stopActionText}>Site</Text>
+                    <Text style={styles.stopActionText}>{t.places.details.website}</Text>
                   </TouchableOpacity>
                 ) : null}
                 {onEdit ? (
@@ -507,7 +510,7 @@ function StopItem({
                         >
                           <Ionicons name={icon as any} size={14} color={isActive ? color : colors.muted} />
                           <Text style={[styles.editCatChipText, { color: isActive ? color : colors.muted }]}>
-                            {key === 'attraction' ? t.places.categories.attraction : key === 'restaurant' ? t.places.categories.restaurant : key === 'cafe' ? 'Café' : key === 'museum' ? 'Museu' : key === 'hidden_gem' ? 'Joia' : key === 'hotel' ? t.places.categories.hotel : t.places.categories.all}
+                            {key === 'attraction' ? t.places.categories.attraction : key === 'restaurant' ? t.places.categories.restaurant : key === 'cafe' ? t.places.categories.cafe : key === 'museum' ? t.places.categories.museum : key === 'hidden_gem' ? t.places.categories.hiddenGem : key === 'hotel' ? t.places.categories.hotel : t.places.categories.all}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -766,12 +769,12 @@ function DayView({
             <View style={styles.daySummaryStat}>
               <Ionicons name="time-outline" size={13} color={withAlpha(colors.primary, 0.7)} />
               <Text style={styles.daySummaryStatText}>
-                {rawStops.reduce((acc, s) => {
+                {t.itinerary.transitMinutes(rawStops.reduce((acc, s) => {
                   if (!s.travelTimeToNext) return acc;
                   const m = s.travelTimeToNext.match(/(\d+)\s*h/i);
                   const min = s.travelTimeToNext.match(/(\d+)\s*min/i);
                   return acc + (m ? parseInt(m[1]) * 60 : 0) + (min ? parseInt(min[1]) : 0);
-                }, 0)} min em trânsito
+                }, 0))}
               </Text>
             </View>
           )}
@@ -832,13 +835,13 @@ function DayView({
           <View style={styles.paceModalCard}>
             {/* Header */}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={[styles.paceModalTitle, { flex: 1 }]}>Mover parada</Text>
+              <Text style={[styles.paceModalTitle, { flex: 1 }]}>{t.itinerary.moveStopTitle}</Text>
               <TouchableOpacity onPress={() => { setShowMoveModal(false); setStopToMove(null); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="close" size={22} color={colors.muted} />
               </TouchableOpacity>
             </View>
             <Text style={styles.paceModalSubtitle}>
-              {stopToMove ? `"${stopToMove.placeName || stopToMove.activity || 'Parada'}"` : ''}
+              {stopToMove ? `"${stopToMove.placeName || stopToMove.activity || t.itinerary.stopFallbackName}"` : ''}
             </Text>
 
             {/* Mode tabs */}
@@ -848,14 +851,14 @@ function DayView({
                 style={[styles.paceModalBtn, { flex: 1, backgroundColor: moveMode === 'position' ? withAlpha(colors.primary, 0.15) : withAlpha(colors.foreground, 0.06), borderWidth: 1, borderColor: moveMode === 'position' ? colors.primary : 'transparent' }]}
               >
                 <Ionicons name="swap-vertical-outline" size={14} color={moveMode === 'position' ? colors.textAccent : colors.muted} />
-                <Text style={{ color: moveMode === 'position' ? colors.textAccent : colors.muted, fontWeight: '600', fontSize: 13 }}>Posição</Text>
+                <Text style={{ color: moveMode === 'position' ? colors.textAccent : colors.muted, fontWeight: '600', fontSize: 13 }}>{t.itinerary.position}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setMoveMode('day')}
                 style={[styles.paceModalBtn, { flex: 1, backgroundColor: moveMode === 'day' ? withAlpha(colors.primary, 0.15) : withAlpha(colors.foreground, 0.06), borderWidth: 1, borderColor: moveMode === 'day' ? colors.primary : 'transparent' }]}
               >
                 <Ionicons name="calendar-outline" size={14} color={moveMode === 'day' ? colors.textAccent : colors.muted} />
-                <Text style={{ color: moveMode === 'day' ? colors.textAccent : colors.muted, fontWeight: '600', fontSize: 13 }}>Outro dia</Text>
+                <Text style={{ color: moveMode === 'day' ? colors.textAccent : colors.muted, fontWeight: '600', fontSize: 13 }}>{t.itinerary.otherDay}</Text>
               </TouchableOpacity>
             </View>
 
@@ -884,9 +887,9 @@ function DayView({
                       >
                         <Ionicons name="arrow-up-outline" size={18} color={colors.textAccent} />
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.paceModalOptionLabel}>Mover para antes</Text>
+                          <Text style={styles.paceModalOptionLabel}>{t.itinerary.moveBefore}</Text>
                           {canUp && rawStops[idx - 1] && (
-                            <Text style={styles.paceModalOptionDesc}>Antes de "{rawStops[idx - 1].placeName || rawStops[idx - 1].activity}"</Text>
+                            <Text style={styles.paceModalOptionDesc}>{t.itinerary.beforeOf(rawStops[idx - 1].placeName || rawStops[idx - 1].activity || '')}</Text>
                           )}
                         </View>
                       </TouchableOpacity>
@@ -906,9 +909,9 @@ function DayView({
                       >
                         <Ionicons name="arrow-down-outline" size={18} color={colors.textAccent} />
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.paceModalOptionLabel}>Mover para depois</Text>
+                          <Text style={styles.paceModalOptionLabel}>{t.itinerary.moveAfter}</Text>
                           {canDown && rawStops[idx + 1] && (
-                            <Text style={styles.paceModalOptionDesc}>Depois de "{rawStops[idx + 1].placeName || rawStops[idx + 1].activity}"</Text>
+                            <Text style={styles.paceModalOptionDesc}>{t.itinerary.afterOf(rawStops[idx + 1].placeName || rawStops[idx + 1].activity || '')}</Text>
                           )}
                         </View>
                       </TouchableOpacity>
@@ -923,7 +926,7 @@ function DayView({
                   if (i === dayIndex) return null;
                   const base = new Date(startDate);
                   base.setDate(base.getDate() + i);
-                  const label = `Dia ${i + 1} — ${DAY_NAMES[base.getDay()]}, ${base.getDate()} ${MONTH_NAMES[base.getMonth()]}`;
+                  const label = `${t.itinerary.day} ${i + 1} — ${DAY_NAMES[base.getDay()]}, ${base.getDate()} ${MONTH_NAMES[base.getMonth()]}`;
                   return (
                     <TouchableOpacity
                       key={i}
@@ -956,14 +959,20 @@ interface ItineraryBlockProps {
 // ─── Unscheduled Place Row ──────────────────────────────────────────────────────
 
 function UnscheduledPlaceRow({ place, onAdd }: { place: Place; onAdd: () => void }) {
+  const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const cat = place.category || 'other';
   const catIcon = CATEGORY_ICONS[cat] || 'location-outline';
   const catColor = CATEGORY_COLORS[cat] || colors.textAccent;
   const catLabels: Record<string, string> = {
-    attraction: 'Atração', restaurant: 'Restaurante', cafe: 'Café',
-    museum: 'Museu', hidden_gem: 'Joia oculta', hotel: 'Hotel', other: 'Outro',
+    attraction: t.places.categorySingular.attraction,
+    restaurant: t.places.categorySingular.restaurant,
+    cafe: t.places.categorySingular.cafe,
+    museum: t.places.categorySingular.museum,
+    hidden_gem: t.places.categorySingular.hiddenGem,
+    hotel: t.places.categorySingular.hotel,
+    other: t.places.categorySingular.other,
   };
   return (
     <View style={styles.unscheduledRow}>
@@ -982,41 +991,54 @@ function UnscheduledPlaceRow({ place, onAdd }: { place: Place; onAdd: () => void
 }
 
 // ─── Travel style options for profile questions ───────────────────────────────
-const TRAVEL_STYLES = [
-  { id: 'cultura', label: 'Cultura', icon: 'library-outline' },
-  { id: 'gastronomia', label: 'Gastronomia', icon: 'restaurant-outline' },
-  { id: 'natureza', label: 'Natureza', icon: 'leaf-outline' },
-  { id: 'aventura', label: 'Aventura', icon: 'bicycle-outline' },
-  { id: 'compras', label: 'Compras', icon: 'bag-outline' },
-  { id: 'relaxamento', label: 'Relaxamento', icon: 'sunny-outline' },
-  { id: 'vida_noturna', label: 'Vida noturna', icon: 'moon-outline' },
-  { id: 'arte', label: 'Arte', icon: 'color-palette-outline' },
-];
+function getTravelStyles(t: Translations) {
+  return [
+    { id: 'cultura', label: t.itinerary.travelStyleOptions.cultura, icon: 'library-outline' },
+    { id: 'gastronomia', label: t.itinerary.travelStyleOptions.gastronomia, icon: 'restaurant-outline' },
+    { id: 'natureza', label: t.itinerary.travelStyleOptions.natureza, icon: 'leaf-outline' },
+    { id: 'aventura', label: t.itinerary.travelStyleOptions.aventura, icon: 'bicycle-outline' },
+    { id: 'compras', label: t.itinerary.travelStyleOptions.compras, icon: 'bag-outline' },
+    { id: 'relaxamento', label: t.itinerary.travelStyleOptions.relaxamento, icon: 'sunny-outline' },
+    { id: 'vida_noturna', label: t.itinerary.travelStyleOptions.vida_noturna, icon: 'moon-outline' },
+    { id: 'arte', label: t.itinerary.travelStyleOptions.arte, icon: 'color-palette-outline' },
+  ];
+}
 
-const ATTRACTIONS_BUDGET_OPTIONS = [
-  { id: 'econômico', label: 'Econômico', desc: 'Grátis a ~$15/atração', icon: 'wallet-outline' },
-  { id: 'moderado', label: 'Moderado', desc: '~$15-40/atração', icon: 'card-outline' },
-  { id: 'luxo', label: 'Luxo', desc: 'Sem restrição, experiências exclusivas', icon: 'diamond-outline' },
-];
+function getAttractionsBudgetOptions(t: Translations) {
+  return [
+    { id: 'econômico', label: t.itinerary.budgetLabels['econômico'], desc: t.itinerary.attractionsBudgetDesc['econômico'], icon: 'wallet-outline' },
+    { id: 'moderado', label: t.itinerary.budgetLabels.moderado, desc: t.itinerary.attractionsBudgetDesc.moderado, icon: 'card-outline' },
+    { id: 'luxo', label: t.itinerary.budgetLabels.luxo, desc: t.itinerary.attractionsBudgetDesc.luxo, icon: 'diamond-outline' },
+  ];
+}
 
-const RESTAURANTS_BUDGET_OPTIONS = [
-  { id: 'econômico', label: 'Econômico', desc: '~$5-15/refeição, street food e self-service', icon: 'wallet-outline' },
-  { id: 'moderado', label: 'Moderado', desc: '~$15-40/refeição, restaurantes locais', icon: 'card-outline' },
-  { id: 'luxo', label: 'Luxo', desc: '$40+/refeição, alta gastronomia', icon: 'diamond-outline' },
-];
+function getRestaurantsBudgetOptions(t: Translations) {
+  return [
+    { id: 'econômico', label: t.itinerary.budgetLabels['econômico'], desc: t.itinerary.restaurantsBudgetDesc['econômico'], icon: 'wallet-outline' },
+    { id: 'moderado', label: t.itinerary.budgetLabels.moderado, desc: t.itinerary.restaurantsBudgetDesc.moderado, icon: 'card-outline' },
+    { id: 'luxo', label: t.itinerary.budgetLabels.luxo, desc: t.itinerary.restaurantsBudgetDesc.luxo, icon: 'diamond-outline' },
+  ];
+}
 
-const PROFILE_OPTIONS = [
-  { id: 'casal', label: 'Casal', icon: 'heart-outline' },
-  { id: 'família', label: 'Família', icon: 'people-outline' },
-  { id: 'solo', label: 'Solo', icon: 'person-outline' },
-  { id: 'amigos', label: 'Amigos', icon: 'happy-outline' },
-  { id: 'negócios', label: 'Negócios', icon: 'briefcase-outline' },
-];
+function getProfileOptions(t: Translations) {
+  return [
+    { id: 'casal', label: t.itinerary.travelProfileOptions.casal, icon: 'heart-outline' },
+    { id: 'família', label: t.itinerary.travelProfileOptions['família'], icon: 'people-outline' },
+    { id: 'solo', label: t.itinerary.travelProfileOptions.solo, icon: 'person-outline' },
+    { id: 'amigos', label: t.itinerary.travelProfileOptions.amigos, icon: 'happy-outline' },
+    { id: 'negócios', label: t.itinerary.travelProfileOptions['negócios'], icon: 'briefcase-outline' },
+  ];
+}
 
 export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: ItineraryBlockProps) {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const TRAVEL_STYLES = useMemo(() => getTravelStyles(t), [t]);
+  const ATTRACTIONS_BUDGET_OPTIONS = useMemo(() => getAttractionsBudgetOptions(t), [t]);
+  const RESTAURANTS_BUDGET_OPTIONS = useMemo(() => getRestaurantsBudgetOptions(t), [t]);
+  const PROFILE_OPTIONS = useMemo(() => getProfileOptions(t), [t]);
+  const PACE_OPTIONS = useMemo(() => getPaceOptions(t), [t]);
   const { setItinerary, addPlace, addItineraryStop } = useTripsStore();
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
@@ -1307,7 +1329,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
       <View style={styles.sectionHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Ionicons name="calendar-outline" size={15} color={colors.textAccent} />
-          <Text style={styles.sectionTitle}>ROTEIRO DIA-A-DIA</Text>
+          <Text style={styles.sectionTitle}>{t.itinerary.dayByDayTitle}</Text>
         </View>
         {hasItinerary && (
           <TouchableOpacity
@@ -1469,8 +1491,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 <Ionicons name="sparkles" size={20} color={colors.textAccent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.createModeLabel}>Criação Automática</Text>
-                <Text style={styles.createModeDesc}>Criamos tudo com base no seu perfil de viajante</Text>
+                <Text style={styles.createModeLabel}>{t.itinerary.createModeAutoLabel}</Text>
+                <Text style={styles.createModeDesc}>{t.itinerary.createModeAutoDesc}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.muted} />
             </TouchableOpacity>
@@ -1483,11 +1505,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 <Ionicons name="map" size={20} color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.createModeLabel}>A Partir dos Meus Lugares</Text>
+                <Text style={styles.createModeLabel}>{t.itinerary.createModeFromPlacesLabel}</Text>
                 <Text style={styles.createModeDesc}>
                   {trip.places.length > 0
-                    ? `Organizamos seu roteiro dia a dia com base nos seus ${trip.places.length} lugares já selecionados`
-                    : 'Adicione lugares na aba Lugares primeiro'}
+                    ? t.itinerary.createModeFromPlacesDescFilled(trip.places.length)
+                    : t.itinerary.createModeFromPlacesDescEmpty}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.muted} />
@@ -1510,11 +1532,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 <Ionicons name="list" size={20} color={colors.info} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.createModeLabel}>Montar manualmente</Text>
+                <Text style={styles.createModeLabel}>{t.itinerary.createModeManualLabel}</Text>
                 <Text style={styles.createModeDesc}>
                   {trip.places.length > 0
-                    ? `Adicione seus ${trip.places.length} lugares salvos ao roteiro`
-                    : 'Você será direcionado para a aba Lugares'}
+                    ? t.itinerary.createModeManualDescFilled(trip.places.length)
+                    : t.itinerary.createModeManualDescEmpty}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.muted} />
@@ -1533,7 +1555,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           <View style={[styles.paceModalCard, { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, maxHeight: '90%' }]}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                <Text style={styles.paceModalTitle}>Seu perfil de viajante</Text>
+                <Text style={styles.paceModalTitle}>{t.itinerary.profileTitle}</Text>
                 <TouchableOpacity
                   onPress={() => setShowProfileModal(false)}
                   style={{ padding: 4, borderRadius: 20, backgroundColor: withAlpha(colors.foreground, 0.08) }}
@@ -1541,10 +1563,10 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                   <Ionicons name="close" size={18} color={colors.muted} />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.paceModalSubtitle}>Vamos personalizar o roteiro com base nas suas respostas</Text>
+              <Text style={styles.paceModalSubtitle}>{t.itinerary.profileSubtitle}</Text>
 
               {/* Travel styles */}
-              <Text style={styles.profileSectionLabel}>Estilo de viagem (escolha vários)</Text>
+              <Text style={styles.profileSectionLabel}>{t.itinerary.profileTravelStyle}</Text>
               <View style={styles.profileChipRow}>
                 {TRAVEL_STYLES.map((s) => {
                   const active = profileTravelStyles.includes(s.id);
@@ -1562,7 +1584,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               </View>
 
               {/* Attractions budget */}
-              <Text style={styles.profileSectionLabel}>Orçamento para atrações</Text>
+              <Text style={styles.profileSectionLabel}>{t.itinerary.profileAttractionsBudget}</Text>
               {ATTRACTIONS_BUDGET_OPTIONS.map((b) => (
                 <TouchableOpacity
                   key={b.id}
@@ -1579,7 +1601,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               ))}
 
               {/* Restaurants budget */}
-              <Text style={styles.profileSectionLabel}>Orçamento para restaurantes</Text>
+              <Text style={styles.profileSectionLabel}>{t.itinerary.profileRestaurantsBudget}</Text>
               {RESTAURANTS_BUDGET_OPTIONS.map((b) => (
                 <TouchableOpacity
                   key={b.id}
@@ -1596,7 +1618,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               ))}
 
               {/* Travel profile */}
-              <Text style={styles.profileSectionLabel}>Tipo de viagem</Text>
+              <Text style={styles.profileSectionLabel}>{t.itinerary.profileTravelType}</Text>
               <View style={styles.profileChipRow}>
                 {PROFILE_OPTIONS.map((p) => {
                   const active = profileTravelProfile === p.id;
@@ -1614,7 +1636,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               </View>
 
               {/* Pace */}
-              <Text style={styles.profileSectionLabel}>Ritmo da viagem</Text>
+              <Text style={styles.profileSectionLabel}>{t.itinerary.pace}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                 {PACE_OPTIONS.map((p) => (
                   <TouchableOpacity
@@ -1629,7 +1651,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               </View>
 
               {/* Wake up time */}
-              <Text style={styles.profileSectionLabel}>Horário de acordar</Text>
+              <Text style={styles.profileSectionLabel}>{t.itinerary.profileWakeUp}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                 {['07:00', '08:00', '09:00', '10:00'].map((t) => (
                   <TouchableOpacity
@@ -1643,7 +1665,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               </View>
 
               {/* Bedtime */}
-              <Text style={styles.profileSectionLabel}>Horário de dormir</Text>
+              <Text style={styles.profileSectionLabel}>{t.itinerary.profileBedtime}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                 {['22:00', '23:00', '00:00', '01:00'].map((t) => (
                   <TouchableOpacity
@@ -1657,7 +1679,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               </View>
 
               {/* Arrival time (day 1) */}
-              <Text style={styles.profileSectionLabel}>Horário de chegada (dia 1)</Text>
+              <Text style={styles.profileSectionLabel}>{t.itinerary.profileArrival}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                 {['09:00', '12:00', '15:00', '18:00', '21:00'].map((t) => (
                   <TouchableOpacity
@@ -1671,7 +1693,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               </View>
 
               {/* Departure time (last day) */}
-              <Text style={styles.profileSectionLabel}>Horário de saída (último dia)</Text>
+              <Text style={styles.profileSectionLabel}>{t.itinerary.profileDeparture}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                 {['09:00', '12:00', '15:00', '18:00', '21:00'].map((t) => (
                   <TouchableOpacity
@@ -1688,11 +1710,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               <CityTransportSection tripId={trip.id} cityMode={(cityTransportMode || trip.cityTransportMode) as CityTransportMode | undefined} />
 
               {/* Interests */}
-              <Text style={styles.profileSectionLabel}>Interesses específicos (opcional)</Text>
+              <Text style={styles.profileSectionLabel}>{t.itinerary.profileInterests}</Text>
               <TextInput
                 value={profileInterests}
                 onChangeText={setProfileInterests}
-                placeholder="Ex: vinhos, arquitetura modernista, praias desertas..."
+                placeholder={t.itinerary.profileInterestsPlaceholder}
                 placeholderTextColor={colors.muted}
                 style={styles.profileTextInput}
                 multiline
@@ -1701,11 +1723,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               />
 
               {/* Trip purpose */}
-              <Text style={styles.profileSectionLabel}>Motivo da viagem (opcional)</Text>
+              <Text style={styles.profileSectionLabel}>{t.itinerary.profileTripPurpose}</Text>
               <TextInput
                 value={profileTripPurpose}
                 onChangeText={setProfileTripPurpose}
-                placeholder="Ex: lua de mel, aniversário, comemoração de formatura..."
+                placeholder={t.itinerary.profileTripPurposePlaceholder}
                 placeholderTextColor={colors.muted}
                 style={styles.profileTextInput}
                 multiline
@@ -1716,9 +1738,9 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               {/* Must-see places */}
               {trip.places.length > 0 ? (
                 <>
-                  <Text style={styles.profileSectionLabel}>Lugar imperdível</Text>
+                  <Text style={styles.profileSectionLabel}>{t.itinerary.profileMustSee}</Text>
                   <Text style={styles.profileHintText}>
-                    Você já selecionou {trip.places.length} lugar{trip.places.length !== 1 ? 'es' : ''} na aba Lugares. Quer considerar eles no roteiro?
+                    {t.itinerary.profileMustSeeHint(trip.places.length)}
                   </Text>
                   <View style={{ gap: 8, marginTop: 8 }}>
                     <TouchableOpacity
@@ -1727,7 +1749,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                     >
                       <Ionicons name="checkmark-circle-outline" size={18} color={profileConsiderSelectedPlaces ? colors.textOnPrimary : colors.textAccent} />
                       <Text style={[styles.paceModalOptionLabel, { flex: 1 }, profileConsiderSelectedPlaces && { color: colors.textOnPrimary }]}>
-                        Sim, considerar e completar com mais sugestões
+                        {t.itinerary.profileMustSeeYes}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -1736,20 +1758,20 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                     >
                       <Ionicons name="close-circle-outline" size={18} color={!profileConsiderSelectedPlaces ? colors.textOnPrimary : colors.textAccent} />
                       <Text style={[styles.paceModalOptionLabel, { flex: 1 }, !profileConsiderSelectedPlaces && { color: colors.textOnPrimary }]}>
-                        Não, seguir só com as recomendações
+                        {t.itinerary.profileMustSeeNo}
                       </Text>
                     </TouchableOpacity>
                   </View>
                 </>
               ) : (
                 <>
-                  <Text style={styles.profileSectionLabel}>Quer garantir que algum lugar específico entre no roteiro?</Text>
+                  <Text style={styles.profileSectionLabel}>{t.itinerary.profileMustSeeEmpty}</Text>
                   <TouchableOpacity
                     onPress={() => { setShowProfileModal(false); onGoToPlaces(); }}
                     style={[styles.goToPlacesBtn, { alignSelf: 'flex-start' }]}
                   >
                     <Ionicons name="location-outline" size={14} color={colors.textOnPrimary} />
-                    <Text style={styles.goToPlacesBtnText}>Selecionar lugares</Text>
+                    <Text style={styles.goToPlacesBtnText}>{t.itinerary.selectPlacesBtn}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -1759,7 +1781,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                   onPress={() => setShowProfileModal(false)}
                   style={[styles.paceModalBtn, { backgroundColor: withAlpha(colors.foreground, 0.08), flex: 1 }]}
                 >
-                  <Text style={{ color: colors.muted, fontWeight: '600' }}>Voltar</Text>
+                  <Text style={{ color: colors.muted, fontWeight: '600' }}>{t.common.back}</Text>
                 </TouchableOpacity>
                 <ScalePressable
                   onPress={handleGenerateFromScratch}
@@ -1767,7 +1789,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                   disabled={generating}
                 >
                   <Ionicons name="sparkles-outline" size={15} color={colors.textOnPrimary} />
-                  <Text style={{ color: colors.textOnPrimary, fontWeight: '700' }}>Criar Roteiro</Text>
+                  <Text style={{ color: colors.textOnPrimary, fontWeight: '700' }}>{t.itinerary.createItinerary}</Text>
                 </ScalePressable>
               </View>
             </ScrollView>
@@ -1781,18 +1803,18 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         <View style={[styles.paceModalOverlay, { justifyContent: 'flex-end', padding: 0 }]}>
           <View style={[styles.paceModalCard, { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, maxHeight: '85%' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <Text style={styles.paceModalTitle}>Adicionar ao Dia {selectedDay + 1}</Text>
+              <Text style={styles.paceModalTitle}>{t.itinerary.addToDay(selectedDay + 1)}</Text>
               <TouchableOpacity onPress={() => setShowManualPicker(false)}>
                 <Ionicons name="close" size={22} color={colors.muted} />
               </TouchableOpacity>
             </View>
             <Text style={styles.paceModalSubtitle}>
-              Toque em + para adicionar o lugar ao dia selecionado
+              {t.itinerary.manualPickerHint}
             </Text>
             <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 8 }}>
               {trip.places.length === 0 ? (
                 <Text style={[styles.paceModalSubtitle, { textAlign: 'center', marginTop: 24 }]}>
-                  Nenhum lugar salvo. Adicione lugares na aba Lugares primeiro.
+                  {t.itinerary.noPlacesManual}
                 </Text>
               ) : (
                 trip.places.map((place) => {
@@ -1815,7 +1837,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                         {alreadyScheduled && (
                           <View style={styles.manualPickerScheduled}>
                             <Ionicons name="checkmark-circle" size={16} color={colors.textAccent} />
-                            <Text style={{ fontSize: 11, color: colors.textAccent, marginLeft: 3 }}>Agendado</Text>
+                            <Text style={{ fontSize: 11, color: colors.textAccent, marginLeft: 3 }}>{t.itinerary.scheduledLabel}</Text>
                           </View>
                         )}
                       </View>
@@ -1837,7 +1859,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                                   ]}
                                 >
                                   <Text style={[styles.manualDayChipText, isSelected && { color: colors.textOnPrimary }]}>
-                                    Dia {di + 1}
+                                    {t.itinerary.day} {di + 1}
                                   </Text>
                                 </TouchableOpacity>
                               );
@@ -1861,7 +1883,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               onPress={() => setShowManualPicker(false)}
               style={[styles.paceModalBtn, { backgroundColor: colors.primary, marginTop: 8 }]}
             >
-              <Text style={{ color: colors.textOnPrimary, fontWeight: '700' }}>Concluído</Text>
+              <Text style={{ color: colors.textOnPrimary, fontWeight: '700' }}>{t.common.done}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1879,7 +1901,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 <Ionicons name="close" size={22} color={colors.muted} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.paceModalSubtitle}>Escolha o dia para adicionar este lugar</Text>
+            <Text style={styles.paceModalSubtitle}>{t.itinerary.chooseDayForPlace}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
               {Array.from({ length: totalDays }, (_, di) => {
                 const isSelected = dayPickIndex === di;
@@ -1890,7 +1912,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                     style={[styles.manualDayChip, isSelected && styles.manualDayChipActive]}
                   >
                     <Text style={[styles.manualDayChipText, isSelected && { color: colors.textOnPrimary }]}>
-                      Dia {di + 1}
+                      {t.itinerary.day} {di + 1}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -1904,7 +1926,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               style={[styles.paceModalBtn, { flex: 0, backgroundColor: colors.primary, marginTop: 8, paddingVertical: 16 }]}
             >
               <Ionicons name="add" size={16} color={colors.textOnPrimary} />
-              <Text style={{ color: colors.textOnPrimary, fontWeight: '700' }}>Adicionar</Text>
+              <Text style={{ color: colors.textOnPrimary, fontWeight: '700' }}>{t.common.add}</Text>
             </TouchableOpacity>
           </View>
         </View>

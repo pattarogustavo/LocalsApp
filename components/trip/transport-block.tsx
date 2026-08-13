@@ -21,6 +21,8 @@ import { AirportSearchModal, type AirportResult } from '@/components/ui/airport-
 import { DocAttachField } from '@/components/ui/doc-attach-field';
 import { getApiBaseUrl } from '@/constants/api';
 import { useTranslation } from '@/hooks/use-translation';
+import { useAuthStore } from '@/store/auth';
+import { getTranslations } from '@/i18n';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 
@@ -42,11 +44,7 @@ const BETWEEN_MODE_KEYS: Array<{ key: TransportMode; icon: string }> = [
 
 const CITY_MODE_KEYS: Array<{ key: CityTransportMode; icon: string }> = [
   { key: 'public', icon: 'subway-outline' },
-  { key: 'uber', icon: 'car-outline' },
-  { key: 'walk', icon: 'walk-outline' },
-  { key: 'bike', icon: 'bicycle-outline' },
   { key: 'car', icon: 'car-sport-outline' },
-  { key: 'taxi', icon: 'car-outline' },
 ];
 
 function getFlightStatusColors(colors: ThemeColorPalette): Record<string, string> {
@@ -102,16 +100,18 @@ async function scheduleFlightNotifications(transport: Transport): Promise<string
   const granted = await requestNotifPermission();
   if (!granted) return [];
 
+  const t = getTranslations(useAuthStore.getState().preferredLanguage ?? 'pt');
   const ids: string[] = [];
   const depDate = new Date(f.departureTime);
+  const route = `${f.origin} → ${f.destination}`;
 
   // Check-in reminder: 24h before
   const checkInDate = new Date(depDate.getTime() - 24 * 60 * 60 * 1000);
   if (checkInDate > new Date()) {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
-        title: `Check-in: ${f.flightNumber}`,
-        body: `Seu voo ${f.origin} → ${f.destination} parte amanhã. Faça o check-in agora!`,
+        title: t.transport.notifCheckinTitle(f.flightNumber),
+        body: t.transport.notifCheckinBody(route),
         data: { type: 'checkin', transportId: transport.id },
       },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: checkInDate },
@@ -124,8 +124,8 @@ async function scheduleFlightNotifications(transport: Transport): Promise<string
   if (boardingDate > new Date()) {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
-        title: `Embarque em 4h: ${f.flightNumber}`,
-        body: `${f.origin} → ${f.destination} às ${formatTime(f.departureTime)}${f.terminal ? ` · Terminal ${f.terminal}` : ''}${f.gate ? ` · Gate ${f.gate}` : ''}`,
+        title: t.transport.notifBoardingTitle(f.flightNumber),
+        body: `${route} ${t.transport.notifBoardingAt} ${formatTime(f.departureTime)}${f.terminal ? ` · ${t.transport.terminal} ${f.terminal}` : ''}${f.gate ? ` · ${t.transport.gate} ${f.gate}` : ''}`,
         data: { type: 'boarding', transportId: transport.id },
       },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: boardingDate },
@@ -243,13 +243,13 @@ function FlightCard({
           <Text style={styles.flightGateText}>T{f.terminal}</Text>
         ) : null}
         {f.gate ? (
-          <Text style={styles.flightGateText}>Gate {f.gate}</Text>
+          <Text style={styles.flightGateText}>{t.transport.gate} {f.gate}</Text>
         ) : null}
         <View style={{ flex: 1 }} />
         {transport.boardingPassUri ? (
           <TouchableOpacity style={styles.boardingPassBtn} onPress={onViewBoardingPass}>
             <Ionicons name="qr-code-outline" size={12} color={colors.textAccent} />
-            <Text style={styles.boardingPassText}>Passagem</Text>
+            <Text style={styles.boardingPassText}>{t.transport.passagem}</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.boardingPassBtnEmpty} onPress={onAddBoardingPass}>
@@ -265,6 +265,7 @@ function FlightCard({
 // ─── Car Card ────────────────────────────────────────────────────────────────
 
 function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () => void }) {
+  const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const c = transport.car!;
@@ -282,7 +283,7 @@ function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () =
           <View style={styles.modeIconBg}>
             <Ionicons name="car-outline" size={14} color={colors.textAccent} />
           </View>
-          <Text style={styles.flightAirlineName}>{transport.leg || 'Carro'}</Text>
+          <Text style={styles.flightAirlineName}>{transport.leg || t.transport.car}</Text>
         </View>
         <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
           <Ionicons name="trash-outline" size={14} color={colors.muted} />
@@ -292,7 +293,7 @@ function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () =
       {/* Route */}
       <View style={styles.carRouteRow}>
         <View style={styles.carEndpoint}>
-          <Text style={styles.carEndpointLabel}>SAÍDA</Text>
+          <Text style={styles.carEndpointLabel}>{t.transport.saida}</Text>
           <Text style={styles.carTime}>
             {c.departureTime ? formatDT(c.departureTime) : '--:--'}
           </Text>
@@ -314,7 +315,7 @@ function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () =
           ) : null}
         </View>
         <View style={[styles.carEndpoint, { alignItems: 'flex-end' }]}>
-          <Text style={styles.carEndpointLabel}>CHEGADA</Text>
+          <Text style={styles.carEndpointLabel}>{t.transport.chegada}</Text>
           <Text style={styles.carTime}>{formatDT(c.desiredArrivalTime)}</Text>
           <Text style={[styles.carAddress, { textAlign: 'right' }]} numberOfLines={2}>{c.destinationAddress}</Text>
         </View>
@@ -327,7 +328,7 @@ function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () =
           onPress={() => Linking.openURL(c.mapsUrl!)}
         >
           <Ionicons name="map-outline" size={12} color={colors.textAccent} />
-          <Text style={styles.carMapsBtnText}>Abrir no Google Maps</Text>
+          <Text style={styles.carMapsBtnText}>{t.transport.openMaps}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -351,7 +352,7 @@ function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: 
             <Ionicons name={modeInfo?.icon as any || 'navigate-outline'} size={16} color={colors.textAccent} />
           </View>
           <View>
-            <Text style={styles.flightNumber}>{modeInfo?.label || 'Transporte'}</Text>
+            <Text style={styles.flightNumber}>{modeInfo?.label || t.transport.genericLabel}</Text>
             {transport.travelTime ? <Text style={styles.airlineName}>{transport.travelTime}</Text> : null}
           </View>
         </View>
@@ -379,7 +380,7 @@ function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: 
           {transport.platform && (
             <View style={styles.footerItem}>
               <Ionicons name="location-outline" size={12} color={colors.muted} />
-              <Text style={styles.footerText}>Plataforma {transport.platform}</Text>
+              <Text style={styles.footerText}>{t.transport.platform} {transport.platform}</Text>
             </View>
           )}
         </View>
@@ -389,11 +390,11 @@ function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: 
           style={styles.boardingPassBtn}
           activeOpacity={0.7}
           onPress={() => Linking.openURL(transport.trainBusFerry!.ticketDocUri!).catch(() =>
-            Alert.alert('Erro', 'Não foi possível abrir o documento.')
+            Alert.alert(t.common.error, t.transport.docOpenError)
           )}
         >
           <Ionicons name="document-attach-outline" size={12} color={colors.textAccent} />
-          <Text style={styles.boardingPassText}>Bilhete anexado</Text>
+          <Text style={styles.boardingPassText}>{t.transport.ticketAttached}</Text>
           <Ionicons name="open-outline" size={11} color={withAlpha(colors.primary, 0.7)} />
         </TouchableOpacity>
       ) : null}
@@ -578,8 +579,8 @@ function AddTransportModal({
   const handleCarRouteSearch = async () => {
     const o = carOrigin.trim();
     const d = carDest.trim();
-    if (!o || !d) { setCarRouteError('Informe o endereço de origem e destino.'); return; }
-    if (!carArrival) { setCarRouteError('Selecione o horário de chegada desejado.'); return; }
+    if (!o || !d) { setCarRouteError(t.transport.carRouteErrorMissingAddr); return; }
+    if (!carArrival) { setCarRouteError(t.transport.carRouteErrorMissingArrival); return; }
     setCarRouteError('');
     setCarRouteResult(null);
     setCarRouteSearched(false);
@@ -598,11 +599,11 @@ function AddTransportModal({
         });
         setCarRouteSearched(true);
       } else {
-        setCarRouteError('Não foi possível calcular a rota. Verifique os endereços.');
+        setCarRouteError(t.transport.carRouteErrorNotFound);
       }
     } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setCarRouteError('Erro ao calcular rota. Tente novamente.');
+      setCarRouteError(t.transport.carRouteErrorGeneric);
     }
   };
 
@@ -614,15 +615,15 @@ function AddTransportModal({
     const o = (routeOrigin.trim() || routeOriginQuery.trim()).toUpperCase();
     const d = (routeDest.trim() || routeDestQuery.trim()).toUpperCase();
     if (o.length < 2) {
-      setSearchError('Selecione ou digite o aeroporto de origem (ex: GRU, São Paulo).');
+      setSearchError(t.transport.searchErrorOrigin);
       return;
     }
     if (d.length < 2) {
-      setSearchError('Selecione ou digite o aeroporto de destino (ex: LHR, Londres).');
+      setSearchError(t.transport.searchErrorDest);
       return;
     }
     if (!routeDate) {
-      setSearchError('Selecione a data do voo.');
+      setSearchError(t.transport.searchErrorNoDate);
       return;
     }
     const dt = toApiDate(routeDate);
@@ -645,21 +646,21 @@ function AddTransportModal({
       if (flights.length === 0) {
         const total = result.flights?.length ?? 0;
         if (total > 0 && airlineFilter.length >= 2) {
-          setSearchError(`${total} voo${total > 1 ? 's' : ''} encontrado${total > 1 ? 's' : ''} nessa rota, mas nenhum da companhia "${routeAirline.trim()}". Tente outro nome ou deixe o campo em branco.`);
+          setSearchError(t.transport.searchErrorFilteredCount(total).replace('{airline}', routeAirline.trim()));
         } else {
-          setSearchError('Nenhum voo encontrado. Certifique-se de selecionar um aeroporto da lista suspensa ou use o código IATA (ex: GRU, LHR).');
+          setSearchError(t.transport.noFlights);
         }
       }
     } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setSearchError('Erro ao buscar voos. Tente novamente.');
+      setSearchError(t.transport.searchErrorGeneric);
     }
   };
 
   const handleNumberSearch = async () => {
     const fn = flightNumber.trim();
-    if (!fn) { setSearchError('Informe o número do voo (ex: LA8084).'); return; }
-    if (!flightDate) { setSearchError('Selecione a data do voo.'); return; }
+    if (!fn) { setSearchError(t.transport.numberSearchErrorMissing); return; }
+    if (!flightDate) { setSearchError(t.transport.searchErrorNoDate); return; }
     const dt = toApiDate(flightDate);
     setSearchError('');
     try {
@@ -667,11 +668,11 @@ function AddTransportModal({
       if (result.found && result.flight) {
         setSelectedFlight(result.flight);
       } else {
-        setSearchError('Voo não encontrado. Verifique o número e a data.');
+        setSearchError(t.transport.numberSearchErrorNotFound);
       }
     } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setSearchError('Erro ao buscar voo. Tente novamente.');
+      setSearchError(t.transport.numberSearchErrorGeneric);
     }
   };
 
@@ -699,7 +700,7 @@ function AddTransportModal({
       };
     }
 
-    const t: Transport = {
+    const newTransport: Transport = {
       id: generateId(),
       mode,
       leg: selectedLeg || undefined,
@@ -749,8 +750,8 @@ function AddTransportModal({
 
     if (mode === 'flight' && enableNotifs && selectedFlight?.departureTime) {
       try {
-        const ids = await scheduleFlightNotifications(t);
-        if (ids.length > 0) t.notificationIds = ids;
+        const ids = await scheduleFlightNotifications(newTransport);
+        if (ids.length > 0) newTransport.notificationIds = ids;
       } catch (_) {}
     }
 
@@ -764,13 +765,13 @@ function AddTransportModal({
           if (alertDate > new Date()) {
             const id = await Notifications.scheduleNotificationAsync({
               content: {
-                title: '⏰ Hora de sair!',
-                body: `Saia em 1 hora para chegar a tempo: ${carInfo.destinationAddress}`,
-                data: { type: 'car_departure', transportId: t.id },
+                title: t.transport.notifCarDepartTitle,
+                body: t.transport.notifCarDepartBody(carInfo.destinationAddress || ''),
+                data: { type: 'car_departure', transportId: newTransport.id },
               },
               trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: alertDate },
             });
-            t.notificationIds = [id];
+            newTransport.notificationIds = [id];
           }
         }
       } catch (_) {}
@@ -783,22 +784,22 @@ function AddTransportModal({
         if (granted) {
           const alertDate = new Date(tbfDeparture.getTime() - 60 * 60 * 1000);
           if (alertDate > new Date()) {
-            const modeLabel = mode === 'train' ? 'Trem' : mode === 'bus' ? 'Ônibus' : 'Barco';
+            const modeLabel = mode === 'train' ? t.transport.train : mode === 'bus' ? t.transport.bus : t.transport.ferry;
             const id = await Notifications.scheduleNotificationAsync({
               content: {
-                title: `⏰ ${modeLabel} em 1 hora`,
-                body: `Partida de ${tbfOriginStation!.name} → ${tbfDestStation!.name}`,
-                data: { type: 'tbf_departure', transportId: t.id },
+                title: t.transport.notifTbfDepartTitle(modeLabel),
+                body: t.transport.notifTbfDepartBody(`${tbfOriginStation!.name} → ${tbfDestStation!.name}`),
+                data: { type: 'tbf_departure', transportId: newTransport.id },
               },
               trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: alertDate },
             });
-            t.notificationIds = [id];
+            newTransport.notificationIds = [id];
           }
         }
       } catch (_) {}
     }
 
-    onAdd(t);
+    onAdd(newTransport);
     reset();
   };
 
@@ -807,12 +808,12 @@ function AddTransportModal({
     <View style={styles.lookupResultCard}>
       <View style={styles.lookupResultHeader}>
         <Ionicons name="checkmark-circle" size={16} color={colors.textAccent} />
-        <Text style={styles.lookupResultTitle}>Voo selecionado</Text>
+        <Text style={styles.lookupResultTitle}>{t.transport.flightSelected}</Text>
         <TouchableOpacity
           onPress={() => { setSelectedFlight(null); setRouteResults([]); setRouteSearched(false); }}
           style={{ marginLeft: 'auto' }}
         >
-          <Text style={styles.lookupChangeText}>Alterar</Text>
+          <Text style={styles.lookupChangeText}>{t.transport.change}</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.lookupResultRoute}>
@@ -852,7 +853,7 @@ function AddTransportModal({
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Adicionar Transporte</Text>
+            <Text style={styles.modalTitle}>{t.transport.addTitle}</Text>
             <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
               <Ionicons name="close" size={18} color={colors.muted} />
             </TouchableOpacity>
@@ -860,7 +861,7 @@ function AddTransportModal({
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
             {/* Leg selector */}
-            <Text style={styles.inputLabel}>TRAJETO</Text>
+            <Text style={styles.inputLabel}>{t.transport.legLabel}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
               <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 2 }}>
                 {legs.map((leg) => (
@@ -876,7 +877,7 @@ function AddTransportModal({
             </ScrollView>
 
             {/* Mode selector */}
-            <Text style={styles.inputLabel}>TIPO</Text>
+            <Text style={styles.inputLabel}>{t.transport.typeLabel}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
               <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 2 }}>
                 {BETWEEN_MODES.map((m) => (
@@ -907,8 +908,8 @@ function AddTransportModal({
                           {enableNotifs && <Ionicons name="checkmark" size={13} color={colors.textOnPrimary} />}
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.notifToggleLabel}>Ativar lembretes de voo</Text>
-                          <Text style={styles.notifToggleDesc}>Check-in 24h antes · Embarque 4h antes</Text>
+                          <Text style={styles.notifToggleLabel}>{t.transport.enableFlightReminders}</Text>
+                          <Text style={styles.notifToggleDesc}>{t.transport.flightRemindersDesc}</Text>
                         </View>
                         <Ionicons name="notifications-outline" size={16} color={colors.accent} />
                       </TouchableOpacity>
@@ -924,14 +925,14 @@ function AddTransportModal({
                         onPress={() => { setSearchMode('route'); setSearchError(''); setRouteResults([]); setRouteSearched(false); }}
                       >
                         <Ionicons name="swap-horizontal-outline" size={14} color={searchMode === 'route' ? colors.textOnPrimary : colors.textAccent} />
-                        <Text style={[styles.searchModeBtnText, searchMode === 'route' && { color: colors.textOnPrimary }]}>Origem / Destino</Text>
+                        <Text style={[styles.searchModeBtnText, searchMode === 'route' && { color: colors.textOnPrimary }]}>{t.transport.byRoute}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.searchModeBtn, searchMode === 'number' && styles.searchModeBtnActive]}
                         onPress={() => { setSearchMode('number'); setSearchError(''); }}
                       >
                         <Ionicons name="barcode-outline" size={14} color={searchMode === 'number' ? colors.textOnPrimary : colors.textAccent} />
-                        <Text style={[styles.searchModeBtnText, searchMode === 'number' && { color: colors.textOnPrimary }]}>Número do voo</Text>
+                        <Text style={[styles.searchModeBtnText, searchMode === 'number' && { color: colors.textOnPrimary }]}>{t.transport.byNumber}</Text>
                       </TouchableOpacity>
                     </View>
 
@@ -940,9 +941,9 @@ function AddTransportModal({
                       <>
                         {/* Origin airport */}
                         <View style={{ marginTop: 4 }}>
-                          <Text style={styles.inputLabel}>AEROPORTO DE ORIGEM</Text>
+                          <Text style={styles.inputLabel}>{t.transport.originAirport}</Text>
                           <AirportSearchModal
-                            placeholder="São Paulo, GRU, Brasil..."
+                            placeholder={t.transport.originPlaceholder}
                             value={routeOriginQuery}
                             onSelect={selectOriginAirport}
                             icon="airplane-outline"
@@ -952,9 +953,9 @@ function AddTransportModal({
 
                         {/* Destination airport */}
                         <View style={{ marginTop: 10 }}>
-                          <Text style={styles.inputLabel}>AEROPORTO DE DESTINO</Text>
+                          <Text style={styles.inputLabel}>{t.transport.destAirport}</Text>
                           <AirportSearchModal
-                            placeholder="Londres, LHR, Reino Unido..."
+                            placeholder={t.transport.destinationPlaceholder}
                             value={routeDestQuery}
                             onSelect={selectDestAirport}
                             icon="airplane"
@@ -964,7 +965,7 @@ function AddTransportModal({
 
                         <View style={{ marginTop: 10 }}>
                           <DatePickerField
-                            label="DATA DO VOO"
+                            label={t.transport.flightDate}
                             value={routeDate}
                             onChange={(d) => { setRouteDate(d); setSearchError(''); }}
                           />
@@ -972,13 +973,13 @@ function AddTransportModal({
 
                         {/* Airline filter (optional) */}
                         <View style={{ marginTop: 10 }}>
-                          <Text style={styles.inputLabel}>COMPANHIA AÉREA <Text style={{ color: colors.muted, fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</Text></Text>
+                          <Text style={styles.inputLabel}>{t.transport.airlineOptional} <Text style={{ color: colors.muted, fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>({t.common.optional})</Text></Text>
                           <View style={[styles.textInput, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 0, height: 48 }]}>
                             <Ionicons name="business-outline" size={16} color={withAlpha(colors.primary, 0.6)} />
                             <TextInput
                               value={routeAirline}
                               onChangeText={(v) => { setRouteAirline(v); setSearchError(''); }}
-                              placeholder="LATAM, Gol, Azul, TAP..."
+                              placeholder={t.transport.airlinePlaceholder}
                               placeholderTextColor={colors.muted}
                               style={{ flex: 1, color: colors.foreground, fontSize: 14 }}
                               returnKeyType="search"
@@ -990,7 +991,7 @@ function AddTransportModal({
                             )}
                           </View>
                           <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>
-                            Filtra os resultados por companhia. Deixe em branco para ver todos.
+                            {t.transport.airlineFilterHint}
                           </Text>
                         </View>
                       </>
@@ -998,7 +999,7 @@ function AddTransportModal({
                       // ── Number search ─────────────────────────────────────────
                       <>
                         <View style={{ marginTop: 4 }}>
-                          <Text style={styles.inputLabel}>NÚMERO DO VOO</Text>
+                          <Text style={styles.inputLabel}>{t.transport.flightNumberLabel}</Text>
                           <TextInput
                             value={flightNumber}
                             onChangeText={(v) => { setFlightNumber(v); setSearchError(''); }}
@@ -1010,7 +1011,7 @@ function AddTransportModal({
                         </View>
                         <View style={{ marginTop: 10 }}>
                           <DatePickerField
-                            label="DATA DO VOO"
+                            label={t.transport.flightDate}
                             value={flightDate}
                             onChange={(d) => { setFlightDate(d); setSearchError(''); }}
                           />
@@ -1064,9 +1065,9 @@ function AddTransportModal({
               <>
                 {/* Origin via Google Places */}
                 <View style={{ marginBottom: 14 }}>
-                  <Text style={styles.inputLabel}>ENDEREÇO DE ORIGEM</Text>
+                  <Text style={styles.inputLabel}>{t.transport.carOriginAddr}</Text>
                   <PlacesAutocompleteInput
-                    placeholder="Buscar endereço ou estabelecimento..."
+                    placeholder={t.transport.carAddressPlaceholder}
                     value={carOriginPlace?.fullDescription || ''}
                     onSelect={(p) => {
                       setCarOriginPlace(p);
@@ -1109,9 +1110,9 @@ function AddTransportModal({
 
                 {/* Destination via Google Places */}
                 <View style={{ marginBottom: 14 }}>
-                  <Text style={styles.inputLabel}>ENDEREÇO DE DESTINO</Text>
+                  <Text style={styles.inputLabel}>{t.transport.carDestAddr}</Text>
                   <PlacesAutocompleteInput
-                    placeholder="Buscar endereço ou estabelecimento..."
+                    placeholder={t.transport.carAddressPlaceholder}
                     value={carDestPlace?.fullDescription || ''}
                     onSelect={(p) => {
                       setCarDestPlace(p);
@@ -1153,10 +1154,10 @@ function AddTransportModal({
 
                 {/* Arrival time */}
                 <DateTimePickerField
-                  label="HORÁRIO DE CHEGADA DESEJADO"
+                  label={t.transport.carArrivalTime}
                   value={carArrival}
                   onChange={(d) => { setCarArrival(d); setCarRouteResult(null); setCarRouteSearched(false); }}
-                  hint="O app calculará quando você precisa sair"
+                  hint={t.transport.carArrivalHint}
                 />
 
                 {/* Calculate route button */}
@@ -1166,7 +1167,7 @@ function AddTransportModal({
                     onPress={handleCarRouteSearch}
                   >
                     <Ionicons name="navigate-outline" size={16} color={colors.textOnPrimary} />
-                    <Text style={[styles.lookupBtnText, { marginLeft: 6 }]}>Calcular rota</Text>
+                    <Text style={[styles.lookupBtnText, { marginLeft: 6 }]}>{t.transport.calcRoute}</Text>
                   </TouchableOpacity>
                 )}
 
@@ -1183,29 +1184,29 @@ function AddTransportModal({
                   <View style={styles.carRouteResultCard}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                       <Ionicons name="checkmark-circle" size={16} color={colors.textAccent} />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textAccent }}>Rota calculada</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textAccent }}>{t.transport.routeCalc}</Text>
                       <TouchableOpacity onPress={() => { setCarRouteResult(null); setCarRouteSearched(false); }} style={{ marginLeft: 'auto' }}>
-                        <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: 'underline' }}>Recalcular</Text>
+                        <Text style={{ fontSize: 12, color: colors.muted, textDecorationLine: 'underline' }}>{t.transport.recalc}</Text>
                       </TouchableOpacity>
                     </View>
                     <View style={{ flexDirection: 'row', gap: 16 }}>
                       <View style={{ alignItems: 'center', flex: 1 }}>
                         <Text style={{ fontSize: 22, fontWeight: '800', color: colors.foreground }}>{carRouteResult.duration}</Text>
-                        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Tempo estimado</Text>
+                        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>{t.transport.estimatedTime}</Text>
                       </View>
                       {carRouteResult.distance ? (
                         <View style={{ alignItems: 'center', flex: 1 }}>
                           <Text style={{ fontSize: 22, fontWeight: '800', color: colors.foreground }}>{carRouteResult.distance}</Text>
-                          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Distância</Text>
+                          <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>{t.transport.distance}</Text>
                         </View>
                       ) : null}
                     </View>
                     {carArrival && carRouteResult.durationSeconds > 0 && (
                       <View style={{ marginTop: 12, padding: 10, backgroundColor: withAlpha(colors.accent, 0.1), borderRadius: 10, borderWidth: 1, borderColor: withAlpha(colors.accent, 0.2) }}>
                         <Text style={{ fontSize: 12, color: colors.accent, fontWeight: '600' }}>
-                          ⏰ Sair às {new Date(carArrival.getTime() - carRouteResult.durationSeconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          {t.transport.notifDepartAt(new Date(carArrival.getTime() - carRouteResult.durationSeconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))}
                         </Text>
-                        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>Lembrete 1h antes da saída</Text>
+                        <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>{t.transport.departureReminderDesc}</Text>
                       </View>
                     )}
                   </View>
@@ -1221,8 +1222,8 @@ function AddTransportModal({
                       {carNotifEnabled && <Ionicons name="checkmark" size={13} color={colors.textOnPrimary} />}
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.notifToggleLabel}>Lembrete de saída</Text>
-                      <Text style={styles.notifToggleDesc}>Aviso 1 hora antes de precisar sair</Text>
+                      <Text style={styles.notifToggleLabel}>{t.transport.departureReminder}</Text>
+                      <Text style={styles.notifToggleDesc}>{t.transport.departureReminderDesc}</Text>
                     </View>
                     <Ionicons name="notifications-outline" size={16} color={colors.accent} />
                   </TouchableOpacity>
@@ -1230,7 +1231,7 @@ function AddTransportModal({
 
                 {/* Car contract / rental document */}
                 <DocAttachField
-                  label="CONTRATO DE LOCAÇÃO (OPCIONAL)"
+                  label={t.transport.carContract}
                   uri={carContractUri}
                   onPick={setCarContractUri}
                   onRemove={() => setCarContractUri(null)}
@@ -1242,10 +1243,10 @@ function AddTransportModal({
                 {/* Origin station */}
                 <View style={{ marginBottom: 14 }}>
                   <Text style={styles.inputLabel}>
-                    {mode === 'ferry' ? 'PORTO DE EMBARQUE' : 'ESTAÇÃO DE ORIGEM'}
+                    {mode === 'ferry' ? t.transport.embarkPort : t.transport.originStation}
                   </Text>
                   <PlacesAutocompleteInput
-                    placeholder={mode === 'ferry' ? 'Buscar porto de embarque...' : 'Buscar estação de origem...'}
+                    placeholder={mode === 'ferry' ? t.transport.searchEmbark : t.transport.searchOriginStation}
                     value={tbfOriginStation?.name || ''}
                     onSelect={(p) => setTbfOriginStation(p)}
                     searchTypes="establishment"
@@ -1256,10 +1257,10 @@ function AddTransportModal({
                 {/* Destination station */}
                 <View style={{ marginBottom: 14 }}>
                   <Text style={styles.inputLabel}>
-                    {mode === 'ferry' ? 'PORTO DE DESEMBARQUE' : 'ESTAÇÃO DE DESTINO'}
+                    {mode === 'ferry' ? t.transport.disembarkPort : t.transport.destStation}
                   </Text>
                   <PlacesAutocompleteInput
-                    placeholder={mode === 'ferry' ? 'Buscar porto de desembarque...' : 'Buscar estação de destino...'}
+                    placeholder={mode === 'ferry' ? t.transport.searchDisembark : t.transport.searchDestStation}
                     value={tbfDestStation?.name || ''}
                     onSelect={(p) => setTbfDestStation(p)}
                     searchTypes="establishment"
@@ -1269,21 +1270,21 @@ function AddTransportModal({
 
                 {/* Departure time */}
                 <DateTimePickerField
-                  label="HORÁRIO DE SAÍDA"
+                  label={t.transport.departureTime}
                   value={tbfDeparture}
                   onChange={setTbfDeparture}
                 />
 
                 {/* Arrival time */}
                 <DateTimePickerField
-                  label="HORÁRIO DE CHEGADA (ESTIMADO)"
+                  label={t.transport.arrivalTimeEst}
                   value={tbfArrival}
                   onChange={setTbfArrival}
                 />
 
                 {/* Ticket number */}
                 <InputRow
-                  label="NÚMERO DO BILHETE"
+                  label={t.transport.ticketNumber}
                   value={tbfTicketNumber}
                   onChange={setTbfTicketNumber}
                   placeholder="Ex: 12345678"
@@ -1299,8 +1300,8 @@ function AddTransportModal({
                       {tbfNotifEnabled && <Ionicons name="checkmark" size={13} color={colors.textOnPrimary} />}
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.notifToggleLabel}>Alerta 1h antes da saída</Text>
-                      <Text style={styles.notifToggleDesc}>Aviso antes do horário de partida</Text>
+                      <Text style={styles.notifToggleLabel}>{t.transport.alert1hBefore}</Text>
+                      <Text style={styles.notifToggleDesc}>{t.transport.alert1hDesc}</Text>
                     </View>
                     <Ionicons name="notifications-outline" size={16} color={colors.accent} />
                   </TouchableOpacity>
@@ -1308,7 +1309,7 @@ function AddTransportModal({
 
                 {/* Ticket document */}
                 <DocAttachField
-                  label="BILHETE / RESERVA (OPCIONAL)"
+                  label={t.transport.ticketOptional}
                   uri={tbfDocUri}
                   onPick={setTbfDocUri}
                   onRemove={() => setTbfDocUri(null)}
@@ -1318,18 +1319,18 @@ function AddTransportModal({
               // ── Other mode ────────────────────────────────────────────────────────────────────
               <>
                 <InputRow
-                  label="NOME DO TRANSPORTE"
+                  label={t.transport.otherName}
                   value={otherName}
                   onChange={setOtherName}
-                  placeholder="Ex: Transfer privado, Van, Helicóptero..."
+                  placeholder={t.transport.otherNamePlaceholder}
                 />
                 <DateTimePickerField
-                  label="HORÁRIO DE SAÍDA"
+                  label={t.transport.departureTime}
                   value={otherDeparture}
                   onChange={setOtherDeparture}
                 />
                 <DateTimePickerField
-                  label="HORÁRIO DE CHEGADA"
+                  label={t.transport.otherArrivalTime}
                   value={otherArrival}
                   onChange={setOtherArrival}
                 />
@@ -1344,7 +1345,7 @@ function AddTransportModal({
               (mode === 'other' && otherName.trim().length > 0)
             ) && (
               <ScalePressable style={styles.addBtn} onPress={handleAdd}>
-                <Text style={styles.addBtnText}>Adicionar</Text>
+                <Text style={styles.addBtnText}>{t.transport.addTransportBtn}</Text>
               </ScalePressable>
             )}
             <View style={{ height: 20 }} />
@@ -1387,6 +1388,7 @@ function BoardingPassModal({
   onClose: () => void;
   onReplace: () => void;
 }) {
+  const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   return (
@@ -1399,7 +1401,7 @@ function BoardingPassModal({
         <TouchableOpacity style={styles.bpReplaceBtn} onPress={onReplace}>
           {/* Fixed light icon: sits on the always-dark boarding-pass viewer scrim, not theme-driven */}
           <Ionicons name="refresh-outline" size={14} color={colors.textOnPrimary} />
-          <Text style={styles.bpReplaceText}>Substituir imagem</Text>
+          <Text style={styles.bpReplaceText}>{t.transport.replaceImage}</Text>
         </TouchableOpacity>
       </View>
     </Modal>
@@ -1463,6 +1465,7 @@ export function TransportBlock({
   cityTransportMode?: CityTransportMode;
   accommodations?: Accommodation[];
 }) {
+  const t = useTranslation();
   const { addTransport, removeTransport, updateTransport } = useTripsStore();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -1512,10 +1515,10 @@ export function TransportBlock({
   };
 
   const handleRemove = (transport: Transport) => {
-    Alert.alert('Remover', 'Remover este transporte?', [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t.transport.removeTransport, t.transport.removeConfirm, [
+      { text: t.common.cancel, style: 'cancel' },
       {
-        text: 'Remover',
+        text: t.transport.removeTransport,
         style: 'destructive',
         onPress: async () => {
           // Cancel scheduled notifications
@@ -1530,13 +1533,13 @@ export function TransportBlock({
 
   const handleAddBoardingPass = (transportId: string) => {
     setBoardingPassTransportId(transportId);
-    Alert.alert('Passagem / QR Code', 'Escolha como adicionar', [
+    Alert.alert(t.transport.boardingPassLabel, t.transport.chooseHow, [
       {
-        text: 'Câmera',
+        text: t.transport.camera,
         onPress: async () => {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
           if (status !== 'granted') {
-            Alert.alert('Permissão necessária', 'Precisamos de acesso à câmera.');
+            Alert.alert(t.transport.permissionNeeded, t.transport.cameraPermission);
             return;
           }
           const result = await ImagePicker.launchCameraAsync({ quality: 0.9 });
@@ -1546,11 +1549,11 @@ export function TransportBlock({
         },
       },
       {
-        text: 'Galeria',
+        text: t.transport.gallery,
         onPress: async () => {
           const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (status !== 'granted') {
-            Alert.alert('Permissão necessária', 'Precisamos de acesso à galeria.');
+            Alert.alert(t.transport.permissionNeeded, t.transport.galleryPermission);
             return;
           }
           const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.9 });
@@ -1559,16 +1562,16 @@ export function TransportBlock({
           }
         },
       },
-      { text: 'Cancelar', style: 'cancel' },
+      { text: t.common.cancel, style: 'cancel' },
     ]);
   };
 
   // Group transports by leg
   const byLeg: Record<string, Transport[]> = {};
-  for (const t of transports) {
-    const key = t.leg || 'Outros';
+  for (const transport of transports) {
+    const key = transport.leg || t.transport.otherLeg;
     if (!byLeg[key]) byLeg[key] = [];
-    byLeg[key].push(t);
+    byLeg[key].push(transport);
   }
 
   return (
@@ -1577,7 +1580,7 @@ export function TransportBlock({
       <View style={styles.sectionHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Ionicons name="airplane-outline" size={15} color={colors.textAccent} />
-          <Text style={styles.sectionTitle}>ENTRE DESTINOS</Text>
+          <Text style={styles.sectionTitle}>{t.transport.betweenDests}</Text>
         </View>
         <TouchableOpacity onPress={() => setShowModal(true)} style={styles.addIconBtn}>
           <Ionicons name="add" size={18} color={colors.textAccent} />
@@ -1587,8 +1590,8 @@ export function TransportBlock({
       {transports.length === 0 ? (
         <TouchableOpacity onPress={() => setShowModal(true)} style={styles.emptyState}>
           <Ionicons name="airplane-outline" size={24} color={colors.muted} />
-          <Text style={styles.emptyText}>Adicione os transportes entre os destinos</Text>
-          <Text style={styles.emptyCta}>Toque para configurar →</Text>
+          <Text style={styles.emptyText}>{t.transport.emptyTransport}</Text>
+          <Text style={styles.emptyCta}>{t.transport.tapToConfigure}</Text>
         </TouchableOpacity>
       ) : (
         <View style={{ gap: 16 }}>
@@ -1607,7 +1610,7 @@ export function TransportBlock({
                     onPress={() => setShowModal(true)}
                   >
                     <Ionicons name="add-circle-outline" size={16} color={withAlpha(colors.primary, 0.4)} />
-                    <Text style={styles.legEmptyText}>Adicionar transporte para este trajeto</Text>
+                    <Text style={styles.legEmptyText}>{t.transport.addTransportLeg}</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={{ gap: 10 }}>
@@ -1632,14 +1635,14 @@ export function TransportBlock({
             );
           })}
           {/* Transports with no leg */}
-          {byLeg['Outros'] && byLeg['Outros'].length > 0 && (
+          {byLeg[t.transport.otherLeg] && byLeg[t.transport.otherLeg].length > 0 && (
             <View>
               <View style={styles.legHeader}>
                 <View style={styles.legDot} />
-                <Text style={styles.legHeaderText}>Outros</Text>
+                <Text style={styles.legHeaderText}>{t.transport.otherLeg}</Text>
               </View>
               <View style={{ gap: 10 }}>
-              {byLeg['Outros'].map((t) =>
+              {byLeg[t.transport.otherLeg].map((t) =>
                 t.mode === 'flight' && t.flight ? (
                   <FlightCard
                     key={t.id}

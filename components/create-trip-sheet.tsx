@@ -151,9 +151,10 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
     endDate.setDate(endDate.getDate() + totalDays - 1);
 
     const firstName = destinations[0].name;
+    const dayLabel = totalDays === 1 ? t.trip.oneDay : t.trip.multiDay.replace('{days}', String(totalDays));
     const tripName =
       destinations.length === 1
-        ? `${totalDays} ${totalDays === 1 ? 'Dia' : 'Dias'} em ${firstName}`
+        ? `${dayLabel} ${t.trip.in} ${firstName}`
         : destinations.map((d) => d.name).join(' + ');
 
     const trip: Trip = {
@@ -306,7 +307,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
                     ))}
                     {/* Days distributed */}
                     <View style={[styles.daysDistRow, { borderTopColor: colors.border }]}>
-                      <Text style={[styles.daysDistLabel, { color: colors.muted }]}>{t.common.days} distribuídos</Text>
+                      <Text style={[styles.daysDistLabel, { color: colors.muted }]}>{t.trip.daysDistributed}</Text>
                       <Text
                         style={[
                           styles.daysDistValue,

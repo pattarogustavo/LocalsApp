@@ -46,7 +46,7 @@ export default function TripShareScreen() {
   const handleInvite = useCallback(async () => {
     if (!email.trim() || !tripId) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      Alert.alert(translations.common.error, 'Por favor insira um e-mail válido.');
+      Alert.alert(translations.common.error, translations.sharing.invalidEmail);
       return;
     }
     setSending(true);
@@ -58,9 +58,9 @@ export default function TripShareScreen() {
       });
       setEmail('');
       sharesQuery.refetch();
-      Alert.alert('✅ Convite enviado!', `${email.trim()} foi convidado(a) para esta viagem.`);
+      Alert.alert(`✅ ${translations.sharing.inviteSent}`, `${email.trim()} ${translations.sharing.inviteSentMsg}`);
     } catch (err: any) {
-      Alert.alert(translations.common.error, err?.message ?? 'Erro ao enviar convite.');
+      Alert.alert(translations.common.error, err?.message ?? translations.sharing.inviteError);
     } finally {
       setSending(false);
     }
@@ -68,19 +68,19 @@ export default function TripShareScreen() {
 
   const handleRevoke = useCallback((shareId: number, inviteeEmail: string) => {
     Alert.alert(
-      'Remover acesso',
-      `Remover o acesso de ${inviteeEmail}?`,
+      translations.sharing.revokeConfirmTitle,
+      `${translations.sharing.revokeConfirmMsg} ${inviteeEmail}${translations.sharing.revokeConfirmMsg2}`,
       [
         { text: translations.common.cancel, style: 'cancel' },
         {
-          text: 'Remover',
+          text: translations.transport.removeTransport,
           style: 'destructive',
           onPress: async () => {
             try {
               await revokeMutation.mutateAsync({ shareId });
               sharesQuery.refetch();
             } catch (err: any) {
-              Alert.alert(translations.common.error, err?.message ?? 'Erro ao remover acesso.');
+              Alert.alert(translations.common.error, err?.message ?? translations.sharing.revokeError);
             }
           },
         },
@@ -89,12 +89,12 @@ export default function TripShareScreen() {
   }, [revokeMutation, sharesQuery, translations]);
 
   const statusLabel = (status: string) => {
-    if (status === 'accepted') return { label: 'Aceitou', color: colors.success };
-    if (status === 'revoked') return { label: 'Revogado', color: colors.error };
-    return { label: 'Pendente', color: colors.warning };
+    if (status === 'accepted') return { label: translations.sharing.acceptedStatus, color: colors.success };
+    if (status === 'revoked') return { label: translations.sharing.revokedStatus, color: colors.error };
+    return { label: translations.sharing.pendingStatus, color: colors.warning };
   };
 
-  const roleLabel = (r: string) => r === 'editor' ? 'Editor' : 'Visualizador';
+  const roleLabel = (r: string) => r === 'editor' ? translations.sharing.roleEditor : translations.sharing.roleViewer;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -103,7 +103,7 @@ export default function TripShareScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Compartilhar Viagem</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>{translations.sharing.title}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -119,14 +119,14 @@ export default function TripShareScreen() {
         >
           {/* Invite section */}
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Convidar por e-mail</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{translations.sharing.inviteByEmail}</Text>
             <Text style={[styles.sectionDesc, { color: colors.muted }]}>
-              O convidado receberá acesso a esta viagem após aceitar o convite.
+              {translations.sharing.inviteReceivesAccessMsg}
             </Text>
 
             <TextInput
               style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
-              placeholder="E-mail do convidado"
+              placeholder={translations.sharing.guestEmailPlaceholder}
               placeholderTextColor={colors.muted}
               value={email}
               onChangeText={setEmail}
@@ -148,7 +148,7 @@ export default function TripShareScreen() {
               >
                 <Ionicons name="eye-outline" size={16} color={role === 'viewer' ? colors.primary : colors.muted} />
                 <Text style={[styles.roleBtnText, { color: role === 'viewer' ? colors.primary : colors.muted }]}>
-                  Visualizador
+                  {translations.sharing.roleViewer}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -161,7 +161,7 @@ export default function TripShareScreen() {
               >
                 <Ionicons name="create-outline" size={16} color={role === 'editor' ? colors.primary : colors.muted} />
                 <Text style={[styles.roleBtnText, { color: role === 'editor' ? colors.primary : colors.muted }]}>
-                  Editor
+                  {translations.sharing.roleEditor}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -180,7 +180,7 @@ export default function TripShareScreen() {
               ) : (
                 <>
                   <Ionicons name="paper-plane-outline" size={16} color={ON_PRIMARY} />
-                  <Text style={styles.inviteBtnText}>Enviar Convite</Text>
+                  <Text style={styles.inviteBtnText}>{translations.sharing.sendInvite}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -188,7 +188,7 @@ export default function TripShareScreen() {
 
           {/* Existing shares */}
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 16 }]}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Convites enviados</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{translations.sharing.sentInvites}</Text>
 
             {sharesQuery.isLoading && (
               <ActivityIndicator color={colors.primary} style={{ marginVertical: 16 }} />
@@ -196,7 +196,7 @@ export default function TripShareScreen() {
 
             {!sharesQuery.isLoading && (!sharesQuery.data || sharesQuery.data.length === 0) && (
               <Text style={[styles.emptyText, { color: colors.muted }]}>
-                Nenhum convite enviado ainda.
+                {translations.sharing.noShares}
               </Text>
             )}
 
@@ -244,7 +244,7 @@ export default function TripShareScreen() {
           <View style={[styles.infoBox, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '30' }]}>
             <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
             <Text style={[styles.infoText, { color: colors.primary }]}>
-              O convidado precisa ter uma conta no LocalsApp para aceitar o convite. Após aceitar, a viagem aparecerá na tela inicial dele.
+              {translations.sharing.acceptRequiresAccountMsg}
             </Text>
           </View>
         </ScrollView>

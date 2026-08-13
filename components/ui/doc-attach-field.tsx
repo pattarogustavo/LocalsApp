@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useColors } from '@/hooks/use-colors';
+import { useTranslation } from '@/hooks/use-translation';
 import { type ThemeColorPalette } from '@/constants/theme';
 
 function withAlpha(hex: string, alpha: number): string {
@@ -23,6 +24,7 @@ interface DocAttachFieldProps {
  * On tap, shows a picker: Camera, Gallery, or PDF (native only).
  */
 export function DocAttachField({ label, uri, onPick, onRemove }: DocAttachFieldProps) {
+  const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [showOptions, setShowOptions] = React.useState(false);
@@ -88,18 +90,18 @@ export function DocAttachField({ label, uri, onPick, onRemove }: DocAttachFieldP
         <>
           <TouchableOpacity style={styles.addBtn} onPress={() => setShowOptions(!showOptions)}>
             <Ionicons name="attach-outline" size={16} color={colors.primary} />
-            <Text style={styles.addBtnText}>Anexar documento</Text>
+            <Text style={styles.addBtnText}>{t.common.attachDocument}</Text>
           </TouchableOpacity>
 
           {showOptions && (
             <View style={styles.optionsRow}>
               <TouchableOpacity style={styles.optionChip} onPress={pickFromCamera}>
                 <Ionicons name="camera-outline" size={15} color={colors.foreground} />
-                <Text style={styles.optionText}>Câmera</Text>
+                <Text style={styles.optionText}>{t.transport.camera}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.optionChip} onPress={pickFromGallery}>
                 <Ionicons name="images-outline" size={15} color={colors.foreground} />
-                <Text style={styles.optionText}>Galeria</Text>
+                <Text style={styles.optionText}>{t.transport.gallery}</Text>
               </TouchableOpacity>
               {Platform.OS !== 'web' && (
                 <TouchableOpacity style={styles.optionChip} onPress={pickPdf}>
