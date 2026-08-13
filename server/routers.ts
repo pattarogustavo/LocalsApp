@@ -277,17 +277,31 @@ async function resolvePlaceIdByName(name: string, lat?: number, lng?: number): P
   }
 }
 
+// Terms expected in the caption of a photo that actually depicts a place/city,
+// used to filter out unrelated results (e.g. animals, objects) that happen to
+// rank well for a loosely-matched destination name.
+const UNSPLASH_PLACE_RELEVANCE_TERMS = [
+  "city", "cityscape", "skyline", "building", "buildings", "architecture",
+  "street", "town", "aerial", "downtown", "plaza", "square", "church",
+  "cathedral", "bridge", "landmark", "urban", "view", "sunset", "sunrise",
+];
+
 /**
  * Fetch a photo from Unsplash's search API for a destination.
- * Requests the top 4 results (already ranked by Unsplash's relevance) and
- * picks one at random rather than always the first, for some visual
- * variety across repeated lookups of the same destination.
+ * Requests the top 4 results (already ranked by Unsplash's relevance),
+ * filters out any whose caption has no place-related term (to avoid
+ * off-topic matches like animals or objects), and picks one at random
+ * among the survivors for some visual variety across repeated lookups.
  */
-async function fetchUnsplashPhoto(query: string): Promise<string | undefined> {
-  if (!UNSPLASH_ACCESS_KEY || !query) return undefined;
+async function fetchUnsplashPhoto(
+  destinationName: string,
+  country: string | undefined,
+  debugSteps: string[],
+): Promise<string | undefined> {
+  if (!UNSPLASH_ACCESS_KEY || !destinationName) return undefined;
   try {
     const url = new URL("https://api.unsplash.com/search/photos");
-    url.searchParams.set("query", query);
+    url.searchParams.set("query", `${destinationName} ${country || ''} city`.trim());
     url.searchParams.set("per_page", "4");
     url.searchParams.set("orientation", "landscape");
     const res = await fetch(url.toString(), {
@@ -296,10 +310,21 @@ async function fetchUnsplashPhoto(query: string): Promise<string | undefined> {
     const data = (await res.json()) as any;
     const results: any[] = data?.results || [];
     if (results.length === 0) return undefined;
-    const pick = results[Math.floor(Math.random() * results.length)];
+
+    const relevant = results.filter((r) => {
+      const caption = (r?.alt_description || r?.description || "").toLowerCase();
+      const isRelevant = UNSPLASH_PLACE_RELEVANCE_TERMS.some((term) => caption.includes(term));
+      if (!isRelevant) {
+        debugSteps.push(`unsplash: discarded result "${caption || '(no caption)'}" (failed relevance filter)`);
+      }
+      return isRelevant;
+    });
+    if (relevant.length === 0) return undefined;
+
+    const pick = relevant[Math.floor(Math.random() * relevant.length)];
     return pick?.urls?.regular;
   } catch (unsplashErr) {
-    console.error(`[places.details] Unsplash photo search failed for "${query}":`, unsplashErr);
+    console.error(`[places.details] Unsplash photo search failed for "${destinationName}":`, unsplashErr);
     return undefined;
   }
 }
@@ -930,7 +955,7 @@ Responda APENAS com JSON válido neste formato exato:
         let imageUrl: string | undefined;
 
         // 1. Unsplash first, using the destination name.
-        imageUrl = await fetchUnsplashPhoto(placeName);
+        imageUrl = await fetchUnsplashPhoto(placeName, countryName, debugSteps);
         debugSteps.push(imageUrl ? "unsplash: found" : "unsplash: no results");
 
         // 2. Curated Google Places photo for the specific place_id, only if Unsplash has nothing.
