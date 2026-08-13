@@ -15,6 +15,7 @@ import type {
   ItineraryStop,
 } from '@/types/voyage';
 import { trpcVanilla } from '@/lib/trpc-vanilla';
+import { normalizeCityTransportMode } from '@/utils/trip-helpers';
 
 interface TripsState {
   trips: Trip[];
@@ -130,7 +131,13 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
-        set({ trips: JSON.parse(stored) });
+        const parsedTrips = JSON.parse(stored) as Trip[];
+        set({
+          trips: parsedTrips.map((t) => ({
+            ...t,
+            cityTransportMode: normalizeCityTransportMode(t.cityTransportMode),
+          })),
+        });
       }
       const planStored = await AsyncStorage.getItem(PLAN_KEY);
       if (planStored) {
@@ -201,8 +208,12 @@ export const useTripsStore = create<TripsState>((set, get) => ({
         }
       }
 
-      set({ trips: merged });
-      await saveToStorage(merged);
+      const normalized = merged.map((t) => ({
+        ...t,
+        cityTransportMode: normalizeCityTransportMode(t.cityTransportMode),
+      }));
+      set({ trips: normalized });
+      await saveToStorage(normalized);
     } catch (e) {
       // Sync failed (offline/unauthenticated) — keep local data
       console.warn('[CloudSync] Sync failed, using local data:', e);

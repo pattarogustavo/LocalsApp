@@ -1175,12 +1175,8 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
 
         // Map cityTransportMode to a human-readable label for the prompt
         const transportLabel: Record<string, string> = {
-          walk: 'a pé (walking)',
-          bike: 'bicicleta (bicycling)',
           public: 'transporte público / metrô (transit)',
-          uber: 'Uber/táxi (driving)',
-          car: 'carro próprio (driving)',
-          taxi: 'táxi (driving)',
+          car: 'carro / táxi (driving)',
         };
         const transportHint = cityTransportMode
           ? `\n- Meio de transporte dentro da cidade: ${transportLabel[cityTransportMode] || cityTransportMode}`
@@ -1336,12 +1332,8 @@ Importante:
         const paceStops = profile.pace === 'relaxado' ? 3 : profile.pace === 'intenso' ? 6 : 4;
 
         const transportLabel: Record<string, string> = {
-          walk: 'a pé (walking)',
-          bike: 'bicicleta (bicycling)',
           public: 'transporte público / metrô (transit)',
-          uber: 'Uber/táxi (driving)',
-          car: 'carro próprio (driving)',
-          taxi: 'táxi (driving)',
+          car: 'carro / táxi (driving)',
         };
         const transportHint = cityTransportMode
           ? `\n- Meio de transporte: ${transportLabel[cityTransportMode] || cityTransportMode}`

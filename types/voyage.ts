@@ -3,7 +3,7 @@
 export type TransportMode = 'flight' | 'car' | 'train' | 'bus' | 'ferry' | 'other';
 
 // Transport used within the destination city (for routing/itinerary)
-export type CityTransportMode = 'car' | 'public' | 'uber' | 'walk' | 'bike' | 'taxi';
+export type CityTransportMode = 'car' | 'public';
 
 export interface FlightInfo {
   flightNumber: string;

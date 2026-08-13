@@ -389,14 +389,21 @@ export function getCountryFlag(country: string): string {
 
 // ─── City Transport Mode ──────────────────────────────────────────────────────
 
+// Older trips may have been saved with one of these now-retired options;
+// they all fold into 'car' so existing data keeps working.
+const LEGACY_CITY_TRANSPORT_MODES = new Set(['uber', 'walk', 'bike', 'taxi']);
+
+export function normalizeCityTransportMode(mode?: string): CityTransportMode | undefined {
+  if (!mode) return undefined;
+  if (LEGACY_CITY_TRANSPORT_MODES.has(mode)) return 'car';
+  if (mode === 'public' || mode === 'car') return mode;
+  return undefined;
+}
+
 export function getCityTransportLabel(mode: CityTransportMode): string {
   const labels: Record<CityTransportMode, string> = {
     car: 'Carro',
     public: 'Transporte Público',
-    uber: 'Uber/Táxi',
-    walk: 'A Pé',
-    bike: 'Bicicleta',
-    taxi: 'Táxi',
   };
   return labels[mode] || mode;
 }
@@ -405,10 +412,6 @@ export function getCityTransportIcon(mode: CityTransportMode): string {
   const icons: Record<CityTransportMode, string> = {
     car: 'car-outline',
     public: 'bus-outline',
-    uber: 'car-sport-outline',
-    walk: 'walk-outline',
-    bike: 'bicycle-outline',
-    taxi: 'car-outline',
   };
   return icons[mode] || 'navigate-outline';
 }
