@@ -31,6 +31,22 @@ function mapToGoogleLanguage(lang?: string): string {
   return (code && GOOGLE_LANGUAGE_MAP[code]) || "pt-BR";
 }
 
+/**
+ * Guards AI-powered procedures (itinerary generation, place suggestions,
+ * destination info) behind an active subscription, checked fresh against the
+ * DB (which auto-expires stale statuses) so no Anthropic call is ever made
+ * on behalf of a non-subscriber.
+ */
+async function requireActiveSubscription(userId: number): Promise<void> {
+  const status = await db.getSubscriptionStatus(userId);
+  if (!status || status.subscriptionStatus !== "active") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Este recurso de IA é exclusivo para assinantes do TheLocals Pro. Assine para continuar.",
+    });
+  }
+}
+
 // ─── Photo helpers ────────────────────────────────────────────────────────────
 
 /**
@@ -469,14 +485,15 @@ export const appRouter = router({
      * Generate per-destination travel info using LLM:
      * climate, crowd level, population, health/vaccine requirements, visa info.
      */
-    generate: publicProcedure
+    generate: protectedProcedure
       .input(z.object({
         destination: z.string(),
         country: z.string().optional(),
         travelMonth: z.string().optional(), // e.g. "junho"
         originCountry: z.string().optional().default('Brasil'),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        await requireActiveSubscription(ctx.user.id);
         const { destination, country, travelMonth, originCountry } = input;
         const prompt = `Você é um especialista em viagens. Forneça informações práticas e concisas sobre viajar para ${destination}${country ? `, ${country}` : ''}${travelMonth ? ` no mês de ${travelMonth}` : ''} para turistas do ${originCountry}.
 
@@ -1129,7 +1146,7 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
      * Generate a day-by-day itinerary for a trip.
      * Can use AI-selected places or user-selected places.
      */
-    generateItinerary: publicProcedure
+    generateItinerary: protectedProcedure
       .input(
         z.object({
           tripId: z.string(),
@@ -1173,7 +1190,8 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
           language: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        await requireActiveSubscription(ctx.user.id);
         const { startDate, totalDays, destinations, selectedPlaces, preferences, cityTransportMode } = input;
 
         const destSummary = destinations
@@ -1288,7 +1306,7 @@ Importante:
      * Generate itinerary from scratch with user profile questions.
      * Returns both suggested places AND a day-by-day itinerary.
      */
-    generateFromScratch: publicProcedure
+    generateFromScratch: protectedProcedure
       .input(
         z.object({
           tripId: z.string(),
@@ -1333,7 +1351,8 @@ Importante:
           language: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        await requireActiveSubscription(ctx.user.id);
         const { startDate, totalDays, destinations, cityTransportMode, selectedPlaces, profile } = input;
 
         const destSummary = destinations
@@ -1516,7 +1535,7 @@ Importante:
      * Finally, Place Details resolves address/hours/phone/photo only for the
      * places the AI actually picked.
      */
-    suggestPlaces: publicProcedure
+    suggestPlaces: protectedProcedure
       .input(
         z.object({
           destinationName: z.string(),
@@ -1528,7 +1547,8 @@ Importante:
           language: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        await requireActiveSubscription(ctx.user.id);
         const { destinationName, country, existingPlaces } = input;
         const debugSteps: string[] = [];
 
