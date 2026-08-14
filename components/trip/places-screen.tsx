@@ -6,8 +6,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
+import { useSubscription } from '@/hooks/use-subscription';
+import { useTranslation } from '@/hooks/use-translation';
+import { ProBadge } from '@/components/trial-banner';
 import { trpc } from '@/lib/trpc';
 import type { Place, Destination, PlaceAttachment } from '@/types/voyage';
 import { generateId } from '@/utils/trip-helpers';
@@ -336,6 +340,8 @@ function AIPanel({
 }) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const t = useTranslation();
+  const { hasAccess } = useSubscription();
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -373,7 +379,9 @@ function AIPanel({
 
   // Auto-load on mount: hydrate from cache if this destination already has
   // saved AI suggestions, otherwise fetch once and persist the result.
+  // Non-subscribers never trigger the AI call — they get a locked state instead.
   useEffect(() => {
+    if (!hasAccess) return;
     if (destination.aiSuggestedPlaces && destination.aiSuggestedPlaces.length > 0) {
       fetchedRef.current = true;
       setSuggestions(destination.aiSuggestedPlaces);
@@ -381,7 +389,27 @@ function AIPanel({
       return;
     }
     loadSuggestions();
-  }, []);
+  }, [hasAccess]);
+
+  if (!hasAccess) {
+    return (
+      <View style={styles.aiLockedBox}>
+        <View style={styles.aiLockedIconBg}>
+          <Ionicons name="lock-closed" size={18} color={colors.textAccent} />
+        </View>
+        <Text style={styles.aiLockedTitle}>{t.aiLock.placesTitle}</Text>
+        <Text style={styles.aiLockedMsg}>{t.aiLock.placesMsg}</Text>
+        <TouchableOpacity
+          style={styles.aiLockedBtn}
+          activeOpacity={0.85}
+          onPress={() => router.push('/paywall' as any)}
+        >
+          <Ionicons name="sparkles" size={13} color={colors.textOnPrimary} />
+          <Text style={styles.aiLockedBtnText}>{t.aiLock.unlockBtn}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const filtered = useMemo(() => {
     return suggestions.filter((p) => {
@@ -713,6 +741,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
         <View style={styles.availHeader}>
           <Text style={styles.sectionLabel}>DISPONÍVEIS</Text>
           <Text style={styles.availSubtitle}>Sugestões para cada destino</Text>
+          <ProBadge />
         </View>
 
         {/* Search within Disponíveis */}
@@ -943,6 +972,52 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   destAiBlock: { marginBottom: 16 },
+
+  // AI locked state (non-subscribers)
+  aiLockedBox: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    backgroundColor: withAlpha(colors.foreground, 0.04),
+    borderRadius: 14,
+    gap: 6,
+  },
+  aiLockedIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: withAlpha(colors.primary, 0.12),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  aiLockedTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.foreground,
+    textAlign: 'center',
+  },
+  aiLockedMsg: {
+    fontSize: 12,
+    color: colors.muted,
+    textAlign: 'center',
+    lineHeight: 17,
+    marginBottom: 8,
+  },
+  aiLockedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  aiLockedBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textOnPrimary,
+  },
 
   // Available place row
   availRow: {

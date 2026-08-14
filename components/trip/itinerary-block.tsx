@@ -7,9 +7,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
+import { useSubscription } from '@/hooks/use-subscription';
+import { ProBadge } from '@/components/trial-banner';
 import { trpc } from '@/lib/trpc';
 import { CityTransportSection } from '@/components/trip/transport-block';
 import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop, CityTransportMode } from '@/types/voyage';
@@ -1042,6 +1045,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const PROFILE_OPTIONS = useMemo(() => getProfileOptions(t), [t]);
   const PACE_OPTIONS = useMemo(() => getPaceOptions(t), [t]);
   const { setItinerary, addPlace, addItineraryStop } = useTripsStore();
+  const { hasAccess } = useSubscription();
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
   const [generating, setGenerating] = useState(false);
@@ -1486,28 +1490,41 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
 
             {/* Mode options */}
             <TouchableOpacity
-              onPress={() => { setShowCreateModal(false); setShowProfileModal(true); }}
+              onPress={() => {
+                setShowCreateModal(false);
+                if (!hasAccess) { router.push('/paywall' as any); return; }
+                setShowProfileModal(true);
+              }}
               style={styles.createModeOption}
             >
               <View style={[styles.createModeIcon, { backgroundColor: withAlpha(colors.primary, 0.12) }]}>
                 <Ionicons name="sparkles" size={20} color={colors.textAccent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.createModeLabel}>{t.itinerary.createModeAutoLabel}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.createModeLabel}>{t.itinerary.createModeAutoLabel}</Text>
+                  <ProBadge />
+                </View>
                 <Text style={styles.createModeDesc}>{t.itinerary.createModeAutoDesc}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.muted} />
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={handleGenerateFromPlaces}
+              onPress={() => {
+                if (!hasAccess) { setShowCreateModal(false); router.push('/paywall' as any); return; }
+                handleGenerateFromPlaces();
+              }}
               style={styles.createModeOption}
             >
               <View style={[styles.createModeIcon, { backgroundColor: withAlpha(colors.accent, 0.15) }]}>
                 <Ionicons name="map" size={20} color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.createModeLabel}>{t.itinerary.createModeFromPlacesLabel}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.createModeLabel}>{t.itinerary.createModeFromPlacesLabel}</Text>
+                  <ProBadge />
+                </View>
                 <Text style={styles.createModeDesc}>
                   {trip.places.length > 0
                     ? t.itinerary.createModeFromPlacesDescFilled(trip.places.length)

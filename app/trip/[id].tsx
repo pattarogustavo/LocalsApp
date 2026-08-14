@@ -12,7 +12,7 @@ import {
   Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -29,6 +29,8 @@ import { AccommodationBlock } from '@/components/trip/accommodation-block';
 import { TripPhotosBlock } from '@/components/trip/photos-block';
 import { TransportSummaryCard } from '@/components/trip/next-transport-card';
 import { useColors } from '@/hooks/use-colors';
+import { useSubscription } from '@/hooks/use-subscription';
+import { ProBadge } from '@/components/trial-banner';
 import { type ThemeColorPalette } from '@/constants/theme';
 import { generateId } from '@/utils/trip-helpers';
 import * as ImagePicker from 'expo-image-picker';
@@ -843,6 +845,7 @@ function TransportTab({ trip }: { trip: any }) {
 function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: string; destination: Destination; travelMonth?: string }) {
   const generateInfo = trpc.destinationInfo.generate.useMutation();
   const { updateDestinationInfo } = useTripsStore();
+  const { hasAccess } = useSubscription();
   const [info, setInfo] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
@@ -871,14 +874,16 @@ function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: str
 
   // Auto-load on mount: hydrate from cache if this destination already has
   // saved AI info, otherwise fetch once and persist the result.
+  // Non-subscribers never trigger the AI call — they get a locked state instead.
   React.useEffect(() => {
+    if (!hasAccess) return;
     if (destination.aiDestinationInfo) {
       setInfo(destination.aiDestinationInfo);
       setLoaded(true);
       return;
     }
     load();
-  }, []);
+  }, [hasAccess]);
 
   const crowdColor = (level: string) => {
     if (!level) return colors.textAccent;
@@ -894,17 +899,36 @@ function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: str
       <View style={infoStyles.destHeader}>
         <Text style={infoStyles.destFlag}>{getCountryFlag(destination.country || destination.name) || '🌍'}</Text>
         <Text style={infoStyles.destName}>{destination.name}</Text>
+        <ProBadge />
         {travelMonth && <Text style={infoStyles.destMonth}>{travelMonth}</Text>}
       </View>
 
-      {loading && (
+      {!hasAccess && (
+        <View style={infoStyles.aiLockedBox}>
+          <View style={infoStyles.aiLockedIconBg}>
+            <Ionicons name="lock-closed" size={18} color={colors.textAccent} />
+          </View>
+          <Text style={infoStyles.aiLockedTitle}>{t.aiLock.infoTitle}</Text>
+          <Text style={infoStyles.aiLockedMsg}>{t.aiLock.infoMsg}</Text>
+          <TouchableOpacity
+            style={infoStyles.aiLockedBtn}
+            activeOpacity={0.85}
+            onPress={() => router.push('/paywall' as any)}
+          >
+            <Ionicons name="sparkles" size={13} color={colors.textOnPrimary} />
+            <Text style={infoStyles.aiLockedBtnText}>{t.aiLock.unlockBtn}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {hasAccess && loading && (
         <View style={infoStyles.loadingRow}>
           <ActivityIndicator size="small" color={colors.textAccent} />
           <Text style={infoStyles.loadingText}>{t.info.loading(destination.name)}</Text>
         </View>
       )}
 
-      {!loading && !info && loaded && (
+      {hasAccess && !loading && !info && loaded && (
         <View style={infoStyles.loadingRow}>
           <Ionicons name="alert-circle-outline" size={16} color={colors.muted} />
           <Text style={infoStyles.loadingText}>{t.info.loadError}</Text>
@@ -1086,6 +1110,50 @@ const createInfoStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     paddingVertical: 12,
   },
   loadingText: { fontSize: 13, color: colors.muted },
+  aiLockedBox: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    backgroundColor: withAlpha(colors.foreground, 0.04),
+    borderRadius: 14,
+    gap: 6,
+  },
+  aiLockedIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: withAlpha(colors.primary, 0.12),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  aiLockedTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.foreground,
+    textAlign: 'center',
+  },
+  aiLockedMsg: {
+    fontSize: 12,
+    color: colors.muted,
+    textAlign: 'center',
+    lineHeight: 17,
+    marginBottom: 8,
+  },
+  aiLockedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  aiLockedBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textOnPrimary,
+  },
   section: {
     marginBottom: 14,
     paddingBottom: 14,
