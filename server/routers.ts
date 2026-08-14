@@ -586,18 +586,11 @@ Responda APENAS com JSON válido neste formato exato:
     status: protectedProcedure.query(async ({ ctx }) => {
       const status = await db.getSubscriptionStatus(ctx.user.id);
       if (!status) return null;
-      const now = new Date();
-      let daysLeftInTrial: number | null = null;
-      if (status.subscriptionStatus === 'trial' && status.trialEndsAt) {
-        daysLeftInTrial = Math.max(0, Math.ceil((status.trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-      }
       return {
         status: status.subscriptionStatus,
         plan: status.subscriptionPlan,
         expiresAt: status.subscriptionExpiresAt,
-        trialEndsAt: status.trialEndsAt,
-        daysLeftInTrial,
-        hasAccess: status.subscriptionStatus === 'trial' || status.subscriptionStatus === 'active',
+        hasAccess: status.subscriptionStatus === 'active',
       };
     }),
 

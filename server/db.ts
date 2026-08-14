@@ -66,7 +66,7 @@ export async function updateUserProfile(openId: string, data: { name?: string; b
 }
 
 export async function updateSubscriptionStatus(userId: number, data: {
-  subscriptionStatus: "trial" | "active" | "expired" | "cancelled";
+  subscriptionStatus: "active" | "expired" | "cancelled";
   subscriptionPlan?: "monthly" | "annual" | null;
   subscriptionExpiresAt?: Date | null;
   revenuecatUserId?: string;
@@ -85,19 +85,12 @@ export async function getSubscriptionStatus(userId: number) {
     subscriptionStatus: users.subscriptionStatus,
     subscriptionPlan: users.subscriptionPlan,
     subscriptionExpiresAt: users.subscriptionExpiresAt,
-    trialStartedAt: users.trialStartedAt,
-    trialEndsAt: users.trialEndsAt,
     revenuecatUserId: users.revenuecatUserId,
   }).from(users).where(eq(users.id, userId)).limit(1);
   if (!result.length) return null;
   const row = result[0];
   const now = new Date();
 
-  // Auto-expire trial if time has passed
-  if (row.subscriptionStatus === "trial" && row.trialEndsAt && row.trialEndsAt < now) {
-    await updateSubscriptionStatus(userId, { subscriptionStatus: "expired" });
-    return { ...row, subscriptionStatus: "expired" as const };
-  }
   // Auto-expire active subscription if time has passed
   if (row.subscriptionStatus === "active" && row.subscriptionExpiresAt && row.subscriptionExpiresAt < now) {
     await updateSubscriptionStatus(userId, { subscriptionStatus: "expired" });

@@ -1,14 +1,14 @@
 import { integer, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
-export const subscriptionStatusEnum = pgEnum("subscription_status", ["trial", "active", "expired", "cancelled"]);
+export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "expired", "cancelled"]);
 export const subscriptionPlanEnum = pgEnum("subscription_plan", ["monthly", "annual"]);
 export const tripShareRoleEnum = pgEnum("trip_share_role", ["viewer", "editor"]);
 export const tripShareStatusEnum = pgEnum("trip_share_status", ["pending", "accepted", "revoked"]);
 
 /**
  * Core user table backing auth flow.
- * Extended with trial + subscription fields for monetization.
+ * Extended with subscription fields for monetization.
  */
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -20,10 +20,8 @@ export const users = pgTable("users", {
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: userRoleEnum("role").default("user").notNull(),
 
-  // ── Trial & Subscription ────────────────────────────────────────────────────
-  trialStartedAt: timestamp("trialStartedAt"),
-  trialEndsAt: timestamp("trialEndsAt"),
-  subscriptionStatus: subscriptionStatusEnum("subscriptionStatus").default("trial"),
+  // ── Subscription ─────────────────────────────────────────────────────────
+  subscriptionStatus: subscriptionStatusEnum("subscriptionStatus"),
   subscriptionPlan: subscriptionPlanEnum("subscriptionPlan"),
   subscriptionExpiresAt: timestamp("subscriptionExpiresAt"),
   revenuecatUserId: varchar("revenuecatUserId", { length: 128 }),
