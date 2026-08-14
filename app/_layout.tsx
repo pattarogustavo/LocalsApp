@@ -15,6 +15,7 @@ import { useAuthStore } from "@/store/auth";
 import { useTripsStore } from "@/store/trips";
 import { scheduleTrialNotifications } from "@/lib/subscription-notifications";
 import { withTimeout } from "@/lib/_core/with-timeout";
+import { AnimatedSplash } from "@/components/animated-splash";
 
 // Keep the native splash screen visible until we explicitly hide it below,
 // so the app never flashes to a blank screen while auth initializes.
@@ -71,22 +72,30 @@ export default function RootLayout() {
   const insets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
   const frame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
   const { initialize } = useAuthStore();
+  // AnimatedSplash renders the same compass + wordmark as the native splash,
+  // then grows a background-colored circle from the compass's center until
+  // it covers the whole screen — this stays up until both that animation and
+  // auth initialization are done, so the app never flashes to a blank or
+  // wrongly-routed screen. See components/animated-splash.tsx.
+  const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
+
+  useEffect(() => {
+    // Hide the native splash as soon as AnimatedSplash has mounted: its first
+    // frame is pixel-identical to the native splash image, so the handoff is
+    // invisible, and its own reveal animation needs to actually be visible
+    // (not hidden behind the still-showing native splash).
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
   useEffect(() => {
     // Initialize Supabase session on startup
-    initialize()
-      .then(() => {
-        // Schedule trial notifications after loading auth state
-        const { user } = useAuthStore.getState();
-        if (user?.trialEndsAt && user.subscriptionStatus === 'trial') {
-          scheduleTrialNotifications(user).catch(() => {});
-        }
-      })
-      .finally(() => {
-        // Only now do we know whether the user has a session, so the splash
-        // screen stays up until AuthGuard has enough state to route correctly.
-        SplashScreen.hideAsync().catch(() => {});
-      });
+    initialize().then(() => {
+      // Schedule trial notifications after loading auth state
+      const { user } = useAuthStore.getState();
+      if (user?.trialEndsAt && user.subscriptionStatus === 'trial') {
+        scheduleTrialNotifications(user).catch(() => {});
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -191,6 +200,17 @@ export default function RootLayout() {
             <Stack.Screen name="paywall" />
           </Stack>
           <StatusBar style="light" />
+          {showAnimatedSplash && (
+            <AnimatedSplash
+              onFinished={() => {
+                // Defensive/idempotent: already hidden right after mount in
+                // the effect above, but guard against any race where it
+                // somehow wasn't.
+                SplashScreen.hideAsync().catch(() => {});
+                setShowAnimatedSplash(false);
+              }}
+            />
+          )}
         </QueryClientProvider>
       </trpc.Provider>
       </KeyboardAvoidingView>
