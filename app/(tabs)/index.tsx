@@ -23,7 +23,6 @@ import { TripCard, TripCardStacked, getImageForTrip } from '@/components/trip-ca
 import { CreateTripSheet } from '@/components/create-trip-sheet';
 import { isTripUpcoming, isTripPast, isTripOngoing, getTripName } from '@/utils/trip-helpers';
 import type { Trip } from '@/types/voyage';
-import { TrialBanner } from '@/components/trial-banner';
 import { useAuthStore } from '@/store/auth';
 import { useSubscription } from '@/hooks/use-subscription';
 import { useTranslation } from '@/hooks/use-translation';
@@ -98,7 +97,6 @@ export default function HomeScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Status bar background - extends bg color behind iPhone status bar */}
       <View style={{ height: insets.top, backgroundColor: colors.background }} />
-      <TrialBanner />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}

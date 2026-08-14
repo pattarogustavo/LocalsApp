@@ -57,7 +57,7 @@ export const de: Translations = {
       feature3Desc: 'Flugalarme und automatische Checkliste',
       getStarted: 'Kostenlos starten',
       alreadyHaveAccount: 'Ich habe bereits ein Konto',
-      trialInfo: '7 Tage kostenlos · Keine Kreditkarte erforderlich',
+      trialInfo: 'Kostenlos starten · Jederzeit kündbar',
     },
     login: {
       title: 'Anmelden',
@@ -91,7 +91,7 @@ export const de: Translations = {
       login: 'Anmelden',
       orContinueWith: 'or continue with',
       continueWithGoogle: 'Continue with Google',
-      trialInfo: '7 kostenlose Tage inklusive',
+      trialInfo: 'Beginne mit der Planung deiner nächsten Reise',
       errorTitle: 'Registrierungsfehler',
       fillFields: 'Bitte alle Felder ausfüllen.',
       passwordMismatch: 'Passwörter stimmen nicht überein.',
@@ -765,8 +765,8 @@ export const de: Translations = {
     trialBadge: '7 Tage kostenlos',
     alreadySubscribed: 'Du hast bereits ein aktives Abonnement.',
     close: 'Close',
-    trialEnded: 'Deine Testversion ist abgelaufen',
-    trialEndedSubtitle: 'Abonniere, um weiterhin Reisen mit LocalsApp zu planen.',
+    accessRequired: 'Diese Funktion ist nur für Abonnenten',
+    accessRequiredSubtitle: 'Abonniere, um weiterhin Reisen mit LocalsApp zu planen.',
     upgradeTitle: 'Auf LocalsApp Pro upgraden',
     upgradeSubtitle: 'Erlebe die vollständige Reiseplanung.',
     unlockAll: 'alles freischalten',
@@ -776,8 +776,9 @@ export const de: Translations = {
     featureDocs: 'Dokumentenspeicherung & -freigabe',
     featureCollaborate: 'Gemeinsame Reiseplanung',
     featureReminders: 'Intelligente Reiseerinnerungen',
-    billedAnnuallyFull: 'Jährlich abgerechnet',
+    billedAnnuallyFull: 'Jährlich abgerechnet: 39,99 $',
     cancelAnytime: 'Jederzeit kündbar',
+    seeExampleItinerary: 'Beispiel-Reiseplan ansehen',
     startAnnual: 'Jahresplan starten',
     startMonthly: 'Monatsplan starten',
     subscribeSuccess: 'Abonnement aktiviert!',
@@ -788,11 +789,28 @@ export const de: Translations = {
     noPurchasesMsg: 'Für dieses Konto wurden keine früheren Käufe gefunden.',
   },
 
-  trialBanner: {
-    daysLeft: (n: number) => `Noch ${n} Testtag${n !== 1 ? 'e' : ''} übrig`,
-    upgrade: 'Upgraden',
-    expired: 'Deine Testversion ist abgelaufen',
-    subscribeNow: 'Jetzt abonnieren',
+  welcomeOffer: {
+    title: 'Reisepläne wie dieser, fertig in Minuten',
+    subtitle: 'Sieh, wie einfach es ist, deine nächste Reise mit der KI von TheLocals zu planen.',
+    previewTitle: 'Reiseplan-Vorschau',
+    previewLabel: 'Beispiel: 3 Tage in Paris',
+    benefit1: 'Unbegrenzte KI-generierte Reisepläne',
+    benefit2: 'Überlegene KI-Qualität mit echten Orten',
+    benefit3: 'Vollständige Vorschläge und Infos zum Reiseziel',
+    subscribeBtn: 'TheLocals Pro abonnieren',
+    continueWithoutSubscribing: 'Ohne Abo fortfahren',
+  },
+
+  proBadge: {
+    label: 'Pro',
+  },
+
+  aiLock: {
+    placesTitle: 'Ortsvorschläge sind eine Pro-Funktion',
+    placesMsg: 'Abonniere, um KI-Ortsvorschläge für jedes Reiseziel deiner Reise zu erhalten.',
+    infoTitle: 'Reiseziel-Infos sind eine Pro-Funktion',
+    infoMsg: 'Abonniere, um KI-generierte Infos zu Klima, Andrang, Gesundheit und Visum für jedes Reiseziel zu sehen.',
+    unlockBtn: 'Mit Pro freischalten',
   },
 
   sharing: {

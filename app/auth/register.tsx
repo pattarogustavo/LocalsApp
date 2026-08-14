@@ -60,6 +60,11 @@ export default function RegisterScreen() {
   const errors = validate(name, email, password, confirm);
   const canSubmit = Object.keys(errors).length === 0 && agreed && !loading;
 
+  const goAfterAuth = () => {
+    const { hasSeenWelcomeOffer } = useAuthStore.getState();
+    router.replace(hasSeenWelcomeOffer ? '/(tabs)' : ('/welcome-offer' as any));
+  };
+
   const handleRegister = async () => {
     setTouched({ name: true, email: true, password: true, confirm: true });
     if (!canSubmit) return;
@@ -76,7 +81,7 @@ export default function RegisterScreen() {
       }
       if (data.session) {
         await setSession(data.session);
-        router.replace('/(tabs)');
+        goAfterAuth();
       } else {
         Alert.alert(
           t.auth.register.confirmEmailTitle,
@@ -110,7 +115,7 @@ export default function RegisterScreen() {
       }
       if (data.session) {
         await setSession(data.session);
-        router.replace('/(tabs)');
+        goAfterAuth();
       }
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') {

@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSubscription } from '@/hooks/use-subscription';
+import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 
@@ -11,110 +12,49 @@ function withAlpha(hex: string, alpha: number): string {
   return `${hex}${a}`;
 }
 
-// Upgrade badge/button accent color, same in both light and dark schemes.
+// Badge accent color, same in both light and dark schemes.
 const UPGRADE_COLOR = '#91876E';
 
 /**
- * Displays a banner at the top of the main app during the trial period.
- * Shows days remaining and a CTA to upgrade.
- * Dismissible per session (not persisted).
+ * Small "Pro" badge shown at AI feature entry points for users who don't
+ * have an active subscription yet. Tapping it navigates to the paywall.
+ * Renders nothing once the user has access.
  */
-export function TrialBanner() {
-  const { isTrial, daysLeftInTrial } = useSubscription();
-  const [dismissed, setDismissed] = useState(false);
+export function ProBadge({ style }: { style?: object }) {
+  const { hasAccess } = useSubscription();
+  const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  if (!isTrial || dismissed) return null;
-
-  const isUrgent = (daysLeftInTrial ?? 0) <= 2;
+  if (hasAccess) return null;
 
   return (
-    <View style={[styles.container, isUrgent && styles.containerUrgent]}>
-      <View style={styles.left}>
-        <Ionicons
-          name={isUrgent ? 'warning-outline' : 'time-outline'}
-          size={14}
-          color={isUrgent ? colors.warning : colors.primary}
-        />
-        <Text style={styles.text}>
-          {daysLeftInTrial === 0
-            ? 'Trial expires today'
-            : daysLeftInTrial === 1
-            ? '1 day left in your trial'
-            : `${daysLeftInTrial} days left in your trial`}
-        </Text>
-      </View>
-      <View style={styles.right}>
-        <TouchableOpacity
-          style={[styles.upgradeBtn, isUrgent && styles.upgradeBtnUrgent]}
-          activeOpacity={0.8}
-          onPress={() => router.push('/paywall' as any)}
-        >
-          <Text style={[styles.upgradeText, isUrgent && styles.upgradeTextUrgent]}>
-            Upgrade
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setDismissed(true)} style={styles.dismissBtn}>
-          <Ionicons name="close" size={14} color={colors.muted} />
-        </TouchableOpacity>
-      </View>
-    </View>
+    <TouchableOpacity
+      style={[styles.badge, style]}
+      activeOpacity={0.8}
+      onPress={() => router.push('/paywall' as any)}
+    >
+      <Ionicons name="sparkles" size={11} color={UPGRADE_COLOR} />
+      <Text style={styles.badgeText}>{t.proBadge.label}</Text>
+    </TouchableOpacity>
   );
 }
 
 const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
-  container: {
+  badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: withAlpha(colors.primary, 0.1),
-    borderBottomWidth: 1,
-    borderBottomColor: withAlpha(colors.primary, 0.15),
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  containerUrgent: {
-    backgroundColor: withAlpha(colors.warning, 0.1),
-    borderBottomColor: withAlpha(colors.warning, 0.2),
-  },
-  left: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  text: {
-    fontSize: 12,
-    color: colors.muted,
-    fontWeight: '500',
-  },
-  right: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  upgradeBtn: {
+    gap: 4,
     backgroundColor: withAlpha(UPGRADE_COLOR, 0.15),
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderWidth: 1,
     borderColor: withAlpha(UPGRADE_COLOR, 0.35),
   },
-  upgradeBtnUrgent: {
-    backgroundColor: withAlpha(colors.warning, 0.15),
-    borderColor: withAlpha(colors.warning, 0.35),
-  },
-  upgradeText: {
+  badgeText: {
     fontSize: 11,
     fontWeight: '700',
     color: UPGRADE_COLOR,
-  },
-  upgradeTextUrgent: {
-    color: colors.warning,
-  },
-  dismissBtn: {
-    padding: 2,
   },
 });

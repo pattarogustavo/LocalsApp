@@ -7,6 +7,7 @@ import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 const LANG_KEY = 'voyage_preferred_language';
 const PROFILE_KEY = 'voyage_user_profile';
 const THEME_KEY = 'voyage_theme_mode';
+const WELCOME_OFFER_KEY = 'voyage_has_seen_welcome_offer';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -15,10 +16,9 @@ export interface AuthUser {
   email: string | null;
   name: string | null;
   bio?: string | null;
-  subscriptionStatus: 'trial' | 'active' | 'expired' | 'cancelled' | null;
+  subscriptionStatus: 'active' | 'expired' | 'cancelled' | null;
   subscriptionPlan: 'monthly' | 'annual' | null;
   subscriptionExpiresAt: string | null;
-  trialEndsAt: string | null;
   avatarUri?: string | null;
   preferredLanguage?: string | null;
 }
@@ -30,6 +30,7 @@ interface AuthState {
   initialized: boolean;
   preferredLanguage: string;
   themeMode: ThemeMode;
+  hasSeenWelcomeOffer: boolean;
 
   // Actions
   setSession: (session: Session | null) => Promise<void>;
@@ -39,6 +40,7 @@ interface AuthState {
   updateSubscription: (data: Partial<AuthUser>) => void;
   setLanguage: (lang: string) => void;
   setThemeMode: (mode: ThemeMode) => void;
+  markWelcomeOfferSeen: () => void;
 
   // Computed helpers
   get token(): string | null;
@@ -57,7 +59,6 @@ function supabaseUserToAuthUser(
     subscriptionStatus: profile?.subscriptionStatus ?? null,
     subscriptionPlan: profile?.subscriptionPlan ?? null,
     subscriptionExpiresAt: profile?.subscriptionExpiresAt ?? null,
-    trialEndsAt: profile?.trialEndsAt ?? null,
     avatarUri: profile?.avatarUri ?? null,
     preferredLanguage: profile?.preferredLanguage ?? null,
   };
@@ -70,6 +71,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialized: false,
   preferredLanguage: 'pt',
   themeMode: 'system',
+  hasSeenWelcomeOffer: false,
 
   get token() {
     return get().session?.access_token ?? null;
@@ -105,6 +107,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const savedLang = await withTimeout(AsyncStorage.getItem(LANG_KEY), null);
       const savedTheme = await withTimeout(AsyncStorage.getItem(THEME_KEY), null) as ThemeMode | null;
       const themeMode: ThemeMode = savedTheme ?? 'system';
+      const savedWelcomeOffer = await withTimeout(AsyncStorage.getItem(WELCOME_OFFER_KEY), null);
+      const hasSeenWelcomeOffer = savedWelcomeOffer === '1';
       const { data: { session } } = await withTimeout(
         supabase.auth.getSession(),
         { data: { session: null }, error: null },
@@ -118,9 +122,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } catch {}
         const user = supabaseUserToAuthUser(session.user, profile);
         const lang = user.preferredLanguage ?? savedLang ?? 'pt';
-        set({ session, user, loading: false, initialized: true, preferredLanguage: lang, themeMode });
+        set({ session, user, loading: false, initialized: true, preferredLanguage: lang, themeMode, hasSeenWelcomeOffer });
       } else {
-        set({ session: null, user: null, loading: false, initialized: true, preferredLanguage: savedLang ?? 'pt', themeMode });
+        set({ session: null, user: null, loading: false, initialized: true, preferredLanguage: savedLang ?? 'pt', themeMode, hasSeenWelcomeOffer });
       }
       initializedSafely = true;
     } catch {
@@ -148,6 +152,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setThemeMode: (mode: ThemeMode) => {
     set({ themeMode: mode });
     AsyncStorage.setItem(THEME_KEY, mode);
+  },
+
+  markWelcomeOfferSeen: () => {
+    set({ hasSeenWelcomeOffer: true });
+    AsyncStorage.setItem(WELCOME_OFFER_KEY, '1');
   },
 
   updateProfile: (data) => {

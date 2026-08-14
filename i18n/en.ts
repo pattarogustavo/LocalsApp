@@ -57,7 +57,7 @@ export const en: Translations = {
       feature3Desc: 'Flight alerts and automatic checklist',
       getStarted: 'Get started for free',
       alreadyHaveAccount: 'I already have an account',
-      trialInfo: '7 days free · No credit card required',
+      trialInfo: 'Free to start · Cancel anytime',
     },
     login: {
       title: 'Sign in',
@@ -91,7 +91,7 @@ export const en: Translations = {
       login: 'Sign in',
       orContinueWith: 'or continue with',
       continueWithGoogle: 'Continue with Google',
-      trialInfo: '7 free days included',
+      trialInfo: 'Start planning your next trip',
       errorTitle: 'Registration error',
       fillFields: 'Please fill in all fields.',
       passwordMismatch: 'Passwords do not match.',
@@ -765,8 +765,8 @@ export const en: Translations = {
     trialBadge: '7 days free',
     alreadySubscribed: 'You already have an active subscription.',
     close: 'Close',
-    trialEnded: 'Your trial has ended',
-    trialEndedSubtitle: 'Subscribe to continue planning your trips with LocalsApp.',
+    accessRequired: 'This feature is for subscribers only',
+    accessRequiredSubtitle: 'Subscribe to continue planning your trips with LocalsApp.',
     upgradeTitle: 'Upgrade to LocalsApp Pro',
     upgradeSubtitle: 'Unlock the full travel planning experience.',
     unlockAll: 'unlock everything',
@@ -776,8 +776,9 @@ export const en: Translations = {
     featureDocs: 'Document storage & sharing',
     featureCollaborate: 'Collaborative trip planning',
     featureReminders: 'Smart travel reminders',
-    billedAnnuallyFull: 'Billed R$238,80/year',
+    billedAnnuallyFull: 'Billed $39.99/year',
     cancelAnytime: 'Cancel anytime',
+    seeExampleItinerary: 'See an example itinerary',
     startAnnual: 'Start Annual Plan',
     startMonthly: 'Start Monthly Plan',
     subscribeSuccess: 'Subscription activated!',
@@ -788,11 +789,28 @@ export const en: Translations = {
     noPurchasesMsg: 'No previous purchases were found for this account.',
   },
 
-  trialBanner: {
-    daysLeft: (n: number) => `${n} trial day${n !== 1 ? 's' : ''} remaining`,
-    upgrade: 'Upgrade',
-    expired: 'Your trial has expired',
-    subscribeNow: 'Subscribe now',
+  welcomeOffer: {
+    title: 'Itineraries like this, ready in minutes',
+    subtitle: 'See how easy it is to plan your next trip with TheLocals AI.',
+    previewTitle: 'Itinerary preview',
+    previewLabel: 'Example: 3 Days in Paris',
+    benefit1: 'Unlimited AI-generated itineraries',
+    benefit2: 'Superior AI quality, with real places',
+    benefit3: 'Full destination suggestions and info',
+    subscribeBtn: 'Subscribe to TheLocals Pro',
+    continueWithoutSubscribing: 'Continue without subscribing',
+  },
+
+  proBadge: {
+    label: 'Pro',
+  },
+
+  aiLock: {
+    placesTitle: 'Place suggestions are a Pro feature',
+    placesMsg: 'Subscribe to get AI place suggestions for every destination in your trip.',
+    infoTitle: 'Destination info is a Pro feature',
+    infoMsg: 'Subscribe to see AI-generated climate, crowd levels, health and visa info for every destination.',
+    unlockBtn: 'Unlock with Pro',
   },
 
   sharing: {

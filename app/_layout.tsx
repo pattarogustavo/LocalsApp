@@ -13,7 +13,6 @@ import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import { useAuthStore } from "@/store/auth";
 import { useTripsStore } from "@/store/trips";
-import { scheduleTrialNotifications } from "@/lib/subscription-notifications";
 import { withTimeout } from "@/lib/_core/with-timeout";
 import { AnimatedSplash } from "@/components/animated-splash";
 
@@ -89,13 +88,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     // Initialize Supabase session on startup
-    initialize().then(() => {
-      // Schedule trial notifications after loading auth state
-      const { user } = useAuthStore.getState();
-      if (user?.trialEndsAt && user.subscriptionStatus === 'trial') {
-        scheduleTrialNotifications(user).catch(() => {});
-      }
-    });
+    initialize();
   }, []);
 
   useEffect(() => {
@@ -198,6 +191,8 @@ export default function RootLayout() {
             <Stack.Screen name="auth/register" />
             <Stack.Screen name="auth/forgot-password" />
             <Stack.Screen name="paywall" />
+            <Stack.Screen name="welcome-offer" options={{ animation: 'fade', gestureEnabled: false }} />
+            <Stack.Screen name="example-itinerary" options={{ presentation: 'modal' }} />
           </Stack>
           <StatusBar style="light" />
           {showAnimatedSplash && (

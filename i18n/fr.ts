@@ -57,7 +57,7 @@ export const fr: Translations = {
       feature3Desc: 'Alertes de vol et checklist automatique',
       getStarted: 'Commencer gratuitement',
       alreadyHaveAccount: "J'ai déjà un compte",
-      trialInfo: '7 jours gratuits · Sans carte de crédit',
+      trialInfo: 'Gratuit pour commencer · Annulez à tout moment',
     },
     login: {
       title: 'Connexion',
@@ -91,7 +91,7 @@ export const fr: Translations = {
       login: 'Se connecter',
       orContinueWith: 'ou continuer avec',
       continueWithGoogle: 'Continuer avec Google',
-      trialInfo: '7 jours gratuits inclus',
+      trialInfo: 'Commencez à planifier votre prochain voyage',
       errorTitle: "Erreur d'inscription",
       fillFields: 'Veuillez remplir tous les champs.',
       passwordMismatch: 'Les mots de passe ne correspondent pas.',
@@ -765,8 +765,8 @@ export const fr: Translations = {
     trialBadge: '7 jours gratuits',
     alreadySubscribed: 'Vous avez déjà un abonnement actif.',
     close: 'Fermer',
-    trialEnded: 'Votre essai est terminé',
-    trialEndedSubtitle: 'Abonnez-vous pour continuer à planifier vos voyages avec LocalsApp.',
+    accessRequired: 'Fonctionnalité réservée aux abonnés',
+    accessRequiredSubtitle: 'Abonnez-vous pour continuer à planifier vos voyages avec LocalsApp.',
     upgradeTitle: 'Passer à LocalsApp Pro',
     upgradeSubtitle: 'Débloquez l\'expérience complète de planification de voyage.',
     unlockAll: 'tout débloquer',
@@ -776,8 +776,9 @@ export const fr: Translations = {
     featureDocs: 'Stockage et partage de documents',
     featureCollaborate: 'Planification collaborative de voyages',
     featureReminders: 'Rappels de voyage intelligents',
-    billedAnnuallyFull: 'Facturé R$238,80/an',
+    billedAnnuallyFull: 'Facturé 39,99 $/an',
     cancelAnytime: 'Annulez à tout moment',
+    seeExampleItinerary: 'Voir un exemple d\'itinéraire',
     startAnnual: 'Démarrer le plan annuel',
     startMonthly: 'Démarrer le plan mensuel',
     subscribeSuccess: 'Abonnement activé !',
@@ -788,11 +789,28 @@ export const fr: Translations = {
     noPurchasesMsg: 'Aucun achat précédent n\'a été trouvé pour ce compte.',
   },
 
-  trialBanner: {
-    daysLeft: (n: number) => `${n} jour${n !== 1 ? 's' : ''} d'essai restant${n !== 1 ? 's' : ''}`,
-    upgrade: 'Mettre à niveau',
-    expired: 'Votre essai a expiré',
-    subscribeNow: "S'abonner maintenant",
+  welcomeOffer: {
+    title: 'Des itinéraires comme celui-ci, prêts en quelques minutes',
+    subtitle: 'Découvrez à quel point il est facile de planifier votre prochain voyage avec l\'IA de TheLocals.',
+    previewTitle: 'Aperçu de l\'itinéraire',
+    previewLabel: 'Exemple : 3 jours à Paris',
+    benefit1: 'Itinéraires illimités générés par IA',
+    benefit2: 'Qualité IA supérieure, avec de vrais lieux',
+    benefit3: 'Suggestions et infos complètes sur la destination',
+    subscribeBtn: "S'abonner à TheLocals Pro",
+    continueWithoutSubscribing: "Continuer sans m'abonner",
+  },
+
+  proBadge: {
+    label: 'Pro',
+  },
+
+  aiLock: {
+    placesTitle: 'Les suggestions de lieux sont une fonctionnalité Pro',
+    placesMsg: 'Abonnez-vous pour recevoir des suggestions de lieux par IA pour chaque destination de votre voyage.',
+    infoTitle: 'Les infos de destination sont une fonctionnalité Pro',
+    infoMsg: 'Abonnez-vous pour voir le climat, l\'affluence, la santé et les visas générés par IA pour chaque destination.',
+    unlockBtn: 'Débloquer avec Pro',
   },
 
   sharing: {

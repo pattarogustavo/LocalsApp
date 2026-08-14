@@ -38,6 +38,11 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
 
+  const goAfterAuth = () => {
+    const { hasSeenWelcomeOffer } = useAuthStore.getState();
+    router.replace(hasSeenWelcomeOffer ? '/(tabs)' : ('/welcome-offer' as any));
+  };
+
   const handleLogin = async () => {
     if (!email.trim() || !password) {
       Alert.alert('Erro', 'Preencha e-mail e senha.');
@@ -55,7 +60,7 @@ export default function LoginScreen() {
       }
       if (data.session) {
         await setSession(data.session);
-        router.replace('/(tabs)');
+        goAfterAuth();
       }
     } catch (e: any) {
       Alert.alert('Erro', e.message ?? 'Tente novamente.');
@@ -83,7 +88,7 @@ export default function LoginScreen() {
       }
       if (data.session) {
         await setSession(data.session);
-        router.replace('/(tabs)');
+        goAfterAuth();
       }
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') {

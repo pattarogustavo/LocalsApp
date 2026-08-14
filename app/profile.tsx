@@ -59,7 +59,6 @@ const THEME_OPTIONS: { mode: ThemeMode; icon: string }[] = [
 
 function getSubscriptionBadgeConfig(colors: ThemeColorPalette) {
   return {
-    trial: { bg: withAlpha(colors.primary, 0.12), color: colors.textAccent, icon: 'time-outline' },
     active: { bg: withAlpha(colors.primary, 0.12), color: colors.textAccent, icon: 'checkmark-circle-outline' },
     expired: { bg: withAlpha(colors.error, 0.12), color: colors.error, icon: 'close-circle-outline' },
     cancelled: { bg: withAlpha(colors.muted, 0.15), color: colors.muted, icon: 'ban-outline' },
@@ -73,7 +72,6 @@ function SubscriptionBadge({ status, t }: { status: string | null; t: ReturnType
   const styles = useMemo(() => createStyles(colors), [colors]);
   const statusConfig = getSubscriptionBadgeConfig(colors);
   const labels: Record<string, string> = {
-    trial: 'Trial',
     active: 'Pro',
     expired: t.profile.expiredStatus,
     cancelled: t.common.cancel,
@@ -464,7 +462,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { user, logout, updateProfile, themeMode, setThemeMode } = useAuthStore();
-  const { status, isTrial, isActive, isExpired, daysLeftInTrial, trialEndsAt, subscriptionExpiresAt, plan } = useSubscription();
+  const { status, isActive, isExpired, subscriptionExpiresAt, plan } = useSubscription();
   const [loggingOut, setLoggingOut] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [showLangModal, setShowLangModal] = useState(false);
@@ -603,35 +601,6 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t.profile.subscription}</Text>
           <View style={styles.card}>
-            {isTrial && (
-              <>
-                <View style={styles.cardRow}>
-                  <Text style={styles.cardLabel}>Status</Text>
-                  <Text style={styles.cardValue}>{t.profile.trialStatus}</Text>
-                </View>
-                <View style={styles.cardRow}>
-                  <Text style={styles.cardLabel}>{t.profile.daysLeft}</Text>
-                  <Text style={[styles.cardValue, (daysLeftInTrial ?? 0) <= 2 && styles.cardValueWarning]}>
-                    {daysLeftInTrial ?? 0} {(daysLeftInTrial ?? 0) !== 1 ? t.common.days : t.common.day}
-                  </Text>
-                </View>
-                {trialEndsAt && (
-                  <View style={styles.cardRow}>
-                    <Text style={styles.cardLabel}>{t.profile.trialEnds}</Text>
-                    <Text style={styles.cardValue}>{formatDate(trialEndsAt)}</Text>
-                  </View>
-                )}
-                <TouchableOpacity
-                  style={styles.upgradeBtn}
-                  activeOpacity={0.85}
-                  onPress={() => router.push('/paywall' as any)}
-                >
-                  <Ionicons name="sparkles-outline" size={14} color={colors.textOnPrimary} />
-                  <Text style={styles.upgradeBtnText}>{t.profile.upgradeBtn}</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
             {isActive && (
               <>
                 <View style={styles.cardRow}>

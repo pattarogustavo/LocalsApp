@@ -14,7 +14,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { trpc } from '@/lib/trpc';
 import { useAuthStore } from '@/store/auth';
-import { useSubscription } from '@/hooks/use-subscription';
 import { sendSubscriptionConfirmedNotification, scheduleRenewalReminder } from '@/lib/subscription-notifications';
 import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
@@ -38,7 +37,6 @@ export default function PaywallScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const { updateSubscription } = useAuthStore();
-  const { isTrial, daysLeftInTrial } = useSubscription();
 
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('annual');
   const [loading, setLoading] = useState(false);
@@ -110,17 +108,13 @@ export default function PaywallScreen() {
         <View style={styles.hero}>
           {isBlocking ? (
             <>
-              <Text style={styles.heroTitle}>{t.paywall.trialEnded}</Text>
-              <Text style={styles.heroSubtitle}>{t.paywall.trialEndedSubtitle}</Text>
+              <Text style={styles.heroTitle}>{t.paywall.accessRequired}</Text>
+              <Text style={styles.heroSubtitle}>{t.paywall.accessRequiredSubtitle}</Text>
             </>
           ) : (
             <>
               <Text style={styles.heroTitle}>{t.paywall.upgradeTitle}</Text>
-              <Text style={styles.heroSubtitle}>
-                {isTrial && daysLeftInTrial !== null
-                  ? t.trialBanner.daysLeft(daysLeftInTrial) + ' — ' + t.paywall.unlockAll
-                  : t.paywall.upgradeSubtitle}
-              </Text>
+              <Text style={styles.heroSubtitle}>{t.paywall.upgradeSubtitle}</Text>
             </>
           )}
         </View>
@@ -137,6 +131,16 @@ export default function PaywallScreen() {
           ))}
         </View>
 
+        {/* Example itinerary preview link */}
+        <TouchableOpacity
+          style={styles.exampleLink}
+          activeOpacity={0.7}
+          onPress={() => router.push('/example-itinerary' as any)}
+        >
+          <Ionicons name="map-outline" size={14} color={colors.textAccent} />
+          <Text style={styles.exampleLinkText}>{t.paywall.seeExampleItinerary}</Text>
+        </TouchableOpacity>
+
         {/* Plan selector */}
         <View style={styles.plans}>
           {/* Annual plan */}
@@ -147,7 +151,7 @@ export default function PaywallScreen() {
           >
             <View style={styles.planBadgeRow}>
               <View style={styles.saveBadge}>
-                <Text style={styles.saveBadgeText}>{t.paywall.save} 40%</Text>
+                <Text style={styles.saveBadgeText}>{t.paywall.save} 33%</Text>
               </View>
               {selectedPlan === 'annual' && (
                 <View style={styles.selectedDot}>
@@ -157,7 +161,7 @@ export default function PaywallScreen() {
             </View>
             <Text style={styles.planName}>{t.paywall.annual}</Text>
             <View style={styles.planPriceRow}>
-              <Text style={styles.planPrice}>R$19,90</Text>
+              <Text style={styles.planPrice}>$3.33</Text>
               <Text style={styles.planPeriod}>{t.paywall.perMonth}</Text>
             </View>
             <Text style={styles.planBilled}>{t.paywall.billedAnnuallyFull}</Text>
@@ -178,7 +182,7 @@ export default function PaywallScreen() {
             )}
             <Text style={styles.planName}>{t.paywall.monthly}</Text>
             <View style={styles.planPriceRow}>
-              <Text style={styles.planPrice}>R$33,90</Text>
+              <Text style={styles.planPrice}>$4.99</Text>
               <Text style={styles.planPeriod}>{t.paywall.perMonth}</Text>
             </View>
             <Text style={styles.planBilled}>{t.paywall.cancelAnytime}</Text>
@@ -309,6 +313,19 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     fontSize: 14,
     color: colors.foreground,
     fontWeight: '500',
+  },
+  exampleLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 20,
+  },
+  exampleLinkText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textAccent,
+    textDecorationLine: 'underline',
   },
   plans: {
     flexDirection: 'row',
