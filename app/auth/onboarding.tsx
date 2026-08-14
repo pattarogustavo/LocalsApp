@@ -81,7 +81,7 @@ export default function OnboardingScreen() {
 
       {/* Title block */}
       <View style={styles.titleBlock}>
-        <Text style={styles.appName}>Locals</Text>
+        <Text style={styles.appName}>TheLocals</Text>
         <View style={styles.appTagRow}>
           <View style={styles.tagLine} />
           <Text style={styles.appTag}>APP</Text>

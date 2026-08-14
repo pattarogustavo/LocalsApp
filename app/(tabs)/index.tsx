@@ -111,7 +111,7 @@ export default function HomeScreen() {
         >
           <View>
             <Text style={{ fontSize: 32, fontFamily: 'serif', fontStyle: 'italic', color: colors.foreground, fontWeight: '400' }}>
-              Locals
+              TheLocals
             </Text>
           </View>
           <View className="flex-row gap-2">
