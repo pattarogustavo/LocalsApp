@@ -13,7 +13,7 @@ const themeColors = {
   // Constante nos dois esquemas — por isso NUNCA deve ser usado como cor de
   // TEXTO solta sobre background/surface (falha contraste no modo escuro,
   // 2.25:1). Para texto/ícone com essa identidade de marca, use `textAccent`.
-  primary: { light: '#3D5A2E', dark: '#3D5A2E' },
+  primary: { light: '#465639', dark: '#465639' },
   // Verde-oliva secundário, usado raramente (variação decorativa de primary).
   secondary: { light: '#4A6B38', dark: '#4A6B38' },
 
