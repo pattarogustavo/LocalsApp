@@ -538,6 +538,7 @@ function CustomSearchResultRow({
 export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const t = useTranslation();
   const { addPlace, removePlace, setItinerary } = useTripsStore();
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeDestFilter, setActiveDestFilter] = useState('all');
@@ -546,7 +547,6 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
 
   // Custom place search
-  const [showCustomSearch, setShowCustomSearch] = useState(false);
   const [customQuery, setCustomQuery] = useState('');
   const [customDestId, setCustomDestId] = useState(destinations[0]?.id || '');
   const [customSearchEnabled, setCustomSearchEnabled] = useState(false);
@@ -736,15 +736,15 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
         )}
       </View>
 
-      {/* ── DISPONÍVEIS (auto-loads) ── */}
+      {/* ── RECOMENDAÇÕES (auto-loads) ── */}
       <View style={styles.sectionBlock}>
         <View style={styles.availHeader}>
-          <Text style={styles.sectionLabel}>DISPONÍVEIS</Text>
+          <Text style={styles.sectionLabel}>{t.places.recommendations}</Text>
           <Text style={styles.availSubtitle}>Sugestões para cada destino</Text>
           <ProBadge />
         </View>
 
-        {/* Search within Disponíveis */}
+        {/* Search within recommendations */}
         <View style={[styles.searchRow, { marginBottom: 16 }]}>
           <Ionicons name="search-outline" size={15} color={colors.muted} />
           <TextInput
@@ -761,82 +761,6 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
             </TouchableOpacity>
           )}
         </View>
-
-        {/* ── Pesquisa personalizada via Google Places ── */}
-        <TouchableOpacity
-          style={styles.customSearchToggleBtn}
-          onPress={() => setShowCustomSearch(!showCustomSearch)}
-        >
-          <Ionicons name={showCustomSearch ? 'chevron-up' : 'add-circle-outline'} size={16} color={colors.textAccent} />
-          <Text style={styles.customSearchToggleText}>
-            {showCustomSearch ? 'Fechar pesquisa' : 'Pesquisar lugar que não aparece aqui'}
-          </Text>
-        </TouchableOpacity>
-
-        {showCustomSearch && (
-          <View style={styles.customSearchSection}>
-            <View style={styles.customSearchHeader}>
-              <Text style={styles.customSearchTitle}>PESQUISA PERSONALIZADA</Text>
-              <Ionicons name="search" size={14} color={colors.textAccent} />
-            </View>
-
-            {/* Destination selector (if multiple) */}
-            {destinations.length > 1 && (
-              <View style={styles.customDestPicker}>
-                {destinations.map((d) => (
-                  <TouchableOpacity
-                    key={d.id}
-                    style={[styles.customDestChip, customDestId === d.id && styles.customDestChipActive]}
-                    onPress={() => { setCustomDestId(d.id); setCustomSearchEnabled(false); }}
-                  >
-                    <Text style={[styles.customDestChipText, customDestId === d.id && styles.customDestChipTextActive]}>
-                      {d.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {/* Search input + button */}
-            <View style={styles.customSearchRow}>
-              <TextInput
-                style={styles.customSearchInput}
-                placeholder="Ex: Museu do Louvre, restaurante italiano..."
-                placeholderTextColor={colors.muted}
-                value={customQuery}
-                onChangeText={(t) => { setCustomQuery(t); setCustomSearchEnabled(false); }}
-                returnKeyType="search"
-                onSubmitEditing={handleCustomSearch}
-              />
-              <TouchableOpacity
-                style={[styles.customSearchBtn, customQuery.trim().length < 2 && { opacity: 0.4 }]}
-                onPress={handleCustomSearch}
-                disabled={customQuery.trim().length < 2}
-              >
-                {customSearchQuery.isFetching ? (
-                  <ActivityIndicator size="small" color={colors.textOnPrimary} />
-                ) : (
-                  <Text style={styles.customSearchBtnText}>Buscar</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {/* Results */}
-            {customSearchEnabled && !customSearchQuery.isFetching && customResults.length === 0 && customQuery.trim().length >= 2 && (
-              <Text style={{ color: colors.muted, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
-                Nenhum resultado encontrado. Tente outros termos.
-              </Text>
-            )}
-            {customResults.map((result: any) => (
-              <CustomSearchResultRow
-                key={result.placeId}
-                result={result}
-                isAdded={places.some((p) => p.placeId === result.placeId || p.name === result.name)}
-                onAdd={() => handleAddCustomPlace(result, customDestId)}
-              />
-            ))}
-          </View>
-        )}
 
         {/* AI suggestions per destination — auto-loads */}
         {destinations.map((dest) => (
@@ -855,6 +779,70 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
             />
           </View>
         ))}
+
+        {/* ── Pesquisa personalizada via Google Places — always visible ── */}
+        <View style={styles.customSearchSection}>
+          <View style={styles.customSearchHeader}>
+            <Text style={styles.customSearchTitle}>{t.places.searchCustom}</Text>
+            <Ionicons name="search" size={14} color={colors.textAccent} />
+          </View>
+
+          {/* Destination selector (if multiple) */}
+          {destinations.length > 1 && (
+            <View style={styles.customDestPicker}>
+              {destinations.map((d) => (
+                <TouchableOpacity
+                  key={d.id}
+                  style={[styles.customDestChip, customDestId === d.id && styles.customDestChipActive]}
+                  onPress={() => { setCustomDestId(d.id); setCustomSearchEnabled(false); }}
+                >
+                  <Text style={[styles.customDestChipText, customDestId === d.id && styles.customDestChipTextActive]}>
+                    {d.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Search input + button */}
+          <View style={styles.customSearchRow}>
+            <TextInput
+              style={styles.customSearchInput}
+              placeholder="Ex: Museu do Louvre, restaurante italiano..."
+              placeholderTextColor={colors.muted}
+              value={customQuery}
+              onChangeText={(text) => { setCustomQuery(text); setCustomSearchEnabled(false); }}
+              returnKeyType="search"
+              onSubmitEditing={handleCustomSearch}
+            />
+            <TouchableOpacity
+              style={[styles.customSearchBtn, customQuery.trim().length < 2 && { opacity: 0.4 }]}
+              onPress={handleCustomSearch}
+              disabled={customQuery.trim().length < 2}
+            >
+              {customSearchQuery.isFetching ? (
+                <ActivityIndicator size="small" color={colors.textOnPrimary} />
+              ) : (
+                <Text style={styles.customSearchBtnText}>Buscar</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Results */}
+          {customSearchEnabled && !customSearchQuery.isFetching && customResults.length === 0 && customQuery.trim().length >= 2 && (
+            <Text style={{ color: colors.muted, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
+              Nenhum resultado encontrado. Tente outros termos.
+            </Text>
+          )}
+          {customResults.map((result: any) => (
+            <CustomSearchResultRow
+              key={result.placeId}
+              result={result}
+              isAdded={places.some((p) => p.placeId === result.placeId || p.name === result.name)}
+              onAdd={() => handleAddCustomPlace(result, customDestId)}
+            />
+          ))}
+        </View>
       </View>
 
       {/* My place detail modal */}
@@ -1187,12 +1175,5 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     width: 32, height: 32, borderRadius: 8,
     backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
-  },
-  customSearchToggleBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 10, paddingHorizontal: 4,
-  },
-  customSearchToggleText: {
-    fontSize: 13, color: colors.textAccent, fontWeight: '600',
   },
 });
