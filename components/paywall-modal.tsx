@@ -89,7 +89,7 @@ export function PaywallModal({ visible, onClose, feature }: PaywallModalProps) {
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={[styles.title, { color: colors.foreground }]}>LocalsApp Pro</Text>
+              <Text style={[styles.title, { color: colors.foreground }]}>TheLocals Pro</Text>
               <Text style={[styles.subtitle, { color: colors.muted }]}>
                 {feature
                   ? `"${feature}" é exclusivo para assinantes`

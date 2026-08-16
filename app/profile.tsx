@@ -778,7 +778,7 @@ export default function ProfileScreen() {
                 t.profile.notificationsDesc,
                 [
                   { text: t.common.close, style: 'cancel' },
-                  { text: t.profile.help, onPress: () => Linking.openURL('mailto:suporte@localsapp.com?subject=Suporte%20LocalsApp') },
+                  { text: t.profile.help, onPress: () => Linking.openURL('mailto:ghstudioapp@gmail.com?subject=Suporte%20TheLocals') },
                 ]
               )}
             >
@@ -792,7 +792,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[styles.menuRow, styles.menuRowBorder]}
               activeOpacity={0.7}
-              onPress={() => Linking.openURL('mailto:suporte@localsapp.com?subject=Suporte%20LocalsApp')}
+              onPress={() => Linking.openURL('mailto:ghstudioapp@gmail.com?subject=Suporte%20TheLocals')}
             >
               <View style={styles.menuIconBg}>
                 <Ionicons name="chatbubble-outline" size={16} color={withAlpha(colors.foreground, 0.6)} />
@@ -837,7 +837,7 @@ export default function ProfileScreen() {
           )}
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>LocalsApp v1.0.0</Text>
+        <Text style={styles.versionText}>TheLocals v1.0.0</Text>
       </ScrollView>
 
       {/* ── Modals ── */}
