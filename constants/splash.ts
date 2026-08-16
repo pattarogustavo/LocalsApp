@@ -1,13 +1,18 @@
 /**
  * Layout constants shared between the static splash image (assets/images/
  * splash-icon.png / splash-icon-dark.png, referenced from app.config.ts) and
- * AnimatedSplash (components/animated-splash.tsx), which needs to know
- * exactly where the compass sits on screen so its reveal circle can grow
- * from that same point.
+ * AnimatedSplash (components/animated-splash.tsx).
  *
- * If the source PNGs are ever regenerated with a different layout, update
- * these values to match — they're the single source of truth for the
- * compass position within the splash image.
+ * The static PNGs contain nothing but the "The Locals" wordmark, symmetrically
+ * padded and centered within their own canvas — so once expo-splash-screen's
+ * "contain" resize mode centers the image on screen, the wordmark's visual
+ * center lands exactly on the screen's center. AnimatedSplash relies on that:
+ * it renders the same wordmark centered on screen with a matching font size,
+ * with no separate position math needed.
+ *
+ * If the source PNGs are ever regenerated at a different font size/padding,
+ * update SPLASH_WORDMARK_FONT_SIZE_FRACTION (and the source dimensions) to
+ * match — see the generation script notes below.
  */
 
 // Must match the `imageWidth` set on the expo-splash-screen plugin in
@@ -15,24 +20,14 @@
 // the image to, with resizeMode: "contain".
 export const SPLASH_IMAGE_WIDTH = 200;
 
-// Source PNG dimensions (assets/images/splash-icon*.png), used to derive the
-// on-screen aspect ratio once scaled to SPLASH_IMAGE_WIDTH.
-export const SPLASH_IMAGE_SOURCE_WIDTH = 1000;
-export const SPLASH_IMAGE_SOURCE_HEIGHT = 1300;
+// Source PNG dimensions (assets/images/splash-icon*.png). Generated at
+// FONT_SIZE=220px per line, GAP=26px (12% of font size) between lines, and
+// PAD_X=PAD_Y=77px (35% of font size) symmetric padding around the text
+// block — see the wordmark generation notes in this file's git history.
+export const SPLASH_IMAGE_SOURCE_WIDTH = 816;
+export const SPLASH_IMAGE_SOURCE_HEIGHT = 522;
 
-// Compass center, as a fraction of the image's own width/height. The compass
-// is horizontally centered (0.5); vertically it sits above center to leave
-// room for the "TheLocals" wordmark underneath.
-export const SPLASH_COMPASS_CENTER_X_FRACTION = 0.5;
-export const SPLASH_COMPASS_CENTER_Y_FRACTION = 460 / 1300;
-
-// Compass size as a fraction of the image width (matches the source PNG
-// generation and the <CompassLogo> size used in AnimatedSplash).
-export const SPLASH_COMPASS_SIZE_FRACTION = 380 / 1000;
-
-// Gap between the compass's bottom edge and the "TheLocals" wordmark below
-// it, and the wordmark's font size — both expressed as a fraction of the
-// compass size so AnimatedSplash can reproduce the static image's
-// proportions at whatever on-screen size the compass ends up being.
-export const SPLASH_TEXT_GAP_FRACTION = 46 / 380;
-export const SPLASH_TEXT_FONT_SIZE_FRACTION = 118 / 380;
+// Per-line font size as a fraction of the source image's width — applied
+// against SPLASH_IMAGE_WIDTH to get the on-screen font size AnimatedSplash
+// should render the wordmark at.
+export const SPLASH_WORDMARK_FONT_SIZE_FRACTION = 220 / 816;

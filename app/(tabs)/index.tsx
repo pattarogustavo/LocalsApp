@@ -29,6 +29,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import { trpc } from '@/lib/trpc';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
+import { Wordmark } from '@/components/ui/wordmark-logo';
 
 const { width } = Dimensions.get('window');
 
@@ -110,9 +111,7 @@ export default function HomeScreen() {
           style={{ paddingTop: 12, paddingBottom: 16 }}
         >
           <View>
-            <Text style={{ fontSize: 32, fontFamily: 'serif', fontStyle: 'italic', color: colors.foreground, fontWeight: '400' }}>
-              TheLocals
-            </Text>
+            <Wordmark size={16} color={colors.foreground} />
           </View>
           <View className="flex-row gap-2">
             <TouchableOpacity

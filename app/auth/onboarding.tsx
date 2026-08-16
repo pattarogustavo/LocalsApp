@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
-import { CompassLogo } from '@/components/ui/compass-logo';
+import { Wordmark } from '@/components/ui/wordmark-logo';
 import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
 import { useAuthStore } from '@/store/auth';
 
@@ -26,8 +26,9 @@ const ONBOARDING_LANGUAGES = [
 const ON_PRIMARY = SchemeColors.light.background;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-// Logo occupies ~50% of screen width, matching the mockup proportion
-const LOGO_SIZE = Math.round(SCREEN_WIDTH * 0.50);
+// Wordmark font size (per line) — large enough to read as the hero mark now
+// that it replaces both the old compass icon and the separate title text.
+const WORDMARK_SIZE = Math.round(SCREEN_WIDTH * 0.15);
 
 function LanguageSwitcher() {
   const colors = useColors();
@@ -74,19 +75,13 @@ export default function OnboardingScreen() {
 
       <LanguageSwitcher />
 
-      {/* Large compass logo */}
+      {/* Large wordmark logo */}
       <View style={styles.logoSection}>
-        <CompassLogo size={LOGO_SIZE} />
+        <Wordmark size={WORDMARK_SIZE} />
       </View>
 
       {/* Title block */}
       <View style={styles.titleBlock}>
-        <Text style={styles.appName}>TheLocals</Text>
-        <View style={styles.appTagRow}>
-          <View style={styles.tagLine} />
-          <Text style={styles.appTag}>APP</Text>
-          <View style={styles.tagLine} />
-        </View>
         <Text style={styles.subtitle}>{t.auth.onboarding.subtitle}</Text>
       </View>
 
@@ -162,31 +157,6 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   titleBlock: {
     alignItems: 'center',
     gap: 6,
-  },
-  appName: {
-    fontSize: 56,
-    fontWeight: '700',
-    color: colors.foreground,
-    fontStyle: 'italic',
-    letterSpacing: -1,
-    lineHeight: 64,
-  },
-  appTagRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 2,
-  },
-  tagLine: {
-    width: 36,
-    height: 1,
-    backgroundColor: colors.accent,
-  },
-  appTag: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.accent,
-    letterSpacing: 3,
   },
   subtitle: {
     fontSize: 15,
