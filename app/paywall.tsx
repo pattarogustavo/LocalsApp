@@ -18,6 +18,7 @@ import { sendSubscriptionConfirmedNotification, scheduleRenewalReminder } from '
 import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
+import { Wordmark } from '@/components/ui/wordmark-logo';
 
 // Text/icon color for content drawn on top of the primary button color, which
 // is identical in both schemes — always the light-scheme background swatch.
@@ -95,7 +96,7 @@ export default function PaywallScreen() {
         )}
         <View style={styles.headerCenter}>
           <View style={styles.logoCircle}>
-            <Ionicons name="airplane" size={24} color={colors.primary} />
+            <Wordmark size={10} color={colors.primary} />
           </View>
         </View>
       </View>
