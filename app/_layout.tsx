@@ -11,6 +11,7 @@ import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
+import { useFonts, Lora_400Regular, Lora_700Bold } from "@expo-google-fonts/lora";
 import { useAuthStore } from "@/store/auth";
 import { useTripsStore } from "@/store/trips";
 import { withTimeout } from "@/lib/_core/with-timeout";
@@ -78,13 +79,24 @@ export default function RootLayout() {
   // wrongly-routed screen. See components/animated-splash.tsx.
   const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
 
+  // The Wordmark needs Lora loaded before AnimatedSplash renders its first
+  // frame — otherwise it briefly falls back to a system font, which reads as
+  // a second, different logo flashing over the native splash image.
+  const [fontsLoaded] = useFonts({
+    "Lora-Regular": Lora_400Regular,
+    "Lora-Bold": Lora_700Bold,
+  });
+
   useEffect(() => {
-    // Hide the native splash as soon as AnimatedSplash has mounted: its first
-    // frame is pixel-identical to the native splash image, so the handoff is
-    // invisible, and its own reveal animation needs to actually be visible
-    // (not hidden behind the still-showing native splash).
-    SplashScreen.hideAsync().catch(() => {});
-  }, []);
+    // Hide the native splash once fonts are ready and AnimatedSplash has
+    // mounted: its first frame is then pixel-equivalent to the native splash
+    // image, so the handoff is invisible, and its own reveal animation needs
+    // to actually be visible (not hidden behind the still-showing native
+    // splash).
+    if (fontsLoaded) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded]);
 
   useEffect(() => {
     // Initialize Supabase session on startup
@@ -172,6 +184,12 @@ export default function RootLayout() {
       },
     };
   }, [insets, frame]);
+
+  // Keep the native splash up (return nothing) until Lora is ready — see the
+  // fontsLoaded effect above.
+  if (!fontsLoaded) {
+    return null;
+  }
 
   const content = (
     <GestureHandlerRootView style={{ flex: 1 }}>
