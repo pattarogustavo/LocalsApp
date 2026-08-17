@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,15 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { trpc } from '@/lib/trpc';
+import type { PurchasesPackage } from 'react-native-purchases';
 import { useAuthStore } from '@/store/auth';
+import {
+  getOfferingPackages,
+  purchasePackage,
+  restorePurchases,
+  subscriptionFromCustomerInfo,
+  type SubscriptionPlan,
+} from '@/config/revenuecat';
 import { sendSubscriptionConfirmedNotification, scheduleRenewalReminder } from '@/lib/subscription-notifications';
 import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
@@ -39,11 +46,14 @@ export default function PaywallScreen() {
 
   const { updateSubscription } = useAuthStore();
 
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('annual');
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>('annual');
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [packages, setPackages] = useState<Partial<Record<SubscriptionPlan, PurchasesPackage>>>({});
 
-  const mockPurchaseMutation = trpc.subscription.mockPurchase.useMutation();
+  useEffect(() => {
+    getOfferingPackages().then(setPackages).catch(() => {});
+  }, []);
 
   const FEATURES = [
     { icon: 'infinite-outline', text: t.paywall.featureUnlimited },
@@ -55,23 +65,36 @@ export default function PaywallScreen() {
   ];
 
   const handlePurchase = async () => {
+    const pkg = packages[selectedPlan];
+    if (!pkg) {
+      Alert.alert(t.paywall.purchaseFailed, t.paywall.purchaseFailedMsg);
+      return;
+    }
     setLoading(true);
     try {
-      const result = await mockPurchaseMutation.mutateAsync({ plan: selectedPlan });
+      const customerInfo = await purchasePackage(pkg);
+      const snapshot = subscriptionFromCustomerInfo(customerInfo);
+      const expiresAt = snapshot?.expiresAt ? new Date(snapshot.expiresAt) : null;
+      // Update local state immediately from the purchase response instead of
+      // waiting for the RevenueCat webhook, which can take a few seconds.
       updateSubscription({
         subscriptionStatus: 'active',
-        subscriptionPlan: selectedPlan,
-        subscriptionExpiresAt: result.expiresAt.toISOString(),
+        subscriptionPlan: snapshot?.plan ?? selectedPlan,
+        subscriptionExpiresAt: expiresAt ? expiresAt.toISOString() : null,
       });
       sendSubscriptionConfirmedNotification(selectedPlan).catch(() => {});
-      scheduleRenewalReminder(result.expiresAt).catch(() => {});
+      if (expiresAt) scheduleRenewalReminder(expiresAt).catch(() => {});
       Alert.alert(
         t.paywall.subscribeSuccess,
         t.paywall.subscribeSuccessMsg.replace('{plan}', selectedPlan),
         [{ text: t.common.continue, onPress: () => router.replace('/(tabs)') }]
       );
-    } catch {
-      Alert.alert(t.paywall.purchaseFailed, t.paywall.purchaseFailedMsg);
+    } catch (err: any) {
+      // The user closing the purchase sheet isn't a real error — just let
+      // them try again without an alert.
+      if (!err?.userCancelled) {
+        Alert.alert(t.paywall.purchaseFailed, t.paywall.purchaseFailedMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -79,10 +102,28 @@ export default function PaywallScreen() {
 
   const handleRestore = async () => {
     setRestoring(true);
-    setTimeout(() => {
+    try {
+      const customerInfo = await restorePurchases();
+      const snapshot = subscriptionFromCustomerInfo(customerInfo);
+      if (snapshot) {
+        updateSubscription({
+          subscriptionStatus: 'active',
+          subscriptionPlan: snapshot.plan ?? selectedPlan,
+          subscriptionExpiresAt: snapshot.expiresAt,
+        });
+        Alert.alert(
+          t.paywall.restoreSuccess,
+          t.paywall.restoreSuccessMsg.replace('{plan}', snapshot.plan ?? selectedPlan),
+          [{ text: t.common.continue, onPress: () => router.replace('/(tabs)') }]
+        );
+      } else {
+        Alert.alert(t.paywall.noPurchases, t.paywall.noPurchasesMsg);
+      }
+    } catch {
+      Alert.alert(t.paywall.purchaseFailed, t.paywall.purchaseFailedMsg);
+    } finally {
       setRestoring(false);
-      Alert.alert(t.paywall.noPurchases, t.paywall.noPurchasesMsg);
-    }, 1500);
+    }
   };
 
   return (

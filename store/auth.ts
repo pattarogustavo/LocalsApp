@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/_core/with-timeout';
+import { logoutRevenueCat } from '@/config/revenuecat';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 const LANG_KEY = 'voyage_preferred_language';
@@ -97,6 +98,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     const lang = get().preferredLanguage;
     await supabase.auth.signOut();
+    await logoutRevenueCat().catch(() => {});
     await AsyncStorage.multiRemove([PROFILE_KEY]);
     set({ user: null, session: null, preferredLanguage: lang });
   },

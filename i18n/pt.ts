@@ -808,6 +808,8 @@ export const pt = {
     purchaseFailedMsg: 'Tente novamente ou entre em contato com o suporte.',
     noPurchases: 'Nenhuma compra encontrada',
     noPurchasesMsg: 'Nenhuma compra anterior foi encontrada para esta conta.',
+    restoreSuccess: 'Compra restaurada!',
+    restoreSuccessMsg: 'Sua assinatura {plan} foi restaurada com sucesso.',
   },
 
   // ── Welcome Offer ─────────────────────────────────────────────────────────────

@@ -772,6 +772,8 @@ export const es: Translations = {
     purchaseFailedMsg: 'Inténtalo de nuevo o contacta con el soporte.',
     noPurchases: 'No se encontraron compras',
     noPurchasesMsg: 'No se encontraron compras anteriores para esta cuenta.',
+    restoreSuccess: '¡Compra restaurada!',
+    restoreSuccessMsg: 'Tu suscripción {plan} se restauró correctamente.',
   },
   welcomeOffer: {
     title: 'Itinerarios así, listos en minutos',

@@ -1,89 +1,92 @@
-// TODO: Replace PLACEHOLDER keys with real RevenueCat API keys
-// after registering the app on App Store Connect and Google Play Console.
-// Products must be created in each store with the identifiers above.
-
 import { Platform } from 'react-native';
+import Purchases, {
+  type CustomerInfo,
+  type PurchasesPackage,
+} from 'react-native-purchases';
 
-export const REVENUECAT_CONFIG = {
-  apiKeyApple: process.env.REVENUECAT_API_KEY_APPLE ?? 'PLACEHOLDER_APPLE_KEY',
-  apiKeyGoogle: process.env.REVENUECAT_API_KEY_GOOGLE ?? 'PLACEHOLDER_GOOGLE_KEY',
-  products: {
-    monthly: 'travel_app_monthly',
-    annual: 'travel_app_annual',
-  },
-};
+// Public SDK key (safe to ship in the client bundle) — distinct from
+// REVENUECAT_API_KEY_APPLE/GOOGLE, which are server-only secrets used for
+// backend/build tooling.
+const API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY ?? '';
 
 export type SubscriptionPlan = 'monthly' | 'annual';
 
-export interface PurchaseResult {
-  success: boolean;
-  plan: SubscriptionPlan;
-  expiresAt: Date;
+export interface SubscriptionSnapshot {
+  status: 'active';
+  plan: SubscriptionPlan | null;
+  expiresAt: string | null;
+}
+
+let configured = false;
+
+/** Whether this platform + build has a usable RevenueCat SDK. */
+export function isRevenueCatSupported(): boolean {
+  return (Platform.OS === 'ios' || Platform.OS === 'android') && !!API_KEY;
 }
 
 /**
- * Initialize RevenueCat SDK.
- * Call this once at app startup after the user is identified.
+ * Configure the RevenueCat SDK. Call once at app startup, before logIn.
  */
-export async function initRevenueCat(userId: string): Promise<void> {
-  // In production: configure with real API keys
-  // const apiKey = Platform.OS === 'ios'
-  //   ? REVENUECAT_CONFIG.apiKeyApple
-  //   : REVENUECAT_CONFIG.apiKeyGoogle;
-  // await Purchases.configure({ apiKey, appUserID: userId });
-  console.log('[RevenueCat] SDK initialized (sandbox mode) for user:', userId);
+export function configureRevenueCat(): void {
+  if (configured || !isRevenueCatSupported()) return;
+  Purchases.configure({ apiKey: API_KEY });
+  configured = true;
 }
 
-/**
- * Check if RevenueCat is configured with real keys.
- * Returns false when using placeholder keys (sandbox/dev mode).
- */
-export function isRevenueCatConfigured(): boolean {
-  const key = Platform.OS === 'ios'
-    ? REVENUECAT_CONFIG.apiKeyApple
-    : REVENUECAT_CONFIG.apiKeyGoogle;
-  return !key.startsWith('PLACEHOLDER_');
-}
-
-/**
- * Purchase a subscription plan.
- * In dev/sandbox mode, delegates to the mock purchase endpoint.
- * In production, calls RevenueCat SDK.
- */
-export async function purchasePlan(
-  plan: SubscriptionPlan,
-  mockPurchaseFn: (plan: SubscriptionPlan) => Promise<PurchaseResult>,
-): Promise<PurchaseResult> {
-  if (!isRevenueCatConfigured()) {
-    // Mock purchase for local testing
-    console.log('[RevenueCat] Mock purchase:', plan);
-    return mockPurchaseFn(plan);
+/** Link the RevenueCat app_user_id to the authenticated Supabase user id. */
+export async function loginRevenueCat(userId: string): Promise<void> {
+  if (!configured) return;
+  try {
+    await Purchases.logIn(userId);
+  } catch (err) {
+    console.warn('[RevenueCat] logIn failed:', err);
   }
-
-  // Production: use RevenueCat SDK
-  // const offerings = await Purchases.getOfferings();
-  // const pkg = plan === 'annual'
-  //   ? offerings.current?.annual
-  //   : offerings.current?.monthly;
-  // if (!pkg) throw new Error('Package not found');
-  // const result = await Purchases.purchasePackage(pkg);
-  // const expiresAt = new Date(result.customerInfo.latestExpirationDate ?? Date.now());
-  // return { success: true, plan, expiresAt };
-
-  throw new Error('RevenueCat not configured. Please add API keys.');
 }
 
-/**
- * Restore previous purchases.
- * In dev/sandbox mode, returns null (no-op).
- */
-export async function restorePurchases(): Promise<{ restored: boolean }> {
-  if (!isRevenueCatConfigured()) {
-    console.log('[RevenueCat] Restore purchases (sandbox mode - no-op)');
-    return { restored: false };
+/** Detach the current user from RevenueCat. Call on sign-out. */
+export async function logoutRevenueCat(): Promise<void> {
+  if (!configured) return;
+  try {
+    await Purchases.logOut();
+  } catch {
+    // Already anonymous / never logged in — safe to ignore.
   }
-  // Production:
-  // const customerInfo = await Purchases.restorePurchases();
-  // return { restored: !!customerInfo.activeSubscriptions.length };
-  return { restored: false };
+}
+
+/** Fetch the current offering's monthly/annual packages, if configured. */
+export async function getOfferingPackages(): Promise<Partial<Record<SubscriptionPlan, PurchasesPackage>>> {
+  const offerings = await Purchases.getOfferings();
+  const current = offerings.current;
+  if (!current) return {};
+  return {
+    monthly: current.monthly ?? undefined,
+    annual: current.annual ?? undefined,
+  };
+}
+
+/** Purchase a package. Throws on failure/cancellation — check `err.userCancelled`. */
+export async function purchasePackage(pkg: PurchasesPackage): Promise<CustomerInfo> {
+  const { customerInfo } = await Purchases.purchasePackage(pkg);
+  return customerInfo;
+}
+
+/** Restore previous purchases for the current store account. */
+export async function restorePurchases(): Promise<CustomerInfo> {
+  return Purchases.restorePurchases();
+}
+
+/** Derive our subscription fields from RevenueCat's CustomerInfo, if any entitlement is active. */
+export function subscriptionFromCustomerInfo(customerInfo: CustomerInfo): SubscriptionSnapshot | null {
+  const entitlement = Object.values(customerInfo.entitlements.active)[0];
+  if (!entitlement) return null;
+  const plan: SubscriptionPlan | null = entitlement.productIdentifier?.includes('annual')
+    ? 'annual'
+    : entitlement.productIdentifier?.includes('monthly')
+    ? 'monthly'
+    : null;
+  return {
+    status: 'active',
+    plan,
+    expiresAt: entitlement.expirationDate,
+  };
 }

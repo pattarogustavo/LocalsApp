@@ -787,6 +787,8 @@ export const de: Translations = {
     purchaseFailedMsg: 'Bitte erneut versuchen oder Support kontaktieren.',
     noPurchases: 'Keine Käufe gefunden',
     noPurchasesMsg: 'Für dieses Konto wurden keine früheren Käufe gefunden.',
+    restoreSuccess: 'Kauf wiederhergestellt!',
+    restoreSuccessMsg: 'Dein {plan}-Abo wurde erfolgreich wiederhergestellt.',
   },
 
   welcomeOffer: {

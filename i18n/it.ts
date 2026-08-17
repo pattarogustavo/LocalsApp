@@ -787,6 +787,8 @@ export const it: Translations = {
     purchaseFailedMsg: 'Riprova o contatta il supporto.',
     noPurchases: 'Nessun acquisto trovato',
     noPurchasesMsg: 'Nessun acquisto precedente trovato per questo account.',
+    restoreSuccess: 'Acquisto ripristinato!',
+    restoreSuccessMsg: 'Il tuo abbonamento {plan} è stato ripristinato con successo.',
   },
 
   welcomeOffer: {

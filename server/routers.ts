@@ -32,6 +32,17 @@ function mapToGoogleLanguage(lang?: string): string {
 }
 
 /**
+ * Constant-time string comparison, so a bad webhook secret guess can't be
+ * narrowed down via response-time differences.
+ */
+function timingSafeEqualStrings(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+/**
  * Guards AI-powered procedures (itinerary generation, place suggestions,
  * destination info) behind an active subscription, checked fresh against the
  * DB (which auto-expires stale statuses) so no Anthropic call is ever made
@@ -595,35 +606,6 @@ Responda APENAS com JSON válido neste formato exato:
     }),
 
     /**
-     * Mock purchase endpoint for local testing.
-     * In production, this would be handled by RevenueCat webhooks.
-     */
-    mockPurchase: protectedProcedure
-      .input(z.object({
-        plan: z.enum(['monthly', 'annual']),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        const now = new Date();
-        const expiresAt = new Date(now);
-        if (input.plan === 'monthly') {
-          expiresAt.setMonth(expiresAt.getMonth() + 1);
-        } else {
-          expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-        }
-        await db.updateSubscriptionStatus(ctx.user.id, {
-          subscriptionStatus: 'active',
-          subscriptionPlan: input.plan,
-          subscriptionExpiresAt: expiresAt,
-        });
-        return {
-          success: true,
-          status: 'active',
-          plan: input.plan,
-          expiresAt,
-        };
-      }),
-
-    /**
      * Cancel subscription (marks as cancelled, access until expiry).
      */
     cancel: protectedProcedure.mutation(async ({ ctx }) => {
@@ -646,7 +628,13 @@ Responda APENAS com JSON válido neste formato exato:
           expiration_at_ms: z.number().optional(),
         }),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const expectedSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
+        const providedSecret = ctx.req.headers.authorization;
+        if (!expectedSecret || !providedSecret || !timingSafeEqualStrings(providedSecret, expectedSecret)) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid webhook authorization." });
+        }
+
         const { event } = input;
         const user = await db.getUserByOpenId(event.app_user_id);
         if (!user) return { success: false, reason: 'USER_NOT_FOUND' };

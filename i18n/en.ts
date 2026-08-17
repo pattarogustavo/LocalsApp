@@ -787,6 +787,8 @@ export const en: Translations = {
     purchaseFailedMsg: 'Please try again or contact support.',
     noPurchases: 'No purchases found',
     noPurchasesMsg: 'No previous purchases were found for this account.',
+    restoreSuccess: 'Purchase restored!',
+    restoreSuccessMsg: 'Your {plan} subscription was restored successfully.',
   },
 
   welcomeOffer: {

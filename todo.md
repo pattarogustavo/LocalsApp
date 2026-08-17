@@ -319,7 +319,8 @@
 - [x] Compartilhamento: viajante convidado acessa viagem compartilhada na tela inicial
 - [x] Compartilhamento: botão "Compartilhar viagem" na tela de detalhes da viagem
 - [x] Fix TypeScript: destinations[0].city → destinations[0].name na tela inicial
-- [ ] RevenueCat: solicitar chaves de produção ao usuário e substituir placeholders
+- [x] RevenueCat: conectar SDK real (configure/logIn/purchasePackage/restorePurchases), proteger webhook com secret
+- [ ] RevenueCat: criar produtos/offering no dashboard (travel_app_monthly/travel_app_annual) e configurar EXPO_PUBLIC_REVENUECAT_API_KEY + REVENUECAT_WEBHOOK_SECRET em produção
 
 ## Fase 27 — Fix i18n Global (Troca de Idioma em Todo o App)
 

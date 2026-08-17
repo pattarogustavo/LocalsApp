@@ -16,6 +16,7 @@ import { useAuthStore } from "@/store/auth";
 import { useTripsStore } from "@/store/trips";
 import { withTimeout } from "@/lib/_core/with-timeout";
 import { AnimatedSplash } from "@/components/animated-splash";
+import { configureRevenueCat, loginRevenueCat } from "@/config/revenuecat";
 
 // Keep the native splash screen visible until we explicitly hide it below,
 // so the app never flashes to a blank screen while auth initializes.
@@ -65,6 +66,14 @@ function AuthGuard() {
     }
   }, [user?.id]);
 
+  // Link RevenueCat's app_user_id to the authenticated Supabase user so
+  // purchase/entitlement state is tied to the right account.
+  useEffect(() => {
+    if (user) {
+      loginRevenueCat(user.id).catch(() => {});
+    }
+  }, [user?.id]);
+
   return null;
 }
 
@@ -99,6 +108,9 @@ export default function RootLayout() {
   }, [fontsLoaded]);
 
   useEffect(() => {
+    // Configure RevenueCat before Supabase session init so the auth-linked
+    // logIn() call in AuthGuard always has a configured SDK to act on.
+    configureRevenueCat();
     // Initialize Supabase session on startup
     initialize();
   }, []);
