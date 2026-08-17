@@ -755,7 +755,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.menuRow}
               activeOpacity={0.7}
-              onPress={() => Alert.alert(t.profile.privacy, t.profile.privacyDesc)}
+              onPress={() => Linking.openURL('https://pattarogustavo.github.io/The-Locals/')}
             >
               <View style={styles.menuIconBg}>
                 <Ionicons name="shield-checkmark-outline" size={16} color={withAlpha(colors.foreground, 0.6)} />
