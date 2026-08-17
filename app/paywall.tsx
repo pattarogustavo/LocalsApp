@@ -95,9 +95,7 @@ export default function PaywallScreen() {
           </TouchableOpacity>
         )}
         <View style={styles.headerCenter}>
-          <View style={styles.logoCircle}>
-            <Wordmark size={10} color={colors.primary} />
-          </View>
+          <Wordmark size={20} color={colors.primary} />
         </View>
       </View>
 
@@ -162,10 +160,10 @@ export default function PaywallScreen() {
             </View>
             <Text style={styles.planName}>{t.paywall.annual}</Text>
             <View style={styles.planPriceRow}>
-              <Text style={styles.planPrice}>$3.33</Text>
-              <Text style={styles.planPeriod}>{t.paywall.perMonth}</Text>
+              <Text style={styles.planPrice}>$39.99</Text>
+              <Text style={styles.planPeriod}>{t.paywall.perYear}</Text>
             </View>
-            <Text style={styles.planBilled}>{t.paywall.billedAnnuallyFull}</Text>
+            <Text style={styles.planBilled}>$3.33{t.paywall.perMonth}</Text>
           </TouchableOpacity>
 
           {/* Monthly plan */}
@@ -253,16 +251,6 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     right: 0,
     alignItems: 'center',
     pointerEvents: 'none',
-  },
-  logoCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: withAlpha(colors.primary, 0.1),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: withAlpha(colors.primary, 0.25),
   },
   scroll: {
     paddingHorizontal: 20,
