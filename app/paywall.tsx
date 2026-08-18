@@ -93,7 +93,14 @@ export default function PaywallScreen() {
       // The user closing the purchase sheet isn't a real error — just let
       // them try again without an alert.
       if (!err?.userCancelled) {
-        Alert.alert(t.paywall.purchaseFailed, t.paywall.purchaseFailedMsg);
+        // TEMP DEBUG: surface the real RevenueCat error to investigate the
+        // generic "Purchase failed" reports. Remove once diagnosed.
+        const debugInfo = err?.message || err;
+        if (debugInfo) {
+          Alert.alert('Purchase failed (DEBUG)', String(debugInfo));
+        } else {
+          Alert.alert(t.paywall.purchaseFailed, t.paywall.purchaseFailedMsg);
+        }
       }
     } finally {
       setLoading(false);
