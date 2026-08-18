@@ -6,6 +6,7 @@ import { z } from "zod";
 import { searchIslands } from "../constants/islands-regions";
 import * as db from "./db";
 import crypto from "crypto";
+import { storagePut } from "./storage";
 
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
@@ -1800,6 +1801,31 @@ Retorne um JSON com o array "places": [{ placeId (exatamente o place_id entre co
       .mutation(async ({ ctx, input }) => {
         await db.deleteTripByClientId(ctx.user.id, input.clientId);
         return { ok: true };
+      }),
+  }),
+
+  // ─── Trip Documents ───────────────────────────────────────────────────────────────────────────────
+  tripDocuments: router({
+    /** Uploads a trip document (photo or PDF) to Supabase Storage and returns its URL. */
+    upload: protectedProcedure
+      .input(z.object({
+        tripId: z.string().min(1).max(64),
+        fileName: z.string().min(1).max(200),
+        contentType: z.string().min(1).max(100),
+        base64Data: z.string().min(1).max(28_000_000), // ~20MB decoded
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const key = `trip-documents/${ctx.user.id}/${input.tripId}/${safeName}`;
+        const buffer = Buffer.from(input.base64Data, "base64");
+
+        try {
+          const { url } = await storagePut(key, buffer, input.contentType);
+          return { url };
+        } catch (err) {
+          console.error("[tripDocuments.upload] failed:", err);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao enviar o arquivo." });
+        }
       }),
   }),
 });
