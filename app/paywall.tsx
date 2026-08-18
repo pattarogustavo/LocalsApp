@@ -95,12 +95,10 @@ export default function PaywallScreen() {
       if (!err?.userCancelled) {
         // TEMP DEBUG: surface the real RevenueCat error to investigate the
         // generic "Purchase failed" reports. Remove once diagnosed.
-        const debugInfo = err?.message || err;
-        if (debugInfo) {
-          Alert.alert('Purchase failed (DEBUG)', String(debugInfo));
-        } else {
-          Alert.alert(t.paywall.purchaseFailed, t.paywall.purchaseFailedMsg);
-        }
+        Alert.alert(
+          t.paywall.purchaseFailed,
+          `${t.paywall.purchaseFailedMsg}\n\nDEBUG: ${err?.message || err?.code || String(err)}`
+        );
       }
     } finally {
       setLoading(false);
@@ -126,8 +124,13 @@ export default function PaywallScreen() {
       } else {
         Alert.alert(t.paywall.noPurchases, t.paywall.noPurchasesMsg);
       }
-    } catch {
-      Alert.alert(t.paywall.purchaseFailed, t.paywall.purchaseFailedMsg);
+    } catch (err: any) {
+      // TEMP DEBUG: surface the real RevenueCat error to investigate the
+      // generic "Purchase failed" reports. Remove once diagnosed.
+      Alert.alert(
+        t.paywall.purchaseFailed,
+        `${t.paywall.purchaseFailedMsg}\n\nDEBUG: ${err?.message || err?.code || String(err)}`
+      );
     } finally {
       setRestoring(false);
     }
