@@ -548,6 +548,11 @@ export default function ProfileScreen() {
     return date.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
+  // ── Manage subscription (Apple) ────────────────────────────────────────────
+  const handleManageSubscription = () => {
+    Linking.openURL('https://apps.apple.com/account/subscriptions');
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -601,11 +606,28 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t.profile.subscription}</Text>
           <View style={styles.card}>
+            {status === null && (
+              <>
+                <View style={styles.cardRow}>
+                  <Text style={styles.cardLabel}>{t.profile.plan}</Text>
+                  <Text style={styles.cardValue}>{t.profile.freePlan}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.upgradeBtn}
+                  activeOpacity={0.85}
+                  onPress={() => router.push('/paywall' as any)}
+                >
+                  <Ionicons name="star-outline" size={14} color={colors.textOnPrimary} />
+                  <Text style={styles.upgradeBtnText}>{t.profile.viewPlansBtn}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
             {isActive && (
               <>
                 <View style={styles.cardRow}>
                   <Text style={styles.cardLabel}>{t.profile.plan}</Text>
-                  <Text style={styles.cardValue}>{plan === 'annual' ? t.profile.annual : t.profile.monthly}</Text>
+                  <Text style={styles.cardValue}>Pro ({plan === 'annual' ? t.profile.annual : t.profile.monthly})</Text>
                 </View>
                 {subscriptionExpiresAt && (
                   <View style={styles.cardRow}>
@@ -613,6 +635,13 @@ export default function ProfileScreen() {
                     <Text style={styles.cardValue}>{formatDate(subscriptionExpiresAt)}</Text>
                   </View>
                 )}
+                <TouchableOpacity
+                  style={styles.manageBtn}
+                  activeOpacity={0.85}
+                  onPress={handleManageSubscription}
+                >
+                  <Text style={styles.manageBtnText}>{t.profile.manageSubscriptionBtn}</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.cancelBtn}
                   activeOpacity={0.85}
@@ -648,22 +677,21 @@ export default function ProfileScreen() {
             {status === 'cancelled' && (
               <>
                 <View style={styles.cardRow}>
-                  <Text style={styles.cardLabel}>Status</Text>
-                  <Text style={[styles.cardValue, { color: colors.muted }]}>{t.common.cancel}</Text>
+                  <Text style={styles.cardLabel}>{t.profile.plan}</Text>
+                  <Text style={styles.cardValue}>Pro ({plan === 'annual' ? t.profile.annual : t.profile.monthly})</Text>
                 </View>
-                {subscriptionExpiresAt && (
-                  <View style={styles.cardRow}>
-                    <Text style={styles.cardLabel}>{t.profile.expiresOn}</Text>
-                    <Text style={styles.cardValue}>{formatDate(subscriptionExpiresAt)}</Text>
-                  </View>
-                )}
+                <View style={styles.cardRow}>
+                  <Text style={styles.cardLabel}>Status</Text>
+                  <Text style={[styles.cardValue, { color: colors.muted }]}>
+                    {t.profile.cancelledAccessUntil} {formatDate(subscriptionExpiresAt)}
+                  </Text>
+                </View>
                 <TouchableOpacity
-                  style={styles.upgradeBtn}
+                  style={styles.manageBtn}
                   activeOpacity={0.85}
-                  onPress={() => router.push('/paywall' as any)}
+                  onPress={handleManageSubscription}
                 >
-                  <Ionicons name="refresh-outline" size={14} color={colors.textOnPrimary} />
-                  <Text style={styles.upgradeBtnText}>{t.profile.upgradeBtn}</Text>
+                  <Text style={styles.manageBtnText}>{t.profile.manageSubscriptionBtn}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -974,6 +1002,16 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     paddingVertical: 12,
   },
   upgradeBtnText: { fontSize: 14, fontWeight: '700', color: colors.textOnPrimary },
+  manageBtn: {
+    alignItems: 'center',
+    marginHorizontal: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: withAlpha(colors.primary, 0.3),
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  manageBtnText: { fontSize: 14, fontWeight: '600', color: colors.primary },
   cancelBtn: {
     alignItems: 'center',
     margin: 12,
