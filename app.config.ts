@@ -21,7 +21,7 @@ const bundleId =
     .join(".");
 const env = {
   // App branding - update these values directly (do not use env vars)
-  appName: "LocalsApp",
+  appName: "TheLocals",
   appSlug: "localsapp",
   // Optional remote URL for the app logo. Leave empty to use the default icon
   // from assets/images/icon.png (not currently referenced by the config below).
