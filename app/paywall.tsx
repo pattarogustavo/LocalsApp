@@ -36,6 +36,20 @@ function withAlpha(hex: string, alpha: number): string {
   return `${hex}${a}`;
 }
 
+/** Real per-month equivalent of an annual package's price, formatted in its own currency/locale. */
+function formatMonthlyEquivalent(pkg?: PurchasesPackage): string | null {
+  if (!pkg) return null;
+  const { price, currencyCode } = pkg.product;
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(price / 12);
+  } catch {
+    return null;
+  }
+}
+
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { blocking } = useLocalSearchParams<{ blocking?: string }>();
@@ -54,6 +68,10 @@ export default function PaywallScreen() {
   useEffect(() => {
     getOfferingPackages().then(setPackages).catch(() => {});
   }, []);
+
+  const annualPkg = packages.annual;
+  const monthlyPkg = packages.monthly;
+  const annualMonthlyEquivalent = formatMonthlyEquivalent(annualPkg);
 
   const FEATURES = [
     { icon: 'infinite-outline', text: t.paywall.featureUnlimited },
@@ -200,11 +218,25 @@ export default function PaywallScreen() {
               )}
             </View>
             <Text style={styles.planName}>{t.paywall.annual}</Text>
-            <View style={styles.planPriceRow}>
-              <Text style={styles.planPrice}>$39.99</Text>
-              <Text style={styles.planPeriod}>{t.paywall.perYear}</Text>
-            </View>
-            <Text style={styles.planBilled}>$3.33{t.paywall.perMonth}</Text>
+            {annualPkg ? (
+              <>
+                <View style={styles.planPriceRow}>
+                  <Text style={styles.planPrice}>{annualPkg.product.priceString}</Text>
+                  <Text style={styles.planPeriod}>{t.paywall.perYear}</Text>
+                </View>
+                {annualMonthlyEquivalent && (
+                  <Text style={styles.planBilled}>
+                    {annualMonthlyEquivalent}
+                    {t.paywall.perMonth}
+                  </Text>
+                )}
+              </>
+            ) : (
+              <>
+                <View style={styles.priceSkeleton} />
+                <View style={[styles.priceSkeleton, styles.priceSkeletonSmall]} />
+              </>
+            )}
           </TouchableOpacity>
 
           {/* Monthly plan */}
@@ -221,11 +253,20 @@ export default function PaywallScreen() {
               </View>
             )}
             <Text style={styles.planName}>{t.paywall.monthly}</Text>
-            <View style={styles.planPriceRow}>
-              <Text style={styles.planPrice}>$4.99</Text>
-              <Text style={styles.planPeriod}>{t.paywall.perMonth}</Text>
-            </View>
-            <Text style={styles.planBilled}>{t.paywall.cancelAnytime}</Text>
+            {monthlyPkg ? (
+              <>
+                <View style={styles.planPriceRow}>
+                  <Text style={styles.planPrice}>{monthlyPkg.product.priceString}</Text>
+                  <Text style={styles.planPeriod}>{t.paywall.perMonth}</Text>
+                </View>
+                <Text style={styles.planBilled}>{t.paywall.cancelAnytime}</Text>
+              </>
+            ) : (
+              <>
+                <View style={styles.priceSkeleton} />
+                <View style={[styles.priceSkeleton, styles.priceSkeletonSmall]} />
+              </>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -421,6 +462,17 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     fontSize: 10,
     color: colors.foreground,
     marginTop: 2,
+  },
+  priceSkeleton: {
+    height: 20,
+    width: '70%',
+    borderRadius: 4,
+    backgroundColor: colors.border,
+  },
+  priceSkeletonSmall: {
+    height: 10,
+    width: '45%',
+    marginTop: 6,
   },
   ctaBtn: {
     backgroundColor: colors.primary,
