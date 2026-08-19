@@ -47,7 +47,7 @@ export const it: Translations = {
 
   auth: {
     onboarding: {
-      title: 'LocalsApp',
+      title: 'TheLocals',
       subtitle: 'Pianifica viaggi indimenticabili con itinerari curati dall\'IA.',
       feature1: 'Itinerari personalizzati',
       feature1Desc: "L'IA crea il tuo itinerario completo in pochi secondi",
@@ -663,7 +663,7 @@ export const it: Translations = {
     active: 'Attivo',
     inviteSent: 'Invito inviato',
     inviteMsg: 'Un invito è stato inviato a',
-    inviteHint: 'Se il viaggiatore ha un account LocalsApp, riceverà l\'itinerario completo.',
+    inviteHint: 'Se il viaggiatore ha un account TheLocals, riceverà l\'itinerario completo.',
     emailHint: 'Se fornita, verrà inviato un invito per accedere all\'itinerario.',
   },
 
@@ -724,7 +724,7 @@ export const it: Translations = {
     passwordChanged: 'La tua password è stata modificata con successo.',
     passwordError: 'Impossibile cambiare la password.',
     languageTitle: "Lingua dell'app",
-    languageSubtitle: 'Seleziona la lingua di visualizzazione di LocalsApp',
+    languageSubtitle: 'Seleziona la lingua di visualizzazione di TheLocals',
     languageCancel: 'Annulla',
     // Edit profile modal
     editProfile: 'Modifica profilo',
@@ -750,7 +750,7 @@ export const it: Translations = {
   },
 
   paywall: {
-    title: 'LocalsApp Pro',
+    title: 'TheLocals Pro',
     subtitle: 'Ottieni il massimo dal tuo viaggio',
     feature1: 'Itinerari IA illimitati',
     feature2: 'Ricerca voli in tempo reale',
@@ -773,7 +773,7 @@ export const it: Translations = {
     alreadySubscribed: 'Hai già un abbonamento attivo.',
     close: 'Chiudi',
     accessRequired: 'Funzione riservata agli abbonati',
-    accessRequiredSubtitle: 'Abbonati per continuare a pianificare i tuoi viaggi con LocalsApp.',
+    accessRequiredSubtitle: 'Abbonati per continuare a pianificare i tuoi viaggi con TheLocals.',
     upgradeTitle: 'Passa a TheLocals Pro',
     upgradeSubtitle: 'Sblocca l\'esperienza completa di pianificazione del viaggio.',
     unlockAll: 'sblocca tutto',
@@ -795,6 +795,11 @@ export const it: Translations = {
     noPurchasesMsg: 'Nessun acquisto precedente trovato per questo account.',
     restoreSuccess: 'Acquisto ripristinato!',
     restoreSuccessMsg: 'Il tuo abbonamento {plan} è stato ripristinato con successo.',
+  },
+
+  notifications: {
+    welcomePro: 'Benvenuto in TheLocals Pro!',
+    renewalReminder: 'Il tuo abbonamento TheLocals Pro si rinnova tra 3 giorni.',
   },
 
   welcomeOffer: {
@@ -862,7 +867,7 @@ export const it: Translations = {
     revokedStatus: 'Revocato',
     inviteReceivesAccessMsg: "L'invitato riceverà accesso a questo viaggio dopo aver accettato l'invito.",
     guestEmailPlaceholder: "Email dell'invitato",
-    acceptRequiresAccountMsg: "L'invitato ha bisogno di un account LocalsApp per accettare l'invito. Dopo l'accettazione, il viaggio apparirà nella sua schermata iniziale.",
+    acceptRequiresAccountMsg: "L'invitato ha bisogno di un account TheLocals per accettare l'invito. Dopo l'accettazione, il viaggio apparirà nella sua schermata iniziale.",
   },
   tripEdit: {
     datesTitle: "Date dell'itinerario",

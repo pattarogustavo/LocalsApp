@@ -47,7 +47,7 @@ export const pt = {
   // ── Auth ────────────────────────────────────────────────────────────────────
   auth: {
     onboarding: {
-      title: 'LocalsApp',
+      title: 'TheLocals',
       subtitle: 'Organize, planeje e guarde cada detalhe da sua viagem em um só lugar.',
       feature1: 'Roteiros personalizados',
       feature1Desc: 'IA cria seu roteiro completo em segundos',
@@ -680,7 +680,7 @@ export const pt = {
     active: 'Ativo',
     inviteSent: 'Convite enviado',
     inviteMsg: 'Um convite foi enviado para',
-    inviteHint: 'Se o viajante tiver uma conta no LocalsApp, ele receberá o roteiro completo e poderá acompanhar em tempo real.',
+    inviteHint: 'Se o viajante tiver uma conta no TheLocals, ele receberá o roteiro completo e poderá acompanhar em tempo real.',
     emailHint: 'Se informado, um convite será enviado para acesso ao roteiro.',
   },
 
@@ -744,7 +744,7 @@ export const pt = {
     passwordError: 'Não foi possível alterar a senha.',
     // Language modal
     languageTitle: 'Idioma do Aplicativo',
-    languageSubtitle: 'Selecione o idioma de exibição do LocalsApp',
+    languageSubtitle: 'Selecione o idioma de exibição do TheLocals',
     languageCancel: 'Cancelar',
     // Edit profile modal
     editProfile: 'Editar perfil',
@@ -771,7 +771,7 @@ export const pt = {
 
   // ── Paywall ──────────────────────────────────────────────────────────────────
   paywall: {
-    title: 'LocalsApp Pro',
+    title: 'TheLocals Pro',
     subtitle: 'Desbloqueie o melhor da sua viagem',
     feature1: 'Roteiros ilimitados com IA',
     feature2: 'Busca de voos em tempo real',
@@ -794,7 +794,7 @@ export const pt = {
     alreadySubscribed: 'Você já tem uma assinatura ativa.',
     close: 'Fechar',
     accessRequired: 'Recurso exclusivo para assinantes',
-    accessRequiredSubtitle: 'Assine para continuar planejando suas viagens com o LocalsApp.',
+    accessRequiredSubtitle: 'Assine para continuar planejando suas viagens com o TheLocals.',
     upgradeTitle: 'Upgrade para TheLocals Pro',
     upgradeSubtitle: 'Desbloqueie toda a experiência de planejamento de viagens.',
     unlockAll: 'desbloqueie tudo',
@@ -816,6 +816,12 @@ export const pt = {
     noPurchasesMsg: 'Nenhuma compra anterior foi encontrada para esta conta.',
     restoreSuccess: 'Compra restaurada!',
     restoreSuccessMsg: 'Sua assinatura {plan} foi restaurada com sucesso.',
+  },
+
+  // ── Notifications ────────────────────────────────────────────────────────────
+  notifications: {
+    welcomePro: 'Bem-vindo ao TheLocals Pro!',
+    renewalReminder: 'Sua assinatura TheLocals Pro renova em 3 dias.',
   },
 
   // ── Welcome Offer ─────────────────────────────────────────────────────────────
@@ -887,7 +893,7 @@ export const pt = {
     revokedStatus: 'Revogado',
     inviteReceivesAccessMsg: 'O convidado receberá acesso a esta viagem após aceitar o convite.',
     guestEmailPlaceholder: 'E-mail do convidado',
-    acceptRequiresAccountMsg: 'O convidado precisa ter uma conta no LocalsApp para aceitar o convite. Após aceitar, a viagem aparecerá na tela inicial dele.',
+    acceptRequiresAccountMsg: 'O convidado precisa ter uma conta no TheLocals para aceitar o convite. Após aceitar, a viagem aparecerá na tela inicial dele.',
   },
 
   // ── Trip Date/Dest Modals ─────────────────────────────────────────────────────

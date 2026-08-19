@@ -33,7 +33,10 @@ export async function cancelSubscriptionNotifications(): Promise<void> {
 /**
  * Schedule a subscription confirmation notification (immediate).
  */
-export async function sendSubscriptionConfirmedNotification(plan: 'monthly' | 'annual'): Promise<void> {
+export async function sendSubscriptionConfirmedNotification(
+  plan: 'monthly' | 'annual',
+  title: string
+): Promise<void> {
   if (Platform.OS === 'web') return;
   const hasPermission = await requestNotificationPermissions();
   if (!hasPermission) return;
@@ -41,7 +44,7 @@ export async function sendSubscriptionConfirmedNotification(plan: 'monthly' | 'a
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Welcome to Voyage Pro! ✈️',
+        title,
         body: `Your ${plan === 'annual' ? 'annual' : 'monthly'} subscription is now active. Happy travels!`,
         data: { type: 'subscription', action: 'open_home' },
         sound: 'default',
@@ -56,7 +59,10 @@ export async function sendSubscriptionConfirmedNotification(plan: 'monthly' | 'a
 /**
  * Schedule a renewal reminder 3 days before subscription expires.
  */
-export async function scheduleRenewalReminder(expiresAt: Date): Promise<void> {
+export async function scheduleRenewalReminder(
+  expiresAt: Date,
+  body: string
+): Promise<void> {
   if (Platform.OS === 'web') return;
   const hasPermission = await requestNotificationPermissions();
   if (!hasPermission) return;
@@ -68,7 +74,7 @@ export async function scheduleRenewalReminder(expiresAt: Date): Promise<void> {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Subscription renewing soon',
-        body: 'Your Voyage Pro subscription renews in 3 days.',
+        body,
         data: { type: 'subscription', action: 'open_profile' },
         sound: 'default',
       },
