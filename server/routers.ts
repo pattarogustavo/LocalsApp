@@ -78,7 +78,7 @@ async function fetchWikipediaPhoto(cityName: string, country?: string): Promise<
       const r = await fetch(url, {
         headers: {
           Accept: "application/json",
-          "User-Agent": "LocalsApp/1.0 (travel-app)",
+          "User-Agent": "TheLocals/1.0 (travel-app)",
         },
         redirect: "follow",
       });
