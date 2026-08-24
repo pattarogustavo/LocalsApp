@@ -1,6 +1,6 @@
 "use client";
 import "@/global.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
@@ -44,6 +44,16 @@ function AuthGuard() {
   const segments = useSegments();
   const router = useRouter();
   const syncWithCloud = useTripsStore((s) => s.syncWithCloud);
+  const queryClient = useQueryClient();
+
+  // Drop any react-query cache (e.g. sharing.listSentByMe/listSharedWithMe)
+  // whenever the logged-in account changes, including to/from logged out —
+  // otherwise a stale-while-revalidate render can briefly show the previous
+  // account's cached data to the next one within the same app session.
+  useEffect(() => {
+    if (!initialized) return;
+    queryClient.clear();
+  }, [user?.id, initialized]);
 
   useEffect(() => {
     if (!initialized) return;
