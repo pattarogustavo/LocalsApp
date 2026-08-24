@@ -11,7 +11,6 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColors } from '@/hooks/use-colors';
 import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
 
@@ -85,15 +84,7 @@ export default function PreferencesScreen() {
     }
   };
 
-  const handleFinish = async () => {
-    // Save preferences to AsyncStorage
-    const prefs = {
-      destinations: selectedDestinations,
-      travelStyles: selectedStyles,
-      pace: selectedPace,
-    };
-    await AsyncStorage.setItem('@voyage_travel_prefs', JSON.stringify(prefs));
-    // Navigate to main app
+  const handleFinish = () => {
     router.replace('/(tabs)' as any);
   };
 
