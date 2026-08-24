@@ -799,6 +799,8 @@ export const fr: Translations = {
     noPurchasesMsg: 'Aucun achat précédent n\'a été trouvé pour ce compte.',
     restoreSuccess: 'Achat restauré !',
     restoreSuccessMsg: 'Votre abonnement {plan} a été restauré avec succès.',
+    offeringsLoadError: 'Impossible de charger les forfaits. Vérifiez votre connexion.',
+    retry: 'Réessayer',
   },
 
   notifications: {

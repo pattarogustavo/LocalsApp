@@ -784,6 +784,8 @@ export const es: Translations = {
     noPurchasesMsg: 'No se encontraron compras anteriores para esta cuenta.',
     restoreSuccess: '¡Compra restaurada!',
     restoreSuccessMsg: 'Tu suscripción {plan} se restauró correctamente.',
+    offeringsLoadError: 'No se pudieron cargar los planes. Verifica tu conexión.',
+    retry: 'Intentar de nuevo',
   },
   notifications: {
     welcomePro: '¡Bienvenido a TheLocals Pro!',

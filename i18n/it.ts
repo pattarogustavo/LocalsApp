@@ -799,6 +799,8 @@ export const it: Translations = {
     noPurchasesMsg: 'Nessun acquisto precedente trovato per questo account.',
     restoreSuccess: 'Acquisto ripristinato!',
     restoreSuccessMsg: 'Il tuo abbonamento {plan} è stato ripristinato con successo.',
+    offeringsLoadError: 'Impossibile caricare i piani. Controlla la tua connessione.',
+    retry: 'Riprova',
   },
 
   notifications: {

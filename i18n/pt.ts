@@ -820,6 +820,8 @@ export const pt = {
     noPurchasesMsg: 'Nenhuma compra anterior foi encontrada para esta conta.',
     restoreSuccess: 'Compra restaurada!',
     restoreSuccessMsg: 'Sua assinatura {plan} foi restaurada com sucesso.',
+    offeringsLoadError: 'Não foi possível carregar os planos. Verifique sua conexão.',
+    retry: 'Tentar novamente',
   },
 
   // ── Notifications ────────────────────────────────────────────────────────────

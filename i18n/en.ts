@@ -799,6 +799,8 @@ export const en: Translations = {
     noPurchasesMsg: 'No previous purchases were found for this account.',
     restoreSuccess: 'Purchase restored!',
     restoreSuccessMsg: 'Your {plan} subscription was restored successfully.',
+    offeringsLoadError: 'Could not load plans. Check your connection.',
+    retry: 'Try again',
   },
 
   notifications: {

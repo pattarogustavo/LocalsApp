@@ -64,10 +64,39 @@ export default function PaywallScreen() {
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [packages, setPackages] = useState<Partial<Record<SubscriptionPlan, PurchasesPackage>>>({});
+  const [offeringsLoading, setOfferingsLoading] = useState(true);
+  const [offeringsError, setOfferingsError] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
-    getOfferingPackages().then(setPackages).catch(() => {});
-  }, []);
+    let cancelled = false;
+    setOfferingsLoading(true);
+    setOfferingsError(false);
+
+    const timeout = new Promise<'timeout'>((resolve) => {
+      setTimeout(() => resolve('timeout'), 8000);
+    });
+
+    Promise.race([getOfferingPackages(), timeout])
+      .then((result) => {
+        if (cancelled) return;
+        if (result === 'timeout' || (!result.annual && !result.monthly)) {
+          setOfferingsError(true);
+          return;
+        }
+        setPackages(result);
+      })
+      .catch(() => {
+        if (!cancelled) setOfferingsError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setOfferingsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [retryToken]);
 
   const annualPkg = packages.annual;
   const monthlyPkg = packages.monthly;
@@ -200,6 +229,18 @@ export default function PaywallScreen() {
         </TouchableOpacity>
 
         {/* Plan selector */}
+        {offeringsError ? (
+          <View style={styles.offeringsErrorCard}>
+            <Text style={styles.offeringsErrorText}>{t.paywall.offeringsLoadError}</Text>
+            <TouchableOpacity
+              style={styles.retryBtn}
+              activeOpacity={0.85}
+              onPress={() => setRetryToken((n) => n + 1)}
+            >
+              <Text style={styles.retryBtnText}>{t.paywall.retry}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
         <View style={styles.plans}>
           {/* Annual plan */}
           <TouchableOpacity
@@ -269,13 +310,14 @@ export default function PaywallScreen() {
             )}
           </TouchableOpacity>
         </View>
+        )}
 
         {/* CTA */}
         <TouchableOpacity
-          style={[styles.ctaBtn, loading && styles.ctaBtnDisabled]}
+          style={[styles.ctaBtn, (loading || offeringsError) && styles.ctaBtnDisabled]}
           activeOpacity={0.85}
           onPress={handlePurchase}
-          disabled={loading}
+          disabled={loading || offeringsError}
         >
           {loading ? (
             <ActivityIndicator color={ON_PRIMARY} />
@@ -473,6 +515,31 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     height: 10,
     width: '45%',
     marginTop: 6,
+  },
+  offeringsErrorCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+  offeringsErrorText: {
+    fontSize: 13,
+    color: colors.foreground,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  retryBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  retryBtnText: {
+    color: ON_PRIMARY,
+    fontSize: 13,
+    fontWeight: '700',
   },
   ctaBtn: {
     backgroundColor: colors.primary,

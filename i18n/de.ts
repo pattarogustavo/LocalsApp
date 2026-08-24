@@ -799,6 +799,8 @@ export const de: Translations = {
     noPurchasesMsg: 'Für dieses Konto wurden keine früheren Käufe gefunden.',
     restoreSuccess: 'Kauf wiederhergestellt!',
     restoreSuccessMsg: 'Dein {plan}-Abo wurde erfolgreich wiederhergestellt.',
+    offeringsLoadError: 'Die Pläne konnten nicht geladen werden. Überprüfe deine Verbindung.',
+    retry: 'Erneut versuchen',
   },
 
   notifications: {
