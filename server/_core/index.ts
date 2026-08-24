@@ -4,7 +4,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerStorageProxy } from "./storageProxy";
-import { appRouter } from "../routers";
+import { appRouter, processRevenueCatWebhook } from "../routers";
 import { createContext } from "./context";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -58,6 +58,13 @@ async function startServer() {
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: Date.now() });
+  });
+
+  // RevenueCat posts plain JSON with no tRPC envelope, so it can't go
+  // through the tRPC procedure format — handled as a standalone route.
+  app.post("/api/webhooks/revenuecat", express.json(), async (req, res) => {
+    const { status, body } = await processRevenueCatWebhook(req.headers.authorization, req.body);
+    res.status(status).json(body);
   });
 
   app.use(

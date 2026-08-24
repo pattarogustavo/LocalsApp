@@ -43,6 +43,71 @@ function timingSafeEqualStrings(a: string, b: string): boolean {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
+const revenueCatWebhookEventSchema = z.object({
+  event: z.object({
+    type: z.string(),
+    app_user_id: z.string(),
+    product_id: z.string().optional(),
+    expiration_at_ms: z.number().optional(),
+  }),
+});
+
+/**
+ * RevenueCat webhook handler, called from the standalone Express route in
+ * server/_core/index.ts — RevenueCat posts plain JSON with no tRPC envelope,
+ * so it can't go through a tRPC procedure.
+ *
+ * Verifies the Authorization header against REVENUECAT_WEBHOOK_SECRET and
+ * applies the subscription status update for the event.
+ */
+export async function processRevenueCatWebhook(
+  authorizationHeader: string | undefined,
+  rawBody: unknown,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const expectedSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
+  if (!expectedSecret || !authorizationHeader || !timingSafeEqualStrings(authorizationHeader, expectedSecret)) {
+    return { status: 401, body: { error: "Unauthorized" } };
+  }
+
+  const parsed = revenueCatWebhookEventSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return { status: 400, body: { error: "Invalid payload" } };
+  }
+
+  const { event } = parsed.data;
+  const user = await db.getUserByOpenId(event.app_user_id);
+  if (!user) return { status: 200, body: { ok: true, reason: "USER_NOT_FOUND" } };
+
+  const plan = event.product_id?.includes('annual') ? 'annual' as const
+    : event.product_id?.includes('monthly') ? 'monthly' as const
+    : null;
+
+  const expiresAt = event.expiration_at_ms ? new Date(event.expiration_at_ms) : null;
+
+  switch (event.type) {
+    case 'INITIAL_PURCHASE':
+    case 'RENEWAL':
+      await db.updateSubscriptionStatus(user.id, {
+        subscriptionStatus: 'active',
+        subscriptionPlan: plan ?? undefined,
+        subscriptionExpiresAt: expiresAt ?? undefined,
+        revenuecatUserId: event.app_user_id,
+      });
+      break;
+    case 'CANCELLATION':
+      await db.updateSubscriptionStatus(user.id, {
+        subscriptionStatus: 'cancelled',
+      });
+      break;
+    case 'EXPIRATION':
+      await db.updateSubscriptionStatus(user.id, {
+        subscriptionStatus: 'expired',
+      });
+      break;
+  }
+  return { status: 200, body: { ok: true } };
+}
+
 /**
  * Guards AI-powered procedures (itinerary generation, place suggestions,
  * destination info) behind an active subscription, checked fresh against the
@@ -616,59 +681,10 @@ Responda APENAS com JSON válido neste formato exato:
       return { success: true };
     }),
 
-    /**
-     * RevenueCat webhook handler.
-     * Receives subscription events and updates user status.
-     */
-    webhook: publicProcedure
-      .input(z.object({
-        event: z.object({
-          type: z.string(),
-          app_user_id: z.string(),
-          product_id: z.string().optional(),
-          expiration_at_ms: z.number().optional(),
-        }),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        const expectedSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
-        const providedSecret = ctx.req.headers.authorization;
-        if (!expectedSecret || !providedSecret || !timingSafeEqualStrings(providedSecret, expectedSecret)) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid webhook authorization." });
-        }
-
-        const { event } = input;
-        const user = await db.getUserByOpenId(event.app_user_id);
-        if (!user) return { success: false, reason: 'USER_NOT_FOUND' };
-
-        const plan = event.product_id?.includes('annual') ? 'annual' as const
-          : event.product_id?.includes('monthly') ? 'monthly' as const
-          : null;
-
-        const expiresAt = event.expiration_at_ms ? new Date(event.expiration_at_ms) : null;
-
-        switch (event.type) {
-          case 'INITIAL_PURCHASE':
-          case 'RENEWAL':
-            await db.updateSubscriptionStatus(user.id, {
-              subscriptionStatus: 'active',
-              subscriptionPlan: plan ?? undefined,
-              subscriptionExpiresAt: expiresAt ?? undefined,
-              revenuecatUserId: event.app_user_id,
-            });
-            break;
-          case 'CANCELLATION':
-            await db.updateSubscriptionStatus(user.id, {
-              subscriptionStatus: 'cancelled',
-            });
-            break;
-          case 'EXPIRATION':
-            await db.updateSubscriptionStatus(user.id, {
-              subscriptionStatus: 'expired',
-            });
-            break;
-        }
-        return { success: true };
-      }),
+    // RevenueCat webhook handling moved to the standalone Express route at
+    // POST /api/webhooks/revenuecat (see server/_core/index.ts) — RevenueCat
+    // posts plain JSON with no tRPC envelope, which the tRPC procedure format
+    // can't accept. See processRevenueCatWebhook above.
   }),
 
   // ─── AeroDataBox ─────────────────────────────────────────────────────────
