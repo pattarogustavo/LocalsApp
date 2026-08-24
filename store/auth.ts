@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/_core/with-timeout';
 import { logoutRevenueCat } from '@/config/revenuecat';
+import { useTripsStore } from '@/store/trips';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 const LANG_KEY = 'voyage_preferred_language';
@@ -83,6 +84,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: null, session: null });
       return;
     }
+    // Guard against stale data from a previous account still sitting in
+    // memory/AsyncStorage (e.g. auto-login/session restore without an
+    // explicit prior logout).
+    const previousUserId = get().user?.id;
+    if (previousUserId && previousUserId !== session.user.id) {
+      await useTripsStore.getState().clearLocalTrips();
+    }
     // Load cached profile extras (subscription, avatar, language)
     let profile: Partial<AuthUser> | null = null;
     try {
@@ -99,6 +107,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const lang = get().preferredLanguage;
     await supabase.auth.signOut();
     await logoutRevenueCat().catch(() => {});
+    await useTripsStore.getState().clearLocalTrips();
     await AsyncStorage.multiRemove([PROFILE_KEY]);
     set({ user: null, session: null, preferredLanguage: lang });
   },

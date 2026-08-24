@@ -75,6 +75,8 @@ interface TripsState {
   removeItineraryStopAndPlace: (tripId: string, dayIndex: number, stopId: string, placeId?: string) => Promise<void>;
   // Plan
   updateUserPlan: (plan: Partial<UserPlan>) => void;
+  // Account isolation
+  clearLocalTrips: () => Promise<void>;
 }
 
 const STORAGE_KEY = 'voyage_trips';
@@ -729,5 +731,12 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     const updated = { ...get().userPlan, ...plan };
     set({ userPlan: updated });
     AsyncStorage.setItem(PLAN_KEY, JSON.stringify(updated)).catch(console.error);
+  },
+
+  // ─── Account isolation ──────────────────────────────────────────────────────
+
+  clearLocalTrips: async () => {
+    set({ trips: [], userPlan: DEFAULT_PLAN });
+    await AsyncStorage.multiRemove([STORAGE_KEY, PLAN_KEY]);
   },
 }));
