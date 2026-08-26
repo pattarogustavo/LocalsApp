@@ -671,16 +671,6 @@ Responda APENAS com JSON válido neste formato exato:
       };
     }),
 
-    /**
-     * Cancel subscription (marks as cancelled, access until expiry).
-     */
-    cancel: protectedProcedure.mutation(async ({ ctx }) => {
-      await db.updateSubscriptionStatus(ctx.user.id, {
-        subscriptionStatus: 'cancelled',
-      });
-      return { success: true };
-    }),
-
     // RevenueCat webhook handling moved to the standalone Express route at
     // POST /api/webhooks/revenuecat (see server/_core/index.ts) — RevenueCat
     // posts plain JSON with no tRPC envelope, which the tRPC procedure format

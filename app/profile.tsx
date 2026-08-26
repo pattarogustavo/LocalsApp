@@ -464,15 +464,11 @@ export default function ProfileScreen() {
   const { user, logout, updateProfile, themeMode, setThemeMode } = useAuthStore();
   const { status, isActive, isExpired, subscriptionExpiresAt, plan } = useSubscription();
   const [loggingOut, setLoggingOut] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
   const [showLangModal, setShowLangModal] = useState(false);
   const [showPwModal, setShowPwModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showEditEmailModal, setShowEditEmailModal] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-
-  const cancelMutation = trpc.subscription.cancel.useMutation();
-  const { updateSubscription } = useAuthStore();
 
   const currentLang = user?.preferredLanguage ?? 'pt';
   const currentLangLabel = LANGUAGES.find((l) => l.code === currentLang)?.label ?? 'Português';
@@ -514,33 +510,6 @@ export default function ProfileScreen() {
         },
       },
     ]);
-  };
-
-  // ── Cancel subscription ────────────────────────────────────────────────────
-  const handleCancelSubscription = () => {
-    Alert.alert(
-      t.profile.cancelConfirmTitle,
-      t.profile.cancelConfirmMsg,
-      [
-        { text: t.profile.keepSubscription, style: 'cancel' },
-        {
-          text: t.profile.cancelSubscription,
-          style: 'destructive',
-          onPress: async () => {
-            setCancelling(true);
-            try {
-              await cancelMutation.mutateAsync();
-              updateSubscription({ subscriptionStatus: 'cancelled' });
-              Alert.alert(t.common.success, t.profile.cancelSubscription);
-            } catch {
-              Alert.alert(t.common.error, t.common.tryAgain);
-            } finally {
-              setCancelling(false);
-            }
-          },
-        },
-      ]
-    );
   };
 
   const formatDate = (date: Date | null) => {
@@ -641,18 +610,6 @@ export default function ProfileScreen() {
                   onPress={handleManageSubscription}
                 >
                   <Text style={styles.manageBtnText}>{t.profile.manageSubscriptionBtn}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  activeOpacity={0.85}
-                  onPress={handleCancelSubscription}
-                  disabled={cancelling}
-                >
-                  {cancelling ? (
-                    <ActivityIndicator size="small" color={colors.error} />
-                  ) : (
-                    <Text style={styles.cancelBtnText}>{t.profile.cancelSubscription}</Text>
-                  )}
                 </TouchableOpacity>
               </>
             )}
@@ -990,7 +947,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   cardValue: { fontSize: 14, fontWeight: '500', color: colors.foreground },
   cardValueWarning: { color: colors.error },
 
-  // Upgrade / Cancel buttons
+  // Upgrade / manage buttons
   upgradeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1012,15 +969,6 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     paddingVertical: 12,
   },
   manageBtnText: { fontSize: 14, fontWeight: '600', color: colors.primary },
-  cancelBtn: {
-    alignItems: 'center',
-    margin: 12,
-    borderWidth: 1,
-    borderColor: withAlpha(colors.error, 0.3),
-    borderRadius: 10,
-    paddingVertical: 12,
-  },
-  cancelBtnText: { fontSize: 14, fontWeight: '600', color: colors.error },
 
   // Menu rows
   menuRow: {
