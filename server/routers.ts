@@ -46,9 +46,11 @@ function timingSafeEqualStrings(a: string, b: string): boolean {
 const revenueCatWebhookEventSchema = z.object({
   event: z.object({
     type: z.string(),
-    app_user_id: z.string(),
+    app_user_id: z.string().optional(),
     product_id: z.string().nullable().optional(),
     expiration_at_ms: z.number().nullable().optional(),
+    transferred_to: z.array(z.string()).optional(),
+    transferred_from: z.array(z.string()).optional(),
   }),
 });
 
@@ -79,6 +81,33 @@ export async function processRevenueCatWebhook(
   }
 
   const { event } = parsed.data;
+
+  // TRANSFER events move an entitlement between app_user_ids, so they carry
+  // transferred_to/transferred_from arrays instead of a top-level
+  // app_user_id, and often omit product_id/expiration_at_ms entirely — in
+  // that case we just flip the destination user to active and leave their
+  // existing plan/expiration alone.
+  if (event.type === 'TRANSFER') {
+    const newAppUserId = event.transferred_to?.[0];
+    if (!newAppUserId) return { status: 200, body: { ok: true, reason: "USER_NOT_FOUND" } };
+    const user = await db.getUserByOpenId(newAppUserId);
+    if (!user) return { status: 200, body: { ok: true, reason: "USER_NOT_FOUND" } };
+
+    const plan = event.product_id?.includes('annual') ? 'annual' as const
+      : event.product_id?.includes('monthly') ? 'monthly' as const
+      : undefined;
+    const expiresAt = event.expiration_at_ms ? new Date(event.expiration_at_ms) : undefined;
+
+    await db.updateSubscriptionStatus(user.id, {
+      subscriptionStatus: 'active',
+      subscriptionPlan: plan,
+      subscriptionExpiresAt: expiresAt,
+      revenuecatUserId: newAppUserId,
+    });
+    return { status: 200, body: { ok: true } };
+  }
+
+  if (!event.app_user_id) return { status: 200, body: { ok: true, reason: "USER_NOT_FOUND" } };
   const user = await db.getUserByOpenId(event.app_user_id);
   if (!user) return { status: 200, body: { ok: true, reason: "USER_NOT_FOUND" } };
 
@@ -108,6 +137,8 @@ export async function processRevenueCatWebhook(
         subscriptionStatus: 'expired',
       });
       break;
+    default:
+      return { status: 200, body: { ok: true, reason: "EVENT_TYPE_IGNORED" } };
   }
   return { status: 200, body: { ok: true } };
 }
