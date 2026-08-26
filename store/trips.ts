@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   Trip,
@@ -163,7 +164,9 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   syncWithCloud: async () => {
     set({ isSyncing: true });
     try {
+      Alert.alert('[SyncDebug] Iniciando sync', `local trips antes: ${get().trips.length}`);
       const cloudRows = await trpcVanilla.cloudTrips.list.query();
+      Alert.alert('[SyncDebug] Cloud retornou', `${cloudRows.length} viagens`);
       const localTrips = get().trips;
 
       // Build a map of cloud trips by clientId
@@ -220,6 +223,7 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     } catch (e) {
       // Sync failed (offline/unauthenticated) — keep local data
       console.warn('[CloudSync] Sync failed, using local data:', e);
+      Alert.alert('[SyncDebug] Falhou', String((e as any)?.message || e));
     } finally {
       set({ isSyncing: false });
     }
