@@ -35,9 +35,13 @@ export function configureRevenueCat(): void {
 
 /** Link the RevenueCat app_user_id to the authenticated Supabase user id. */
 export async function loginRevenueCat(userId: string): Promise<void> {
-  if (!configured) return;
+  if (!configured) {
+    console.log('[RevenueCat DEBUG] logIn pulado: SDK não configurado (configured=false)');
+    return;
+  }
   try {
-    await Purchases.logIn(userId);
+    const { customerInfo } = await Purchases.logIn(userId);
+    console.log('[RevenueCat DEBUG] logIn ok — app_user_id agora é:', customerInfo.originalAppUserId);
   } catch (err) {
     console.warn('[RevenueCat] logIn failed:', err);
   }
