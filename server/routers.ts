@@ -47,8 +47,8 @@ const revenueCatWebhookEventSchema = z.object({
   event: z.object({
     type: z.string(),
     app_user_id: z.string(),
-    product_id: z.string().optional(),
-    expiration_at_ms: z.number().optional(),
+    product_id: z.string().nullable().optional(),
+    expiration_at_ms: z.number().nullable().optional(),
   }),
 });
 
@@ -71,6 +71,10 @@ export async function processRevenueCatWebhook(
 
   const parsed = revenueCatWebhookEventSchema.safeParse(rawBody);
   if (!parsed.success) {
+    console.error("[RevenueCat webhook] Invalid payload", {
+      rawBody,
+      issues: parsed.error.issues,
+    });
     return { status: 400, body: { error: "Invalid payload" } };
   }
 
