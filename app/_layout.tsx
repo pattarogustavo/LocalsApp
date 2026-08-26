@@ -6,7 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
-import { Platform, KeyboardAvoidingView, Alert } from "react-native";
+import { Platform, KeyboardAvoidingView } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import * as Notifications from "expo-notifications";
@@ -80,10 +80,7 @@ function AuthGuard() {
   // purchase/entitlement state is tied to the right account.
   useEffect(() => {
     if (user) {
-      Alert.alert('[RevenueCat DEBUG] Tentando logIn', `user.id: ${user.id}`);
-      loginRevenueCat(user.id).catch((err) => {
-        Alert.alert('[RevenueCat DEBUG] logIn falhou', String(err?.message || err));
-      });
+      loginRevenueCat(user.id).catch(() => {});
     }
   }, [user?.id]);
 
