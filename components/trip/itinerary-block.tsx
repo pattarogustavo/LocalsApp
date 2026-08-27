@@ -62,8 +62,19 @@ function getPaceOptions(t: Translations): { id: TravelPace; label: string; icon:
   ];
 }
 
-const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-const DAY_NAMES   = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const DATE_LOCALE_MAP: Record<string, string> = {
+  pt: 'pt-BR',
+  en: 'en-US',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  it: 'it-IT',
+};
+
+function toDateLocale(lang?: string): string {
+  const code = lang?.slice(0, 2).toLowerCase();
+  return (code && DATE_LOCALE_MAP[code]) || 'pt-BR';
+}
 
 // ─── Build empty day placeholders ─────────────────────────────────────────────
 
@@ -94,6 +105,10 @@ function DaySelector({
 }) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
+  const dateLocale = toDateLocale(preferredLanguage);
+  const weekdayFormatter = useMemo(() => new Intl.DateTimeFormat(dateLocale, { weekday: 'short' }), [dateLocale]);
+  const monthFormatter = useMemo(() => new Intl.DateTimeFormat(dateLocale, { month: 'short' }), [dateLocale]);
   return (
     <ScrollView
       horizontal showsHorizontalScrollIndicator={false}
@@ -110,13 +125,13 @@ function DaySelector({
             style={[styles.dayChip, isSelected && styles.dayChipActive]}
           >
             <Text style={[styles.dayChipName, isSelected && styles.dayChipNameActive]}>
-              {DAY_NAMES[base.getDay()]}
+              {weekdayFormatter.format(base)}
             </Text>
             <Text style={[styles.dayChipNum, isSelected && styles.dayChipNumActive]}>
               {base.getDate()}
             </Text>
             <Text style={[styles.dayChipMonth, isSelected && styles.dayChipMonthActive]}>
-              {MONTH_NAMES[base.getMonth()]}
+              {monthFormatter.format(base)}
             </Text>
           </TouchableOpacity>
         );
@@ -931,7 +946,10 @@ function DayView({
                   if (i === dayIndex) return null;
                   const base = new Date(startDate);
                   base.setDate(base.getDate() + i);
-                  const label = `${t.itinerary.day} ${i + 1} — ${DAY_NAMES[base.getDay()]}, ${base.getDate()} ${MONTH_NAMES[base.getMonth()]}`;
+                  const dateLocale = toDateLocale(preferredLanguage);
+                  const weekday = new Intl.DateTimeFormat(dateLocale, { weekday: 'short' }).format(base);
+                  const month = new Intl.DateTimeFormat(dateLocale, { month: 'short' }).format(base);
+                  const label = `${t.itinerary.day} ${i + 1} — ${weekday}, ${base.getDate()} ${month}`;
                   return (
                     <TouchableOpacity
                       key={i}
