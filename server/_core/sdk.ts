@@ -1,9 +1,13 @@
 import { ForbiddenError } from "../../shared/_core/errors.js";
-import { jwtVerify } from "jose";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Request } from "express";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
+
+const JWKS = createRemoteJWKSet(
+  new URL(`${ENV.supabaseUrl}/auth/v1/.well-known/jwks.json`)
+);
 
 class SDKServer {
   async authenticateRequest(req: Request): Promise<User> {
@@ -18,10 +22,9 @@ class SDKServer {
       throw ForbiddenError("Missing authorization token");
     }
 
-    // Validate Supabase JWT using the project JWT secret
-    const jwtSecret = ENV.supabaseJwtSecret;
-    if (!jwtSecret) {
-      throw ForbiddenError("Server auth not configured (missing SUPABASE_JWT_SECRET)");
+    // Validate Supabase JWT via the project's remote JWKS
+    if (!ENV.supabaseUrl) {
+      throw ForbiddenError("Server auth not configured (missing EXPO_PUBLIC_SUPABASE_URL)");
     }
 
     let supabaseUserId: string;
@@ -30,8 +33,7 @@ class SDKServer {
     let loginMethod = "email";
 
     try {
-      const secretKey = new TextEncoder().encode(jwtSecret);
-      const { payload } = await jwtVerify(token, secretKey, { algorithms: ["HS256"] });
+      const { payload } = await jwtVerify(token, JWKS);
       supabaseUserId = payload.sub as string;
       supabaseEmail = (payload.email as string) ?? null;
       const meta = ((payload as any).user_metadata as Record<string, unknown>) ?? {};
