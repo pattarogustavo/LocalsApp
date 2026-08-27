@@ -101,8 +101,8 @@ const pushTripToCloud = async (trip: Trip) => {
       clientId: trip.id,
       data: JSON.stringify(trip),
     });
-  } catch {
-    // Offline or unauthenticated — local data is the source of truth
+  } catch (err: any) {
+    Alert.alert('[PushDebug] Falhou ao salvar na nuvem', String(err?.message || err));
   }
 };
 
