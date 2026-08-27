@@ -41,7 +41,7 @@ class SDKServer {
       const providers = (appMeta.providers as string[]) ?? [];
       if (providers.includes("apple")) loginMethod = "apple";
     } catch (error) {
-      console.warn("[Auth] Supabase JWT verification failed:", String(error));
+      console.error("[Auth] jwtVerify falhou:", error);
       throw ForbiddenError("Invalid or expired token");
     }
 
