@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   Trip,
@@ -101,8 +100,8 @@ const pushTripToCloud = async (trip: Trip) => {
       clientId: trip.id,
       data: JSON.stringify(trip),
     });
-  } catch (err: any) {
-    Alert.alert('[PushDebug] Falhou ao salvar na nuvem', String(err?.message || err));
+  } catch (err) {
+    console.warn('[CloudSync] Failed to push trip to cloud:', err);
   }
 };
 
@@ -165,7 +164,6 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     set({ isSyncing: true });
     try {
       const cloudRows = await trpcVanilla.cloudTrips.list.query();
-      Alert.alert('[SyncDebug2]', `Cloud retornou ${cloudRows.length} viagens`);
       const localTrips = get().trips;
 
       // Build a map of cloud trips by clientId

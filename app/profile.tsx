@@ -62,6 +62,7 @@ function getSubscriptionBadgeConfig(colors: ThemeColorPalette) {
     active: { bg: withAlpha(colors.primary, 0.12), color: colors.textAccent, icon: 'checkmark-circle-outline' },
     expired: { bg: withAlpha(colors.error, 0.12), color: colors.error, icon: 'close-circle-outline' },
     cancelled: { bg: withAlpha(colors.muted, 0.15), color: colors.muted, icon: 'ban-outline' },
+    free: { bg: withAlpha(colors.muted, 0.15), color: colors.muted, icon: 'person-outline' },
   };
 }
 
@@ -75,8 +76,9 @@ function SubscriptionBadge({ status, t }: { status: string | null; t: ReturnType
     active: 'Pro',
     expired: t.profile.expiredStatus,
     cancelled: t.common.cancel,
+    free: t.profile.freeStatus,
   };
-  const key = status ?? 'expired';
+  const key = status ?? 'free';
   const base = (statusConfig as Record<string, { bg: string; color: string; icon: string }>)[key];
   const config = base
     ? { label: labels[key], ...base }
@@ -586,7 +588,6 @@ export default function ProfileScreen() {
                   activeOpacity={0.85}
                   onPress={() => router.push('/paywall' as any)}
                 >
-                  <Ionicons name="star-outline" size={14} color={colors.textOnPrimary} />
                   <Text style={styles.upgradeBtnText}>{t.profile.viewPlansBtn}</Text>
                 </TouchableOpacity>
               </>

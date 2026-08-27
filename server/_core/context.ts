@@ -15,7 +15,6 @@ export async function createContext(opts: CreateExpressContextOptions): Promise<
     user = await sdk.authenticateRequest(opts.req);
   } catch (error) {
     // Authentication is optional for public procedures.
-    console.error("[Auth] authenticateRequest falhou:", error);
     user = null;
   }
 
