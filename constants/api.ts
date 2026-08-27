@@ -25,6 +25,6 @@ export function getApiBaseUrl(): string {
     }
   }
 
-  // Fallback to empty (will use relative URL)
-  return "";
+  // Fallback rígido: nunca retornar vazio (causa URLs relativas inválidas)
+  return "https://localsapp-production.up.railway.app";
 }
