@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { InsertUser, users, trips, tripShares, InsertTripRow } from "../drizzle/schema";
 
@@ -63,6 +63,22 @@ export async function updateUserProfile(openId: string, data: { name?: string; b
   if (data.bio !== undefined) updateSet.bio = data.bio;
   if (Object.keys(updateSet).length === 0) return;
   await db.update(users).set({ ...updateSet, updatedAt: new Date() }).where(eq(users.openId, openId));
+}
+
+/** Permanently deletes a user's trips, trip shares, and user row. */
+export async function deleteUserData(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const userTrips = await db.select({ id: trips.id }).from(trips).where(eq(trips.userId, userId));
+  const tripIds = userTrips.map((t) => t.id);
+
+  if (tripIds.length > 0) {
+    await db.delete(tripShares).where(inArray(tripShares.tripId, tripIds));
+  }
+  await db.delete(tripShares).where(or(eq(tripShares.ownerId, userId), eq(tripShares.inviteeUserId, userId)));
+  await db.delete(trips).where(eq(trips.userId, userId));
+  await db.delete(users).where(eq(users.id, userId));
 }
 
 export async function updateSubscriptionStatus(userId: number, data: {

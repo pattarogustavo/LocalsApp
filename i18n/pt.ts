@@ -728,6 +728,10 @@ export const pt = {
     deleteAccount: 'Excluir conta',
     deleteAccountConfirmTitle: 'Excluir conta',
     deleteAccountConfirmMsg: 'Esta ação é irreversível. Todos os seus dados serão excluídos.',
+    deleteAccountFinalTitle: 'Tem certeza?',
+    deleteAccountFinalMsg: 'Sua conta, viagens e todos os dados serão apagados permanentemente. Essa ação não pode ser desfeita.',
+    deleteAccountFinalConfirm: 'Excluir permanentemente',
+    deleteAccountError: 'Não foi possível excluir sua conta. Tente novamente.',
     traveler: 'Viajante',
     changePhoto: 'Alterar foto',
     // Change password modal

@@ -7,6 +7,7 @@ import { searchIslands } from "../constants/islands-regions";
 import * as db from "./db";
 import crypto from "crypto";
 import { storagePut } from "./storage";
+import { getSupabaseAdmin } from "./_core/supabaseAdmin";
 
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
@@ -589,6 +590,19 @@ export const appRouter = router({
         await db.updateUserProfile(ctx.user.openId, input);
         return { success: true };
       }),
+
+    /**
+     * Permanently deletes the authenticated user's account and all associated
+     * data, including the Supabase Auth identity (Apple Guideline 5.1.1v).
+     */
+    deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
+      await db.deleteUserData(ctx.user.id);
+      const { error } = await getSupabaseAdmin().auth.admin.deleteUser(ctx.user.openId);
+      if (error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+      }
+      return { success: true };
+    }),
   }),
 
   // ─── Destination Info (AI) ───────────────────────────────────────────────

@@ -471,6 +471,8 @@ export default function ProfileScreen() {
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showEditEmailModal, setShowEditEmailModal] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const deleteAccountMutation = trpc.user.deleteAccount.useMutation();
 
   const currentLang = user?.preferredLanguage ?? 'pt';
   const currentLangLabel = LANGUAGES.find((l) => l.code === currentLang)?.label ?? 'Português';
@@ -509,6 +511,38 @@ export default function ProfileScreen() {
           setLoggingOut(true);
           await logout();
           router.replace('/auth/onboarding' as any);
+        },
+      },
+    ]);
+  };
+
+  // ── Delete account ────────────────────────────────────────────────────────
+  const handleDeleteAccount = () => {
+    Alert.alert(t.profile.deleteAccountConfirmTitle, t.profile.deleteAccountConfirmMsg, [
+      { text: t.common.cancel, style: 'cancel' },
+      {
+        text: t.profile.deleteAccount,
+        style: 'destructive',
+        onPress: () => {
+          Alert.alert(t.profile.deleteAccountFinalTitle, t.profile.deleteAccountFinalMsg, [
+            { text: t.common.cancel, style: 'cancel' },
+            {
+              text: t.profile.deleteAccountFinalConfirm,
+              style: 'destructive',
+              onPress: async () => {
+                setDeletingAccount(true);
+                try {
+                  await deleteAccountMutation.mutateAsync();
+                  await logout();
+                  router.replace('/auth/onboarding' as any);
+                } catch (e: any) {
+                  setDeletingAccount(false);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                  Alert.alert(t.common.error, e?.message ?? t.profile.deleteAccountError);
+                }
+              },
+            },
+          ]);
         },
       },
     ]);
@@ -739,7 +773,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.menuRow}
+              style={[styles.menuRow, styles.menuRowBorder]}
               activeOpacity={0.7}
               onPress={() => Linking.openURL('https://pattarogustavo.github.io/The-Locals/')}
             >
@@ -747,6 +781,23 @@ export default function ProfileScreen() {
                 <Ionicons name="shield-checkmark-outline" size={16} color={withAlpha(colors.foreground, 0.6)} />
               </View>
               <Text style={styles.menuLabel}>{t.profile.privacy}</Text>
+              <Ionicons name="chevron-forward" size={14} color={withAlpha(colors.foreground, 0.25)} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.menuRow}
+              activeOpacity={0.7}
+              onPress={handleDeleteAccount}
+              disabled={deletingAccount}
+            >
+              <View style={styles.menuIconBg}>
+                {deletingAccount ? (
+                  <ActivityIndicator size="small" color={colors.error} />
+                ) : (
+                  <Ionicons name="trash-outline" size={16} color={colors.error} />
+                )}
+              </View>
+              <Text style={[styles.menuLabel, { color: colors.error }]}>{t.profile.deleteAccount}</Text>
               <Ionicons name="chevron-forward" size={14} color={withAlpha(colors.foreground, 0.25)} />
             </TouchableOpacity>
           </View>
