@@ -99,6 +99,13 @@ const config: ExpoConfig = {
       },
     ],
     [
+      "expo-image-picker",
+      {
+        photosPermission:
+          "TheLocals uses your photo library so you can attach photos of tickets, reservations, and other travel documents to your trips.",
+      },
+    ],
+    [
       "expo-video",
       {
         supportsBackgroundPlayback: true,
