@@ -7,7 +7,7 @@ import Purchases, {
 // Public SDK key (safe to ship in the client bundle) — distinct from
 // REVENUECAT_API_KEY_APPLE/GOOGLE, which are server-only secrets used for
 // backend/build tooling.
-const API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY ?? '';
+const API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY || 'appl_fGjertJZmTzLnrDBzhOcyQyNhFK';
 
 export type SubscriptionPlan = 'monthly' | 'annual';
 
