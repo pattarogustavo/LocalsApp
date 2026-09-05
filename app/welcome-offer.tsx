@@ -9,6 +9,7 @@ import { useColors } from '@/hooks/use-colors';
 import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
 import { EXAMPLE_ITINERARY_PARIS } from '@/constants/example-itineraries';
 import { ExampleItineraryPreview } from '@/components/example-itinerary-preview';
+import { Wordmark } from '@/components/ui/wordmark-logo';
 
 // Text/icon color for content drawn on top of the primary button color, which
 // is identical in both schemes — always the light-scheme background swatch.
@@ -52,8 +53,7 @@ export default function WelcomeOfferScreen() {
       >
         {/* Wordmark */}
         <View style={styles.wordmark}>
-          <Text style={styles.wordmarkThe}>THE</Text>
-          <Text style={styles.wordmarkLocals}>Locals</Text>
+          <Wordmark size={24} color={colors.foreground} />
         </View>
 
         {/* Title */}
@@ -125,20 +125,6 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     alignItems: 'center',
     marginTop: 32,
     marginBottom: 24,
-  },
-  wordmarkThe: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#B8963E',
-    letterSpacing: 5,
-  },
-  wordmarkLocals: {
-    fontSize: 34,
-    fontWeight: '700',
-    fontStyle: 'italic',
-    color: colors.foreground,
-    letterSpacing: -0.5,
-    marginTop: 2,
   },
   title: {
     fontSize: 24,
