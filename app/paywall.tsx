@@ -140,7 +140,10 @@ export default function PaywallScreen() {
       // The user closing the purchase sheet isn't a real error — just let
       // them try again without an alert.
       if (!err?.userCancelled) {
-        Alert.alert(t.paywall.purchaseFailed, t.paywall.purchaseFailedMsg);
+        Alert.alert(
+          t.paywall.purchaseFailed,
+          `${t.paywall.purchaseFailedMsg}\n\nDEBUG: código ${err?.code ?? 'N/A'} - ${err?.message ?? String(err)}`
+        );
       }
     } finally {
       setLoading(false);
