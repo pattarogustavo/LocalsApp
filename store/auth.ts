@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/_core/with-timeout';
@@ -107,10 +106,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Refresh subscription/profile data from the server in the background —
     // the local cache above may be stale or (after a fresh login following a
     // logout) simply empty, which would otherwise show a Pro account as Free.
-    Alert.alert('[ProfileSync DEBUG]', `Buscando perfil para user ${session.user.id}`);
     trpcVanilla.user.me.query().then((fresh) => {
       if (get().session?.user.id !== session.user.id) return; // session changed meanwhile
-      Alert.alert('[ProfileSync DEBUG] Recebido', `status: ${fresh.subscriptionStatus}, plan: ${fresh.subscriptionPlan}`);
       get().updateSubscription({
         subscriptionStatus: fresh.subscriptionStatus,
         subscriptionPlan: fresh.subscriptionPlan,
@@ -118,7 +115,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         bio: fresh.bio,
       });
     }).catch((err) => {
-      Alert.alert('[ProfileSync DEBUG] Falhou', String(err?.message || err?.code || err));
+      console.warn('[ProfileSync] Falhou ao buscar perfil real:', err);
     });
   },
 
