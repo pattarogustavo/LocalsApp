@@ -144,17 +144,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         { data: { session: null }, error: null },
       );
 
+      set({ loading: false, initialized: true, themeMode, hasSeenWelcomeOffer, preferredLanguage: savedLang ?? 'pt' });
+
       if (session) {
-        const profileRaw = await withTimeout(AsyncStorage.getItem(PROFILE_KEY), null);
-        let profile: Partial<AuthUser> | null = null;
-        try {
-          if (profileRaw) profile = JSON.parse(profileRaw);
-        } catch {}
-        const user = supabaseUserToAuthUser(session.user, profile);
-        const lang = user.preferredLanguage ?? savedLang ?? 'pt';
-        set({ session, user, loading: false, initialized: true, preferredLanguage: lang, themeMode, hasSeenWelcomeOffer });
-      } else {
-        set({ session: null, user: null, loading: false, initialized: true, preferredLanguage: savedLang ?? 'pt', themeMode, hasSeenWelcomeOffer });
+        await get().setSession(session);
       }
       initializedSafely = true;
     } catch {
