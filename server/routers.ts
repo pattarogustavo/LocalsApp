@@ -578,6 +578,22 @@ export const appRouter = router({
   // ─── User Profile ─────────────────────────────────────────────────────────
   user: router({
     /**
+     * Returns the authenticated user's profile straight from the DB —
+     * used right after login to overwrite whatever stale subscription
+     * data was sitting in the local cache from a previous session.
+     */
+    me: protectedProcedure.query(async ({ ctx }) => {
+      const status = await db.getSubscriptionStatus(ctx.user.id);
+      return {
+        name: ctx.user.name ?? null,
+        bio: ctx.user.bio ?? null,
+        subscriptionStatus: status?.subscriptionStatus ?? null,
+        subscriptionPlan: status?.subscriptionPlan ?? null,
+        subscriptionExpiresAt: status?.subscriptionExpiresAt ?? null,
+      };
+    }),
+
+    /**
      * Update the authenticated user's profile (name and/or bio).
      * Looks up the row by openId, same auth pattern used by sdk.authenticateRequest.
      */

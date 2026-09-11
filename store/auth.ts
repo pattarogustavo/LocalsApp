@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/_core/with-timeout';
 import { logoutRevenueCat } from '@/config/revenuecat';
 import { useTripsStore } from '@/store/trips';
+import { trpcVanilla } from '@/lib/trpc-vanilla';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 const LANG_KEY = 'voyage_preferred_language';
@@ -101,6 +102,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const user = supabaseUserToAuthUser(session.user, profile);
     const lang = user.preferredLanguage ?? profile?.preferredLanguage ?? (await AsyncStorage.getItem(LANG_KEY)) ?? 'pt';
     set({ session, user, preferredLanguage: lang });
+
+    // Refresh subscription/profile data from the server in the background —
+    // the local cache above may be stale or (after a fresh login following a
+    // logout) simply empty, which would otherwise show a Pro account as Free.
+    trpcVanilla.user.me.query().then((fresh) => {
+      if (get().session?.user.id !== session.user.id) return; // session changed meanwhile
+      get().updateSubscription({
+        subscriptionStatus: fresh.subscriptionStatus,
+        subscriptionPlan: fresh.subscriptionPlan,
+        subscriptionExpiresAt: fresh.subscriptionExpiresAt ? new Date(fresh.subscriptionExpiresAt).toISOString() : null,
+        bio: fresh.bio,
+      });
+    }).catch(() => {});
   },
 
   logout: async () => {
