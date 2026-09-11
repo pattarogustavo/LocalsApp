@@ -736,6 +736,28 @@ Responda APENAS com JSON válido neste formato exato:
       };
     }),
 
+    /**
+     * Writes the subscription status straight to the DB right after a
+     * purchase/restore succeeds on-device, instead of waiting on the
+     * RevenueCat webhook — some events (e.g. TRANSFER) arrive without a
+     * product_id, so relying solely on the webhook can leave the plan
+     * incomplete. The webhook keeps running as a redundant safety net.
+     */
+    syncStatus: protectedProcedure
+      .input(z.object({
+        status: z.enum(['active', 'expired', 'cancelled']),
+        plan: z.enum(['monthly', 'annual']).nullable().optional(),
+        expiresAt: z.string().datetime().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await db.updateSubscriptionStatus(ctx.user.id, {
+          subscriptionStatus: input.status,
+          subscriptionPlan: input.plan ?? undefined,
+          subscriptionExpiresAt: input.expiresAt ? new Date(input.expiresAt) : (input.expiresAt === null ? null : undefined),
+        });
+        return { success: true };
+      }),
+
     // RevenueCat webhook handling moved to the standalone Express route at
     // POST /api/webhooks/revenuecat (see server/_core/index.ts) — RevenueCat
     // posts plain JSON with no tRPC envelope, which the tRPC procedure format

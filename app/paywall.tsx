@@ -22,6 +22,7 @@ import {
   type SubscriptionPlan,
 } from '@/config/revenuecat';
 import { sendSubscriptionConfirmedNotification, scheduleRenewalReminder } from '@/lib/subscription-notifications';
+import { trpcVanilla } from '@/lib/trpc-vanilla';
 import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
@@ -129,6 +130,15 @@ export default function PaywallScreen() {
         subscriptionPlan: snapshot?.plan ?? selectedPlan,
         subscriptionExpiresAt: expiresAt ? expiresAt.toISOString() : null,
       });
+      // Sync straight to the DB instead of relying solely on the RevenueCat
+      // webhook, which can arrive with incomplete data (e.g. TRANSFER events
+      // without a product_id). Best-effort — the webhook remains the
+      // redundant safety net, so a failure here must never block the UI.
+      trpcVanilla.subscription.syncStatus.mutate({
+        status: 'active',
+        plan: snapshot?.plan ?? selectedPlan,
+        expiresAt: expiresAt ? expiresAt.toISOString() : null,
+      }).catch(() => {});
       sendSubscriptionConfirmedNotification(selectedPlan, t.notifications.welcomePro).catch(() => {});
       if (expiresAt) scheduleRenewalReminder(expiresAt, t.notifications.renewalReminder).catch(() => {});
       Alert.alert(
@@ -161,6 +171,11 @@ export default function PaywallScreen() {
           subscriptionPlan: snapshot.plan ?? selectedPlan,
           subscriptionExpiresAt: snapshot.expiresAt,
         });
+        trpcVanilla.subscription.syncStatus.mutate({
+          status: 'active',
+          plan: snapshot.plan ?? selectedPlan,
+          expiresAt: snapshot.expiresAt ?? null,
+        }).catch(() => {});
         Alert.alert(
           t.paywall.restoreSuccess,
           t.paywall.restoreSuccessMsg.replace('{plan}', snapshot.plan ?? selectedPlan),
