@@ -875,6 +875,12 @@ export const it: Translations = {
     inviteReceivesAccessMsg: "L'invitato riceverà accesso a questo viaggio dopo aver accettato l'invito.",
     guestEmailPlaceholder: "Email dell'invitato",
     acceptRequiresAccountMsg: "L'invitato ha bisogno di un account TheLocals per accettare l'invito. Dopo l'accettazione, il viaggio apparirà nella sua schermata iniziale.",
+    declinedStatus: 'Rifiutato',
+    declineError: "Errore nel rifiutare l'invito.",
+    inboxTitle: 'Inviti',
+    inboxEmpty: 'Nessun invito in sospeso.',
+    declineBtn: 'Rifiuta',
+    invitedByPrefix: 'Invitato da',
   },
   tripEdit: {
     datesTitle: "Date dell'itinerario",

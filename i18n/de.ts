@@ -875,6 +875,12 @@ export const de: Translations = {
     inviteReceivesAccessMsg: 'Der Gast erhält Zugriff auf diese Reise, sobald er die Einladung annimmt.',
     guestEmailPlaceholder: 'E-Mail des Gastes',
     acceptRequiresAccountMsg: 'Der Gast benötigt ein TheLocals-Konto, um die Einladung anzunehmen. Nach der Annahme erscheint die Reise auf seinem Startbildschirm.',
+    declinedStatus: 'Abgelehnt',
+    declineError: 'Fehler beim Ablehnen der Einladung.',
+    inboxTitle: 'Einladungen',
+    inboxEmpty: 'Keine ausstehenden Einladungen.',
+    declineBtn: 'Ablehnen',
+    invitedByPrefix: 'Eingeladen von',
   },
   tripEdit: {
     datesTitle: 'Reisedaten',

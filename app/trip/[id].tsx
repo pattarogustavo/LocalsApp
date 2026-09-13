@@ -34,7 +34,7 @@ import { ProBadge } from '@/components/trial-banner';
 import { type ThemeColorPalette } from '@/constants/theme';
 import { generateId } from '@/utils/trip-helpers';
 import * as ImagePicker from 'expo-image-picker';
-import type { Destination } from '@/types/voyage';
+import type { Destination, Trip } from '@/types/voyage';
 import { PlacesAutocompleteInput } from '@/components/ui/places-autocomplete-input';
 import { useTripsStore as useTripsStoreForDuration } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
@@ -511,7 +511,18 @@ export default function TripDetailScreen() {
   const colors = useColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const { getTripById, deleteTrip, updateStartDate, updateCoverImage, updateTrip } = useTripsStore();
-  const trip = getTripById(id);
+  const localTrip = getTripById(id);
+  // Not found locally? It may be a trip shared with the current user (accepted invite).
+  const sharedTripsQuery = trpc.sharing.listSharedWithMe.useQuery(undefined, { enabled: !localTrip });
+  const hideForMeMutation = trpc.sharing.hideForMe.useMutation();
+  const sharedMatch = !localTrip
+    ? sharedTripsQuery.data?.find((s) => {
+        try { return (JSON.parse(s.tripData) as Trip).id === id; } catch { return false; }
+      })
+    : undefined;
+  const sharedTrip = sharedMatch ? (() => { try { return JSON.parse(sharedMatch.tripData) as Trip; } catch { return undefined; } })() : undefined;
+  const trip = localTrip ?? sharedTrip;
+  const shareId = sharedMatch?.shareId;
   const [activeTab, setActiveTab] = useState<TabKey>('geral');
 
   const TABS: { key: TabKey; label: string; icon: string }[] = [
@@ -566,7 +577,15 @@ export default function TripDetailScreen() {
           text: t.common.delete,
           style: 'destructive',
           onPress: async () => {
-            await deleteTrip(trip.id);
+            if (localTrip) {
+              await deleteTrip(trip.id);
+            } else if (shareId !== undefined) {
+              try {
+                await hideForMeMutation.mutateAsync({ shareId });
+              } catch {
+                // Offline or unauthenticated — ignore
+              }
+            }
             router.back();
           },
         },

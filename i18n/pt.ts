@@ -901,6 +901,12 @@ export const pt = {
     inviteReceivesAccessMsg: 'O convidado receberá acesso a esta viagem após aceitar o convite.',
     guestEmailPlaceholder: 'E-mail do convidado',
     acceptRequiresAccountMsg: 'O convidado precisa ter uma conta no TheLocals para aceitar o convite. Após aceitar, a viagem aparecerá na tela inicial dele.',
+    declinedStatus: 'Recusado',
+    declineError: 'Erro ao recusar convite.',
+    inboxTitle: 'Convites',
+    inboxEmpty: 'Nenhum convite pendente.',
+    declineBtn: 'Recusar',
+    invitedByPrefix: 'Convidado por',
   },
 
   // ── Trip Date/Dest Modals ─────────────────────────────────────────────────────

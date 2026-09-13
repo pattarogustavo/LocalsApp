@@ -91,6 +91,7 @@ export default function TripShareScreen() {
   const statusLabel = (status: string) => {
     if (status === 'accepted') return { label: translations.sharing.acceptedStatus, color: colors.success };
     if (status === 'revoked') return { label: translations.sharing.revokedStatus, color: colors.error };
+    if (status === 'declined') return { label: translations.sharing.declinedStatus, color: colors.error };
     return { label: translations.sharing.pendingStatus, color: colors.warning };
   };
 
@@ -227,7 +228,7 @@ export default function TripShareScreen() {
                       </View>
                     </View>
                   </View>
-                  {share.status !== 'revoked' && (
+                  {share.status !== 'revoked' && share.status !== 'declined' && (
                     <TouchableOpacity
                       onPress={() => handleRevoke(share.shareId, share.inviteeEmail)}
                       style={styles.revokeBtn}

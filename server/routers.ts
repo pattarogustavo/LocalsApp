@@ -1837,12 +1837,42 @@ Retorne um JSON com o array "places": [{ placeId (exatamente o place_id entre co
       const email = ctx.user.email ?? '';
       const sharedTrips = await db.getSharedTripsForUser(ctx.user.id, email);
       return sharedTrips.map((s) => ({
-        shareId: s.id,
+        shareId: s.shareId,
         tripClientId: s.clientId ?? '',
         tripData: s.data ?? '',
-        shareRole: (s as { shareRole?: string }).shareRole ?? 'viewer',
+        shareRole: s.shareRole ?? 'viewer',
       }));
     }),
+
+    /** List pending invites addressed to the current user */
+    listPendingForMe: protectedProcedure.query(async ({ ctx }) => {
+      const email = ctx.user.email ?? '';
+      const pending = await db.getPendingSharesForUser(ctx.user.id, email);
+      return pending.map((s) => ({
+        shareId: s.shareId,
+        token: s.token,
+        tripClientId: s.tripClientId,
+        tripData: s.tripData,
+        role: s.role,
+        ownerName: s.ownerName,
+      }));
+    }),
+
+    /** Decline a pending invite */
+    decline: protectedProcedure
+      .input(z.object({ shareId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.declineTripShare(input.shareId, ctx.user.id, ctx.user.email ?? '');
+        return { ok: true };
+      }),
+
+    /** Hide a shared trip from the invitee's own view, without affecting the owner or other invitees */
+    hideForMe: protectedProcedure
+      .input(z.object({ shareId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.hideTripShareForInvitee(input.shareId, ctx.user.id, ctx.user.email ?? '');
+        return { ok: true };
+      }),
 
     /** List all shares the current user has sent (as owner) */
     listSentByMe: protectedProcedure

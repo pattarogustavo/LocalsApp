@@ -1,4 +1,4 @@
-import { eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { InsertUser, users, trips, tripShares, InsertTripRow } from "../drizzle/schema";
 
@@ -147,6 +147,8 @@ export async function deleteTripByClientId(userId: number, clientId: string) {
   const allForUser = await db.select().from(trips).where(eq(trips.userId, userId));
   const found = allForUser.find((r) => r.clientId === clientId);
   if (found) {
+    // Deleting the trip also removes it for every invitee — no share should keep pointing at it.
+    await db.delete(tripShares).where(eq(tripShares.tripId, found.id));
     await db.delete(trips).where(eq(trips.id, found.id));
   }
 }
@@ -200,6 +202,68 @@ export async function revokeTripShare(shareId: number, ownerId: number) {
     .where(eq(tripShares.id, shareId));
 }
 
+/** Marks a pending share as declined by the invitee. */
+export async function declineTripShare(shareId: number, inviteeUserId: number, inviteeEmail: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(tripShares)
+    .set({ status: "declined", updatedAt: new Date() })
+    .where(and(
+      eq(tripShares.id, shareId),
+      or(eq(tripShares.inviteeUserId, inviteeUserId), eq(tripShares.inviteeEmail, inviteeEmail))
+    ));
+}
+
+/** Hides a trip from the invitee's own view without touching the trip or other invitees. */
+export async function hideTripShareForInvitee(shareId: number, inviteeUserId: number, inviteeEmail: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(tripShares)
+    .set({ hiddenByInvitee: true, updatedAt: new Date() })
+    .where(and(
+      eq(tripShares.id, shareId),
+      or(eq(tripShares.inviteeUserId, inviteeUserId), eq(tripShares.inviteeEmail, inviteeEmail))
+    ));
+}
+
+/** Pending invites addressed to this user (by id or email) whose trip still exists. */
+export async function getPendingSharesForUser(userId: number, email: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const sharesByUserId = await db.select().from(tripShares)
+    .where(and(eq(tripShares.inviteeUserId, userId), eq(tripShares.status, "pending")));
+  const sharesByEmail = await db.select().from(tripShares)
+    .where(and(eq(tripShares.inviteeEmail, email), eq(tripShares.status, "pending")));
+  const seen = new Set<number>();
+  const uniqueShares = [...sharesByUserId, ...sharesByEmail].filter((s) => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
+  if (uniqueShares.length === 0) return [];
+  const tripIds = uniqueShares.map((s) => s.tripId);
+  const ownerIds = [...new Set(uniqueShares.map((s) => s.ownerId))];
+  const [relatedTrips, owners] = await Promise.all([
+    db.select().from(trips).where(inArray(trips.id, tripIds)),
+    db.select().from(users).where(inArray(users.id, ownerIds)),
+  ]);
+  return uniqueShares
+    .map((s) => {
+      const trip = relatedTrips.find((t) => t.id === s.tripId);
+      if (!trip) return null;
+      const owner = owners.find((u) => u.id === s.ownerId);
+      return {
+        shareId: s.id,
+        token: s.token,
+        role: s.role,
+        tripClientId: trip.clientId,
+        tripData: trip.data,
+        ownerName: owner?.name ?? owner?.email ?? "",
+      };
+    })
+    .filter((s): s is NonNullable<typeof s> => s !== null);
+}
+
 export async function getSharedTripsForUser(userId: number, email: string) {
   const db = await getDb();
   if (!db) return [];
@@ -214,7 +278,7 @@ export async function getSharedTripsForUser(userId: number, email: string) {
   const uniqueShares = allShares.filter((s) => {
     if (seen.has(s.id)) return false;
     seen.add(s.id);
-    return s.status === "accepted";
+    return s.status === "accepted" && !s.hiddenByInvitee;
   });
   if (uniqueShares.length === 0) return [];
   // Fetch the actual trip data for each share
@@ -222,6 +286,6 @@ export async function getSharedTripsForUser(userId: number, email: string) {
   const sharedTrips = await db.select().from(trips).where(inArray(trips.id, tripIds));
   return sharedTrips.map((trip) => {
     const share = uniqueShares.find((s) => s.tripId === trip.id)!;
-    return { ...trip, shareRole: share.role };
+    return { ...trip, shareId: share.id, shareRole: share.role };
   });
 }

@@ -12,6 +12,8 @@ import {
   TextInput,
   StyleSheet,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -94,6 +96,58 @@ export default function HomeScreen() {
     staleTime: 60_000,
   });
 
+  // Pending invites addressed to me (inbox)
+  const [showInbox, setShowInbox] = useState(false);
+  const pendingInvitesQuery = trpc.sharing.listPendingForMe.useQuery(undefined, {
+    enabled: !!user,
+    staleTime: 30_000,
+  });
+  const acceptMutation = trpc.sharing.accept.useMutation();
+  const declineMutation = trpc.sharing.decline.useMutation();
+  const hideForMeMutation = trpc.sharing.hideForMe.useMutation();
+  const pendingCount = pendingInvitesQuery.data?.length ?? 0;
+
+  const handleHideSharedTrip = (shareId: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      t.trip.deleteTrip,
+      t.trip.deleteTripConfirm,
+      [
+        { text: t.common.cancel, style: 'cancel' },
+        {
+          text: t.common.delete,
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await hideForMeMutation.mutateAsync({ shareId });
+              sharedTripsQuery.refetch();
+            } catch {
+              // Offline or unauthenticated — ignore
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleAcceptInvite = async (token: string) => {
+    try {
+      await acceptMutation.mutateAsync({ token });
+      await Promise.all([pendingInvitesQuery.refetch(), sharedTripsQuery.refetch()]);
+    } catch {
+      // Offline or already handled — ignore
+    }
+  };
+
+  const handleDeclineInvite = async (shareId: number) => {
+    try {
+      await declineMutation.mutateAsync({ shareId });
+      pendingInvitesQuery.refetch();
+    } catch {
+      // Offline or already handled — ignore
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Status bar background - extends bg color behind iPhone status bar */}
@@ -126,6 +180,35 @@ export default function HomeScreen() {
             >
               <Ionicons name="search" size={18} color={colors.textOnPrimary} />
             </TouchableOpacity>
+            {!!user && (
+              <TouchableOpacity
+                onPress={() => setShowInbox(true)}
+                className="w-10 h-10 rounded-full bg-primary items-center justify-center"
+                style={{ position: 'relative' }}
+              >
+                <Ionicons name="mail-outline" size={18} color={colors.textOnPrimary} />
+                {pendingCount > 0 && (
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: -2,
+                      right: -2,
+                      minWidth: 16,
+                      height: 16,
+                      borderRadius: 8,
+                      backgroundColor: colors.error,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingHorizontal: 3,
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>
+                      {pendingCount > 9 ? '9+' : pendingCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={() => router.push('/profile' as any)}
               className="w-10 h-10 rounded-full bg-primary items-center justify-center"
@@ -245,6 +328,13 @@ export default function HomeScreen() {
                       {s.shareRole === 'editor' ? `✏️ ${t.sharing.roleEditor}` : `👁 ${t.sharing.roleViewer}`}
                     </Text>
                   </View>
+                  <TouchableOpacity
+                    onPress={() => handleHideSharedTrip(s.shareId)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ padding: 4, marginRight: 2 }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.muted} />
+                  </TouchableOpacity>
                   <Ionicons name="chevron-forward" size={18} color={colors.muted} />
                 </TouchableOpacity>
               );
@@ -364,6 +454,75 @@ export default function HomeScreen() {
           )}
         </View>
       </Modal>
+
+      {/* Invites Inbox Modal */}
+      <Modal
+        visible={showInbox}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowInbox(false)}
+      >
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <Text style={[styles.headerTitle, { color: colors.foreground, flex: 1 }]}>
+              {t.sharing.inboxTitle}
+            </Text>
+            <TouchableOpacity onPress={() => setShowInbox(false)} style={styles.cancelBtn}>
+              <Text style={styles.cancelText}>{t.common.cancel}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {pendingInvitesQuery.isLoading ? (
+            <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
+          ) : !pendingInvitesQuery.data || pendingInvitesQuery.data.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="mail-open-outline" size={40} color={colors.muted} />
+              <Text style={styles.emptyText}>{t.sharing.inboxEmpty}</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={pendingInvitesQuery.data}
+              keyExtractor={(item) => String(item.shareId)}
+              contentContainerStyle={{ padding: 16, gap: 12 }}
+              renderItem={({ item }) => {
+                let tripData: Trip | null = null;
+                try { tripData = JSON.parse(item.tripData); } catch {}
+                return (
+                  <View style={styles.inviteCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: withAlpha(colors.foreground, 0.094), alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="airplane-outline" size={22} color={colors.foreground} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.resultName} numberOfLines={1}>
+                          {tripData?.destinations?.[0]?.name ?? tripData?.name ?? t.sharing.tripFallback}
+                        </Text>
+                        <Text style={styles.resultDest} numberOfLines={1}>
+                          {item.ownerName ? `${t.sharing.invitedByPrefix} ${item.ownerName}` : ''}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                      <TouchableOpacity
+                        onPress={() => handleDeclineInvite(item.shareId)}
+                        style={[styles.inviteActionBtn, { borderColor: colors.border }]}
+                      >
+                        <Text style={{ color: colors.foreground, fontWeight: '600' }}>{t.sharing.declineBtn}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleAcceptInvite(item.token)}
+                        style={[styles.inviteActionBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                      >
+                        <Text style={{ color: colors.textOnPrimary, fontWeight: '600' }}>{t.sharing.acceptBtn}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              }}
+            />
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -443,5 +602,27 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   resultDest: {
     fontSize: 13,
     color: colors.muted,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  inviteCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  inviteActionBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

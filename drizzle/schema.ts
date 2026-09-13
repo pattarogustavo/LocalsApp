@@ -1,10 +1,10 @@
-import { integer, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
 export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "expired", "cancelled"]);
 export const subscriptionPlanEnum = pgEnum("subscription_plan", ["monthly", "annual"]);
 export const tripShareRoleEnum = pgEnum("trip_share_role", ["viewer", "editor"]);
-export const tripShareStatusEnum = pgEnum("trip_share_status", ["pending", "accepted", "revoked"]);
+export const tripShareStatusEnum = pgEnum("trip_share_status", ["pending", "accepted", "revoked", "declined"]);
 
 /**
  * Core user table backing auth flow.
@@ -63,6 +63,8 @@ export const tripShares = pgTable("trip_shares", {
   inviteeUserId: integer("inviteeUserId"),
   role: tripShareRoleEnum("role").default("viewer").notNull(),
   status: tripShareStatusEnum("status").default("pending").notNull(),
+  /** True when the invitee has "deleted" the trip on their side. Doesn't affect the owner or other invitees. */
+  hiddenByInvitee: boolean("hiddenByInvitee").default(false).notNull(),
   token: varchar("token", { length: 64 }).notNull().unique(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),

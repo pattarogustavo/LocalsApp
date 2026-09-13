@@ -875,6 +875,12 @@ export const en: Translations = {
     inviteReceivesAccessMsg: 'The guest will get access to this trip after accepting the invite.',
     guestEmailPlaceholder: "Guest's email",
     acceptRequiresAccountMsg: 'The guest needs a TheLocals account to accept the invite. Once accepted, the trip will appear on their home screen.',
+    declinedStatus: 'Declined',
+    declineError: 'Error declining invite.',
+    inboxTitle: 'Invites',
+    inboxEmpty: 'No pending invites.',
+    declineBtn: 'Decline',
+    invitedByPrefix: 'Invited by',
   },
   tripEdit: {
     datesTitle: 'Itinerary Dates',
