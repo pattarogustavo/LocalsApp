@@ -119,9 +119,11 @@ interface TripCardProps {
   trip: Trip;
   onPress: () => void;
   style?: object;
+  isShared?: boolean;
+  onHideShared?: (trip: Trip) => void;
 }
 
-export function TripCard({ trip, onPress, style }: TripCardProps) {
+export function TripCard({ trip, onPress, style, isShared, onHideShared }: TripCardProps) {
   const t = useTranslation();
   const deleteTrip = useTripsStore((s) => s.deleteTrip);
   const swipeableRef = useRef<Swipeable>(null);
@@ -135,7 +137,11 @@ export function TripCard({ trip, onPress, style }: TripCardProps) {
     <TouchableOpacity
       onPress={() => {
         swipeableRef.current?.close();
-        confirmDeleteTrip(trip, t, deleteTrip);
+        if (isShared) {
+          onHideShared?.(trip);
+        } else {
+          confirmDeleteTrip(trip, t, deleteTrip);
+        }
       }}
       style={styles.swipeDeleteAction}
     >
@@ -168,7 +174,13 @@ export function TripCard({ trip, onPress, style }: TripCardProps) {
                   <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.9)" />
                   <Text style={styles.infoText} numberOfLines={1}>{destNames}</Text>
                 </View>
-                <FavoriteButton trip={trip} />
+                {isShared ? (
+                  <View style={styles.sharedIndicator}>
+                    <Ionicons name="people" size={13} color="#fff" />
+                  </View>
+                ) : (
+                  <FavoriteButton trip={trip} />
+                )}
               </View>
             </View>
             <View style={styles.bottomRow}>
@@ -189,6 +201,8 @@ export function TripCard({ trip, onPress, style }: TripCardProps) {
 interface TripCardStackedProps {
   trips: Trip[];
   onPressTrip: (trip: Trip) => void;
+  sharedTripIds?: Set<string>;
+  onHideShared?: (trip: Trip) => void;
 }
 
 /**
@@ -199,12 +213,17 @@ interface TripCardStackedProps {
  * - Tapping any card opens it directly — no deck reorganization.
  * - Container height = (n-1) * PEEK_HEIGHT + CARD_HEIGHT.
  */
-export function TripCardStacked({ trips, onPressTrip }: TripCardStackedProps) {
+export function TripCardStacked({ trips, onPressTrip, sharedTripIds, onHideShared }: TripCardStackedProps) {
   if (trips.length === 0) return null;
   if (trips.length === 1) {
     return (
       <View style={{ paddingHorizontal: 16 }}>
-        <TripCard trip={trips[0]} onPress={() => onPressTrip(trips[0])} />
+        <TripCard
+          trip={trips[0]}
+          onPress={() => onPressTrip(trips[0])}
+          isShared={sharedTripIds?.has(trips[0].id)}
+          onHideShared={onHideShared}
+        />
       </View>
     );
   }
@@ -223,6 +242,8 @@ export function TripCardStacked({ trips, onPressTrip }: TripCardStackedProps) {
             topOffset={idx * PEEK_HEIGHT}
             zIndex={idx}
             onPress={() => onPressTrip(trip)}
+            isShared={sharedTripIds?.has(trip.id)}
+            onHideShared={onHideShared}
           />
         ))}
       </View>
@@ -237,11 +258,15 @@ function StackedCardRow({
   topOffset,
   zIndex,
   onPress,
+  isShared,
+  onHideShared,
 }: {
   trip: Trip;
   topOffset: number;
   zIndex: number;
   onPress: () => void;
+  isShared?: boolean;
+  onHideShared?: (trip: Trip) => void;
 }) {
   const t = useTranslation();
   const deleteTrip = useTripsStore((s) => s.deleteTrip);
@@ -256,7 +281,11 @@ function StackedCardRow({
     <TouchableOpacity
       onPress={() => {
         swipeableRef.current?.close();
-        confirmDeleteTrip(trip, t, deleteTrip);
+        if (isShared) {
+          onHideShared?.(trip);
+        } else {
+          confirmDeleteTrip(trip, t, deleteTrip);
+        }
       }}
       style={[styles.swipeDeleteAction, { height: CARD_HEIGHT }]}
     >
@@ -304,7 +333,13 @@ function StackedCardRow({
                   <View style={styles.badgePill}>
                     <Text style={styles.badgeText}>{badge}</Text>
                   </View>
-                  <FavoriteButton trip={trip} />
+                  {isShared ? (
+                    <View style={styles.sharedIndicator}>
+                      <Ionicons name="people" size={13} color="#fff" />
+                    </View>
+                  ) : (
+                    <FavoriteButton trip={trip} />
+                  )}
                 </View>
               </View>
 
@@ -385,6 +420,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   favoriteBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  sharedIndicator: {
     width: 26,
     height: 26,
     borderRadius: 13,

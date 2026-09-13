@@ -76,10 +76,34 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, []);
 
-  const upcomingTrips = trips.filter((t) => isTripUpcoming(t) || isTripOngoing(t))
+  // Shared trips (trips other users invited me to) — merged into the normal
+  // upcoming/past flow so they render with the same TripCardStacked visuals.
+  const sharedTripsQuery = trpc.sharing.listSharedWithMe.useQuery(undefined, {
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+
+  const { sharedTrips, sharedShareIdByTripId } = useMemo(() => {
+    const list: Trip[] = [];
+    const map: Record<string, number> = {};
+    for (const s of sharedTripsQuery.data ?? []) {
+      let tripData: Trip | null = null;
+      try { tripData = JSON.parse(s.tripData); } catch {}
+      if (!tripData) continue;
+      list.push(tripData);
+      map[tripData.id] = s.shareId;
+    }
+    return { sharedTrips: list, sharedShareIdByTripId: map };
+  }, [sharedTripsQuery.data]);
+
+  const sharedTripIds = useMemo(() => new Set(sharedTrips.map((t) => t.id)), [sharedTrips]);
+
+  const allTrips = useMemo(() => [...trips, ...sharedTrips], [trips, sharedTrips]);
+
+  const upcomingTrips = allTrips.filter((t) => isTripUpcoming(t) || isTripOngoing(t))
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
-  const pastTrips = trips.filter((t) => isTripPast(t))
+  const pastTrips = allTrips.filter((t) => isTripPast(t))
     .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
 
   const handleTripPress = (trip: Trip) => {
@@ -89,12 +113,6 @@ export default function HomeScreen() {
   const handleTripCreated = (trip: Trip) => {
     router.push(`/trip/${trip.id}`);
   };
-
-  // Shared trips (trips other users invited me to)
-  const sharedTripsQuery = trpc.sharing.listSharedWithMe.useQuery(undefined, {
-    enabled: !!user,
-    staleTime: 60_000,
-  });
 
   // Pending invites addressed to me (inbox)
   const [showInbox, setShowInbox] = useState(false);
@@ -128,6 +146,11 @@ export default function HomeScreen() {
         },
       ]
     );
+  };
+
+  const handleHideSharedTripByTripId = (trip: Trip) => {
+    const shareId = sharedShareIdByTripId[trip.id];
+    if (shareId != null) handleHideSharedTrip(shareId);
   };
 
   const handleAcceptInvite = async (token: string) => {
@@ -224,7 +247,12 @@ export default function HomeScreen() {
             <Text className="text-muted text-[14px] tracking-widest font-semibold uppercase px-6 mb-3">
               {t.home.upcoming}
             </Text>
-            <TripCardStacked trips={upcomingTrips} onPressTrip={handleTripPress} />
+            <TripCardStacked
+              trips={upcomingTrips}
+              onPressTrip={handleTripPress}
+              sharedTripIds={sharedTripIds}
+              onHideShared={handleHideSharedTripByTripId}
+            />
           </View>
         ) : (
           /* Empty state - Create first trip CTA */
@@ -281,64 +309,13 @@ export default function HomeScreen() {
               <Ionicons name={pastExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
             </TouchableOpacity>
             {pastExpanded && (
-              <TripCardStacked trips={pastTrips} onPressTrip={handleTripPress} />
+              <TripCardStacked
+                trips={pastTrips}
+                onPressTrip={handleTripPress}
+                sharedTripIds={sharedTripIds}
+                onHideShared={handleHideSharedTripByTripId}
+              />
             )}
-          </View>
-        )}
-
-        {/* Viagens Compartilhadas comigo */}
-        {sharedTripsQuery.data && sharedTripsQuery.data.length > 0 && (
-          <View className="mb-6">
-            <Text className="text-muted text-xs tracking-widest font-semibold uppercase px-6 mb-3">
-              {t.sharing.sharedWithMe}
-            </Text>
-            {sharedTripsQuery.data.map((s) => {
-              let tripData: Trip | null = null;
-              try { tripData = JSON.parse(s.tripData); } catch {}
-              if (!tripData) return null;
-              return (
-                <TouchableOpacity
-                  key={s.shareId}
-                  onPress={() => router.push(`/trip/${tripData!.id}`)}
-                  style={{
-                    marginHorizontal: 16,
-                    marginBottom: 10,
-                    borderRadius: 16,
-                    overflow: 'hidden',
-                    backgroundColor: colors.surface,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    padding: 14,
-                    gap: 12,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.06,
-                    shadowRadius: 4,
-                    elevation: 2,
-                  }}
-                >
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: withAlpha(colors.foreground, 0.094), alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="airplane-outline" size={22} color={colors.foreground} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: colors.foreground }} numberOfLines={1}>
-                      {tripData.destinations?.[0]?.name ?? t.sharing.tripFallback}
-                    </Text>
-                    <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
-                      {s.shareRole === 'editor' ? `✏️ ${t.sharing.roleEditor}` : `👁 ${t.sharing.roleViewer}`}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => handleHideSharedTrip(s.shareId)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={{ padding: 4, marginRight: 2 }}
-                  >
-                    <Ionicons name="trash-outline" size={18} color={colors.muted} />
-                  </TouchableOpacity>
-                  <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-                </TouchableOpacity>
-              );
-            })}
           </View>
         )}
 
