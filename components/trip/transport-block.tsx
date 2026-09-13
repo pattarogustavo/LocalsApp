@@ -440,12 +440,14 @@ function AddTransportModal({
   onAdd,
   legs,
   accommodations,
+  initialLeg,
 }: {
   visible: boolean;
   onClose: () => void;
   onAdd: (t: Transport) => void;
   legs: string[];
   accommodations: Accommodation[];
+  initialLeg?: string;
 }) {
   const t = useTranslation();
   const colors = useColors();
@@ -459,7 +461,14 @@ function AddTransportModal({
 
   // Transport type
   const [mode, setMode] = useState<TransportMode>('flight');
-  const [selectedLeg, setSelectedLeg] = useState(legs[0] || '');
+  const [selectedLeg, setSelectedLeg] = useState(initialLeg || legs[0] || '');
+
+  useEffect(() => {
+    if (visible) {
+      setSelectedLeg(initialLeg || legs[0] || '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, initialLeg]);
 
   // Search mode: 'route' = origin+dest+date, 'number' = flight number+date
   const [searchMode, setSearchMode] = useState<'route' | 'number'>('route');
@@ -1471,6 +1480,7 @@ export function TransportBlock({
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [showModal, setShowModal] = useState(false);
+  const [selectedLeg, setSelectedLeg] = useState<string | undefined>(undefined);
   const [boardingPassTransportId, setBoardingPassTransportId] = useState<string | null>(null);
   const [viewingBoardingPass, setViewingBoardingPass] = useState<Transport | null>(null);
   const refreshMutation = trpc.flights.refreshStatus.useMutation();
@@ -1583,13 +1593,13 @@ export function TransportBlock({
           <Ionicons name="airplane-outline" size={15} color={colors.textAccent} />
           <Text style={styles.sectionTitle}>{t.transport.betweenDests}</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowModal(true)} style={styles.addIconBtn}>
+        <TouchableOpacity onPress={() => { setSelectedLeg(undefined); setShowModal(true); }} style={styles.addIconBtn}>
           <Ionicons name="add" size={18} color={colors.textAccent} />
         </TouchableOpacity>
       </View>
 
       {transports.length === 0 ? (
-        <TouchableOpacity onPress={() => setShowModal(true)} style={styles.emptyState}>
+        <TouchableOpacity onPress={() => { setSelectedLeg(undefined); setShowModal(true); }} style={styles.emptyState}>
           <Ionicons name="airplane-outline" size={24} color={colors.muted} />
           <Text style={styles.emptyText}>{t.transport.emptyTransport}</Text>
           <Text style={styles.emptyCta}>{t.transport.tapToConfigure}</Text>
@@ -1608,7 +1618,7 @@ export function TransportBlock({
                 {legTransports.length === 0 ? (
                   <TouchableOpacity
                     style={styles.legEmptyRow}
-                    onPress={() => setShowModal(true)}
+                    onPress={() => { setSelectedLeg(leg); setShowModal(true); }}
                   >
                     <Ionicons name="add-circle-outline" size={16} color={withAlpha(colors.primary, 0.4)} />
                     <Text style={styles.legEmptyText}>{t.transport.addTransportLeg}</Text>
@@ -1674,6 +1684,7 @@ export function TransportBlock({
         onAdd={handleAdd}
         legs={legs}
         accommodations={accommodations || []}
+        initialLeg={selectedLeg}
       />
 
       {viewingBoardingPass && viewingBoardingPass.boardingPassUri && (

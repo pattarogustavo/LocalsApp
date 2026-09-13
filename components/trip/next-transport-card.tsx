@@ -596,11 +596,33 @@ function SummaryGenericCard({ transport }: { transport: Transport }) {
   );
 }
 
+// Returns the ISO departure datetime for a transport, regardless of mode.
+function getTransportDepartureTime(t: Transport): string | undefined {
+  return t.flight?.departureTime || t.car?.departureTime || t.trainBusFerry?.departureTime || t.other?.departureTime;
+}
+
+// Picks the transport with the closest departure datetime that hasn't passed yet.
+function getUpcomingTransport(transports: Transport[]): Transport | null {
+  if (!transports || transports.length === 0) return null;
+  const now = new Date();
+
+  const withTime = transports
+    .map((t) => ({ t, time: getTransportDepartureTime(t) }))
+    .filter((e): e is { t: Transport; time: string } => !!e.time && new Date(e.time) > now);
+
+  if (withTime.length > 0) {
+    withTime.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    return withTime[0].t;
+  }
+
+  return null;
+}
+
 export function TransportSummaryCard({ transports, destinations, startDate, onPress }: Props) {
   const t = useTranslation();
   const colors = useColors();
   const summaryStyles = useMemo(() => createSummaryStyles(colors), [colors]);
-  const hasTransports = transports && transports.length > 0;
+  const nextTransport = useMemo(() => getUpcomingTransport(transports), [transports]);
 
   return (
     <View style={summaryStyles.wrapper}>
@@ -616,7 +638,7 @@ export function TransportSummaryCard({ transports, destinations, startDate, onPr
         </View>
       </TouchableOpacity>
 
-      {!hasTransports ? (
+      {!nextTransport ? (
         <TouchableOpacity style={summaryStyles.emptyRow} onPress={onPress} activeOpacity={0.8}>
           <Ionicons name="airplane-outline" size={20} color={colors.muted} />
           <Text style={summaryStyles.emptyText}>{t.transport.noTransport}</Text>
@@ -624,14 +646,12 @@ export function TransportSummaryCard({ transports, destinations, startDate, onPr
         </TouchableOpacity>
       ) : (
         <View style={{ gap: 10 }}>
-          {transports.map((t) =>
-            t.mode === 'flight' && t.flight ? (
-              <SummaryFlightCard key={t.id} transport={t} />
-            ) : t.mode === 'car' && t.car ? (
-              <SummaryCarCard key={t.id} transport={t} />
-            ) : (
-              <SummaryGenericCard key={t.id} transport={t} />
-            )
+          {nextTransport.mode === 'flight' && nextTransport.flight ? (
+            <SummaryFlightCard key={nextTransport.id} transport={nextTransport} />
+          ) : nextTransport.mode === 'car' && nextTransport.car ? (
+            <SummaryCarCard key={nextTransport.id} transport={nextTransport} />
+          ) : (
+            <SummaryGenericCard key={nextTransport.id} transport={nextTransport} />
           )}
         </View>
       )}
