@@ -1062,7 +1062,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const RESTAURANTS_BUDGET_OPTIONS = useMemo(() => getRestaurantsBudgetOptions(t), [t]);
   const PROFILE_OPTIONS = useMemo(() => getProfileOptions(t), [t]);
   const PACE_OPTIONS = useMemo(() => getPaceOptions(t), [t]);
-  const { setItinerary, addPlace, addItineraryStop } = useTripsStore();
+  const { setItinerary, addPlace, addItineraryStop, setPlaces } = useTripsStore();
   const { hasAccess } = useSubscription();
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
@@ -1352,7 +1352,15 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
       t.itinerary.deleteItineraryMsg,
       [
         { text: t.common.cancel, style: 'cancel' },
-        { text: t.common.delete, style: 'destructive', onPress: () => setItinerary(trip.id, []) },
+        {
+          text: t.common.delete,
+          style: 'destructive',
+          onPress: () => {
+            setItinerary(trip.id, []);
+            const manualPlaces = trip.places.filter((p) => !p.addedByAI);
+            setPlaces(trip.id, manualPlaces);
+          },
+        },
       ]
     );
   };
