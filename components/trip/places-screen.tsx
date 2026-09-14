@@ -641,8 +641,45 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
         })),
         preferences: { pace: 'moderado', includeBreakfast: true, includeLunch: true, includeDinner: true },
       });
-      if (result?.days) {
-        await setItinerary(tripId, result.days);
+      if (result?.days && result.days.length > 0) {
+        // Same reconciliation as itinerary-block.tsx's handleGenerateFromPlaces:
+        // match AI stops back to existing places by name, and add any
+        // AI-only stop to trip.places (addedByAI: true) so it shows up as an
+        // "unscheduled place" / in the Lugares tab like every other place,
+        // and so deleting it stays consistent between both screens.
+        const patchedDays = await Promise.all((result.days as any[]).map(async (day: any) => ({
+          ...day,
+          stops: await Promise.all((day.stops || []).map(async (stop: any) => {
+            let matchedPlace = places.find(
+              (p) => p.name.toLowerCase() === (stop.placeName || '').toLowerCase()
+            );
+            if (!matchedPlace) {
+              matchedPlace = places.find(
+                (p) => (stop.placeName || '').toLowerCase().includes(p.name.toLowerCase()) ||
+                        p.name.toLowerCase().includes((stop.placeName || '').toLowerCase())
+              );
+            }
+            if (matchedPlace) {
+              return { ...stop, placeId: matchedPlace.id };
+            }
+            const newPlaceId = `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            const destId = trip.destinations[0]?.id || '';
+            await addPlace(tripId, {
+              id: newPlaceId,
+              name: stop.placeName || stop.activity || 'Lugar',
+              category: stop.placeCategory || 'attraction',
+              destinationId: destId,
+              address: stop.address,
+              hours: stop.hours,
+              description: stop.description,
+              lat: stop.lat,
+              lng: stop.lng,
+              addedByAI: true,
+            });
+            return { ...stop, placeId: newPlaceId };
+          })),
+        })));
+        await setItinerary(tripId, patchedDays);
       }
     } catch (e) {
       console.error('Itinerary generation error:', e);

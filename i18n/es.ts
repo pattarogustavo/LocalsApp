@@ -216,6 +216,8 @@ export const es: Translations = {
     updateRoute: 'Actualizar trayecto',
     deleteItineraryTitle: 'Eliminar itinerario',
     deleteItineraryMsg: 'Esto eliminará todos los días del itinerario. ¿Deseas continuar?',
+    removePlaceTitle: 'Eliminar lugar',
+    removePlaceMsg: 'Esto eliminará este lugar de tu viaje. ¿Deseas continuar?',
     createModeAutoLabel: 'Creación automática',
     createModeAutoDesc: 'Creamos todo según tu perfil de viajero',
     createModeFromPlacesLabel: 'A partir de mis lugares',

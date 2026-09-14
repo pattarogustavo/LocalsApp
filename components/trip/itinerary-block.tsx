@@ -981,7 +981,7 @@ interface ItineraryBlockProps {
 
 // ─── Unscheduled Place Row ──────────────────────────────────────────────────────
 
-function UnscheduledPlaceRow({ place, onAdd }: { place: Place; onAdd: () => void }) {
+function UnscheduledPlaceRow({ place, onAdd, onRemove }: { place: Place; onAdd: () => void; onRemove: () => void }) {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -1008,6 +1008,13 @@ function UnscheduledPlaceRow({ place, onAdd }: { place: Place; onAdd: () => void
       </View>
       <TouchableOpacity onPress={onAdd} style={styles.unscheduledAddBtn}>
         <Ionicons name="add" size={18} color={colors.textAccent} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onRemove}
+        style={styles.unscheduledAddBtn}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Ionicons name="trash-outline" size={16} color={colors.muted} />
       </TouchableOpacity>
     </View>
   );
@@ -1062,7 +1069,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const RESTAURANTS_BUDGET_OPTIONS = useMemo(() => getRestaurantsBudgetOptions(t), [t]);
   const PROFILE_OPTIONS = useMemo(() => getProfileOptions(t), [t]);
   const PACE_OPTIONS = useMemo(() => getPaceOptions(t), [t]);
-  const { setItinerary, addPlace, addItineraryStop, setPlaces } = useTripsStore();
+  const { setItinerary, addPlace, addItineraryStop, setPlaces, removePlace } = useTripsStore();
   const { hasAccess } = useSubscription();
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
@@ -1345,6 +1352,18 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
     addItineraryStop(trip.id, dayIdx, newStop);
   };
 
+  const handleRemoveUnscheduledPlace = (place: Place) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      t.itinerary.removePlaceTitle,
+      t.itinerary.removePlaceMsg,
+      [
+        { text: t.common.cancel, style: 'cancel' },
+        { text: t.common.delete, style: 'destructive', onPress: () => removePlace(trip.id, place.id) },
+      ]
+    );
+  };
+
   const handleDeleteAllItinerary = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
@@ -1491,6 +1510,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 key={place.id}
                 place={place}
                 onAdd={() => { setDayPickIndex(selectedDay); setDayPickPlace(place); }}
+                onRemove={() => handleRemoveUnscheduledPlace(place)}
               />
             ))}
             {shouldCollapse && (

@@ -221,6 +221,8 @@ export const en: Translations = {
     updateRoute: 'Update route',
     deleteItineraryTitle: 'Delete itinerary',
     deleteItineraryMsg: 'This will delete all days of the itinerary. Do you want to continue?',
+    removePlaceTitle: 'Remove place',
+    removePlaceMsg: 'This will remove this place from your trip. Do you want to continue?',
     createModeAutoLabel: 'Automatic Creation',
     createModeAutoDesc: 'We build everything based on your traveler profile',
     createModeFromPlacesLabel: 'From My Places',

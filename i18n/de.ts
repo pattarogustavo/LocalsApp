@@ -221,6 +221,8 @@ export const de: Translations = {
     updateRoute: 'Route aktualisieren',
     deleteItineraryTitle: 'Reiseplan löschen',
     deleteItineraryMsg: 'Dadurch werden alle Tage des Reiseplans gelöscht. Möchtest du fortfahren?',
+    removePlaceTitle: 'Ort entfernen',
+    removePlaceMsg: 'Dadurch wird dieser Ort aus deiner Reise entfernt. Möchtest du fortfahren?',
     createModeAutoLabel: 'Automatische Erstellung',
     createModeAutoDesc: 'Wir erstellen alles basierend auf deinem Reiseprofil',
     createModeFromPlacesLabel: 'Basierend auf meinen Orten',

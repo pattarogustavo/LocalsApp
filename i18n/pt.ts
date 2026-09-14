@@ -225,6 +225,8 @@ export const pt = {
     updateRoute: 'Atualizar trajeto',
     deleteItineraryTitle: 'Apagar roteiro',
     deleteItineraryMsg: 'Isso vai apagar todos os dias do roteiro. Deseja continuar?',
+    removePlaceTitle: 'Remover lugar',
+    removePlaceMsg: 'Isso vai remover este lugar da sua viagem. Deseja continuar?',
     createModeAutoLabel: 'Criação Automática',
     createModeAutoDesc: 'Criamos tudo com base no seu perfil de viajante',
     createModeFromPlacesLabel: 'A Partir dos Meus Lugares',
