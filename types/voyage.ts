@@ -295,15 +295,27 @@ export type TravelBudget = 'econômico' | 'moderado' | 'luxo';
 export type TravelPace = 'relaxado' | 'moderado' | 'intenso';
 export type TravelProfile = 'casal' | 'família' | 'solo' | 'amigos' | 'negócios';
 
+// Per-meal mode. No UI surface yet — added so the backend (server/routers.ts
+// ai.generateItinerary / ai.generateFromScratch) can already accept and act
+// on these when a future UI adds the corresponding selectors.
+export interface MealPreferences {
+  breakfast?: 'hotel' | 'outside' | 'none';
+  lunch?: 'restaurant' | 'quick' | 'none';
+  dinner?: 'restaurant' | 'quick' | 'none';
+}
+
 export interface ItineraryPreferences {
   profile: TravelProfile;
   style: TravelStyle[];
   budget: TravelBudget;
   pace: TravelPace;
   interests: string[];
+  // Free-text places/experiences to avoid (e.g. "não gosto de aquário").
+  // Also usable as a general "don't include this" instruction.
   restrictions?: string;
   approximateBudget?: string;
   cityTransportMode?: CityTransportMode;
+  mealPreferences?: MealPreferences;
 }
 
 export interface TravelPreferences {
@@ -317,4 +329,5 @@ export interface TravelPreferences {
   includeLunch?: boolean;
   includeDinner?: boolean;
   wakeUpTime?: string;
+  mealPreferences?: MealPreferences;
 }

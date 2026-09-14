@@ -8,6 +8,10 @@ import * as db from "./db";
 import crypto from "crypto";
 import { storagePut } from "./storage";
 import { getSupabaseAdmin } from "./_core/supabaseAdmin";
+import { rankCandidates, filterExcludedCandidates } from "./itinerary/scoring";
+import { buildDurationGuidancePromptBlock } from "./itinerary/duration";
+import { validateAndCorrectItinerary, type MustVisitPlace, type FillerRestaurantCandidate } from "./itinerary/validate";
+import { buildItineraryDaysSchema } from "./itinerary/schema";
 
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
@@ -276,6 +280,9 @@ interface NearbyCandidate {
   businessStatus?: string;
   lat?: number;
   lng?: number;
+  priceLevel?: number;
+  /** Real opening_hours.weekday_text, backfilled by fetchOpeningHoursForTopCandidates. */
+  hoursText?: string;
 }
 
 /**
@@ -307,6 +314,7 @@ async function nearbySearchCandidates(lat: number, lng: number, type: string, ra
         businessStatus: r.business_status as string | undefined,
         lat: r.geometry?.location?.lat,
         lng: r.geometry?.location?.lng,
+        priceLevel: typeof r.price_level === "number" ? r.price_level : undefined,
       }));
   } catch (err) {
     console.error(`[places] nearby search failed for type="${type}":`, err);
@@ -371,11 +379,11 @@ async function fetchRealCandidatesForDestinations(
  * Fetch real address/hours/phone/photo for a single place_id via Place Details,
  * reusing the same landscape + highest-resolution photo curation as places.details.
  */
-async function fetchCuratedPlaceDetails(placeId: string, language?: string): Promise<{ address?: string; hours?: string; phone?: string; imageUrl?: string }> {
+async function fetchCuratedPlaceDetails(placeId: string, language?: string): Promise<{ address?: string; hours?: string; phone?: string; imageUrl?: string; lat?: number; lng?: number }> {
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
     url.searchParams.set("place_id", placeId);
-    url.searchParams.set("fields", "formatted_address,opening_hours,formatted_phone_number,photos");
+    url.searchParams.set("fields", "formatted_address,opening_hours,formatted_phone_number,photos,geometry");
     url.searchParams.set("language", mapToGoogleLanguage(language));
     url.searchParams.set("key", GOOGLE_PLACES_KEY);
     const res = await fetch(url.toString());
@@ -392,11 +400,36 @@ async function fetchCuratedPlaceDetails(placeId: string, language?: string): Pro
       hours: result?.opening_hours?.weekday_text?.join("\n"),
       phone: result?.formatted_phone_number,
       imageUrl,
+      lat: result?.geometry?.location?.lat,
+      lng: result?.geometry?.location?.lng,
     };
   } catch (err) {
     console.error(`[ai.suggestPlaces] place details fetch failed for place_id=${placeId}:`, err);
     return {};
   }
+}
+
+/**
+ * Backfills real opening_hours (weekday_text) onto the top-ranked candidates
+ * only (capped at `limit`) — one Place Details call per candidate is too
+ * costly/slow to run for the entire raw pool, so this runs *after* ranking,
+ * on the shortlist that's actually going to be offered to the LLM. Mutates
+ * and returns the same candidate objects.
+ */
+async function fetchOpeningHoursForTopCandidates<T extends { placeId: string; hoursText?: string }>(
+  candidates: T[],
+  limit: number,
+  language?: string,
+): Promise<T[]> {
+  if (!GOOGLE_PLACES_KEY) return candidates;
+  const top = candidates.slice(0, limit);
+  await Promise.all(
+    top.map(async (c) => {
+      const details = await fetchCuratedPlaceDetails(c.placeId, language);
+      if (details.hours) c.hoursText = details.hours;
+    })
+  );
+  return candidates;
 }
 
 /**
@@ -511,6 +544,120 @@ async function fetchDirections(
     return null;
   }
 }
+
+/** Mirrors the client's own cityTransportMode → Directions mode mapping (itinerary-block.tsx toDirectionsMode). */
+function cityTransportModeToDirectionsMode(mode?: string): TravelMode {
+  if (mode === 'public') return 'transit';
+  return 'driving';
+}
+
+/**
+ * Builds the `fetchTravel` callback the itinerary validator uses to replace
+ * LLM-guessed travel times with real Google Directions data — reusing the
+ * exact same `fetchDirections` the app's "Atualizar rotas" button already
+ * calls, just run server-side before the itinerary is ever returned.
+ * Short hops are re-checked against walking, mirroring the prompt's existing
+ * "prefer walking under ~1km/15min" instruction, but code-enforced.
+ */
+function buildTravelFetcher(cityTransportMode: string | undefined, language: string | undefined) {
+  const mode = cityTransportModeToDirectionsMode(cityTransportMode);
+  return async (oLat: number, oLng: number, dLat: number, dLng: number) => {
+    const origin = `${oLat},${oLng}`;
+    const destination = `${dLat},${dLng}`;
+    const primary = await fetchDirections(origin, destination, mode, language);
+    if (!primary) return null;
+    if (mode !== 'walking' && primary.distanceMeters > 0 && primary.distanceMeters < 1200) {
+      const walking = await fetchDirections(origin, destination, 'walking', language);
+      if (walking && walking.durationSeconds <= 15 * 60) {
+        return { durationText: walking.durationText, durationMinutes: Math.round(walking.durationSeconds / 60), mode: 'walking' as const, mapsUrl: walking.mapsUrl };
+      }
+    }
+    return { durationText: primary.durationText, durationMinutes: Math.round(primary.durationSeconds / 60), mode: mode as 'driving' | 'transit', mapsUrl: primary.mapsUrl };
+  };
+}
+
+/**
+ * Resolves a free-text "must-see" hint (e.g. "Louvre Museum") to a real
+ * Google Place via Find Place From Text + Place Details, so it can be
+ * promoted to a HARD must-visit constraint (same treatment as an explicitly
+ * selected place) instead of the old "try to include, not mandatory" text
+ * instruction. Returns null — never a guess — if it can't be resolved, in
+ * which case the caller falls back to the softer, purely textual prompt hint.
+ */
+async function resolveMustSeePlace(
+  text: string | undefined,
+  biasLat: number | undefined,
+  biasLng: number | undefined,
+  language: string | undefined,
+): Promise<MustVisitPlace | null> {
+  if (!text || !GOOGLE_PLACES_KEY) return null;
+  const trimmed = text.trim();
+  // Only attempt resolution for something that reads like a single specific
+  // place name, not a longer free-text wishlist/sentence.
+  if (trimmed.length < 3 || trimmed.length > 80 || /[,.;\n]/.test(trimmed)) return null;
+  const placeId = await resolvePlaceIdByName(trimmed, biasLat, biasLng, language);
+  if (!placeId) return null;
+  const details = await fetchCuratedPlaceDetails(placeId, language);
+  if (details.lat == null || details.lng == null) return null;
+  return {
+    name: trimmed,
+    placeId,
+    category: "attraction",
+    address: details.address,
+    lat: details.lat,
+    lng: details.lng,
+    hours: details.hours,
+  };
+}
+
+/** Builds the "hotel as route anchor" prompt block — only added when accommodation data is provided. */
+function buildHotelPromptBlock(accommodation: { name?: string; address?: string; lat?: number; lng?: number } | undefined): string {
+  if (!accommodation || (!accommodation.address && (accommodation.lat == null || accommodation.lng == null))) return "";
+  const location = accommodation.address || `${accommodation.lat},${accommodation.lng}`;
+  return `\n- Hospedagem (âncora do roteiro): ${accommodation.name || "hotel do viajante"} em ${location}. Sempre que possível, a primeira parada do dia deve ser geograficamente próxima à hospedagem (ou o dia deve iniciar considerando o deslocamento a partir dela), e a última parada do dia deve terminar em um ponto razoável para o retorno à hospedagem à noite.`;
+}
+
+/** Builds the meal-preferences prompt block from the structured mealPreferences field, falling back to the legacy include-booleans when absent. */
+function buildMealPreferencesBlock(
+  mealPreferences: { breakfast?: string; lunch?: string; dinner?: string } | undefined,
+  legacy: { includeBreakfast?: boolean; includeLunch?: boolean; includeDinner?: boolean },
+): string {
+  const lines: string[] = [];
+  const breakfast = mealPreferences?.breakfast;
+  const lunch = mealPreferences?.lunch;
+  const dinner = mealPreferences?.dinner;
+
+  if (breakfast === "hotel") lines.push("- Café da manhã: incluído na hospedagem — NÃO crie uma parada externa de café da manhã.");
+  else if (breakfast === "outside") lines.push("- Café da manhã: fora da hospedagem — inclua uma parada real de café da manhã.");
+  else if (breakfast === "none") lines.push("- Café da manhã: não planejar.");
+  else if (legacy.includeBreakfast !== false) lines.push("- Incluir café da manhã.");
+
+  if (lunch === "quick") lines.push("- Almoço: lanche rápido (20-45 min), não uma refeição longa em restaurante.");
+  else if (lunch === "restaurant") lines.push("- Almoço: refeição completa em restaurante (60-120 min).");
+  else if (lunch === "none") lines.push("- Almoço: não planejar.");
+  else if (legacy.includeLunch !== false) lines.push("- Incluir almoço (refeição completa em restaurante).");
+
+  if (dinner === "quick") lines.push("- Jantar: lanche rápido (20-45 min).");
+  else if (dinner === "restaurant") lines.push("- Jantar: refeição completa em restaurante (60-120 min).");
+  else if (dinner === "none") lines.push("- Jantar: não planejar.");
+  else if (legacy.includeDinner !== false) lines.push("- Incluir jantar (refeição completa em restaurante).");
+
+  return lines.length > 0 ? `\n${lines.join("\n")}` : "";
+}
+
+/** Explicit hard-vs-soft constraint framing, so the model prioritizes correctly by itself before the deterministic validator double-checks it. */
+const HARD_SOFT_FRAMING_BLOCK = `
+REGRAS OBRIGATÓRIAS (nunca podem ser quebradas, mesmo que isso signifique um roteiro menos "cheio"):
+- Respeitar horário de chegada/saída e os horários de acordar/dormir.
+- Respeitar o horário de funcionamento de cada lugar.
+- Incluir todo lugar marcado como OBRIGATÓRIO.
+- Nunca incluir lugares da lista de exclusão do usuário, mesmo que populares.
+- Incluir as refeições solicitadas (não pule almoço ou jantar para "economizar tempo").
+- Nunca sobrepor horários nem repetir o mesmo lugar duas vezes.
+
+PREFERÊNCIAS (aplicar com bom senso, mas nunca à custa das regras acima):
+- Ritmo de viagem, orçamento, popularidade/avaliação dos lugares, eficiência geográfica, variedade.
+- É permitido deixar tempo livre em vez de forçar mais uma parada de baixa relevância só para preencher o dia.`;
 
 // ─── AeroDataBox helpers ─────────────────────────────────────────────────────
 
@@ -1248,6 +1395,15 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
             })
           ).optional(),
           cityTransportMode: z.string().optional(),
+          // Optional route anchor — not yet sent by the UI, but the backend is
+          // ready for it so itinerary logic can start using the hotel as soon
+          // as it's wired up client-side (no UI change required for that wiring).
+          accommodation: z.object({
+            name: z.string().optional(),
+            address: z.string().optional(),
+            lat: z.number().optional(),
+            lng: z.number().optional(),
+          }).optional(),
           preferences: z.object({
             pace: z.enum(["relaxado", "moderado", "intenso"]).optional(),
             wakeUpTime: z.string().optional(), // e.g. "08:00"
@@ -1261,13 +1417,21 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
             departureTime: z.string().optional(),
             tripPurpose: z.string().optional(),
             mustSee: z.string().optional(),
+            // Structured extras — optional, no UI surface yet (see product plan).
+            travelStyle: z.array(z.string()).optional(),
+            avoidPlaces: z.string().optional(),
+            mealPreferences: z.object({
+              breakfast: z.enum(["hotel", "outside", "none"]).optional(),
+              lunch: z.enum(["restaurant", "quick", "none"]).optional(),
+              dinner: z.enum(["restaurant", "quick", "none"]).optional(),
+            }).optional(),
           }).optional(),
           language: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
         await requireActiveSubscription(ctx.user.id);
-        const { startDate, totalDays, destinations, selectedPlaces, preferences, cityTransportMode } = input;
+        const { startDate, totalDays, destinations, selectedPlaces, preferences, cityTransportMode, accommodation } = input;
 
         const destSummary = destinations
           .map((d) => `${d.name} (${d.country || ""}) — ${d.days} dias`)
@@ -1282,11 +1446,37 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
         // real, currently-open places from Google Places — same principle as
         // ai.suggestPlaces — instead of letting it invent places from memory.
         const selectedNamesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
-        const extraCandidates = (await fetchRealCandidatesForDestinations(destinations, input.language))
+        const rawExtraCandidates = (await fetchRealCandidatesForDestinations(destinations, input.language))
           .filter((c) => !selectedNamesLower.has(c.name.toLowerCase()));
+
+        // Hard exclusion filter FIRST — a candidate the user asked to avoid
+        // must never reach the LLM, no matter how popular/well-rated it is.
+        const { kept: nonExcludedCandidates, excludedCount } = filterExcludedCandidates(rawExtraCandidates, preferences?.avoidPlaces);
+        if (excludedCount > 0) {
+          console.log(`[ai.generateItinerary] filtered out ${excludedCount} candidate(s) matching the user's avoid list`);
+        }
+
+        // Deterministic ranking: user-interest match first, quality second,
+        // popularity only as a tie-breaker — never the other way around.
+        const ranked = rankCandidates(nonExcludedCandidates, {
+          travelStyles: preferences?.travelStyle,
+          attractionsBudget: preferences?.attractionsBudget,
+          restaurantsBudget: preferences?.restaurantsBudget,
+        }).map((r) => r.candidate);
+
+        // Real opening hours, fetched only for the shortlist actually offered
+        // to the model (keeps the extra Place Details calls bounded).
+        await fetchOpeningHoursForTopCandidates(ranked, 40, input.language);
+        const extraCandidates = ranked.slice(0, 60);
+        const hoursByPlaceId = new Map(extraCandidates.filter((c) => c.hoursText).map((c) => [c.placeId, c.hoursText!]));
+
         const realCandidatesSummary = extraCandidates.length > 0
-          ? `\nLugares reais e verificados no Google Places disponíveis${hasSelectedPlaces ? ' para completar o roteiro além dos obrigatórios acima' : ''} (use o nome EXATAMENTE como aparece na lista; NÃO invente nenhum lugar fora desta lista${hasSelectedPlaces ? ' nem da lista de obrigatórios' : ''}):\n${extraCandidates.map((c) => `- ${c.name} (${c.destinationName})${c.rating ? `, rating ${c.rating}` : ''}`).join("\n")}`
+          ? `\nLugares reais e verificados no Google Places disponíveis${hasSelectedPlaces ? ' para completar o roteiro além dos obrigatórios acima' : ''}, já ordenados por relevância para o perfil do viajante (use o nome EXATAMENTE como aparece na lista; NÃO invente nenhum lugar fora desta lista${hasSelectedPlaces ? ' nem da lista de obrigatórios' : ''}):\n${extraCandidates.map((c) => `[${c.placeId}] ${c.name} (${c.destinationName})${c.rating ? `, rating ${c.rating}` : ''}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}`).join("\n")}`
           : '';
+
+        // Promote a resolvable free-text "must-see" hint to a HARD constraint.
+        const destCenter = destinations.find((d) => d.lat != null && d.lng != null);
+        const resolvedMustSee = await resolveMustSeePlace(preferences?.mustSee, destCenter?.lat, destCenter?.lng, input.language);
 
         const paceStops = preferences?.pace === 'relaxado' ? 3 : preferences?.pace === 'intenso' ? 6 : 4;
 
@@ -1306,13 +1496,17 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
         const attractionsBudget = preferences?.attractionsBudget;
         const restaurantsBudget = preferences?.restaurantsBudget;
         const tripPurpose = preferences?.tripPurpose;
-        const mustSee = preferences?.mustSee;
+        const mustSee = resolvedMustSee ? undefined : preferences?.mustSee;
+        const hotelBlock = buildHotelPromptBlock(accommodation);
+        const mealBlock = buildMealPreferencesBlock(preferences?.mealPreferences, preferences || {});
 
         const prompt = `Crie um roteiro de viagem dia a dia detalhado para ${totalDays} dias.
+${HARD_SOFT_FRAMING_BLOCK}
 
 Data de início: ${startDate}
 Destinos: ${destSummary}
-${placesSummary}${realCandidatesSummary}
+${placesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}
+${hotelBlock}
 
 Preferências:
 - Ritmo: ${preferences?.pace || "moderado"} (${paceStops} paradas de ATRAÇÕES/PASSEIOS por dia — café da manhã, almoço e jantar são ADICIONAIS a esse número, não descontados dele; ex: ritmo moderado = ${paceStops} atrações/passeios por dia, MAIS café da manhã, almoço e jantar quando aplicável)
@@ -1321,18 +1515,18 @@ Preferências:
 - Horário de chegada (dia 1): ${arrivalTime}
 - Horário de saída (último dia): ${departureTime}${transportHint}
 ${attractionsBudget ? `- Orçamento para atrações: ${attractionsBudget}` : ""}
-${restaurantsBudget ? `- Orçamento para restaurantes: ${restaurantsBudget}` : ""}
-${preferences?.includeBreakfast !== false ? "- Incluir café da manhã" : ""}
-${preferences?.includeLunch !== false ? "- Incluir almoço" : ""}
-${preferences?.includeDinner !== false ? "- Incluir jantar" : ""}
+${restaurantsBudget ? `- Orçamento para restaurantes: ${restaurantsBudget}` : ""}${mealBlock}
 ${tripPurpose ? `- Motivo da viagem: ${tripPurpose}. Leve isso em conta na escolha de lugares e no tom das descrições (ex: lua de mel → lugares/restaurantes românticos; aniversário → sugerir algo especial em um dos dias).` : ""}
-${mustSee ? `- O usuário mencionou que gostaria de incluir, se possível: ${mustSee}. Tente incorporar isso no roteiro quando fizer sentido geograficamente, mas sem tratar como obrigatório (diferente da lista de lugares selecionados acima, que é obrigatória).` : ""}
+${mustSee ? `- O usuário mencionou que gostaria de incluir, se possível: ${mustSee}. É OBRIGATÓRIO tentar incluir, desde que tecnicamente viável (horário de funcionamento, tempo disponível, deslocamento); só deixe de fora se for genuinamente inviável.` : ""}
+${preferences?.avoidPlaces ? `- O usuário pediu para EVITAR: ${preferences.avoidPlaces}. NUNCA inclua lugares desse tipo, mesmo que populares ou bem avaliados.` : ""}
 
 Regras de horário:
 - No primeiro dia (chegada), a primeira parada deve começar depois de ${arrivalTime}, com folga de pelo menos 1h30 para deslocamento e check-in.
 - No último dia (partida), a última parada deve terminar com pelo menos 2h de folga antes de ${departureTime}, para dar tempo de chegar ao aeroporto/estação.
 - Nos demais dias, a primeira parada deve começar depois do horário de acordar (${wakeUpTime}), com 30 a 60 minutos para o café da manhã.
 - A última parada de cada dia deve terminar antes do horário de dormir (${bedtime}), com folga de pelo menos 1h.
+
+${buildDurationGuidancePromptBlock()}
 
 Retorne um JSON com o array "days". Cada dia deve ter:
 - date: data no formato YYYY-MM-DD
@@ -1341,11 +1535,11 @@ Retorne um JSON com o array "days". Cada dia deve ter:
 - tips: dica do dia em 1 frase
 - estimatedCost: custo estimado do dia em USD (número)
 - stops: array de paradas do dia, cada parada com:
-  { time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other), description, hours (horário de funcionamento), address (endereço completo), lat (latitude numérica), lng (longitude numérica), travelTimeToNext (ex: "15 min a pé"), travelModeToNext (walking|driving|transit|bicycling) }
+  { time (HH:MM), placeId (se a parada vier da lista de candidatos reais, o placeId entre colchetes; vazio caso contrário), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other), description, hours (horário de funcionamento), address (endereço completo), lat (latitude numérica), lng (longitude numérica), travelTimeToNext (ex: "15 min a pé"), travelModeToNext (walking|driving|transit|bicycling) }
 
 Importante:
 - Inclua ${paceStops} paradas de atrações/passeios por dia (café da manhã, almoço e jantar contam à parte, não fazem parte desse número). Distribua bem os horários ao longo do dia.
-- TODO dia (exceto talvez o dia de chegada, se chegar muito tarde) deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00, sem exceção${(preferences?.includeLunch === false || preferences?.includeDinner === false) ? ", salvo as refeições desmarcadas acima" : ""}.
+- TODO dia (exceto talvez o dia de chegada, se chegar muito tarde) deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00, sem exceção${(preferences?.includeLunch === false || preferences?.includeDinner === false || preferences?.mealPreferences?.lunch === 'none' || preferences?.mealPreferences?.dinner === 'none') ? ", salvo as refeições desmarcadas acima" : ""}.
 - Sempre inclua lat/lng reais para cada parada (coordenadas geográficas precisas).
 - O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
 - Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista.' : ''}${extraCandidates.length > 0 ? '\n- Use SOMENTE lugares da(s) lista(s) acima (obrigatórios e/ou candidatos reais). NÃO invente nenhum lugar de memória.' : ''}`;
@@ -1355,14 +1549,14 @@ Importante:
             { role: "system", content: "Você é um guia de viagens especialista. Crie roteiros detalhados, práticos e culturalmente ricos. Responda sempre em JSON válido." },
             { role: "user", content: prompt },
           ],
-          response_format: { type: "json_object" },
+          outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tips" }) },
           max_tokens: 16000,
         });
 
         const content = response.choices[0].message.content as string;
+        let parsed: any;
         try {
-          const parsed = JSON.parse(content);
-          return { days: parsed.days || [] };
+          parsed = JSON.parse(content);
         } catch (err) {
           console.error("[ai.generateItinerary] Failed to parse LLM response as JSON. Raw content (first 500 chars):", content.slice(0, 500));
           throw new TRPCError({
@@ -1371,6 +1565,63 @@ Importante:
             cause: err,
           });
         }
+
+        const rawDays: any[] = parsed.days || [];
+        const candidatesByPlaceId = new Map(extraCandidates.map((c) => [c.placeId, c]));
+
+        // Hallucination guard (previously only applied in generateFromScratch):
+        // drop any AI-added stop whose placeId isn't a real candidate and
+        // whose name doesn't match a user-selected or must-visit place.
+        const mustSeeNamesLower = new Set([resolvedMustSee?.name.toLowerCase()].filter(Boolean) as string[]);
+        let droppedHallucinatedStops = 0;
+        for (const day of rawDays) {
+          day.stops = (day.stops || []).filter((stop: any) => {
+            if (!stop.placeName) return false;
+            if (extraCandidates.length === 0) return true; // no grounding pool available — nothing to check against
+            const isKnownCandidate = stop.placeId && candidatesByPlaceId.has(stop.placeId);
+            const isSelected = selectedNamesLower.has((stop.placeName || '').toLowerCase());
+            const isMustSee = mustSeeNamesLower.has((stop.placeName || '').toLowerCase());
+            if (!isKnownCandidate && !isSelected && !isMustSee) {
+              droppedHallucinatedStops++;
+              return false;
+            }
+            if (isKnownCandidate) {
+              const c = candidatesByPlaceId.get(stop.placeId)!;
+              stop.lat = c.lat ?? stop.lat;
+              stop.lng = c.lng ?? stop.lng;
+            }
+            return true;
+          });
+        }
+        if (droppedHallucinatedStops > 0) {
+          console.warn(`[ai.generateItinerary] dropped ${droppedHallucinatedStops} stop(s) that referenced places outside the real candidates / selected-places lists`);
+        }
+
+        const mustVisit: MustVisitPlace[] = [
+          ...(selectedPlaces || []).map((p) => ({ name: p.name, category: p.category, address: p.address, lat: p.lat, lng: p.lng, hours: p.hours })),
+          ...(resolvedMustSee ? [resolvedMustSee] : []),
+        ];
+        const fillerRestaurants: FillerRestaurantCandidate[] = extraCandidates
+          .filter((c) => c.types.includes('restaurant') && c.lat != null && c.lng != null)
+          .slice(0, 15)
+          .map((c) => ({ placeId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
+
+        const { days: correctedDays } = await validateAndCorrectItinerary(rawDays, {
+          wakeUpTime, bedtime, arrivalTime, departureTime,
+          isFirstDay: (i) => i === 0,
+          isLastDay: (i) => i === totalDays - 1,
+          avoidText: preferences?.avoidPlaces,
+          mustVisit,
+          requireLunch: preferences?.includeLunch !== false,
+          requireDinner: preferences?.includeDinner !== false,
+          lunchMode: preferences?.mealPreferences?.lunch,
+          dinnerMode: preferences?.mealPreferences?.dinner,
+          hoursByPlaceId,
+          fillerRestaurants,
+          fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
+        });
+
+        return { days: correctedDays };
       }),
 
     /**
@@ -1397,6 +1648,12 @@ Importante:
             })
           ),
           cityTransportMode: z.string().optional(),
+          accommodation: z.object({
+            name: z.string().optional(),
+            address: z.string().optional(),
+            lat: z.number().optional(),
+            lng: z.number().optional(),
+          }).optional(),
           selectedPlaces: z.array(
             z.object({
               name: z.string(),
@@ -1422,13 +1679,19 @@ Importante:
             departureTime: z.string().optional(),
             tripPurpose: z.string().optional(),
             mustSee: z.string().optional(),
+            avoidPlaces: z.string().optional(),
+            mealPreferences: z.object({
+              breakfast: z.enum(["hotel", "outside", "none"]).optional(),
+              lunch: z.enum(["restaurant", "quick", "none"]).optional(),
+              dinner: z.enum(["restaurant", "quick", "none"]).optional(),
+            }).optional(),
           }),
           language: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
         await requireActiveSubscription(ctx.user.id);
-        const { startDate, totalDays, destinations, cityTransportMode, selectedPlaces, profile } = input;
+        const { startDate, totalDays, destinations, cityTransportMode, selectedPlaces, profile, accommodation } = input;
 
         const destSummary = destinations
           .map((d) => `${d.name} (${d.country || ""}) — ${d.days} dias`)
@@ -1442,11 +1705,32 @@ Importante:
         // Ground the whole itinerary in real, currently-open places from Google
         // Places — same principle as ai.suggestPlaces — instead of letting the
         // model invent places from memory.
-        const realCandidates = await fetchRealCandidatesForDestinations(destinations, input.language);
+        const rawRealCandidates = await fetchRealCandidatesForDestinations(destinations, input.language);
+
+        // Hard exclusion filter FIRST — never let an avoided category reach ranking/the LLM.
+        const { kept: nonExcludedRealCandidates, excludedCount: excludedRealCount } = filterExcludedCandidates(rawRealCandidates, profile.avoidPlaces);
+        if (excludedRealCount > 0) {
+          console.log(`[ai.generateFromScratch] filtered out ${excludedRealCount} candidate(s) matching the user's avoid list`);
+        }
+
+        // Deterministic ranking: user-interest match first, quality second,
+        // popularity only as a tie-breaker.
+        const rankedReal = rankCandidates(nonExcludedRealCandidates, {
+          travelStyles: profile.travelStyle,
+          attractionsBudget: profile.attractionsBudget || profile.budget,
+          restaurantsBudget: profile.restaurantsBudget || profile.budget,
+        }).map((r) => r.candidate);
+
+        await fetchOpeningHoursForTopCandidates(rankedReal, 40, input.language);
+        const realCandidates = rankedReal.slice(0, 70);
         const candidatesByPlaceId = new Map(realCandidates.map((c) => [c.placeId, c]));
+        const hoursByPlaceId = new Map(realCandidates.filter((c) => c.hoursText).map((c) => [c.placeId, c.hoursText!]));
         const realCandidatesSummary = realCandidates.length > 0
-          ? `\nLugares reais e verificados no Google Places disponíveis para montar o roteiro:\n${realCandidates.map((c) => `[${c.placeId}] ${c.name} — destino: ${c.destinationName}, tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}`).join("\n")}`
+          ? `\nLugares reais e verificados no Google Places disponíveis para montar o roteiro, já ordenados por relevância para o perfil do viajante:\n${realCandidates.map((c) => `[${c.placeId}] ${c.name} — destino: ${c.destinationName}, tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}`).join("\n")}`
           : "";
+
+        const destCenter = destinations.find((d) => d.lat != null && d.lng != null);
+        const resolvedMustSee = await resolveMustSeePlace(profile.mustSee, destCenter?.lat, destCenter?.lng, input.language);
 
         const paceStops = profile.pace === 'relaxado' ? 3 : profile.pace === 'intenso' ? 6 : 4;
 
@@ -1464,12 +1748,17 @@ Importante:
         const departureTime = profile.departureTime || "18:00";
         const attractionsBudget = profile.attractionsBudget || profile.budget || "moderado";
         const restaurantsBudget = profile.restaurantsBudget || profile.budget || "moderado";
+        const mustSee = resolvedMustSee ? undefined : profile.mustSee;
+        const hotelBlock = buildHotelPromptBlock(accommodation);
+        const mealBlock = buildMealPreferencesBlock(profile.mealPreferences, {});
 
         const prompt = `Crie um roteiro de viagem personalizado para ${totalDays} dias.
+${HARD_SOFT_FRAMING_BLOCK}
 
 Data de início: ${startDate}
 Destinos: ${destSummary}
-${selectedPlacesSummary}${realCandidatesSummary}
+${selectedPlacesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}
+${hotelBlock}
 
 Perfil do viajante:
 - Estilo: ${profile.travelStyle.join(", ")}
@@ -1481,12 +1770,13 @@ ${profile.interests ? `- Interesses específicos: ${profile.interests}` : ""}
 - Horário de acordar: ${wakeUpTime}
 - Horário de dormir: ${bedtime}
 - Horário de chegada (dia 1): ${arrivalTime}
-- Horário de saída (último dia): ${departureTime}${transportHint}
+- Horário de saída (último dia): ${departureTime}${transportHint}${mealBlock}
 ${profile.tripPurpose ? `- Motivo da viagem: ${profile.tripPurpose}. Leve isso em conta na escolha de lugares e no tom das descrições (ex: lua de mel → lugares/restaurantes românticos; aniversário → sugerir algo especial em um dos dias).` : ""}
-${profile.mustSee ? `- O usuário mencionou que gostaria de incluir, se possível: ${profile.mustSee}. Tente incorporar isso no roteiro quando fizer sentido geograficamente, mas sem tratar como obrigatório.` : ""}
+${mustSee ? `- O usuário mencionou que gostaria de incluir, se possível: ${mustSee}. É OBRIGATÓRIO tentar incluir, desde que tecnicamente viável (horário de funcionamento, tempo disponível, deslocamento); só deixe de fora se for genuinamente inviável.` : ""}
+${profile.avoidPlaces ? `- O usuário pediu para EVITAR: ${profile.avoidPlaces}. NUNCA inclua lugares desse tipo, mesmo que populares ou bem avaliados.` : ""}
 
 ${realCandidates.length > 0
-  ? 'Monte o roteiro dia a dia usando SOMENTE os lugares da lista de candidatos reais acima (e os lugares já selecionados pelo usuário, se houver), referenciando o placeId de cada um. NÃO invente lugares fora dessas listas.'
+  ? 'Monte o roteiro dia a dia usando SOMENTE os lugares da lista de candidatos reais acima (e os lugares já selecionados pelo usuário, se houver), referenciando o placeId de cada um. A lista já está ordenada por relevância para o perfil do viajante — prefira os primeiros da lista quando fizer sentido, mas use bom senso de sequência geográfica e variedade. NÃO invente lugares fora dessas listas.'
   : 'Crie o roteiro completo com lugares autênticos que combinem com o perfil acima.'}
 
 Regras de horário:
@@ -1495,12 +1785,14 @@ Regras de horário:
 - Nos demais dias, a primeira parada deve começar depois do horário de acordar (${wakeUpTime}), com 30 a 60 minutos para o café da manhã.
 - A última parada de cada dia deve terminar antes do horário de dormir (${bedtime}), com folga de pelo menos 1h.
 
+${buildDurationGuidancePromptBlock()}
+
 Retorne um JSON com "days": array dia-a-dia, cada dia com:
    { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, stops: [{ id (uuid), time (HH:MM), placeId${realCandidates.length > 0 ? ' (exatamente o placeId entre colchetes do candidato real escolhido, ou vazio se a parada for um dos lugares já selecionados pelo usuário)' : ''}, placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
 
 Importante:
 - Inclua ${paceStops} paradas de atrações/passeios por dia (café da manhã, almoço e jantar contam à parte, não fazem parte desse número).
-- TODO dia (exceto talvez o dia de chegada, se chegar muito tarde) deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00, sem exceção.
+- TODO dia (exceto talvez o dia de chegada, se chegar muito tarde) deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00, sem exceção${(profile.mealPreferences?.lunch === 'none' || profile.mealPreferences?.dinner === 'none') ? ", salvo as refeições desmarcadas acima" : ""}.
 - Inclua lat/lng reais para cada lugar.
 - O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
 - Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.
@@ -1512,7 +1804,7 @@ Importante:
             { role: "system", content: "Você é um guia de viagens especialista. Crie roteiros personalizados, detalhados e culturalmente ricos. Responda sempre em JSON válido." },
             { role: "user", content: prompt },
           ],
-          response_format: { type: "json_object" },
+          outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tip" }) },
           max_tokens: 16000,
         });
 
@@ -1583,6 +1875,54 @@ Importante:
           console.warn(`[ai.generateFromScratch] dropped ${droppedHallucinatedStops} stop(s) that referenced places outside the real candidates / selected-places lists`);
         }
 
+        // Deterministic validate → correct pass: opening hours, must-visit
+        // inclusion, exclusions, required meals, arrival/departure/wake/bed
+        // bounds, duplicate/overlap cleanup, and real Directions travel times.
+        const mustVisit: MustVisitPlace[] = [
+          ...(selectedPlaces || []).map((p) => ({ name: p.name, category: p.category, address: p.address, lat: p.lat, lng: p.lng, hours: p.hours })),
+          ...(resolvedMustSee ? [resolvedMustSee] : []),
+        ];
+        const fillerRestaurants: FillerRestaurantCandidate[] = realCandidates
+          .filter((c) => c.types.includes('restaurant') && c.lat != null && c.lng != null)
+          .slice(0, 15)
+          .map((c) => ({ placeId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
+
+        const { days: correctedDays } = await validateAndCorrectItinerary(patchedDays, {
+          wakeUpTime, bedtime, arrivalTime, departureTime,
+          isFirstDay: (i) => i === 0,
+          isLastDay: (i) => i === totalDays - 1,
+          avoidText: profile.avoidPlaces,
+          mustVisit,
+          requireLunch: profile.mealPreferences?.lunch !== 'none',
+          requireDinner: profile.mealPreferences?.dinner !== 'none',
+          lunchMode: profile.mealPreferences?.lunch,
+          dinnerMode: profile.mealPreferences?.dinner,
+          hoursByPlaceId,
+          fillerRestaurants,
+          fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
+        });
+
+        // The validator may have inserted a must-visit or fallback-meal stop
+        // that isn't in placesByKey yet — merge those in so suggestedPlaces
+        // (and its photo lookup) covers every stop actually in the itinerary.
+        for (const day of correctedDays) {
+          for (const stop of day.stops || []) {
+            const key = stop.placeId || stop.placeName;
+            if (key && !placesByKey.has(key)) {
+              placesByKey.set(key, {
+                id: stop.placeId || crypto.randomUUID(),
+                name: stop.placeName,
+                category: stop.placeCategory || 'attraction',
+                address: stop.address,
+                lat: stop.lat,
+                lng: stop.lng,
+                hours: stop.hours,
+                destinationName: day.destination,
+              });
+            }
+          }
+        }
+
         // Fetch a real photo for each unique place, reusing the same landscape /
         // highest-resolution curation as ai.suggestPlaces. Places backed by a
         // real candidate already have a verified place_id; only the (rare)
@@ -1598,7 +1938,7 @@ Importante:
           })
         );
 
-        return { days: patchedDays, suggestedPlaces };
+        return { days: correctedDays, suggestedPlaces };
       }),
 
     /**

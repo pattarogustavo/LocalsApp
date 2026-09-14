@@ -1146,9 +1146,14 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
     setShowCreateModal(false);
     setGenerating(true);
     try {
+      const primaryAccommodation = trip.accommodations?.[0];
       const result = await generateItinerary.mutateAsync({
         tripId: trip.id,
         destinations: trip.destinations.map((d) => ({ name: d.name, country: d.country, days: d.days, lat: d.lat, lng: d.lng })),
+        accommodation: primaryAccommodation ? {
+          name: primaryAccommodation.name,
+          address: primaryAccommodation.address,
+        } : undefined,
         selectedPlaces: trip.places.map((p) => ({
           name: p.name,
           category: p.category,
@@ -1223,11 +1228,16 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
     setShowProfileModal(false);
     setGenerating(true);
     try {
+      const primaryAccommodation = trip.accommodations?.[0];
       const result = await generateFromScratch.mutateAsync({
         tripId: trip.id,
         startDate: trip.startDate,
         totalDays,
         destinations: trip.destinations.map((d) => ({ name: d.name, country: d.country, days: d.days, lat: d.lat, lng: d.lng })),
+        accommodation: primaryAccommodation ? {
+          name: primaryAccommodation.name,
+          address: primaryAccommodation.address,
+        } : undefined,
         cityTransportMode: cityTransportMode || trip.cityTransportMode,
         selectedPlaces: (profileConsiderSelectedPlaces && trip.places.length > 0)
           ? trip.places.map((p) => ({
