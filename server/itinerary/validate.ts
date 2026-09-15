@@ -106,7 +106,7 @@ export function dateToGoogleWeekdayIndex(dateStr: string | undefined): number | 
 
 export interface MustVisitPlace {
   name: string;
-  placeId?: string;
+  googlePlaceId?: string;
   category?: string;
   address?: string;
   lat?: number;
@@ -115,7 +115,7 @@ export interface MustVisitPlace {
 }
 
 export interface FillerRestaurantCandidate {
-  placeId: string;
+  googlePlaceId: string;
   name: string;
   address?: string;
   lat?: number;
@@ -135,7 +135,7 @@ export interface ValidateContext {
   requireDinner: boolean;
   lunchMode?: "quick" | "restaurant" | "none";
   dinnerMode?: "quick" | "restaurant" | "none";
-  /** Opening hours text (weekday_text), keyed by placeId, for real AI-picked candidates. */
+  /** Opening hours text (weekday_text), keyed by googlePlaceId, for real AI-picked candidates. */
   hoursByPlaceId: Map<string, string>;
   /** Small pool of real, unused restaurant candidates to insert if a required meal is missing. */
   fillerRestaurants: FillerRestaurantCandidate[];
@@ -187,11 +187,11 @@ export async function validateAndCorrectItinerary(
     }
   }
 
-  // ── 2) Drop duplicates across the whole trip (same placeId or same name) ──
+  // ── 2) Drop duplicates across the whole trip (same googlePlaceId or same name) ──
   const seenKeys = new Set<string>();
   for (const day of days) {
     day.stops = day.stops.filter((stop: any) => {
-      const key = (stop.placeId || stop.placeName || "").toLowerCase();
+      const key = (stop.googlePlaceId || stop.placeName || "").toLowerCase();
       if (!key) return true;
       if (seenKeys.has(key)) {
         warnings.push(`Removed duplicate stop "${stop.placeName}"`);
@@ -217,7 +217,7 @@ export async function validateAndCorrectItinerary(
   for (const day of days) {
     const weekdayIdx = dateToGoogleWeekdayIndex(day.date);
     day.stops = day.stops.filter((stop: any) => {
-      const hoursText = stop.placeId ? ctx.hoursByPlaceId.get(stop.placeId) : undefined;
+      const hoursText = stop.googlePlaceId ? ctx.hoursByPlaceId.get(stop.googlePlaceId) : undefined;
       if (!hoursText || weekdayIdx == null) return true;
       const perWeekday = parseWeekdayHours(hoursText);
       const today = perWeekday[weekdayIdx];
@@ -242,7 +242,7 @@ export async function validateAndCorrectItinerary(
     const keys = new Set<string>();
     for (const day of days) {
       for (const stop of day.stops) {
-        if (stop.placeId) keys.add(String(stop.placeId).toLowerCase());
+        if (stop.googlePlaceId) keys.add(String(stop.googlePlaceId).toLowerCase());
         if (stop.placeName) keys.add(String(stop.placeName).toLowerCase());
       }
     }
@@ -251,7 +251,7 @@ export async function validateAndCorrectItinerary(
 
   for (const must of ctx.mustVisit) {
     const present = allStopKeys();
-    const key1 = must.placeId?.toLowerCase();
+    const key1 = must.googlePlaceId?.toLowerCase();
     const key2 = must.name.toLowerCase();
     if ((key1 && present.has(key1)) || present.has(key2)) continue;
 
@@ -276,9 +276,9 @@ export async function validateAndCorrectItinerary(
     if (bestDay >= 0 && bestGapSize >= durationRange.minMinutes) {
       const insertTime = minutesToTime(bestGapStart + 15);
       days[bestDay].stops.push({
-        id: `must-${must.placeId || must.name}`.slice(0, 60),
+        id: `must-${must.googlePlaceId || must.name}`.slice(0, 60),
         time: insertTime,
-        placeId: must.placeId,
+        googlePlaceId: must.googlePlaceId,
         placeName: must.name,
         placeCategory: must.category || "attraction",
         address: must.address,
@@ -297,7 +297,7 @@ export async function validateAndCorrectItinerary(
   const insertMealIfMissing = (windowStart: number, windowEnd: number, insertAt: number, label: string) => {
     days.forEach((day, dIdx) => {
       if (day.stops.some((s: any) => isMeal(s, windowStart, windowEnd))) return;
-      const filler = ctx.fillerRestaurants.find((r) => !allStopKeys().has(r.placeId.toLowerCase()));
+      const filler = ctx.fillerRestaurants.find((r) => !allStopKeys().has(r.googlePlaceId.toLowerCase()));
       if (!filler) {
         warnings.push(`Missing ${label} on day ${dIdx + 1} — no fallback restaurant candidate available`);
         return;
@@ -314,9 +314,9 @@ export async function validateAndCorrectItinerary(
         return;
       }
       day.stops.push({
-        id: `${label}-${filler.placeId}`,
+        id: `${label}-${filler.googlePlaceId}`,
         time,
-        placeId: filler.placeId,
+        googlePlaceId: filler.googlePlaceId,
         placeName: filler.name,
         placeCategory: "restaurant",
         address: filler.address,

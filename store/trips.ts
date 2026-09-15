@@ -13,9 +13,10 @@ import type {
   UserPlan,
   TripPhoto,
   ItineraryStop,
+  UpsertPlaceInput,
 } from '@/types/voyage';
 import { trpcVanilla } from '@/lib/trpc-vanilla';
-import { normalizeCityTransportMode } from '@/utils/trip-helpers';
+import { normalizeCityTransportMode, generateId } from '@/utils/trip-helpers';
 
 interface TripsState {
   trips: Trip[];
@@ -35,6 +36,14 @@ interface TripsState {
   removePlace: (tripId: string, placeId: string) => Promise<void>;
   setPlaces: (tripId: string, places: Place[]) => Promise<void>;
   updatePlace: (tripId: string, placeId: string, updates: Partial<Place>) => Promise<void>;
+  /**
+   * Single entry point for adding a place from any source (AI recommendations,
+   * manual search, itinerary generation). Reuses an existing Place when one
+   * already matches by Google place_id (or, failing that, by name within the
+   * same destination) instead of creating a disconnected duplicate. Returns
+   * the local Place.id — either the existing one, or a freshly created one.
+   */
+  upsertPlace: (tripId: string, input: UpsertPlaceInput) => Promise<string>;
   // Documents
   addDocument: (tripId: string, doc: Document) => Promise<void>;
   removeDocument: (tripId: string, docId: string) => Promise<void>;
@@ -299,6 +308,57 @@ export const useTripsStore = create<TripsState>((set, get) => ({
     await saveToStorage(trips);
     const updated = trips.find((t) => t.id === tripId);
     if (updated) await pushTripToCloud(updated);
+  },
+
+  upsertPlace: async (tripId: string, input: UpsertPlaceInput): Promise<string> => {
+    const trip = get().trips.find((t) => t.id === tripId);
+    if (!trip) return generateId();
+
+    const normalizedName = input.name.trim().toLowerCase();
+    const existing =
+      (input.googlePlaceId && trip.places.find((p) => p.placeId === input.googlePlaceId)) ||
+      trip.places.find(
+        (p) => !p.placeId && p.destinationId === input.destinationId && p.name.trim().toLowerCase() === normalizedName
+      );
+
+    if (existing) {
+      // Fill in gaps on the existing record (e.g. a manually-added place that
+      // had no photo/hours yet) without overwriting data already there or
+      // touching its addedByAI origin.
+      const updates: Partial<Place> = {};
+      if (existing.placeId == null && input.googlePlaceId != null) updates.placeId = input.googlePlaceId;
+      if (existing.address == null && input.address != null) updates.address = input.address;
+      if (existing.hours == null && input.hours != null) updates.hours = input.hours;
+      if (existing.phone == null && input.phone != null) updates.phone = input.phone;
+      if (existing.rating == null && input.rating != null) updates.rating = input.rating;
+      if (existing.imageUrl == null && input.imageUrl != null) updates.imageUrl = input.imageUrl;
+      if (existing.description == null && input.description != null) updates.description = input.description;
+      if (existing.lat == null && input.lat != null) updates.lat = input.lat;
+      if (existing.lng == null && input.lng != null) updates.lng = input.lng;
+      if (Object.keys(updates).length > 0) {
+        await get().updatePlace(tripId, existing.id, updates);
+      }
+      return existing.id;
+    }
+
+    const newPlace: Place = {
+      id: generateId(),
+      name: input.name,
+      category: input.category,
+      destinationId: input.destinationId,
+      address: input.address,
+      hours: input.hours,
+      phone: input.phone,
+      rating: input.rating,
+      imageUrl: input.imageUrl,
+      description: input.description,
+      lat: input.lat,
+      lng: input.lng,
+      placeId: input.googlePlaceId,
+      addedByAI: input.addedByAI,
+    };
+    await get().addPlace(tripId, newPlace);
+    return newPlace.id;
   },
 
   setPlaces: async (tripId: string, places: Place[]) => {

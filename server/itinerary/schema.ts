@@ -15,7 +15,7 @@ const stopSchema = {
   type: "object",
   properties: {
     time: { type: "string", description: "HH:MM" },
-    placeId: { type: "string" },
+    googlePlaceId: { type: "string" },
     placeName: { type: "string" },
     placeCategory: { type: "string", enum: ["attraction", "restaurant", "cafe", "museum", "hidden_gem", "other"] },
     description: { type: "string" },

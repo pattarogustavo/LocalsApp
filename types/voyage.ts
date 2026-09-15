@@ -128,6 +128,29 @@ export interface Place {
   attachments?: PlaceAttachment[];
 }
 
+/**
+ * Input to TripsState.upsertPlace — the single entry point every place-adding
+ * flow (AI recommendations, manual search, itinerary generation) should go
+ * through, so the same real-world place is never saved as two disconnected
+ * Place records. `googlePlaceId` (Google's real place_id) is the identity key
+ * when present; falls back to a name+destination match otherwise.
+ */
+export interface UpsertPlaceInput {
+  name: string;
+  category: PlaceCategory;
+  destinationId: string;
+  googlePlaceId?: string;
+  address?: string;
+  hours?: string;
+  phone?: string;
+  rating?: number;
+  imageUrl?: string;
+  description?: string;
+  lat?: number;
+  lng?: number;
+  addedByAI?: boolean;
+}
+
 // ─── Document ─────────────────────────────────────────────────────────────────
 
 export interface Document {
@@ -203,7 +226,8 @@ export interface Accommodation {
 export interface ItineraryStop {
   id: string;
   time: string;           // e.g. "09:00"
-  placeId?: string;       // links to Place.id
+  placeId?: string;       // links to Place.id (local id, set by the client during reconciliation)
+  googlePlaceId?: string; // Google's real place_id, as returned by the AI itinerary generation endpoints
   placeName: string;
   placeCategory: PlaceCategory;
   description?: string;

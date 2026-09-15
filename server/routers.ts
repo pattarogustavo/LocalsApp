@@ -601,7 +601,7 @@ async function resolveMustSeePlace(
   if (details.lat == null || details.lng == null) return null;
   return {
     name: trimmed,
-    placeId,
+    googlePlaceId: placeId,
     category: "attraction",
     address: details.address,
     lat: details.lat,
@@ -1535,7 +1535,7 @@ Retorne um JSON com o array "days". Cada dia deve ter:
 - tips: dica do dia em 1 frase
 - estimatedCost: custo estimado do dia em USD (número)
 - stops: array de paradas do dia, cada parada com:
-  { time (HH:MM), placeId (se a parada vier da lista de candidatos reais, o placeId entre colchetes; vazio caso contrário), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other), description, hours (horário de funcionamento), address (endereço completo), lat (latitude numérica), lng (longitude numérica), travelTimeToNext (ex: "15 min a pé"), travelModeToNext (walking|driving|transit|bicycling) }
+  { time (HH:MM), googlePlaceId (se a parada vier da lista de candidatos reais, o placeId entre colchetes; vazio caso contrário), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other), description, hours (horário de funcionamento), address (endereço completo), lat (latitude numérica), lng (longitude numérica), travelTimeToNext (ex: "15 min a pé"), travelModeToNext (walking|driving|transit|bicycling) }
 
 Importante:
 - Inclua ${paceStops} paradas de atrações/passeios por dia (café da manhã, almoço e jantar contam à parte, não fazem parte desse número). Distribua bem os horários ao longo do dia.
@@ -1570,7 +1570,7 @@ Importante:
         const candidatesByPlaceId = new Map(extraCandidates.map((c) => [c.placeId, c]));
 
         // Hallucination guard (previously only applied in generateFromScratch):
-        // drop any AI-added stop whose placeId isn't a real candidate and
+        // drop any AI-added stop whose googlePlaceId isn't a real candidate and
         // whose name doesn't match a user-selected or must-visit place.
         const mustSeeNamesLower = new Set([resolvedMustSee?.name.toLowerCase()].filter(Boolean) as string[]);
         let droppedHallucinatedStops = 0;
@@ -1578,7 +1578,7 @@ Importante:
           day.stops = (day.stops || []).filter((stop: any) => {
             if (!stop.placeName) return false;
             if (extraCandidates.length === 0) return true; // no grounding pool available — nothing to check against
-            const isKnownCandidate = stop.placeId && candidatesByPlaceId.has(stop.placeId);
+            const isKnownCandidate = stop.googlePlaceId && candidatesByPlaceId.has(stop.googlePlaceId);
             const isSelected = selectedNamesLower.has((stop.placeName || '').toLowerCase());
             const isMustSee = mustSeeNamesLower.has((stop.placeName || '').toLowerCase());
             if (!isKnownCandidate && !isSelected && !isMustSee) {
@@ -1586,7 +1586,7 @@ Importante:
               return false;
             }
             if (isKnownCandidate) {
-              const c = candidatesByPlaceId.get(stop.placeId)!;
+              const c = candidatesByPlaceId.get(stop.googlePlaceId)!;
               stop.lat = c.lat ?? stop.lat;
               stop.lng = c.lng ?? stop.lng;
             }
@@ -1604,7 +1604,7 @@ Importante:
         const fillerRestaurants: FillerRestaurantCandidate[] = extraCandidates
           .filter((c) => c.types.includes('restaurant') && c.lat != null && c.lng != null)
           .slice(0, 15)
-          .map((c) => ({ placeId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
+          .map((c) => ({ googlePlaceId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
 
         const { days: correctedDays } = await validateAndCorrectItinerary(rawDays, {
           wakeUpTime, bedtime, arrivalTime, departureTime,
@@ -1776,7 +1776,7 @@ ${mustSee ? `- O usuário mencionou que gostaria de incluir, se possível: ${mus
 ${profile.avoidPlaces ? `- O usuário pediu para EVITAR: ${profile.avoidPlaces}. NUNCA inclua lugares desse tipo, mesmo que populares ou bem avaliados.` : ""}
 
 ${realCandidates.length > 0
-  ? 'Monte o roteiro dia a dia usando SOMENTE os lugares da lista de candidatos reais acima (e os lugares já selecionados pelo usuário, se houver), referenciando o placeId de cada um. A lista já está ordenada por relevância para o perfil do viajante — prefira os primeiros da lista quando fizer sentido, mas use bom senso de sequência geográfica e variedade. NÃO invente lugares fora dessas listas.'
+  ? 'Monte o roteiro dia a dia usando SOMENTE os lugares da lista de candidatos reais acima (e os lugares já selecionados pelo usuário, se houver), referenciando o googlePlaceId de cada um. A lista já está ordenada por relevância para o perfil do viajante — prefira os primeiros da lista quando fizer sentido, mas use bom senso de sequência geográfica e variedade. NÃO invente lugares fora dessas listas.'
   : 'Crie o roteiro completo com lugares autênticos que combinem com o perfil acima.'}
 
 Regras de horário:
@@ -1788,7 +1788,7 @@ Regras de horário:
 ${buildDurationGuidancePromptBlock()}
 
 Retorne um JSON com "days": array dia-a-dia, cada dia com:
-   { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, stops: [{ id (uuid), time (HH:MM), placeId${realCandidates.length > 0 ? ' (exatamente o placeId entre colchetes do candidato real escolhido, ou vazio se a parada for um dos lugares já selecionados pelo usuário)' : ''}, placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
+   { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, stops: [{ id (uuid), time (HH:MM), googlePlaceId${realCandidates.length > 0 ? ' (exatamente o placeId entre colchetes do candidato real escolhido, ou vazio se a parada for um dos lugares já selecionados pelo usuário)' : ''}, placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
 
 Importante:
 - Inclua ${paceStops} paradas de atrações/passeios por dia (café da manhã, almoço e jantar contam à parte, não fazem parte desse número).
@@ -1826,35 +1826,37 @@ Importante:
         // Rebuild suggestedPlaces from the stops actually used in the itinerary,
         // discarding whatever "suggestedPlaces" the AI may still have volunteered
         // (which can include places that never made it into any day). Also
-        // backfills a placeId on any stop that's missing one, so every stop
-        // links to a real suggestedPlaces entry.
+        // backfills a googlePlaceId on any stop that's missing one, so every
+        // stop links to a real suggestedPlaces entry.
         //
         // Guard against hallucination — same principle as ai.suggestPlaces: when
-        // real candidates were available, a stop only survives if its placeId
-        // matches one of them or its name matches a place the user selected;
-        // anything else means the AI ignored the "don't invent" instruction, so
-        // the stop is dropped rather than trusting an unverifiable place.
+        // real candidates were available, a stop only survives if its
+        // googlePlaceId matches one of them or its name matches a place the
+        // user selected; anything else means the AI ignored the "don't
+        // invent" instruction, so the stop is dropped rather than trusting an
+        // unverifiable place.
         const selectedPlacesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
         let droppedHallucinatedStops = 0;
         const placesByKey = new Map<string, {
-          id: string; name: string; category: string; address?: string;
+          googlePlaceId?: string; name: string; category: string; address?: string;
           description?: string; lat?: number; lng?: number; hours?: string; destinationName?: string;
         }>();
         const patchedDays = days.map((day: any) => {
           const stops = (day.stops || []).map((stop: any) => {
             if (!stop.placeName) return null;
 
-            const candidate = stop.placeId ? candidatesByPlaceId.get(stop.placeId) : undefined;
+            const candidate = stop.googlePlaceId ? candidatesByPlaceId.get(stop.googlePlaceId) : undefined;
             const isSelectedPlace = selectedPlacesLower.has(stop.placeName.toLowerCase());
             if (realCandidates.length > 0 && !candidate && !isSelectedPlace) {
               droppedHallucinatedStops++;
               return null;
             }
 
-            const key = candidate?.placeId || stop.placeId || stop.placeName;
+            const resolvedGooglePlaceId = candidate?.placeId || stop.googlePlaceId || undefined;
+            const key = resolvedGooglePlaceId || stop.placeName.toLowerCase();
             if (!placesByKey.has(key)) {
               placesByKey.set(key, {
-                id: candidate?.placeId || stop.placeId || crypto.randomUUID(),
+                googlePlaceId: resolvedGooglePlaceId,
                 name: candidate?.name || stop.placeName,
                 category: stop.placeCategory || 'attraction',
                 address: stop.address,
@@ -1866,7 +1868,7 @@ Importante:
               });
             }
             const place = placesByKey.get(key)!;
-            return { ...stop, placeId: place.id, placeName: place.name };
+            return { ...stop, googlePlaceId: place.googlePlaceId, placeName: place.name };
           }).filter(Boolean);
           return { ...day, stops };
         });
@@ -1885,7 +1887,7 @@ Importante:
         const fillerRestaurants: FillerRestaurantCandidate[] = realCandidates
           .filter((c) => c.types.includes('restaurant') && c.lat != null && c.lng != null)
           .slice(0, 15)
-          .map((c) => ({ placeId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
+          .map((c) => ({ googlePlaceId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
 
         const { days: correctedDays } = await validateAndCorrectItinerary(patchedDays, {
           wakeUpTime, bedtime, arrivalTime, departureTime,
@@ -1907,10 +1909,10 @@ Importante:
         // (and its photo lookup) covers every stop actually in the itinerary.
         for (const day of correctedDays) {
           for (const stop of day.stops || []) {
-            const key = stop.placeId || stop.placeName;
+            const key = stop.googlePlaceId || (stop.placeName || '').toLowerCase();
             if (key && !placesByKey.has(key)) {
               placesByKey.set(key, {
-                id: stop.placeId || crypto.randomUUID(),
+                googlePlaceId: stop.googlePlaceId,
                 name: stop.placeName,
                 category: stop.placeCategory || 'attraction',
                 address: stop.address,
@@ -1931,7 +1933,7 @@ Importante:
           Array.from(placesByKey.values()).map(async (place) => {
             let imageUrl: string | undefined;
             if (GOOGLE_PLACES_KEY) {
-              const placeId = candidatesByPlaceId.has(place.id) ? place.id : await resolvePlaceIdByName(place.name, place.lat, place.lng, input.language);
+              const placeId = place.googlePlaceId ?? await resolvePlaceIdByName(place.name, place.lat, place.lng, input.language);
               if (placeId) imageUrl = (await fetchCuratedPlaceDetails(placeId, input.language)).imageUrl;
             }
             return { ...place, imageUrl };
@@ -2063,6 +2065,7 @@ Retorne um JSON com o array "places": [{ placeId (exatamente o place_id entre co
             const candidate = candidatesByPlaceId.get(c.placeId)!;
             const details = await fetchCuratedPlaceDetails(c.placeId, input.language);
             return {
+              placeId: c.placeId,
               name: candidate.name,
               category: c.category,
               description: c.description,

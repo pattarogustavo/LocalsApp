@@ -1069,7 +1069,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const RESTAURANTS_BUDGET_OPTIONS = useMemo(() => getRestaurantsBudgetOptions(t), [t]);
   const PROFILE_OPTIONS = useMemo(() => getProfileOptions(t), [t]);
   const PACE_OPTIONS = useMemo(() => getPaceOptions(t), [t]);
-  const { setItinerary, addPlace, addItineraryStop, setPlaces, removePlace } = useTripsStore();
+  const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace } = useTripsStore();
   const { hasAccess } = useSubscription();
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
@@ -1181,33 +1181,20 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         },
       });
       if (result?.days && result.days.length > 0) {
-        // Patch placeId in stops to reference the local place by name match
-        // Also add any AI-generated stops that don't match an existing place to the Places tab
+        // Upsert every stop into trip.places — Google's place_id (googlePlaceId,
+        // as returned by the AI) is the identity key, so a stop that refers to
+        // an already-selected place reuses its existing record instead of
+        // creating a disconnected duplicate. Any genuinely new stop is added
+        // to the Places tab (addedByAI: true) so delete cascade works.
+        const destId = trip.destinations[0]?.id || '';
         const patchedDays = await Promise.all((result.days as any[]).map(async (day: any) => ({
           ...day,
           stops: await Promise.all((day.stops || []).map(async (stop: any) => {
-            // Try exact name match first
-            let matchedPlace = trip.places.find(
-              (p) => p.name.toLowerCase() === (stop.placeName || '').toLowerCase()
-            );
-            // If no match, try partial match
-            if (!matchedPlace) {
-              matchedPlace = trip.places.find(
-                (p) => (stop.placeName || '').toLowerCase().includes(p.name.toLowerCase()) ||
-                        p.name.toLowerCase().includes((stop.placeName || '').toLowerCase())
-              );
-            }
-            if (matchedPlace) {
-              return { ...stop, placeId: matchedPlace.id };
-            }
-            // No match: add this place to the Places tab so delete cascade works
-            const newPlaceId = `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            const destId = trip.destinations[0]?.id || '';
-            await addPlace(trip.id, {
-              id: newPlaceId,
+            const localPlaceId = await upsertPlace(trip.id, {
               name: stop.placeName || stop.activity || 'Lugar',
               category: stop.placeCategory || 'attraction',
               destinationId: destId,
+              googlePlaceId: stop.googlePlaceId,
               address: stop.address,
               hours: stop.hours,
               description: stop.description,
@@ -1215,7 +1202,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
               lng: stop.lng,
               addedByAI: true,
             });
-            return { ...stop, placeId: newPlaceId };
+            return { ...stop, placeId: localPlaceId };
           })),
         })));
         await setItinerary(trip.id, patchedDays);
@@ -1272,38 +1259,39 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
         },
       });
       if (result?.days && result.days.length > 0) {
-        // Build a map of AI place id -> local place id for cross-referencing
-        const placeIdMap: Record<string, string> = {};
-        if (result.suggestedPlaces && result.suggestedPlaces.length > 0) {
-          for (const sp of result.suggestedPlaces) {
-            const localId = sp.id && sp.id.length > 4 ? sp.id : `sp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            placeIdMap[sp.id || sp.name] = localId;
+        // suggestedPlaces only carries enrichment data (photo/address/hours) —
+        // it's keyed by googlePlaceId (or lowercased name as fallback) so it
+        // can be looked up per stop below.
+        const suggestedByKey = new Map<string, any>();
+        for (const sp of result.suggestedPlaces || []) {
+          suggestedByKey.set(sp.googlePlaceId || sp.name.toLowerCase(), sp);
+        }
+        // Upsert every stop into trip.places — Google's place_id is the
+        // identity key, so a stop referring to an already-selected place
+        // reuses its existing record instead of creating a duplicate.
+        const patchedDays = await Promise.all(result.days.map(async (day: any) => ({
+          ...day,
+          stops: await Promise.all((day.stops || []).map(async (stop: any) => {
+            const sp = suggestedByKey.get(stop.googlePlaceId || (stop.placeName || '').toLowerCase());
             const destId = trip.destinations.find(
-              (d) => d.name.toLowerCase() === (sp.destinationName || '').toLowerCase()
+              (d) => d.name.toLowerCase() === (sp?.destinationName || day.destination || '').toLowerCase()
             )?.id || trip.destinations[0]?.id || '';
-            await addPlace(trip.id, {
-              id: localId,
-              name: sp.name,
-              category: (sp.category as Place['category']) || 'attraction',
+            const localPlaceId = await upsertPlace(trip.id, {
+              name: stop.placeName || sp?.name || 'Lugar',
+              category: (stop.placeCategory || sp?.category || 'attraction') as Place['category'],
               destinationId: destId,
-              address: sp.address,
-              hours: sp.hours,
-              description: sp.description,
-              lat: sp.lat,
-              lng: sp.lng,
-              imageUrl: sp.imageUrl,
+              googlePlaceId: stop.googlePlaceId,
+              address: stop.address || sp?.address,
+              hours: stop.hours || sp?.hours,
+              description: stop.description || sp?.description,
+              lat: stop.lat ?? sp?.lat,
+              lng: stop.lng ?? sp?.lng,
+              imageUrl: sp?.imageUrl,
               addedByAI: true,
             });
-          }
-        }
-        // Patch placeId in stops to reference the local place id
-        const patchedDays = result.days.map((day: any) => ({
-          ...day,
-          stops: (day.stops || []).map((stop: any) => ({
-            ...stop,
-            placeId: stop.placeId ? (placeIdMap[stop.placeId] || stop.placeId) : undefined,
+            return { ...stop, placeId: localPlaceId };
           })),
-        }));
+        })));
         await setItinerary(trip.id, patchedDays);
         setSelectedDay(0);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

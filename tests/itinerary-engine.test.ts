@@ -150,8 +150,8 @@ describe("validateAndCorrectItinerary", () => {
   it("removes duplicate stops across the trip", async () => {
     const days = [
       { date: "2026-09-14", destination: "Paris", stops: [
-        { id: "1", time: "10:00", placeId: "p1", placeName: "Louvre", placeCategory: "museum" },
-        { id: "2", time: "16:00", placeId: "p1", placeName: "Louvre", placeCategory: "museum" },
+        { id: "1", time: "10:00", googlePlaceId: "p1", placeName: "Louvre", placeCategory: "museum" },
+        { id: "2", time: "16:00", googlePlaceId: "p1", placeName: "Louvre", placeCategory: "museum" },
       ] },
     ];
     const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
@@ -168,7 +168,7 @@ describe("validateAndCorrectItinerary", () => {
   it("shifts the arrival day's stops later when the first stop starts too soon after arrival", async () => {
     const days = [
       { date: "2026-09-14", destination: "Paris", stops: [
-        { id: "1", time: "15:10", placeId: "p1", placeName: "Eiffel Tower", placeCategory: "attraction" },
+        { id: "1", time: "15:10", googlePlaceId: "p1", placeName: "Eiffel Tower", placeCategory: "attraction" },
       ] },
     ];
     const { days: fixed } = await validateAndCorrectItinerary(days, { ...baseCtx, isLastDay: () => false, requireLunch: false, requireDinner: false });
@@ -179,8 +179,8 @@ describe("validateAndCorrectItinerary", () => {
   it("drops a trailing stop that would run past the departure buffer", async () => {
     const days = [
       { date: "2026-09-14", destination: "Paris", stops: [
-        { id: "1", time: "10:00", placeId: "p1", placeName: "Museum", placeCategory: "museum" },
-        { id: "2", time: "16:30", placeId: "p2", placeName: "Late Add-on", placeCategory: "attraction" },
+        { id: "1", time: "10:00", googlePlaceId: "p1", placeName: "Museum", placeCategory: "museum" },
+        { id: "2", time: "16:30", googlePlaceId: "p2", placeName: "Late Add-on", placeCategory: "attraction" },
       ] },
     ];
     // departure 18:00 - 120min buffer = 16:00 last-allowed start for a ~75min stop
@@ -192,7 +192,7 @@ describe("validateAndCorrectItinerary", () => {
   it("inserts a must-visit place that the LLM omitted, when there's enough free time", async () => {
     const days = [
       { date: "2026-09-14", destination: "Paris", stops: [
-        { id: "1", time: "10:00", placeId: "p1", placeName: "Some Cafe", placeCategory: "cafe" },
+        { id: "1", time: "10:00", googlePlaceId: "p1", placeName: "Some Cafe", placeCategory: "cafe" },
       ] },
     ];
     const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
@@ -211,8 +211,8 @@ describe("validateAndCorrectItinerary", () => {
   it("inserts a fallback lunch stop when none was scheduled and a candidate restaurant is available", async () => {
     const days = [
       { date: "2026-09-14", destination: "Paris", stops: [
-        { id: "1", time: "10:00", placeId: "p1", placeName: "Museum", placeCategory: "museum" },
-        { id: "2", time: "16:00", placeId: "p2", placeName: "Park", placeCategory: "attraction" },
+        { id: "1", time: "10:00", googlePlaceId: "p1", placeName: "Museum", placeCategory: "museum" },
+        { id: "2", time: "16:00", googlePlaceId: "p2", placeName: "Park", placeCategory: "attraction" },
       ] },
     ];
     const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
@@ -220,7 +220,7 @@ describe("validateAndCorrectItinerary", () => {
       isFirstDay: () => false,
       isLastDay: () => false,
       requireDinner: false,
-      fillerRestaurants: [{ placeId: "r1", name: "Bistro X", lat: 48.85, lng: 2.35 }],
+      fillerRestaurants: [{ googlePlaceId: "r1", name: "Bistro X", lat: 48.85, lng: 2.35 }],
     });
     const lunchStop = fixed[0].stops.find((s: any) => s.placeCategory === "restaurant");
     expect(lunchStop?.placeName).toBe("Bistro X");
@@ -230,10 +230,10 @@ describe("validateAndCorrectItinerary", () => {
   it("never drops meals to satisfy an intense pace — lunch and dinner both survive a packed schedule", async () => {
     const days = [
       { date: "2026-09-14", destination: "Paris", stops: [
-        { id: "1", time: "09:00", placeId: "p1", placeName: "Museum 1", placeCategory: "museum" },
-        { id: "2", time: "13:00", placeId: "p2", placeName: "Lunch Spot", placeCategory: "restaurant" },
-        { id: "3", time: "15:00", placeId: "p3", placeName: "Museum 2", placeCategory: "museum" },
-        { id: "4", time: "20:00", placeId: "p4", placeName: "Dinner Spot", placeCategory: "restaurant" },
+        { id: "1", time: "09:00", googlePlaceId: "p1", placeName: "Museum 1", placeCategory: "museum" },
+        { id: "2", time: "13:00", googlePlaceId: "p2", placeName: "Lunch Spot", placeCategory: "restaurant" },
+        { id: "3", time: "15:00", googlePlaceId: "p3", placeName: "Museum 2", placeCategory: "museum" },
+        { id: "4", time: "20:00", googlePlaceId: "p4", placeName: "Dinner Spot", placeCategory: "restaurant" },
       ] },
     ];
     const { days: fixed } = await validateAndCorrectItinerary(days, { ...baseCtx, isFirstDay: () => false, isLastDay: () => false });

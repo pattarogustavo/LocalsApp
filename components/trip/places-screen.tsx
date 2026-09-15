@@ -539,7 +539,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
-  const { addPlace, removePlace, setItinerary } = useTripsStore();
+  const { removePlace, setItinerary, upsertPlace } = useTripsStore();
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeDestFilter, setActiveDestFilter] = useState('all');
   const [availSearch, setAvailSearch] = useState('');
@@ -567,29 +567,41 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
   };
 
   const handleAddCustomPlace = async (result: any, destId: string) => {
-    const place: Place = {
-      id: generateId(),
+    Haptics.selectionAsync();
+    await upsertPlace(tripId, {
       name: result.name,
       category: result.category as any,
       destinationId: destId,
+      googlePlaceId: result.placeId,
       address: result.address,
       lat: result.lat,
       lng: result.lng,
       imageUrl: result.imageUrl,
-      placeId: result.placeId,
       rating: result.rating,
       addedByAI: false,
-    };
-    Haptics.selectionAsync();
-    await addPlace(tripId, place);
+    });
   };
 
   const generateItinerary = trpc.ai.generateItinerary.useMutation();
 
   const handleAddPlace = useCallback(async (place: Place) => {
     Haptics.selectionAsync();
-    await addPlace(tripId, { ...place, id: generateId() });
-  }, [tripId, addPlace]);
+    await upsertPlace(tripId, {
+      name: place.name,
+      category: place.category,
+      destinationId: place.destinationId,
+      googlePlaceId: place.placeId,
+      address: place.address,
+      hours: place.hours,
+      phone: place.phone,
+      rating: place.rating,
+      imageUrl: place.imageUrl,
+      description: place.description,
+      lat: place.lat,
+      lng: place.lng,
+      addedByAI: place.addedByAI,
+    });
+  }, [tripId, upsertPlace]);
 
   const handleRemovePlace = useCallback(async (placeId: string) => {
     await removePlace(tripId, placeId);
@@ -643,32 +655,20 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
       });
       if (result?.days && result.days.length > 0) {
         // Same reconciliation as itinerary-block.tsx's handleGenerateFromPlaces:
-        // match AI stops back to existing places by name, and add any
-        // AI-only stop to trip.places (addedByAI: true) so it shows up as an
-        // "unscheduled place" / in the Lugares tab like every other place,
+        // upsert every stop into trip.places (Google place_id is the identity
+        // key, so a stop that refers to an already-selected place reuses its
+        // existing record instead of creating a duplicate) so it shows up as
+        // an "unscheduled place" / in the Lugares tab like every other place,
         // and so deleting it stays consistent between both screens.
+        const destId = trip.destinations[0]?.id || '';
         const patchedDays = await Promise.all((result.days as any[]).map(async (day: any) => ({
           ...day,
           stops: await Promise.all((day.stops || []).map(async (stop: any) => {
-            let matchedPlace = places.find(
-              (p) => p.name.toLowerCase() === (stop.placeName || '').toLowerCase()
-            );
-            if (!matchedPlace) {
-              matchedPlace = places.find(
-                (p) => (stop.placeName || '').toLowerCase().includes(p.name.toLowerCase()) ||
-                        p.name.toLowerCase().includes((stop.placeName || '').toLowerCase())
-              );
-            }
-            if (matchedPlace) {
-              return { ...stop, placeId: matchedPlace.id };
-            }
-            const newPlaceId = `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            const destId = trip.destinations[0]?.id || '';
-            await addPlace(tripId, {
-              id: newPlaceId,
+            const localPlaceId = await upsertPlace(tripId, {
               name: stop.placeName || stop.activity || 'Lugar',
               category: stop.placeCategory || 'attraction',
               destinationId: destId,
+              googlePlaceId: stop.googlePlaceId,
               address: stop.address,
               hours: stop.hours,
               description: stop.description,
@@ -676,7 +676,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
               lng: stop.lng,
               addedByAI: true,
             });
-            return { ...stop, placeId: newPlaceId };
+            return { ...stop, placeId: localPlaceId };
           })),
         })));
         await setItinerary(tripId, patchedDays);
@@ -889,7 +889,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
           tripId={tripId}
           onClose={() => setSelectedPlace(null)}
           isAdded={places.some((p) => p.id === selectedPlace.id)}
-          onAdd={() => handleAddPlace({ ...selectedPlace, id: generateId() })}
+          onAdd={() => handleAddPlace(selectedPlace)}
           onRemove={() => handleRemovePlace(selectedPlace.id)}
         />
       )}
