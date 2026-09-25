@@ -93,23 +93,10 @@ const config: ExpoConfig = {
     "expo-font",
     "expo-web-browser",
     [
-      "expo-audio",
-      {
-        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
-      },
-    ],
-    [
       "expo-image-picker",
       {
         photosPermission:
           "TheLocals uses your photo library so you can attach photos of tickets, reservations, and other travel documents to your trips.",
-      },
-    ],
-    [
-      "expo-video",
-      {
-        supportsBackgroundPlayback: true,
-        supportsPictureInPicture: true,
       },
     ],
     [
