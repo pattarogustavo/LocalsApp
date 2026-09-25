@@ -97,6 +97,7 @@ const config: ExpoConfig = {
       {
         photosPermission:
           "TheLocals uses your photo library so you can attach photos of tickets, reservations, and other travel documents to your trips.",
+        microphonePermission: false,
       },
     ],
     [
