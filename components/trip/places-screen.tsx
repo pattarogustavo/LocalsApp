@@ -348,6 +348,7 @@ function AIPanel({
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const fetchedRef = useRef(false);
   const { updateDestinationSuggestedPlaces } = useTripsStore();
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
 
   const suggestPlaces = trpc.ai.suggestPlaces.useMutation();
 
@@ -363,6 +364,7 @@ function AIPanel({
         existingPlaces: addedPlaces.map((p) => p.name),
         lat: destination.lat,
         lng: destination.lng,
+        language: preferredLanguage,
       });
       if (result?.places) {
         const withIds = result.places.map((p: any) => ({ ...p, id: generateId() }));
@@ -375,7 +377,7 @@ function AIPanel({
       setLoading(false);
       setLoaded(true);
     }
-  }, [destination.name, destination.country, destination.id, destination.lat, destination.lng, tripId]);
+  }, [destination.name, destination.country, destination.id, destination.lat, destination.lng, tripId, preferredLanguage]);
 
   // Auto-load on mount: hydrate from cache if this destination already has
   // saved AI suggestions, otherwise fetch once and persist the result.

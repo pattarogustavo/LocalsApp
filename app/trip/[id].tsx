@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
+import { useAuthStore } from '@/store/auth';
 import { getTripName, formatDate, getCurrencySymbol, getTripCurrencies } from '@/utils/trip-helpers';
 import { TransportBlock } from '@/components/trip/transport-block';
 import { DocumentsBlock } from '@/components/trip/documents-block';
@@ -871,6 +872,7 @@ function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: str
   const t = useTranslation();
   const colors = useColors();
   const infoStyles = React.useMemo(() => createInfoStyles(colors), [colors]);
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
 
   const load = async () => {
     if (loaded || loading) return;
@@ -880,6 +882,7 @@ function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: str
         destination: destination.name,
         country: destination.country,
         travelMonth,
+        language: preferredLanguage,
       });
       setInfo(result.data);
       setLoaded(true);

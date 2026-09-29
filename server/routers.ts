@@ -798,11 +798,15 @@ export const appRouter = router({
         country: z.string().optional(),
         travelMonth: z.string().optional(), // e.g. "junho"
         originCountry: z.string().optional().default('Brasil'),
+        language: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         await requireActiveSubscription(ctx.user.id);
         const { destination, country, travelMonth, originCountry } = input;
+        const languageName = getLanguageName(input.language);
         const prompt = `Você é um especialista em viagens. Forneça informações práticas e concisas sobre viajar para ${destination}${country ? `, ${country}` : ''}${travelMonth ? ` no mês de ${travelMonth}` : ''} para turistas do ${originCountry}.
+
+Escreva todos os textos (description, recommendation, tip, notes, type, tips) em ${languageName}, não em português, a menos que ${languageName} seja português.
 
 Responda APENAS com JSON válido neste formato exato:
 {
@@ -836,7 +840,7 @@ Responda APENAS com JSON válido neste formato exato:
         try {
           const response = await invokeLLM({
             messages: [
-              { role: 'system', content: 'Você é um especialista em viagens internacionais. Responda sempre em JSON válido.' },
+              { role: 'system', content: `Você é um especialista em viagens internacionais. Escreva os textos em ${languageName}, não em português, a menos que ${languageName} seja português. Responda sempre em JSON válido.` },
               { role: 'user', content: prompt },
             ],
             response_format: { type: 'json_object' },
