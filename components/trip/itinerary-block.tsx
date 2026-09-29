@@ -1101,7 +1101,6 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const [profileTripPurpose, setProfileTripPurpose] = useState('');
   const [profileConsiderSelectedPlaces, setProfileConsiderSelectedPlaces] = useState(true);
 
-  const generateItinerary = trpc.ai.generateItinerary.useMutation();
   const generateFromScratch = trpc.ai.generateFromScratch.useMutation();
 
   // ── Weather forecast ────────────────────────────────────────────────────────
@@ -1135,88 +1134,6 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
     () => trip.places.filter((p) => !scheduledPlaceIds.has(p.id)),
     [trip.places, scheduledPlaceIds]
   );
-
-  const handleGenerateFromPlaces = async () => {
-    // If no places selected, redirect to Lugares tab
-    if (trip.places.length === 0) {
-      setShowCreateModal(false);
-      Alert.alert(
-        t.itinerary.noPlacesTitle,
-        t.itinerary.noPlacesMsg,
-        [
-          { text: t.common.cancel, style: 'cancel' },
-          { text: t.itinerary.goToPlaces, onPress: () => onGoToPlaces() },
-        ]
-      );
-      return;
-    }
-    setShowCreateModal(false);
-    setGenerating(true);
-    try {
-      const primaryAccommodation = trip.accommodations?.[0];
-      const result = await generateItinerary.mutateAsync({
-        tripId: trip.id,
-        destinations: trip.destinations.map((d) => ({ name: d.name, country: d.country, days: d.days, lat: d.lat, lng: d.lng })),
-        accommodation: primaryAccommodation ? {
-          name: primaryAccommodation.name,
-          address: primaryAccommodation.address,
-        } : undefined,
-        selectedPlaces: trip.places.map((p) => ({
-          name: p.name,
-          category: p.category,
-          destinationName: trip.destinations.find((d) => d.id === p.destinationId)?.name || '',
-          hours: p.hours,
-          address: p.address,
-          lat: p.lat,
-          lng: p.lng,
-        })),
-        totalDays,
-        startDate: trip.startDate,
-        cityTransportMode: cityTransportMode || trip.cityTransportMode,
-        preferences: {
-          pace,
-          includeBreakfast: true,
-          includeLunch: true,
-          includeDinner: true,
-        },
-      });
-      if (result?.days && result.days.length > 0) {
-        // Upsert every stop into trip.places — Google's place_id (googlePlaceId,
-        // as returned by the AI) is the identity key, so a stop that refers to
-        // an already-selected place reuses its existing record instead of
-        // creating a disconnected duplicate. Any genuinely new stop is added
-        // to the Places tab (addedByAI: true) so delete cascade works.
-        const destId = trip.destinations[0]?.id || '';
-        const patchedDays = await Promise.all((result.days as any[]).map(async (day: any) => ({
-          ...day,
-          stops: await Promise.all((day.stops || []).map(async (stop: any) => {
-            const localPlaceId = await upsertPlace(trip.id, {
-              name: stop.placeName || stop.activity || 'Lugar',
-              category: stop.placeCategory || 'attraction',
-              destinationId: destId,
-              googlePlaceId: stop.googlePlaceId,
-              address: stop.address,
-              hours: stop.hours,
-              description: stop.description,
-              lat: stop.lat,
-              lng: stop.lng,
-              addedByAI: true,
-            });
-            return { ...stop, placeId: localPlaceId };
-          })),
-        })));
-        await setItinerary(trip.id, patchedDays);
-        setSelectedDay(0);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (e) {
-      console.error('Itinerary generation error:', e);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(t.common.error, getGenerationErrorMessage(e, t.ai.error));
-    } finally {
-      setGenerating(false);
-    }
-  };
 
   const handleGenerateFromScratch = async () => {
     setShowProfileModal(false);
@@ -1550,30 +1467,6 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                   <ProBadge />
                 </View>
                 <Text style={styles.createModeDesc}>{t.itinerary.createModeAutoDesc}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => {
-                if (!hasAccess) { setShowCreateModal(false); router.push('/paywall' as any); return; }
-                handleGenerateFromPlaces();
-              }}
-              style={styles.createModeOption}
-            >
-              <View style={[styles.createModeIcon, { backgroundColor: withAlpha(colors.accent, 0.15) }]}>
-                <Ionicons name="map" size={20} color={colors.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.createModeLabel}>{t.itinerary.createModeFromPlacesLabel}</Text>
-                  <ProBadge />
-                </View>
-                <Text style={styles.createModeDesc}>
-                  {trip.places.length > 0
-                    ? t.itinerary.createModeFromPlacesDescFilled(trip.places.length)
-                    : t.itinerary.createModeFromPlacesDescEmpty}
-                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.muted} />
             </TouchableOpacity>
