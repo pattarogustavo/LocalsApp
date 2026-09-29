@@ -32,7 +32,7 @@ const DURATION_BY_GOOGLE_TYPE: Record<string, DurationRange> = {
   aquarium: range(90, 120, 180),
   zoo: range(120, 150, 210),
   amusement_park: range(150, 240, 360),
-  park: range(45, 75, 120),
+  park: range(30, 60, 90),
   botanical_garden: range(45, 90, 120),
   natural_feature: range(30, 60, 120),
   church: range(20, 40, 60),
@@ -99,10 +99,10 @@ export function estimateMealDurationRange(mode?: 'quick' | 'restaurant' | 'none'
 export function buildDurationGuidancePromptBlock(): string {
   return [
     'Durações realistas por tipo de parada (NÃO comprima abaixo do mínimo, mesmo em ritmo intenso):',
-    '- Museu importante: 90-180 min',
+    '- Museu: 90-180 min (padrão ~2h; museus excepcionalmente grandes, como o Louvre, podem passar disso)',
     '- Galeria de arte: 60-150 min',
     '- Marco histórico / ponto turístico: 45-90 min',
-    '- Parque / jardim: 45-120 min',
+    '- Parque / jardim: 30-90 min (padrão ~1h; parques muito grandes podem passar disso)',
     '- Mercado / feira gastronômica: 45-90 min',
     '- Restaurante (refeição completa): 60-120 min',
     '- Lanche rápido: 20-45 min',
