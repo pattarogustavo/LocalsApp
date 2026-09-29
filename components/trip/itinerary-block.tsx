@@ -15,6 +15,8 @@ import { useSubscription } from '@/hooks/use-subscription';
 import { ProBadge } from '@/components/trial-banner';
 import { trpc } from '@/lib/trpc';
 import { CityTransportSection } from '@/components/trip/transport-block';
+import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
+import { generateId } from '@/utils/trip-helpers';
 import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop, CityTransportMode } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
 import type { Translations } from '@/i18n';
@@ -1069,7 +1071,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const RESTAURANTS_BUDGET_OPTIONS = useMemo(() => getRestaurantsBudgetOptions(t), [t]);
   const PROFILE_OPTIONS = useMemo(() => getProfileOptions(t), [t]);
   const PACE_OPTIONS = useMemo(() => getPaceOptions(t), [t]);
-  const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace } = useTripsStore();
+  const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace, addAccommodation } = useTripsStore();
   const { hasAccess } = useSubscription();
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
@@ -1100,8 +1102,24 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const [profileDepartureTime, setProfileDepartureTime] = useState('15:00');
   const [profileTripPurpose, setProfileTripPurpose] = useState('');
   const [profileConsiderSelectedPlaces, setProfileConsiderSelectedPlaces] = useState(true);
+  // Accommodation step: only shown when the trip has none saved yet.
+  const [profileHotelPlace, setProfileHotelPlace] = useState<PlaceResult | null>(null);
+  const [profileHotelName, setProfileHotelName] = useState('');
+  const [profileHotelAddress, setProfileHotelAddress] = useState('');
+  const [profileHotelPlaceId, setProfileHotelPlaceId] = useState('');
+  const [profileSkipAccommodation, setProfileSkipAccommodation] = useState(false);
 
   const generateFromScratch = trpc.ai.generateFromScratch.useMutation();
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
+  const profileHotelDetailsQuery = trpc.places.details.useQuery(
+    { placeId: profileHotelPlaceId, language: preferredLanguage },
+    { enabled: profileHotelPlaceId.length > 0 }
+  );
+  useEffect(() => {
+    if (profileHotelDetailsQuery.data?.address) {
+      setProfileHotelAddress(profileHotelDetailsQuery.data.address);
+    }
+  }, [profileHotelDetailsQuery.data]);
 
   // ── Weather forecast ────────────────────────────────────────────────────────
   const destLat = trip.destinations?.[0]?.lat;
@@ -1139,7 +1157,28 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
     setShowProfileModal(false);
     setGenerating(true);
     try {
-      const primaryAccommodation = trip.accommodations?.[0];
+      // If the trip has no accommodation yet and the user filled one in during
+      // the profile questionnaire, save it as the trip's real accommodation
+      // (same shape as accommodation-block.tsx) so it also shows up normally
+      // in the Acomodação tab afterward.
+      let primaryAccommodation = trip.accommodations?.[0];
+      if (!primaryAccommodation && !profileSkipAccommodation && profileHotelName.trim().length > 0) {
+        const destId = trip.destinations[0]?.id || '';
+        const checkIn = new Date(trip.startDate);
+        const checkOut = new Date(trip.startDate);
+        checkOut.setDate(checkOut.getDate() + Math.max(1, totalDays - 1));
+        const newAccommodation: Accommodation = {
+          id: generateId(),
+          destinationId: destId,
+          name: profileHotelName.trim(),
+          type: 'hotel',
+          address: profileHotelAddress.trim() || undefined,
+          checkIn: checkIn.toISOString(),
+          checkOut: checkOut.toISOString(),
+        };
+        await addAccommodation(trip.id, newAccommodation);
+        primaryAccommodation = newAccommodation;
+      }
       const result = await generateFromScratch.mutateAsync({
         tripId: trip.id,
         startDate: trip.startDate,
@@ -1729,6 +1768,53 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                     <Ionicons name="location-outline" size={14} color={colors.textOnPrimary} />
                     <Text style={styles.goToPlacesBtnText}>{t.itinerary.selectPlacesBtn}</Text>
                   </TouchableOpacity>
+                </>
+              )}
+
+              {/* Accommodation — only asked when the trip has none saved yet */}
+              {(trip.accommodations?.length ?? 0) === 0 && (
+                <>
+                  <Text style={styles.profileSectionLabel}>{t.itinerary.profileAccommodation}</Text>
+                  {profileSkipAccommodation ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                      <Text style={[styles.profileHintText, { flex: 1 }]}>
+                        {t.itinerary.profileAccommodationSkippedNote}
+                      </Text>
+                      <TouchableOpacity onPress={() => setProfileSkipAccommodation(false)}>
+                        <Text style={{ color: colors.textAccent, fontWeight: '700', fontSize: 12 }}>
+                          {t.itinerary.profileAccommodationFillNow}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.profileHintText}>{t.itinerary.profileAccommodationHint}</Text>
+                      <View style={{ marginTop: 8, marginBottom: 4 }}>
+                        <PlacesAutocompleteInput
+                          placeholder={t.accommodation.hotelSearchPlaceholder}
+                          value={profileHotelPlace?.name || ''}
+                          onSelect={(p) => {
+                            setProfileHotelPlace(p);
+                            setProfileHotelName(p.name);
+                            setProfileHotelPlaceId(p.placeId);
+                          }}
+                          searchTypes="establishment"
+                        />
+                      </View>
+                      {profileHotelPlaceId.length > 0 && (
+                        profileHotelDetailsQuery.isFetching ? (
+                          <Text style={[styles.profileHintText, { marginBottom: 4 }]}>{t.accommodation.fetchingAddress}</Text>
+                        ) : profileHotelAddress ? (
+                          <Text style={[styles.profileHintText, { marginBottom: 4 }]}>{profileHotelAddress}</Text>
+                        ) : null
+                      )}
+                      <TouchableOpacity onPress={() => setProfileSkipAccommodation(true)} style={{ marginTop: 4 }}>
+                        <Text style={{ color: colors.muted, fontSize: 12, textDecorationLine: 'underline' }}>
+                          {t.itinerary.profileAccommodationSkip}
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </>
               )}
 
