@@ -1513,7 +1513,10 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
         // Real opening hours, fetched only for the shortlist actually offered
         // to the model (keeps the extra Place Details calls bounded).
         await fetchOpeningHoursForTopCandidates(ranked, 40, input.language);
-        const extraCandidates = ranked.slice(0, 60);
+        // TEMP: score-based ranking is kept only as "well-rated" info in the
+        // prompt below — the AI sees the full real, non-excluded pool instead
+        // of a top-N slice, and decides itself using the prompt instructions.
+        const extraCandidates = ranked;
         const hoursByPlaceId = new Map(extraCandidates.filter((c) => c.hoursText).map((c) => [c.placeId, c.hoursText!]));
 
         const realCandidatesSummary = extraCandidates.length > 0
@@ -1769,7 +1772,10 @@ Importante:
         }).map((r) => r.candidate);
 
         await fetchOpeningHoursForTopCandidates(rankedReal, 40, input.language);
-        const realCandidates = rankedReal.slice(0, 70);
+        // TEMP: score-based ranking is kept only as "well-rated" info in the
+        // prompt below — the AI sees the full real, non-excluded pool instead
+        // of a top-N slice, and decides itself using the prompt instructions.
+        const realCandidates = rankedReal;
         const candidatesByPlaceId = new Map(realCandidates.map((c) => [c.placeId, c]));
         const hoursByPlaceId = new Map(realCandidates.filter((c) => c.hoursText).map((c) => [c.placeId, c.hoursText!]));
         const realCandidatesSummary = realCandidates.length > 0
