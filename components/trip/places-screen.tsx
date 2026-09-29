@@ -419,7 +419,10 @@ function AIPanel({
     });
   }, [suggestions, activeCategory, searchQuery]);
 
-  const isAdded = (place: Place) => addedPlaces.some((p) => p.name === place.name);
+  const isAdded = (place: Place) =>
+    addedPlaces.some((p) => (place.placeId && p.placeId === place.placeId) || p.name === place.name);
+  const findAdded = (place: Place) =>
+    addedPlaces.find((p) => (place.placeId && p.placeId === place.placeId) || p.name === place.name);
 
   if (loading) {
     return (
@@ -456,7 +459,7 @@ function AIPanel({
           isAdded={isAdded(place)}
           onAdd={() => onAdd(place)}
           onRemove={() => {
-            const added = addedPlaces.find((p) => p.name === place.name);
+            const added = findAdded(place);
             if (added) onRemove(added.id);
           }}
           onPress={() => setSelectedPlace(place)}
@@ -473,7 +476,7 @@ function AIPanel({
             setSelectedPlace(null);
           }}
           onRemove={() => {
-            const added = addedPlaces.find((p) => p.name === selectedPlace.name);
+            const added = findAdded(selectedPlace);
             if (added) onRemove(added.id);
             setSelectedPlace(null);
           }}
@@ -495,17 +498,17 @@ interface PlacesScreenProps {
 
 function CustomSearchResultRow({
   result,
-  onAdd,
+  onPress,
   isAdded,
 }: {
   result: any;
-  onAdd: () => void;
+  onPress: () => void;
   isAdded: boolean;
 }) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   return (
-    <View style={styles.customResultRow}>
+    <TouchableOpacity style={styles.customResultRow} onPress={onPress} activeOpacity={0.7} disabled={isAdded}>
       {result.imageUrl ? (
         <Image source={{ uri: result.imageUrl }} style={styles.customResultImg} />
       ) : (
@@ -523,13 +526,100 @@ function CustomSearchResultRow({
           </View>
         ) : null}
       </View>
-      <TouchableOpacity
-        onPress={onAdd}
-        style={[styles.customResultAddBtn, isAdded && { backgroundColor: withAlpha(colors.primary, 0.12) }]}
-      >
-        <Ionicons name={isAdded ? 'checkmark' : 'add'} size={16} color={isAdded ? colors.textAccent : colors.textOnPrimary} />
-      </TouchableOpacity>
-    </View>
+      {isAdded ? (
+        <View style={styles.addedBadge}>
+          <Ionicons name="checkmark" size={12} color={colors.textAccent} />
+          <Text style={styles.addedBadgeText}>Adicionado</Text>
+        </View>
+      ) : (
+        <View style={styles.customResultAddBtn}>
+          <Ionicons name="add" size={16} color={colors.textOnPrimary} />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// ─── Custom Place Preview Modal (Place Details before confirming add) ──────
+
+function CustomPlacePreviewModal({
+  result,
+  language,
+  onClose,
+  onConfirm,
+}: {
+  result: any;
+  language?: string;
+  onClose: () => void;
+  onConfirm: (details: { address?: string; hours?: string; phone?: string }) => void;
+}) {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const detailsQuery = trpc.places.curatedDetails.useQuery(
+    { placeId: result.placeId, language },
+    { enabled: !!result.placeId }
+  );
+  const details = detailsQuery.data as { address?: string; hours?: string; phone?: string } | undefined;
+  const address = details?.address || result.address;
+  const hours = details?.hours;
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.detailSheet}>
+          <View style={styles.handle} />
+          <View style={styles.detailContent}>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <Ionicons name="close" size={16} color={colors.muted} />
+            </TouchableOpacity>
+
+            <Text style={styles.detailName}>{result.name}</Text>
+            {result.rating ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2, marginBottom: 12 }}>
+                <Ionicons name="star" size={12} color={colors.accent} />
+                <Text style={{ fontSize: 13, color: colors.accent }}>{result.rating.toFixed(1)}</Text>
+              </View>
+            ) : null}
+
+            {detailsQuery.isFetching ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 }}>
+                <ActivityIndicator size="small" color={colors.textAccent} />
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Carregando detalhes...</Text>
+              </View>
+            ) : (
+              <>
+                {address ? (
+                  <View style={styles.detailRow}>
+                    <Ionicons name="location-outline" size={15} color={colors.muted} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.detailRowLabel}>ENDEREÇO</Text>
+                      <Text style={styles.detailRowValue}>{address}</Text>
+                    </View>
+                  </View>
+                ) : null}
+                {hours ? (
+                  <View style={styles.detailRow}>
+                    <Ionicons name="time-outline" size={15} color={colors.muted} />
+                    <View>
+                      <Text style={styles.detailRowLabel}>HORÁRIO</Text>
+                      <Text style={styles.detailRowValue}>{hours}</Text>
+                    </View>
+                  </View>
+                ) : null}
+              </>
+            )}
+
+            <TouchableOpacity
+              onPress={() => onConfirm({ address, hours, phone: details?.phone })}
+              style={styles.addActionBtn}
+            >
+              <Ionicons name="add" size={18} color={colors.textOnPrimary} />
+              <Text style={styles.addActionText}>Adicionar à Viagem</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -544,6 +634,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
   const [activeDestFilter, setActiveDestFilter] = useState('all');
   const [availSearch, setAvailSearch] = useState('');
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [customPreview, setCustomPreview] = useState<any | null>(null);
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
 
   // Custom place search
@@ -551,10 +642,12 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
   const [customDestId, setCustomDestId] = useState(destinations[0]?.id || '');
   const [customSearchEnabled, setCustomSearchEnabled] = useState(false);
   const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
+  const customSearchDest = destinations.find((d) => d.id === customDestId);
   const customSearchQuery = trpc.places.textSearch.useQuery(
     {
       query: customQuery,
-      locationBias: destinations.find((d) => d.id === customDestId)?.name || undefined,
+      locationBias: customSearchDest?.name || undefined,
+      countries: customSearchDest?.country ? [customSearchDest.country] : undefined,
       language: preferredLanguage,
     },
     { enabled: customSearchEnabled && customQuery.length >= 2 }
@@ -566,14 +659,20 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
     setCustomSearchEnabled(true);
   };
 
-  const handleAddCustomPlace = async (result: any, destId: string) => {
+  const handleAddCustomPlace = async (
+    result: any,
+    destId: string,
+    details?: { address?: string; hours?: string; phone?: string }
+  ) => {
     Haptics.selectionAsync();
     await upsertPlace(tripId, {
       name: result.name,
       category: result.category as any,
       destinationId: destId,
       googlePlaceId: result.placeId,
-      address: result.address,
+      address: details?.address || result.address,
+      hours: details?.hours,
+      phone: details?.phone,
       lat: result.lat,
       lng: result.lng,
       imageUrl: result.imageUrl,
@@ -876,7 +975,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
               key={result.placeId}
               result={result}
               isAdded={places.some((p) => p.placeId === result.placeId || p.name === result.name)}
-              onAdd={() => handleAddCustomPlace(result, customDestId)}
+              onPress={() => setCustomPreview(result)}
             />
           ))}
         </View>
@@ -891,6 +990,19 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
           isAdded={places.some((p) => p.id === selectedPlace.id)}
           onAdd={() => handleAddPlace(selectedPlace)}
           onRemove={() => handleRemovePlace(selectedPlace.id)}
+        />
+      )}
+
+      {/* Custom search result preview (Place Details) before confirming add */}
+      {customPreview && (
+        <CustomPlacePreviewModal
+          result={customPreview}
+          language={preferredLanguage}
+          onClose={() => setCustomPreview(null)}
+          onConfirm={(details) => {
+            handleAddCustomPlace(customPreview, customDestId, details);
+            setCustomPreview(null);
+          }}
         />
       )}
     </View>
