@@ -37,6 +37,24 @@ function mapToGoogleLanguage(lang?: string): string {
   return (code && GOOGLE_LANGUAGE_MAP[code]) || "pt-BR";
 }
 
+// Human-readable (Portuguese) name for each supported language code, used to
+// instruct the LLM which language to write generated text in — since the
+// rest of our prompts are written in Portuguese regardless of the user's
+// preferred language.
+const LANGUAGE_NAMES: Record<string, string> = {
+  pt: "português",
+  en: "inglês",
+  es: "espanhol",
+  fr: "francês",
+  de: "alemão",
+  it: "italiano",
+};
+
+function getLanguageName(lang?: string): string {
+  const code = lang?.slice(0, 2).toLowerCase();
+  return (code && LANGUAGE_NAMES[code]) || "português";
+}
+
 /**
  * Constant-time string comparison, so a bad webhook secret guess can't be
  * narrowed down via response-time differences.
@@ -1837,10 +1855,6 @@ Importante:
         // unverifiable place.
         const selectedPlacesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
         let droppedHallucinatedStops = 0;
-        const placesByKey = new Map<string, {
-          googlePlaceId?: string; name: string; category: string; address?: string;
-          description?: string; lat?: number; lng?: number; hours?: string; destinationName?: string;
-        }>();
         const patchedDays = days.map((day: any) => {
           const stops = (day.stops || []).map((stop: any) => {
             if (!stop.placeName) return null;
@@ -1853,22 +1867,13 @@ Importante:
             }
 
             const resolvedGooglePlaceId = candidate?.placeId || stop.googlePlaceId || undefined;
-            const key = resolvedGooglePlaceId || stop.placeName.toLowerCase();
-            if (!placesByKey.has(key)) {
-              placesByKey.set(key, {
-                googlePlaceId: resolvedGooglePlaceId,
-                name: candidate?.name || stop.placeName,
-                category: stop.placeCategory || 'attraction',
-                address: stop.address,
-                description: stop.description,
-                lat: candidate?.lat ?? stop.lat,
-                lng: candidate?.lng ?? stop.lng,
-                hours: stop.hours,
-                destinationName: candidate?.destinationName || day.destination,
-              });
-            }
-            const place = placesByKey.get(key)!;
-            return { ...stop, googlePlaceId: place.googlePlaceId, placeName: place.name };
+            return {
+              ...stop,
+              googlePlaceId: resolvedGooglePlaceId,
+              placeName: candidate?.name || stop.placeName,
+              lat: candidate?.lat ?? stop.lat,
+              lng: candidate?.lng ?? stop.lng,
+            };
           }).filter(Boolean);
           return { ...day, stops };
         });
@@ -1904,22 +1909,33 @@ Importante:
           fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
         });
 
-        // The validator may have inserted a must-visit or fallback-meal stop
-        // that isn't in placesByKey yet — merge those in so suggestedPlaces
-        // (and its photo lookup) covers every stop actually in the itinerary.
+        // Build placesByKey exclusively from correctedDays — the itinerary
+        // AFTER validation/correction — so suggestedPlaces reflects exactly
+        // and only what survived validation. Building it any earlier (e.g.
+        // from patchedDays, pre-validation) would leak places the validator
+        // removed (closed, excluded, duplicate/overlap cleanup, etc.) into
+        // the returned suggestions, where they'd wrongly show up as
+        // "unscheduled" even though they're not actually in any day.
+        const placesByKey = new Map<string, {
+          googlePlaceId?: string; name: string; category: string; address?: string;
+          description?: string; lat?: number; lng?: number; hours?: string; destinationName?: string;
+        }>();
         for (const day of correctedDays) {
           for (const stop of day.stops || []) {
-            const key = stop.googlePlaceId || (stop.placeName || '').toLowerCase();
-            if (key && !placesByKey.has(key)) {
+            if (!stop.placeName) continue;
+            const candidate = stop.googlePlaceId ? candidatesByPlaceId.get(stop.googlePlaceId) : undefined;
+            const key = stop.googlePlaceId || stop.placeName.toLowerCase();
+            if (!placesByKey.has(key)) {
               placesByKey.set(key, {
                 googlePlaceId: stop.googlePlaceId,
-                name: stop.placeName,
+                name: candidate?.name || stop.placeName,
                 category: stop.placeCategory || 'attraction',
                 address: stop.address,
-                lat: stop.lat,
-                lng: stop.lng,
+                description: stop.description,
+                lat: candidate?.lat ?? stop.lat,
+                lng: candidate?.lng ?? stop.lng,
                 hours: stop.hours,
-                destinationName: day.destination,
+                destinationName: candidate?.destinationName || day.destination,
               });
             }
           }
@@ -2004,6 +2020,7 @@ Importante:
         const candidatesList = candidates
           .map((c) => `[${c.placeId}] ${c.name} — tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}${c.hasPhoto ? "" : " (sem foto)"}`)
           .join("\n");
+        const languageName = getLanguageName(input.language);
 
         const prompt = `Você vai curar uma lista de lugares REAIS (já verificados no Google Places) para ${destinationName}${country ? `, ${country}` : ""}.
 
@@ -2015,13 +2032,13 @@ Sua tarefa:
 - Escolha os MELHORES candidatos dessa lista. NÃO invente nenhum lugar que não esteja nela — use apenas os place_id fornecidos entre colchetes.
 - A quantidade escolhida deve refletir a qualidade/quantidade real dos candidatos: se houver poucos candidatos bons (destino pequeno), escolha poucos (pode ser só 5-8); se houver muitos candidatos de qualidade (destino grande/turístico), escolha mais (até uns 25). NÃO force preencher um número fixo com opções fracas.
 - Classifique cada escolhido em uma categoria: attraction, restaurant, cafe, museum, ou hidden_gem (hidden_gem = rating bom mas número de avaliações relativamente baixo comparado aos outros candidatos — "descoberto por poucos"), ou other.
-- Escreva uma descrição de 1 frase para cada.
+- Escreva uma descrição de 1 frase para cada, em ${languageName}, não em português, a menos que ${languageName} seja português.
 
 Retorne um JSON com o array "places": [{ placeId (exatamente o place_id entre colchetes do candidato escolhido), category, description }]`;
 
         const response = await invokeLLM({
           messages: [
-            { role: "system", content: "Você é um especialista em viagens que cura listas de lugares reais já verificados no Google Places. Nunca invente lugares fora da lista fornecida. Responda em JSON válido." },
+            { role: "system", content: `Você é um especialista em viagens que cura listas de lugares reais já verificados no Google Places. Nunca invente lugares fora da lista fornecida. Escreva as descrições em ${languageName}, não em português, a menos que ${languageName} seja português. Responda em JSON válido.` },
             { role: "user", content: prompt },
           ],
           response_format: { type: "json_object" },
