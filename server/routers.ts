@@ -8,7 +8,7 @@ import * as db from "./db";
 import crypto from "crypto";
 import { storagePut } from "./storage";
 import { getSupabaseAdmin } from "./_core/supabaseAdmin";
-import { rankCandidates, filterExcludedCandidates } from "./itinerary/scoring";
+import { filterExcludedCandidates } from "./itinerary/scoring";
 import { buildDurationGuidancePromptBlock } from "./itinerary/duration";
 import { validateAndCorrectItinerary, type MustVisitPlace, type FillerRestaurantCandidate } from "./itinerary/validate";
 import { buildItineraryDaysSchema } from "./itinerary/schema";
@@ -1502,25 +1502,22 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
           console.log(`[ai.generateItinerary] filtered out ${excludedCount} candidate(s) matching the user's avoid list`);
         }
 
-        // Deterministic ranking: user-interest match first, quality second,
-        // popularity only as a tie-breaker — never the other way around.
-        const ranked = rankCandidates(nonExcludedCandidates, {
-          travelStyles: preferences?.travelStyle,
-          attractionsBudget: preferences?.attractionsBudget,
-          restaurantsBudget: preferences?.restaurantsBudget,
-        }).map((r) => r.candidate);
+        // Safety cap only — NOT a quality/interest pre-selection. The AI must
+        // see the full real candidate pool (minus the user's explicit
+        // exclusions above) and decide itself from the prompt's preferences.
+        // This just bounds prompt size/cost for exceptionally large cities,
+        // keeping Google's own return order (fetchRealPlaceCandidates already
+        // sorts by review count before this), never a scored ranking.
+        const CANDIDATE_SAFETY_CAP = 180;
+        const extraCandidates = nonExcludedCandidates.slice(0, CANDIDATE_SAFETY_CAP);
 
         // Real opening hours, fetched only for the shortlist actually offered
         // to the model (keeps the extra Place Details calls bounded).
-        await fetchOpeningHoursForTopCandidates(ranked, 40, input.language);
-        // TEMP: score-based ranking is kept only as "well-rated" info in the
-        // prompt below — the AI sees the full real, non-excluded pool instead
-        // of a top-N slice, and decides itself using the prompt instructions.
-        const extraCandidates = ranked;
+        await fetchOpeningHoursForTopCandidates(extraCandidates, 40, input.language);
         const hoursByPlaceId = new Map(extraCandidates.filter((c) => c.hoursText).map((c) => [c.placeId, c.hoursText!]));
 
         const realCandidatesSummary = extraCandidates.length > 0
-          ? `\nLugares reais e verificados no Google Places disponíveis${hasSelectedPlaces ? ' para completar o roteiro além dos obrigatórios acima' : ''}, já ordenados por relevância para o perfil do viajante (use o nome EXATAMENTE como aparece na lista; NÃO invente nenhum lugar fora desta lista${hasSelectedPlaces ? ' nem da lista de obrigatórios' : ''}):\n${extraCandidates.map((c) => `[${c.placeId}] ${c.name} (${c.destinationName})${c.rating ? `, rating ${c.rating}` : ''}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}`).join("\n")}`
+          ? `\nLugares reais e verificados no Google Places disponíveis${hasSelectedPlaces ? ' para completar o roteiro além dos obrigatórios acima' : ''} (use o nome EXATAMENTE como aparece na lista; NÃO invente nenhum lugar fora desta lista${hasSelectedPlaces ? ' nem da lista de obrigatórios' : ''}):\n${extraCandidates.map((c) => `[${c.placeId}] ${c.name} (${c.destinationName})${c.rating ? `, rating ${c.rating}` : ''}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}`).join("\n")}`
           : '';
 
         // Promote a resolvable free-text "must-see" hint to a HARD constraint.
@@ -1763,23 +1760,20 @@ Importante:
           console.log(`[ai.generateFromScratch] filtered out ${excludedRealCount} candidate(s) matching the user's avoid list`);
         }
 
-        // Deterministic ranking: user-interest match first, quality second,
-        // popularity only as a tie-breaker.
-        const rankedReal = rankCandidates(nonExcludedRealCandidates, {
-          travelStyles: profile.travelStyle,
-          attractionsBudget: profile.attractionsBudget || profile.budget,
-          restaurantsBudget: profile.restaurantsBudget || profile.budget,
-        }).map((r) => r.candidate);
+        // Safety cap only — NOT a quality/interest pre-selection. The AI must
+        // see the full real candidate pool (minus the user's explicit
+        // exclusions above) and decide itself from the prompt's preferences.
+        // This just bounds prompt size/cost for exceptionally large cities,
+        // keeping Google's own return order (fetchRealPlaceCandidates already
+        // sorts by review count before this), never a scored ranking.
+        const CANDIDATE_SAFETY_CAP = 180;
+        const realCandidates = nonExcludedRealCandidates.slice(0, CANDIDATE_SAFETY_CAP);
 
-        await fetchOpeningHoursForTopCandidates(rankedReal, 40, input.language);
-        // TEMP: score-based ranking is kept only as "well-rated" info in the
-        // prompt below — the AI sees the full real, non-excluded pool instead
-        // of a top-N slice, and decides itself using the prompt instructions.
-        const realCandidates = rankedReal;
+        await fetchOpeningHoursForTopCandidates(realCandidates, 40, input.language);
         const candidatesByPlaceId = new Map(realCandidates.map((c) => [c.placeId, c]));
         const hoursByPlaceId = new Map(realCandidates.filter((c) => c.hoursText).map((c) => [c.placeId, c.hoursText!]));
         const realCandidatesSummary = realCandidates.length > 0
-          ? `\nLugares reais e verificados no Google Places disponíveis para montar o roteiro, já ordenados por relevância para o perfil do viajante:\n${realCandidates.map((c) => `[${c.placeId}] ${c.name} — destino: ${c.destinationName}, tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}`).join("\n")}`
+          ? `\nLugares reais e verificados no Google Places disponíveis para montar o roteiro:\n${realCandidates.map((c) => `[${c.placeId}] ${c.name} — destino: ${c.destinationName}, tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}`).join("\n")}`
           : "";
 
         const destCenter = destinations.find((d) => d.lat != null && d.lng != null);
