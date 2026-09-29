@@ -1275,6 +1275,7 @@ Responda APENAS com JSON válido neste formato exato:
       .input(z.object({
         query: z.string().min(1),
         locationBias: z.string().optional(), // e.g. "Paris, France"
+        countries: z.array(z.string()).optional(), // destination country/countries — restricts results
         language: z.string().optional(),
       }))
       .query(async ({ input }) => {
@@ -1290,7 +1291,18 @@ Responda APENAS com JSON válido neste formato exato:
           const res = await fetch(url.toString());
           const data = (await res.json()) as any;
           if (data.status !== "OK" && data.status !== "ZERO_RESULTS") return { places: [] };
-          const results: any[] = (data.results || []).slice(0, 8);
+          // Text Search (legacy API) has no country/component restriction
+          // param, so the country of the destination is enforced afterward
+          // by matching it against each result's formatted address.
+          const countriesLower = (input.countries || []).map((c) => c.toLowerCase()).filter(Boolean);
+          const rawResults: any[] = data.results || [];
+          const countryFiltered = countriesLower.length > 0
+            ? rawResults.filter((r: any) => {
+                const addr = (r.formatted_address || '').toLowerCase();
+                return countriesLower.some((c) => addr.includes(c));
+              })
+            : rawResults;
+          const results: any[] = countryFiltered.slice(0, 8);
           const places = results.map((r: any) => {
             // Map Google types to app categories
             const types: string[] = r.types || [];
@@ -1323,6 +1335,18 @@ Responda APENAS com JSON válido neste formato exato:
         } catch {
           return { places: [] };
         }
+      }),
+
+    /**
+     * Full place details (address/hours/phone/photo) for a single placeId —
+     * used to preview a custom-search result (opening hours + formatted
+     * address) before the user confirms adding it to the trip.
+     */
+    curatedDetails: publicProcedure
+      .input(z.object({ placeId: z.string(), language: z.string().optional() }))
+      .query(async ({ input }) => {
+        if (!GOOGLE_PLACES_KEY) return {};
+        return fetchCuratedPlaceDetails(input.placeId, input.language);
       }),
   }),
 
