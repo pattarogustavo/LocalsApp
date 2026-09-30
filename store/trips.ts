@@ -22,6 +22,7 @@ interface TripsState {
   trips: Trip[];
   isLoading: boolean;
   isSyncing: boolean;
+  isTranslating: boolean;
   userPlan: UserPlan;
   // Core trip actions
   addTrip: (trip: Trip) => Promise<void>;
@@ -31,6 +32,7 @@ interface TripsState {
   loadTrips: () => Promise<void>;
   syncWithCloud: () => Promise<void>;
   getTripById: (id: string) => Trip | undefined;
+  translateAllTripsToLanguage: (targetLanguage: string) => Promise<void>;
   // Places
   addPlace: (tripId: string, place: Place) => Promise<void>;
   removePlace: (tripId: string, placeId: string) => Promise<void>;
@@ -136,6 +138,7 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   trips: [],
   isLoading: false,
   isSyncing: false,
+  isTranslating: false,
   userPlan: DEFAULT_PLAN,
 
   loadTrips: async () => {
@@ -235,6 +238,40 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   getTripById: (id: string) => get().trips.find((t) => t.id === id),
+
+  /**
+   * Fired in the background right after the app language changes. Asks the
+   * backend to translate every trip not already in `targetLanguage` (name,
+   * Info tab, recommended-place descriptions) and patches each trip locally
+   * as its translation comes back — never blocks the language switch itself.
+   */
+  translateAllTripsToLanguage: async (targetLanguage: string) => {
+    set({ isTranslating: true });
+    try {
+      const response = await trpcVanilla.trip.translateAllContent.mutate({ targetLanguage });
+      let changed = false;
+      const translatedByClientId = new Map<string, Trip>();
+      for (const r of response.results) {
+        if (r.ok && !r.skipped && r.data) {
+          try {
+            translatedByClientId.set(r.clientId, JSON.parse(r.data) as Trip);
+            changed = true;
+          } catch {
+            // Malformed payload for this trip — leave it untouched locally.
+          }
+        }
+      }
+      if (changed) {
+        const merged = get().trips.map((t) => translatedByClientId.get(t.id) ?? t);
+        set({ trips: merged });
+        await saveToStorage(merged);
+      }
+    } catch (err) {
+      console.warn('[Translate] Failed to translate trips to', targetLanguage, err);
+    } finally {
+      set({ isTranslating: false });
+    }
+  },
 
   addTrip: async (trip: Trip) => {
     const trips = [...get().trips, trip];

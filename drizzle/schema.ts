@@ -45,6 +45,8 @@ export const trips = pgTable("trips", {
   clientId: varchar("clientId", { length: 64 }).notNull(),
   /** Full Trip JSON serialized as text. */
   data: text("data").notNull(),
+  /** Language code (e.g. "pt", "en") the trip's textual content (name, Info tab, place descriptions) is currently written in. */
+  contentLanguage: varchar("contentLanguage", { length: 8 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });

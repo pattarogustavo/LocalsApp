@@ -174,6 +174,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
       accommodations: [],
       itinerary: [],
       currency: 'BRL',
+      contentLanguage: useAuthStore.getState().preferredLanguage,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

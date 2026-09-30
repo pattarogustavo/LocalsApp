@@ -1071,7 +1071,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const RESTAURANTS_BUDGET_OPTIONS = useMemo(() => getRestaurantsBudgetOptions(t), [t]);
   const PROFILE_OPTIONS = useMemo(() => getProfileOptions(t), [t]);
   const PACE_OPTIONS = useMemo(() => getPaceOptions(t), [t]);
-  const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace, addAccommodation } = useTripsStore();
+  const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace, addAccommodation, updateTrip } = useTripsStore();
   const { hasAccess } = useSubscription();
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
@@ -1213,6 +1213,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           departureTime: profileDepartureTime,
           tripPurpose: profileTripPurpose || undefined,
         },
+        language: preferredLanguage,
       });
       if (result?.days && result.days.length > 0) {
         // suggestedPlaces only carries enrichment data (photo/address/hours) —
@@ -1249,6 +1250,9 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           })),
         })));
         await setItinerary(trip.id, patchedDays);
+        // Name/places/descriptions were (re)generated in the user's current
+        // language, so the trip's content language now matches it.
+        await updateTrip(trip.id, { contentLanguage: preferredLanguage });
         setSelectedDay(0);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }

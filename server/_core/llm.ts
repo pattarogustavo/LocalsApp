@@ -65,6 +65,8 @@ export type InvokeParams = {
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
   enableWebSearch?: boolean;
+  /** Overrides ENV.anthropicModel for this call (e.g. a cheaper model for simple, non-creative tasks like translation). */
+  model?: string;
 };
 
 export type ToolCall = {
@@ -457,7 +459,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }
 
   const response = await getClient().messages.create({
-    model: ENV.anthropicModel,
+    model: params.model ?? ENV.anthropicModel,
     max_tokens: maxTokens ?? max_tokens ?? 8192,
     system: systemPrompt,
     messages: anthropicMessages,

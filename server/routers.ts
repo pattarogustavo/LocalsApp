@@ -182,6 +182,137 @@ async function requireActiveSubscription(userId: number): Promise<void> {
   }
 }
 
+// ─── Trip content translation helpers ──────────────────────────────────────────
+
+/** Cheap, fast model for simple fidelity translation — not creative generation. */
+const TRANSLATION_MODEL = "claude-haiku-4-5-20251001";
+
+/** Runs `fn` over `items` with at most `limit` in flight at once, preserving result order. */
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const current = nextIndex++;
+      results[current] = await fn(items[current]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+/**
+ * Translates a single trip's user-facing text (name, Info tab, recommended
+ * place descriptions) to `targetLanguage`, in place, and persists it. Place
+ * *names* (from Google) are never sent to the model, only descriptive text.
+ * A plain, non-creative translation prompt — deliberately not the same
+ * "curate/generate" prompts used elsewhere in this file.
+ */
+async function translateTripContent(
+  userId: number,
+  clientId: string,
+  targetLanguage: string,
+): Promise<{ ok: boolean; skipped?: boolean; clientId: string; data?: string }> {
+  const row = await db.getTripByClientId(userId, clientId);
+  if (!row) return { ok: false, clientId };
+  if (row.contentLanguage === targetLanguage) return { ok: true, skipped: true, clientId };
+
+  let trip: any;
+  try {
+    trip = JSON.parse(row.data);
+  } catch {
+    return { ok: false, clientId };
+  }
+
+  const destinations: any[] = Array.isArray(trip.destinations) ? trip.destinations : [];
+  const places: any[] = Array.isArray(trip.places) ? trip.places : [];
+
+  const payload = {
+    name: typeof trip.name === "string" ? trip.name : null,
+    destinationsInfo: destinations.map((d) => d.aiDestinationInfo ?? null),
+    places: places.map((p) => ({
+      description: typeof p.description === "string" ? p.description : null,
+      curiosities: typeof p.curiosities === "string" ? p.curiosities : null,
+    })),
+  };
+
+  const hasTranslatableContent =
+    Boolean(payload.name) ||
+    payload.destinationsInfo.some(Boolean) ||
+    payload.places.some((p) => p.description || p.curiosities);
+
+  // Nothing to translate (e.g. brand-new empty trip) — just stamp the language.
+  if (!hasTranslatableContent) {
+    await db.upsertTrip(userId, clientId, row.data, targetLanguage);
+    return { ok: true, clientId, data: row.data };
+  }
+
+  const languageName = getLanguageName(targetLanguage);
+  const prompt = `Traduza os valores de texto do JSON abaixo para ${languageName}.
+
+Regras:
+- Traduza SOMENTE os valores de texto (strings). NUNCA traduza nomes próprios de lugares.
+- Preserve exatamente a mesma estrutura, chaves e tipos do JSON, incluindo valores "null" (mantenha "null" como está).
+- Não adicione, remova ou explique nada. Responda apenas com o JSON traduzido, no mesmo formato recebido.
+
+JSON:
+${JSON.stringify(payload)}`;
+
+  let response;
+  try {
+    response = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `Você é um tradutor fiel de texto. Traduza para ${languageName} sem reformular, resumir ou adicionar conteúdo novo. Responda apenas com JSON válido, na mesma estrutura recebida.`,
+        },
+        { role: "user", content: prompt },
+      ],
+      response_format: { type: "json_object" },
+      model: TRANSLATION_MODEL,
+      max_tokens: 4000,
+    });
+  } catch (err) {
+    console.error(`[trip.translateContent] LLM call failed for trip ${clientId}:`, err);
+    return { ok: false, clientId };
+  }
+
+  let translated: any;
+  try {
+    translated = JSON.parse(response.choices[0].message.content as string);
+  } catch (err) {
+    console.error(
+      `[trip.translateContent] Failed to parse translation for trip ${clientId}. Raw content (first 300 chars):`,
+      String(response.choices[0].message.content).slice(0, 300),
+    );
+    return { ok: false, clientId };
+  }
+
+  if (typeof translated.name === "string") trip.name = translated.name;
+
+  if (Array.isArray(translated.destinationsInfo)) {
+    destinations.forEach((d, i) => {
+      if (translated.destinationsInfo[i] != null) d.aiDestinationInfo = translated.destinationsInfo[i];
+    });
+  }
+
+  if (Array.isArray(translated.places)) {
+    places.forEach((p, i) => {
+      const t = translated.places[i];
+      if (!t) return;
+      if (typeof t.description === "string") p.description = t.description;
+      if (typeof t.curiosities === "string") p.curiosities = t.curiosities;
+    });
+  }
+
+  trip.contentLanguage = targetLanguage;
+  trip.updatedAt = new Date().toISOString();
+  const newData = JSON.stringify(trip);
+  await db.upsertTrip(userId, clientId, newData, targetLanguage);
+
+  return { ok: true, clientId, data: newData };
+}
+
 // ─── Photo helpers ────────────────────────────────────────────────────────────
 
 /**
@@ -2303,6 +2434,38 @@ ${WEB_SEARCH_INSTRUCTION}`;
       }),
   }),
 
+  // ─── Trip content translation ────────────────────────────────────────────────────────────────────
+  trip: router({
+    /** Translates a single trip's name, Info tab, and place descriptions into `targetLanguage`. */
+    translateContent: protectedProcedure
+      .input(z.object({ tripId: z.string().min(1), targetLanguage: z.string().min(2).max(8) }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await translateTripContent(ctx.user.id, input.tripId, input.targetLanguage);
+        if (!result.ok) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Não foi possível traduzir o conteúdo da viagem. Tente novamente.",
+          });
+        }
+        return result;
+      }),
+
+    /**
+     * Translates every trip belonging to the user whose content isn't already
+     * in `targetLanguage`. Fired in the background right after a language
+     * switch, so it runs with bounded concurrency rather than all at once.
+     */
+    translateAllContent: protectedProcedure
+      .input(z.object({ targetLanguage: z.string().min(2).max(8) }))
+      .mutation(async ({ ctx, input }) => {
+        const rows = await db.getUserTripsNeedingTranslation(ctx.user.id, input.targetLanguage);
+        const results = await mapWithConcurrency(rows, 4, (row) =>
+          translateTripContent(ctx.user.id, row.clientId, input.targetLanguage),
+        );
+        return { results };
+      }),
+  }),
+
   // ─── Cloud Trip Sync ──────────────────────────────────────────────────────────────────────────────
   cloudTrips: router({
     /** Fetch all trips for the authenticated user. Returns array of { clientId, data } */
@@ -2318,7 +2481,17 @@ ${WEB_SEARCH_INSTRUCTION}`;
         data: z.string().min(1),
       }))
       .mutation(async ({ ctx, input }) => {
-        await db.upsertTrip(ctx.user.id, input.clientId, input.data);
+        // The Trip JSON itself may carry the language its content was authored
+        // in (set client-side at creation) — mirror it into its own column so
+        // trip.translateAllContent can cheaply find what needs re-translating.
+        let contentLanguage: string | undefined;
+        try {
+          const parsed = JSON.parse(input.data);
+          if (typeof parsed?.contentLanguage === "string") contentLanguage = parsed.contentLanguage;
+        } catch {
+          // Malformed JSON is caught/handled elsewhere; just skip the language extraction here.
+        }
+        await db.upsertTrip(ctx.user.id, input.clientId, input.data, contentLanguage);
         return { ok: true };
       }),
 

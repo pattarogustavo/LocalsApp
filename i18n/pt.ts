@@ -14,6 +14,7 @@ export const pt = {
     no: 'Não',
     ok: 'OK',
     loading: 'Carregando...',
+    translatingTrips: 'Traduzindo seus roteiros...',
     error: 'Erro',
     success: 'Sucesso',
     search: 'Buscar',

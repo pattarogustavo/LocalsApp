@@ -15,6 +15,7 @@ export const fr: Translations = {
     no: 'Non',
     ok: 'OK',
     loading: 'Chargement...',
+    translatingTrips: 'Traduction de vos voyages...',
     error: 'Erreur',
     success: 'Succès',
     search: 'Rechercher',

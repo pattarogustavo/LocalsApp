@@ -285,6 +285,10 @@ export interface Trip {
   cityTransportMode?: CityTransportMode;
   photos?: TripPhoto[];  // shared photo album
   isFavorite?: boolean;
+  // Language code (e.g. "pt", "en") the trip's textual content (name, Info tab,
+  // place descriptions) is currently written in. Set at creation; updated by
+  // trip.translateContent/translateAllContent when the app language changes.
+  contentLanguage?: string;
   createdAt: string;
   updatedAt: string;
 }

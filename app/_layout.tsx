@@ -16,6 +16,7 @@ import { useAuthStore } from "@/store/auth";
 import { useTripsStore } from "@/store/trips";
 import { withTimeout } from "@/lib/_core/with-timeout";
 import { AnimatedSplash } from "@/components/animated-splash";
+import { TranslatingIndicator } from "@/components/translating-indicator";
 import { configureRevenueCat, loginRevenueCat } from "@/config/revenuecat";
 
 // Keep the native splash screen visible until we explicitly hide it below,
@@ -235,6 +236,7 @@ export default function RootLayout() {
             <Stack.Screen name="example-itinerary" options={{ presentation: 'modal' }} />
           </Stack>
           <StatusBar style="light" />
+          <TranslatingIndicator />
           {showAnimatedSplash && (
             <AnimatedSplash
               onFinished={() => {

@@ -159,6 +159,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setLanguage: (lang: string) => {
+    const languageChanged = lang !== get().preferredLanguage;
     set({ preferredLanguage: lang });
     AsyncStorage.setItem(LANG_KEY, lang);
     const current = get().user;
@@ -166,6 +167,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const updated = { ...current, preferredLanguage: lang };
       set({ user: updated });
       AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
+    }
+    if (languageChanged) {
+      useTripsStore.getState().translateAllTripsToLanguage(lang);
     }
   },
 
@@ -186,8 +190,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user: updated });
     AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
     if (data.preferredLanguage) {
+      const languageChanged = data.preferredLanguage !== get().preferredLanguage;
       set({ preferredLanguage: data.preferredLanguage });
       AsyncStorage.setItem(LANG_KEY, data.preferredLanguage);
+      // Fire-and-forget: translate existing trips in the background, without
+      // making the language switch itself wait on the network.
+      if (languageChanged) {
+        useTripsStore.getState().translateAllTripsToLanguage(data.preferredLanguage);
+      }
     }
   },
 

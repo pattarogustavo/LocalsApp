@@ -1,4 +1,4 @@
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { InsertUser, users, trips, tripShares, InsertTripRow } from "../drizzle/schema";
 
@@ -123,22 +123,40 @@ export async function getUserTrips(userId: number) {
   return db.select().from(trips).where(eq(trips.userId, userId));
 }
 
-export async function upsertTrip(userId: number, clientId: string, data: string) {
+export async function upsertTrip(userId: number, clientId: string, data: string, contentLanguage?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const existing = await db.select({ id: trips.id }).from(trips)
-    .where(eq(trips.userId, userId))
-    .limit(500);
   // Check if this clientId already exists for this user
   const allForUser = await db.select().from(trips).where(eq(trips.userId, userId));
   const found = allForUser.find((r) => r.clientId === clientId);
   if (found) {
-    await db.update(trips).set({ data, updatedAt: new Date() }).where(eq(trips.id, found.id));
+    const updateSet: Partial<InsertTripRow> = { data, updatedAt: new Date() };
+    if (contentLanguage) updateSet.contentLanguage = contentLanguage;
+    await db.update(trips).set(updateSet).where(eq(trips.id, found.id));
     return found.id;
   } else {
-    const [inserted] = await db.insert(trips).values({ userId, clientId, data }).returning({ id: trips.id });
+    const [inserted] = await db.insert(trips).values({ userId, clientId, data, contentLanguage }).returning({ id: trips.id });
     return inserted.id;
   }
+}
+
+export async function getTripByClientId(userId: number, clientId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const allForUser = await db.select().from(trips).where(eq(trips.userId, userId));
+  return allForUser.find((r) => r.clientId === clientId) ?? null;
+}
+
+/** Trips belonging to the user whose recorded content language differs from (or is unknown vs.) `targetLanguage`. */
+export async function getUserTripsNeedingTranslation(userId: number, targetLanguage: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(trips).where(
+    and(
+      eq(trips.userId, userId),
+      or(isNull(trips.contentLanguage), ne(trips.contentLanguage, targetLanguage)),
+    ),
+  );
 }
 
 export async function deleteTripByClientId(userId: number, clientId: string) {
