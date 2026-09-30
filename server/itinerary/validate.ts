@@ -151,6 +151,101 @@ export interface ValidationResult {
 const ARRIVAL_BUFFER_MIN = 90;
 const DEPARTURE_BUFFER_MIN = 120;
 
+/**
+ * `\b` in JS regex only recognizes ASCII word chars, so it silently fails
+ * around accented letters (e.g. "à tarde", "manhã") — this builds an
+ * accent-safe word-boundary pattern instead, using Unicode property escapes.
+ */
+function buildTimeHintPattern(alternatives: string[]): RegExp {
+  const boundary = "(?<![\\p{L}\\p{N}_])";
+  const boundaryEnd = "(?![\\p{L}\\p{N}_])";
+  return new RegExp(`${boundary}(?:${alternatives.join("|")})${boundaryEnd}`, "iu");
+}
+
+/**
+ * Time-of-day keywords (across the app's supported languages: pt/en/es/fr/de/it)
+ * that a stop's own AI-written description might use to recommend a specific
+ * window — paired with a conservative, season/latitude-agnostic minute range.
+ * Checked in order; the first pattern to match a description wins.
+ */
+const TIME_OF_DAY_HINTS: { label: string; min: number; max: number; pattern: RegExp }[] = [
+  {
+    label: "sunset/entardecer",
+    min: 16 * 60,
+    max: 21 * 60,
+    pattern: buildTimeHintPattern([
+      "entardecer",
+      "p[oô]r[\\s-]do[\\s-]sol",
+      "sunset",
+      "dusk",
+      "atardecer",
+      "puesta de sol",
+      "coucher du soleil",
+      "tramonto",
+      "sonnenuntergang",
+    ]),
+  },
+  {
+    label: "morning/manhã",
+    min: 5 * 60,
+    max: 12 * 60,
+    pattern: buildTimeHintPattern([
+      "de manh[ãa]",
+      "pela manh[ãa]",
+      "manh[ãa] cedo",
+      "in the morning",
+      "early morning",
+      "por la ma[nñ]ana",
+      "en la ma[nñ]ana",
+      "temprano en la ma[nñ]ana",
+      "le matin",
+      "au petit matin",
+      "di mattina",
+      "al mattino",
+      "presto al mattino",
+      "am morgen",
+      "fr[uü]h am morgen",
+    ]),
+  },
+  {
+    label: "afternoon/tarde",
+    min: 12 * 60,
+    max: 18 * 60 + 30,
+    pattern: buildTimeHintPattern([
+      "[àa] tarde",
+      "de tarde",
+      "pela tarde",
+      "in the afternoon",
+      "por la tarde",
+      "en la tarde",
+      "l'apr[eè]s-midi",
+      "nel pomeriggio",
+      "di pomeriggio",
+      "am nachmittag",
+    ]),
+  },
+  {
+    label: "evening/night",
+    min: 18 * 60,
+    max: 23 * 60 + 59,
+    pattern: buildTimeHintPattern([
+      "[àa] noite",
+      "de noite",
+      "pela noite",
+      "in the evening",
+      "at night",
+      "por la noche",
+      "en la noche",
+      "le soir",
+      "la nuit",
+      "di sera",
+      "di notte",
+      "am abend",
+      "in der nacht",
+    ]),
+  },
+];
+
 function isMeal(stop: any, windowStart: number, windowEnd: number): boolean {
   const t = timeToMinutes(stop.time);
   if (t == null) return false;
@@ -405,6 +500,49 @@ export async function validateAndCorrectItinerary(
       }
     }
   }
+
+  // ── 10) Description ↔ scheduled-time self-consistency (best-effort) ────────
+  // Catches cases where the LLM's own description recommends a time of day
+  // (e.g. "visite ao entardecer para ver o sol nos vitrais") that its
+  // scheduled time then contradicts. Ranges are deliberately wide/conservative
+  // since they can't account for season or latitude.
+  days.forEach((day: any, dIdx: number) => {
+    day.stops.forEach((stop: any, sIdx: number) => {
+      const desc = String(stop.description || "");
+      if (!desc) return;
+      const hint = TIME_OF_DAY_HINTS.find((h) => h.pattern.test(desc));
+      if (!hint) return;
+      const t = timeToMinutes(stop.time);
+      if (t == null) return;
+      if (t >= hint.min && t <= hint.max) return; // already consistent
+
+      warnings.push(
+        `Stop "${stop.placeName}" on day ${dIdx + 1} is scheduled at ${stop.time} but its own description suggests ${hint.label} (${minutesToTime(hint.min)}–${minutesToTime(hint.max)})`,
+      );
+
+      // Only auto-adjust if it fits cleanly between its neighbors — never
+      // introduce an overlap to chase the description's suggested window.
+      const prev = day.stops[sIdx - 1];
+      const next = day.stops[sIdx + 1];
+      const prevEnd = prev
+        ? (timeToMinutes(prev.time) ?? hint.min) +
+          estimateDurationRange(prev.placeCategory).typicalMinutes +
+          parseTravelMinutes(prev.travelTimeToNext)
+        : hint.min;
+      const nextStart = next ? timeToMinutes(next.time) ?? hint.max : hint.max;
+      const lowerBound = Math.max(hint.min, prevEnd);
+      const upperBound = Math.min(hint.max, nextStart);
+      if (lowerBound > upperBound) return; // no safe slot — leave the warning as-is
+
+      const target = Math.min(Math.max(t, lowerBound), upperBound);
+      if (target !== t) {
+        stop.time = minutesToTime(target);
+        warnings.push(
+          `Adjusted "${stop.placeName}" on day ${dIdx + 1} to ${stop.time} to match its own description's time-of-day hint (${hint.label})`,
+        );
+      }
+    });
+  });
 
   return { days, warnings };
 }

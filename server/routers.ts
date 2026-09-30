@@ -663,6 +663,9 @@ function buildMealPreferencesBlock(
   return lines.length > 0 ? `\n${lines.join("\n")}` : "";
 }
 
+/** Nudges the model to use its native web-search tool to cross-check real candidates against outside opinion, without forcing it to search every single place. */
+const WEB_SEARCH_INSTRUCTION = `Você pode pesquisar na web (sites de viagem, guias locais, imprensa, redes sociais, fóruns) pra confirmar ou descobrir quais dos candidatos reais listados são de fato os mais recomendados por moradores e conhecedores do destino — combine isso com seu próprio conhecimento e com os dados de avaliação disponíveis. Use a busca quando agregar valor real à escolha, não é obrigatório pesquisar pra cada lugar individualmente. Sua resposta final deve ser SOMENTE o JSON pedido, sem nenhum texto antes ou depois, mesmo que você tenha pesquisado antes de responder.`;
+
 /** Explicit hard-vs-soft constraint framing, so the model prioritizes correctly by itself before the deterministic validator double-checks it. */
 const HARD_SOFT_FRAMING_BLOCK = `
 REGRAS OBRIGATÓRIAS (nunca podem ser quebradas, mesmo que isso signifique um roteiro menos "cheio"):
@@ -1589,7 +1592,10 @@ Importante:
 - Sempre inclua lat/lng reais para cada parada (coordenadas geográficas precisas).
 - Para cada parada, escreva uma descrição de 1-2 frases com uma orientação específica e útil sobre o que fazer ou ver ali — não uma frase genérica que serviria pra qualquer lugar do mesmo tipo. Se o lugar tiver uma obra, prato, vista ou horário especialmente recomendado, mencione isso especificamente.
 - O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
-- Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista.' : ''}${extraCandidates.length > 0 ? '\n- Use SOMENTE lugares da(s) lista(s) acima (obrigatórios e/ou candidatos reais). NÃO invente nenhum lugar de memória.' : ''}`;
+- Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista.' : ''}${extraCandidates.length > 0 ? '\n- Use SOMENTE lugares da(s) lista(s) acima (obrigatórios e/ou candidatos reais). NÃO invente nenhum lugar de memória.' : ''}
+- Antes de finalizar o horário de cada parada, releia a descrição que você mesmo escreveu para esse lugar — se ela menciona um período do dia específico (manhã, tarde, entardecer, pôr do sol, noite, etc.), o horário agendado da parada PRECISA bater com essa recomendação. Se não bater, ajuste o horário pra refletir o que você mesmo recomendou, não o contrário.
+
+${WEB_SEARCH_INSTRUCTION}`;
 
         const response = await invokeLLM({
           messages: [
@@ -1598,6 +1604,7 @@ Importante:
           ],
           outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tips" }) },
           max_tokens: 16000,
+          enableWebSearch: true,
         });
 
         const content = response.choices[0].message.content as string;
@@ -1845,7 +1852,10 @@ Importante:
 - O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
 - Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.
 - Distribua bem os horários ao longo do dia.
-- Respeite o orçamento (atrações e restaurantes separadamente) e o ritmo do viajante.${realCandidates.length > 0 ? '\n- NÃO invente nenhum lugar fora da lista de candidatos reais e da lista de lugares já selecionados pelo usuário.' : ''}`;
+- Respeite o orçamento (atrações e restaurantes separadamente) e o ritmo do viajante.${realCandidates.length > 0 ? '\n- NÃO invente nenhum lugar fora da lista de candidatos reais e da lista de lugares já selecionados pelo usuário.' : ''}
+- Antes de finalizar o horário de cada parada, releia a descrição que você mesmo escreveu para esse lugar — se ela menciona um período do dia específico (manhã, tarde, entardecer, pôr do sol, noite, etc.), o horário agendado da parada PRECISA bater com essa recomendação. Se não bater, ajuste o horário pra refletir o que você mesmo recomendou, não o contrário.
+
+${WEB_SEARCH_INSTRUCTION}`;
 
         const response = await invokeLLM({
           messages: [
@@ -1854,6 +1864,7 @@ Importante:
           ],
           outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tip" }) },
           max_tokens: 16000,
+          enableWebSearch: true,
         });
 
         const content = response.choices[0].message.content as string;
@@ -2064,7 +2075,9 @@ Sua tarefa:
 - Classifique cada escolhido em uma categoria: attraction, restaurant, cafe, museum, ou hidden_gem (hidden_gem = rating bom mas número de avaliações relativamente baixo comparado aos outros candidatos — "descoberto por poucos"), ou other.
 - Escreva uma descrição de 1 frase para cada, em ${languageName}, não em português, a menos que ${languageName} seja português.
 
-Retorne um JSON com o array "places": [{ placeId (exatamente o place_id entre colchetes do candidato escolhido), category, description }]`;
+Retorne um JSON com o array "places": [{ placeId (exatamente o place_id entre colchetes do candidato escolhido), category, description }]
+
+${WEB_SEARCH_INSTRUCTION}`;
 
         const response = await invokeLLM({
           messages: [
@@ -2073,6 +2086,7 @@ Retorne um JSON com o array "places": [{ placeId (exatamente o place_id entre co
           ],
           response_format: { type: "json_object" },
           max_tokens: 6000,
+          enableWebSearch: true,
         });
 
         const content = response.choices[0].message.content as string;

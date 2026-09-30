@@ -64,6 +64,7 @@ export type InvokeParams = {
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
+  enableWebSearch?: boolean;
 };
 
 export type ToolCall = {
@@ -337,7 +338,10 @@ const toInvokeResult = (
     (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
   );
 
-  let content = textBlocks.map((block) => block.text).join("");
+  // When web search is used, the model interleaves search blocks with text
+  // (intermediate reasoning), so only the last text block is the final answer.
+  let content =
+    textBlocks.length > 1 ? textBlocks[textBlocks.length - 1].text : (textBlocks[0]?.text ?? "");
   let toolCalls: ToolCall[] | undefined;
 
   if (opts.jsonSchemaToolName) {
@@ -410,6 +414,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     response_format,
     maxTokens,
     max_tokens,
+    enableWebSearch,
   } = params;
 
   const { system, messages: anthropicMessages } = toAnthropicMessages(messages);
@@ -420,7 +425,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     output_schema,
   });
 
-  let anthropicTools = toAnthropicTools(tools);
+  let anthropicTools: Anthropic.ToolUnion[] | undefined = toAnthropicTools(tools);
   let anthropicToolChoice = toAnthropicToolChoice(normalizeToolChoice(toolChoice || tool_choice, tools));
   let systemPrompt = system;
   let jsonSchemaToolName: string | undefined;
@@ -439,6 +444,16 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       },
     ];
     anthropicToolChoice = { type: "tool", name: jsonSchemaToolName };
+  }
+
+  if (enableWebSearch) {
+    anthropicTools = [
+      ...(anthropicTools ?? []),
+      { type: "web_search_20250305", name: "web_search", max_uses: 4 },
+    ];
+    // The model must decide on its own whether/when to search, so it can't
+    // be locked into a forced tool_choice (e.g. the json_schema output tool).
+    anthropicToolChoice = { type: "auto" };
   }
 
   const response = await getClient().messages.create({
