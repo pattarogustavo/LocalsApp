@@ -333,17 +333,25 @@ const toInvokeResult = (
   response: Anthropic.Message,
   opts: { jsonSchemaToolName?: string; stripJsonFences?: boolean },
 ): InvokeResult => {
-  const textBlocks = response.content.filter(
-    (block): block is Anthropic.TextBlock => block.type === "text",
-  );
   const toolUseBlocks = response.content.filter(
     (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
   );
 
-  // When web search is used, the model interleaves search blocks with text
-  // (intermediate reasoning), so only the last text block is the final answer.
-  let content =
-    textBlocks.length > 1 ? textBlocks[textBlocks.length - 1].text : (textBlocks[0]?.text ?? "");
+  // When web search is used, the model interleaves tool blocks with text —
+  // any text *before* the last tool-related block is intermediate reasoning
+  // tied to a search round, not the final answer. Text blocks *after* it are
+  // the real answer, and the API can split that answer across several
+  // consecutive text blocks (not just one), so those must be concatenated
+  // rather than only keeping the very last one.
+  const lastToolBlockIndex = response.content.reduce(
+    (acc, block, i) => (block.type !== "text" ? i : acc),
+    -1,
+  );
+  const finalTextBlocks = response.content
+    .slice(lastToolBlockIndex + 1)
+    .filter((block): block is Anthropic.TextBlock => block.type === "text");
+
+  let content = finalTextBlocks.map((block) => block.text).join("");
   let toolCalls: ToolCall[] | undefined;
 
   if (opts.jsonSchemaToolName) {

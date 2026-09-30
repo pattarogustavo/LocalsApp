@@ -797,6 +797,57 @@ function buildMealPreferencesBlock(
 /** Nudges the model to use its native web-search tool to cross-check real candidates against outside opinion, without forcing it to search every single place. */
 const WEB_SEARCH_INSTRUCTION = `Você pode pesquisar na web (sites de viagem, guias locais, imprensa, redes sociais, fóruns) pra confirmar ou descobrir quais dos candidatos reais listados são de fato os mais recomendados por moradores e conhecedores do destino — combine isso com seu próprio conhecimento e com os dados de avaliação disponíveis. Use a busca quando agregar valor real à escolha, não é obrigatório pesquisar pra cada lugar individualmente. Sua resposta final deve ser SOMENTE o JSON pedido, sem nenhum texto antes ou depois, mesmo que você tenha pesquisado antes de responder.`;
 
+/** Cheap, fast model for auxiliary passes that aren't the creative itinerary assembly itself. */
+const WEB_SEARCH_PRESCREEN_MODEL = "claude-haiku-4-5-20251001";
+
+/**
+ * Separate, schema-free web-search pass run BEFORE the main itinerary
+ * generation call (generateItinerary/generateFromScratch). Those calls force
+ * tool_choice to their output-schema tool (see buildItineraryDaysSchema),
+ * which can't coexist with the "auto" tool_choice web search needs to decide
+ * for itself whether/when to search (see invokeLLM's `enableWebSearch`) — so
+ * this runs its own free-text call first, and its result is folded into the
+ * main prompt as extra context. Best-effort: any failure here is swallowed
+ * and returns null, never blocking itinerary generation.
+ */
+async function preScreenRecommendedCandidates(
+  destinationSummary: string,
+  candidates: { name: string; types: string[]; rating?: number }[],
+): Promise<string | null> {
+  if (candidates.length === 0) return null;
+
+  const candidatesList = candidates
+    .slice(0, 150)
+    .map((c) => `- ${c.name} (${c.types[0] || "lugar"}${c.rating ? `, rating ${c.rating}` : ""})`)
+    .join("\n");
+
+  const prompt = `Você vai ajudar a decidir quais lugares reais priorizar num roteiro de viagem para ${destinationSummary}.
+
+Candidatos reais disponíveis (já verificados no Google Places):
+${candidatesList}
+
+Pesquise na web se necessário, e identifique quais desses candidatos são genuinamente os mais recomendados por moradores/conhecedores do destino — não apenas os mais bem avaliados no Google. Retorne uma lista curta (até 15-20 nomes) dos que você mais recomendaria, com uma frase dizendo por quê.
+
+Responda em texto simples, um lugar por linha, no formato "Nome do lugar — motivo". Sem introdução nem conclusão.`;
+
+  try {
+    const response = await invokeLLM({
+      messages: [
+        { role: "system", content: "Você é um especialista local em viagens. Seja direto e objetivo." },
+        { role: "user", content: prompt },
+      ],
+      enableWebSearch: true,
+      model: WEB_SEARCH_PRESCREEN_MODEL,
+      max_tokens: 1500,
+    });
+    const text = String(response.choices[0]?.message.content || "").trim();
+    return text.length > 0 ? text : null;
+  } catch (err) {
+    console.warn("[itinerary] web-search pre-screening failed, proceeding without it:", err);
+    return null;
+  }
+}
+
 /** Explicit hard-vs-soft constraint framing, so the model prioritizes correctly by itself before the deterministic validator double-checks it. */
 const HARD_SOFT_FRAMING_BLOCK = `
 REGRAS OBRIGATÓRIAS (nunca podem ser quebradas, mesmo que isso signifique um roteiro menos "cheio"):
@@ -1654,6 +1705,13 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
           ? `\nLugares reais e verificados no Google Places disponíveis${hasSelectedPlaces ? ' para completar o roteiro além dos obrigatórios acima' : ''} (use o nome EXATAMENTE como aparece na lista; NÃO invente nenhum lugar fora desta lista${hasSelectedPlaces ? ' nem da lista de obrigatórios' : ''}):\n${extraCandidates.map((c) => `[${c.placeId}] ${c.name} (${c.destinationName})${c.rating ? `, rating ${c.rating}` : ''}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}`).join("\n")}`
           : '';
 
+        // Separate, schema-free web-search pass — see preScreenRecommendedCandidates
+        // for why this can't just be `enableWebSearch: true` on the main call below.
+        const preScreenedPlaces = await preScreenRecommendedCandidates(destSummary, extraCandidates);
+        const preScreenBlock = preScreenedPlaces
+          ? `\nPesquisa prévia identificou estes lugares como especialmente recomendados:\n${preScreenedPlaces}\n— dê peso extra a eles na sua escolha, mas você não é obrigado a usar só esses.`
+          : '';
+
         // Promote a resolvable free-text "must-see" hint to a HARD constraint.
         const destCenter = destinations.find((d) => d.lat != null && d.lng != null);
         const resolvedMustSee = await resolveMustSeePlace(preferences?.mustSee, destCenter?.lat, destCenter?.lng, input.language);
@@ -1685,7 +1743,7 @@ ${HARD_SOFT_FRAMING_BLOCK}
 
 Data de início: ${startDate}
 Destinos: ${destSummary}
-${placesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}
+${placesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}${preScreenBlock}
 ${hotelBlock}
 
 Preferências:
@@ -1724,9 +1782,7 @@ Importante:
 - Para cada parada, escreva uma descrição de 1-2 frases com uma orientação específica e útil sobre o que fazer ou ver ali — não uma frase genérica que serviria pra qualquer lugar do mesmo tipo. Se o lugar tiver uma obra, prato, vista ou horário especialmente recomendado, mencione isso especificamente.
 - O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
 - Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista.' : ''}${extraCandidates.length > 0 ? '\n- Use SOMENTE lugares da(s) lista(s) acima (obrigatórios e/ou candidatos reais). NÃO invente nenhum lugar de memória.' : ''}
-- Antes de finalizar o horário de cada parada, releia a descrição que você mesmo escreveu para esse lugar — se ela menciona um período do dia específico (manhã, tarde, entardecer, pôr do sol, noite, etc.), o horário agendado da parada PRECISA bater com essa recomendação. Se não bater, ajuste o horário pra refletir o que você mesmo recomendou, não o contrário.
-
-${WEB_SEARCH_INSTRUCTION}`;
+- Antes de finalizar o horário de cada parada, releia a descrição que você mesmo escreveu para esse lugar — se ela menciona um período do dia específico (manhã, tarde, entardecer, pôr do sol, noite, etc.), o horário agendado da parada PRECISA bater com essa recomendação. Se não bater, ajuste o horário pra refletir o que você mesmo recomendou, não o contrário.`;
 
         const response = await invokeLLM({
           messages: [
@@ -1735,7 +1791,6 @@ ${WEB_SEARCH_INSTRUCTION}`;
           ],
           outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tips" }) },
           max_tokens: 16000,
-          enableWebSearch: true,
         });
 
         const content = response.choices[0].message.content as string;
@@ -1914,6 +1969,13 @@ ${WEB_SEARCH_INSTRUCTION}`;
           ? `\nLugares reais e verificados no Google Places disponíveis para montar o roteiro:\n${realCandidates.map((c) => `[${c.placeId}] ${c.name} — destino: ${c.destinationName}, tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}`).join("\n")}`
           : "";
 
+        // Separate, schema-free web-search pass — see preScreenRecommendedCandidates
+        // for why this can't just be `enableWebSearch: true` on the main call below.
+        const preScreenedPlaces = await preScreenRecommendedCandidates(destSummary, realCandidates);
+        const preScreenBlock = preScreenedPlaces
+          ? `\nPesquisa prévia identificou estes lugares como especialmente recomendados:\n${preScreenedPlaces}\n— dê peso extra a eles na sua escolha, mas você não é obrigado a usar só esses.`
+          : '';
+
         const destCenter = destinations.find((d) => d.lat != null && d.lng != null);
         const resolvedMustSee = await resolveMustSeePlace(profile.mustSee, destCenter?.lat, destCenter?.lng, input.language);
 
@@ -1942,7 +2004,7 @@ ${HARD_SOFT_FRAMING_BLOCK}
 
 Data de início: ${startDate}
 Destinos: ${destSummary}
-${selectedPlacesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}
+${selectedPlacesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}${preScreenBlock}
 ${hotelBlock}
 
 Perfil do viajante:
@@ -1984,9 +2046,7 @@ Importante:
 - Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.
 - Distribua bem os horários ao longo do dia.
 - Respeite o orçamento (atrações e restaurantes separadamente) e o ritmo do viajante.${realCandidates.length > 0 ? '\n- NÃO invente nenhum lugar fora da lista de candidatos reais e da lista de lugares já selecionados pelo usuário.' : ''}
-- Antes de finalizar o horário de cada parada, releia a descrição que você mesmo escreveu para esse lugar — se ela menciona um período do dia específico (manhã, tarde, entardecer, pôr do sol, noite, etc.), o horário agendado da parada PRECISA bater com essa recomendação. Se não bater, ajuste o horário pra refletir o que você mesmo recomendou, não o contrário.
-
-${WEB_SEARCH_INSTRUCTION}`;
+- Antes de finalizar o horário de cada parada, releia a descrição que você mesmo escreveu para esse lugar — se ela menciona um período do dia específico (manhã, tarde, entardecer, pôr do sol, noite, etc.), o horário agendado da parada PRECISA bater com essa recomendação. Se não bater, ajuste o horário pra refletir o que você mesmo recomendou, não o contrário.`;
 
         const response = await invokeLLM({
           messages: [
@@ -1995,7 +2055,6 @@ ${WEB_SEARCH_INSTRUCTION}`;
           ],
           outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tip" }) },
           max_tokens: 16000,
-          enableWebSearch: true,
         });
 
         const content = response.choices[0].message.content as string;
