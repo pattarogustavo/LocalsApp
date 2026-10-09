@@ -2396,20 +2396,55 @@ ${WEB_SEARCH_INSTRUCTION}`;
         role: z.enum(['viewer', 'editor']).default('viewer'),
       }))
       .mutation(async ({ ctx, input }) => {
+        const email = input.email.trim().toLowerCase();
+        if (ctx.user.email && email === ctx.user.email.toLowerCase()) {
+          throw new Error('Você não pode convidar seu próprio e-mail.');
+        }
         // Check the trip belongs to the inviting user
         const trips = await db.getUserTrips(ctx.user.id);
         const trip = trips.find((t) => t.clientId === input.tripClientId);
         if (!trip) throw new Error('Trip not found or not owned by you');
+
+        // Already has an active invite for this email? Update its role instead of duplicating.
+        const existingShares = await db.getTripSharesByTripId(trip.id);
+        const existing = existingShares.find(
+          (s) => s.inviteeEmail.toLowerCase() === email && (s.status === 'pending' || s.status === 'accepted')
+        );
+        if (existing) {
+          if (existing.role !== input.role) {
+            await db.updateTripShareRole(existing.id, input.role);
+          }
+          return { ok: true, token: existing.token };
+        }
+
         // Create the share record
         const token = crypto.randomBytes(24).toString('hex');
         await db.createTripShare({
           tripId: trip.id,
           ownerId: ctx.user.id,
-          inviteeEmail: input.email,
+          inviteeEmail: email,
           role: input.role,
           token,
         });
         return { ok: true, token };
+      }),
+
+    /** Updates the role of an existing invite sent by the current user. */
+    updateRole: protectedProcedure
+      .input(z.object({
+        shareId: z.number(),
+        role: z.enum(['viewer', 'editor']),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const trips = await db.getUserTrips(ctx.user.id);
+        const ownedTripIds = trips.map((t) => t.id);
+        const allShares = (
+          await Promise.all(ownedTripIds.map((id) => db.getTripSharesByTripId(id)))
+        ).flat();
+        const share = allShares.find((s) => s.id === input.shareId);
+        if (!share) throw new Error('Share not found or not owned by you');
+        await db.updateTripShareRole(input.shareId, input.role);
+        return { ok: true };
       }),
 
     /** Accept a trip share invite via token */

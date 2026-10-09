@@ -673,6 +673,8 @@ export const fr: Translations = {
     inviteMsg: 'Une invitation a été envoyée à',
     inviteHint: 'Si le voyageur a un compte TheLocals, il recevra l\'itinéraire complet.',
     emailHint: 'Si fourni, une invitation sera envoyée pour accéder à l\'itinéraire.',
+    role: 'Rôle',
+    roleComingSoon: 'Bientôt disponible',
   },
 
   profile: {

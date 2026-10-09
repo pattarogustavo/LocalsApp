@@ -182,7 +182,16 @@ export async function createTripShare(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(tripShares).values({ ...data, status: "pending" });
+  await db.insert(tripShares).values({ ...data, inviteeEmail: data.inviteeEmail.toLowerCase(), status: "pending" });
+}
+
+/** Updates the role of an existing share. Caller must have already verified ownership. */
+export async function updateTripShareRole(shareId: number, role: "viewer" | "editor") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(tripShares)
+    .set({ role, updatedAt: new Date() })
+    .where(eq(tripShares.id, shareId));
 }
 
 export async function getTripSharesByTripId(tripId: number) {
@@ -194,7 +203,7 @@ export async function getTripSharesByTripId(tripId: number) {
 export async function getTripSharesByInviteeEmail(email: string) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(tripShares).where(eq(tripShares.inviteeEmail, email));
+  return db.select().from(tripShares).where(eq(tripShares.inviteeEmail, email.toLowerCase()));
 }
 
 export async function getTripShareByToken(token: string) {
@@ -228,7 +237,7 @@ export async function declineTripShare(shareId: number, inviteeUserId: number, i
     .set({ status: "declined", updatedAt: new Date() })
     .where(and(
       eq(tripShares.id, shareId),
-      or(eq(tripShares.inviteeUserId, inviteeUserId), eq(tripShares.inviteeEmail, inviteeEmail))
+      or(eq(tripShares.inviteeUserId, inviteeUserId), eq(tripShares.inviteeEmail, inviteeEmail.toLowerCase()))
     ));
 }
 
@@ -240,7 +249,7 @@ export async function hideTripShareForInvitee(shareId: number, inviteeUserId: nu
     .set({ hiddenByInvitee: true, updatedAt: new Date() })
     .where(and(
       eq(tripShares.id, shareId),
-      or(eq(tripShares.inviteeUserId, inviteeUserId), eq(tripShares.inviteeEmail, inviteeEmail))
+      or(eq(tripShares.inviteeUserId, inviteeUserId), eq(tripShares.inviteeEmail, inviteeEmail.toLowerCase()))
     ));
 }
 
@@ -251,7 +260,7 @@ export async function getPendingSharesForUser(userId: number, email: string) {
   const sharesByUserId = await db.select().from(tripShares)
     .where(and(eq(tripShares.inviteeUserId, userId), eq(tripShares.status, "pending")));
   const sharesByEmail = await db.select().from(tripShares)
-    .where(and(eq(tripShares.inviteeEmail, email), eq(tripShares.status, "pending")));
+    .where(and(eq(tripShares.inviteeEmail, email.toLowerCase()), eq(tripShares.status, "pending")));
   const seen = new Set<number>();
   const uniqueShares = [...sharesByUserId, ...sharesByEmail].filter((s) => {
     if (seen.has(s.id)) return false;
@@ -289,7 +298,7 @@ export async function getSharedTripsForUser(userId: number, email: string) {
   const sharesByUserId = await db.select().from(tripShares)
     .where(eq(tripShares.inviteeUserId, userId));
   const sharesByEmail = await db.select().from(tripShares)
-    .where(eq(tripShares.inviteeEmail, email));
+    .where(eq(tripShares.inviteeEmail, email.toLowerCase()));
   // Merge unique shares
   const allShares = [...sharesByUserId, ...sharesByEmail];
   const seen = new Set<number>();

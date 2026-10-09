@@ -690,6 +690,8 @@ export const pt = {
     inviteMsg: 'Um convite foi enviado para',
     inviteHint: 'Se o viajante tiver uma conta no TheLocals, ele receberá o roteiro completo e poderá acompanhar em tempo real.',
     emailHint: 'Se informado, um convite será enviado para acesso ao roteiro.',
+    role: 'Papel',
+    roleComingSoon: 'Em breve',
   },
 
   // ── Profile ──────────────────────────────────────────────────────────────────

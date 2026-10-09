@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,18 @@ import {
   StyleSheet,
   Alert,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTripsStore } from '@/store/trips';
+import { useAuthStore } from '@/store/auth';
 import { generateId, getInitials } from '@/utils/trip-helpers';
 import type { Traveler } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
+import { trpc } from '@/lib/trpc';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -36,47 +39,141 @@ const AVATAR_COLORS = [
   '#1ABC9C', '#E67E22', '#3498DB', '#E91E63', '#00BCD4',
 ];
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const addTraveler = useTripsStore((s) => s.addTraveler);
   const removeTraveler = useTripsStore((s) => s.removeTraveler);
+  const getTripById = useTripsStore((s) => s.getTripById);
+  const userEmail = useAuthStore((s) => s.user?.email);
   const insets = useSafeAreaInsets();
 
   const [showModal, setShowModal] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [emailInput, setEmailInput] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const inviteMutation = trpc.sharing.invite.useMutation();
+  const revokeMutation = trpc.sharing.revoke.useMutation();
+  const upsertTripMutation = trpc.cloudTrips.upsert.useMutation();
+  const sharesQuery = trpc.sharing.listSentByMe.useQuery(
+    { tripClientId: tripId },
+    { enabled: !!tripId }
+  );
+
+  const shareForEmail = useCallback((email?: string) => {
+    if (!email) return undefined;
+    const lower = email.trim().toLowerCase();
+    return sharesQuery.data?.find(
+      (s) => s.inviteeEmail.toLowerCase() === lower && s.status !== 'revoked'
+    );
+  }, [sharesQuery.data]);
+
+  const statusLabel = (status: string) => {
+    if (status === 'accepted') return { label: t.sharing.acceptedStatus, color: colors.textAccent };
+    if (status === 'declined') return { label: t.sharing.declinedStatus, color: colors.error };
+    return { label: t.sharing.pendingStatus, color: colors.warning };
+  };
+
+  const roleLabel = (r: string) => (r === 'editor' ? t.sharing.roleEditor : t.sharing.roleViewer);
 
   const handleAdd = async () => {
     const name = nameInput.trim();
     if (!name) return;
+    const email = emailInput.trim();
 
-    const color = AVATAR_COLORS[travelers.length % AVATAR_COLORS.length];
-    const traveler: Traveler = {
-      id: generateId(),
-      name,
-      initials: getInitials(name),
-      color,
-      email: emailInput.trim() || undefined,
-      isRegistered: false,
-      inviteStatus: emailInput.trim() ? 'pending' : undefined,
-    };
-    await addTraveler(tripId, traveler);
-    setNameInput('');
-    setEmailInput('');
-    setShowModal(false);
+    if (!email) {
+      const color = AVATAR_COLORS[travelers.length % AVATAR_COLORS.length];
+      const traveler: Traveler = {
+        id: generateId(),
+        name,
+        initials: getInitials(name),
+        color,
+        isRegistered: false,
+      };
+      await addTraveler(tripId, traveler);
+      setNameInput('');
+      setEmailInput('');
+      setShowModal(false);
+      return;
+    }
 
-    if (emailInput.trim()) {
+    if (!EMAIL_RE.test(email)) {
+      Alert.alert(t.common.error, t.sharing.invalidEmail);
+      return;
+    }
+    const lowerEmail = email.toLowerCase();
+    if (userEmail && lowerEmail === userEmail.toLowerCase()) {
+      Alert.alert(t.common.error, t.sharing.inviteError);
+      return;
+    }
+
+    setSending(true);
+    try {
+      const trip = getTripById(tripId);
+      if (trip) {
+        await upsertTripMutation.mutateAsync({ clientId: trip.id, data: JSON.stringify(trip) });
+      }
+      await inviteMutation.mutateAsync({ tripClientId: tripId, email: lowerEmail, role: 'viewer' });
+
+      const color = AVATAR_COLORS[travelers.length % AVATAR_COLORS.length];
+      const traveler: Traveler = {
+        id: generateId(),
+        name,
+        initials: getInitials(name),
+        color,
+        email: lowerEmail,
+        isRegistered: false,
+        inviteStatus: 'pending',
+      };
+      await addTraveler(tripId, traveler);
+      sharesQuery.refetch();
+
+      setNameInput('');
+      setEmailInput('');
+      setShowModal(false);
+
       Alert.alert(
         t.travelers.inviteSent ?? 'Convite enviado',
-        `${t.travelers.inviteMsg ?? 'Um convite foi enviado para'} ${emailInput.trim()}.`,
+        `${t.travelers.inviteMsg ?? 'Um convite foi enviado para'} ${lowerEmail}.`,
         [{ text: t.common.ok }]
       );
+    } catch (err: any) {
+      Alert.alert(t.common.error, err?.message ?? t.sharing.inviteError);
+    } finally {
+      setSending(false);
     }
   };
 
   const handleRemove = (traveler: Traveler) => {
+    const share = shareForEmail(traveler.email);
+    if (share && (share.status === 'pending' || share.status === 'accepted')) {
+      Alert.alert(
+        t.sharing.revokeConfirmTitle,
+        `${t.sharing.revokeConfirmMsg} ${traveler.email}${t.sharing.revokeConfirmMsg2}`,
+        [
+          { text: t.common.cancel, style: 'cancel' },
+          {
+            text: t.common.delete,
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await revokeMutation.mutateAsync({ shareId: share.shareId });
+                await removeTraveler(tripId, traveler.id);
+                sharesQuery.refetch();
+              } catch (err: any) {
+                Alert.alert(t.common.error, err?.message ?? t.sharing.revokeError);
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     Alert.alert(
       t.travelers.deleteTraveler,
       `${t.travelers.deleteConfirm} ${traveler.name}?`,
@@ -112,18 +209,20 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
           <Text style={[styles.avatarText, { color: colors.textOnPrimary }]}>{(t.travelers.you ?? 'EU').toUpperCase()}</Text>
         </View>
 
-        {travelers.map((traveler) => (
-          <TouchableOpacity
-            key={traveler.id}
-            onLongPress={() => handleRemove(traveler)}
-            style={[styles.avatar, { backgroundColor: traveler.color || colors.primary }]}
-          >
-            <Text style={styles.avatarText}>{traveler.initials}</Text>
-            {traveler.inviteStatus === 'pending' && (
-              <View style={styles.pendingDot} />
-            )}
-          </TouchableOpacity>
-        ))}
+        {travelers.map((traveler) => {
+          const share = shareForEmail(traveler.email);
+          const isPending = share ? share.status === 'pending' : traveler.inviteStatus === 'pending';
+          return (
+            <TouchableOpacity
+              key={traveler.id}
+              onLongPress={() => handleRemove(traveler)}
+              style={[styles.avatar, { backgroundColor: traveler.color || colors.primary }]}
+            >
+              <Text style={styles.avatarText}>{traveler.initials}</Text>
+              {isPending && <View style={styles.pendingDot} />}
+            </TouchableOpacity>
+          );
+        })}
 
         <TouchableOpacity style={styles.addAvatar} onPress={() => setShowModal(true)}>
           <Ionicons name="add" size={18} color={colors.muted} />
@@ -133,33 +232,45 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
       {/* Traveler list */}
       {travelers.length > 0 && (
         <View style={styles.travelerList}>
-          {travelers.map((traveler) => (
-            <View key={traveler.id} style={styles.travelerRow}>
-              <View style={[styles.smallAvatar, { backgroundColor: traveler.color || colors.primary }]}>
-                <Text style={styles.smallAvatarText}>{traveler.initials}</Text>
+          {travelers.map((traveler) => {
+            const share = shareForEmail(traveler.email);
+            const status = share
+              ? statusLabel(share.status)
+              : traveler.inviteStatus === 'pending'
+                ? statusLabel('pending')
+                : null;
+            const role = share?.role;
+            return (
+              <View key={traveler.id} style={styles.travelerRow}>
+                <View style={[styles.smallAvatar, { backgroundColor: traveler.color || colors.primary }]}>
+                  <Text style={styles.smallAvatarText}>{traveler.initials}</Text>
+                </View>
+                <View style={styles.travelerInfo}>
+                  <Text style={styles.travelerName}>{traveler.name}</Text>
+                  {traveler.email ? (
+                    <Text style={styles.travelerEmail}>{traveler.email}</Text>
+                  ) : null}
+                </View>
+                <View style={styles.travelerStatus}>
+                  {role && (
+                    <Text style={styles.roleTag}>{roleLabel(role)}</Text>
+                  )}
+                  {status ? (
+                    <View style={[styles.pendingBadge, { backgroundColor: withAlpha(status.color, 0.15) }]}>
+                      <Text style={[styles.pendingText, { color: status.color }]}>{status.label}</Text>
+                    </View>
+                  ) : traveler.isRegistered ? (
+                    <View style={styles.activeBadge}>
+                      <Text style={styles.activeText}>{t.travelers.active ?? 'Ativo'}</Text>
+                    </View>
+                  ) : null}
+                  <TouchableOpacity onPress={() => handleRemove(traveler)} style={styles.removeBtn}>
+                    <Ionicons name="close" size={14} color={colors.muted} />
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={styles.travelerInfo}>
-                <Text style={styles.travelerName}>{traveler.name}</Text>
-                {traveler.email ? (
-                  <Text style={styles.travelerEmail}>{traveler.email}</Text>
-                ) : null}
-              </View>
-              <View style={styles.travelerStatus}>
-                {traveler.inviteStatus === 'pending' ? (
-                  <View style={styles.pendingBadge}>
-                    <Text style={styles.pendingText}>{t.travelers.pending ?? 'Pendente'}</Text>
-                  </View>
-                ) : traveler.isRegistered ? (
-                  <View style={styles.activeBadge}>
-                    <Text style={styles.activeText}>{t.travelers.active ?? 'Ativo'}</Text>
-                  </View>
-                ) : null}
-                <TouchableOpacity onPress={() => handleRemove(traveler)} style={styles.removeBtn}>
-                  <Ionicons name="close" size={14} color={colors.muted} />
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
 
@@ -216,6 +327,23 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
                 </Text>
               </View>
 
+              {emailInput.trim().length > 0 && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>{(t.travelers.role ?? 'PAPEL').toUpperCase()}</Text>
+                  <View style={styles.roleRow}>
+                    <View style={[styles.roleBtn, { borderColor: colors.primary, backgroundColor: withAlpha(colors.primary, 0.1) }]}>
+                      <Ionicons name="eye-outline" size={16} color={colors.primary} />
+                      <Text style={[styles.roleBtnText, { color: colors.primary }]}>{t.sharing.roleViewer}</Text>
+                    </View>
+                    <View style={[styles.roleBtn, styles.roleBtnDisabled, { borderColor: colors.border }]}>
+                      <Ionicons name="create-outline" size={16} color={colors.muted} />
+                      <Text style={[styles.roleBtnText, { color: colors.muted }]}>{t.sharing.roleEditor}</Text>
+                      <Text style={styles.comingSoonTag}>{t.travelers.roleComingSoon}</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={styles.cancelBtn}
@@ -224,12 +352,16 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
                   <Text style={styles.cancelText}>{t.common.cancel}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.confirmBtn, !nameInput.trim() && styles.confirmBtnDisabled]}
+                  style={[styles.confirmBtn, (!nameInput.trim() || sending) && styles.confirmBtnDisabled]}
                   onPress={handleAdd}
-                  disabled={!nameInput.trim()}
+                  disabled={!nameInput.trim() || sending}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.confirmText}>{t.common.add}</Text>
+                  {sending ? (
+                    <ActivityIndicator color={colors.textOnPrimary} size="small" />
+                  ) : (
+                    <Text style={styles.confirmText}>{t.common.add}</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -362,6 +494,11 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  roleTag: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: '600',
+  },
   pendingBadge: {
     backgroundColor: withAlpha(colors.warning, 0.15),
     borderRadius: 8,
@@ -449,6 +586,33 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     color: colors.muted,
     fontSize: 11,
     lineHeight: 15,
+  },
+  roleRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  roleBtnDisabled: {
+    opacity: 0.6,
+  },
+  roleBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  comingSoonTag: {
+    color: colors.muted,
+    fontSize: 9,
+    fontWeight: '700',
+    marginLeft: 2,
   },
   modalActions: {
     flexDirection: 'row',
