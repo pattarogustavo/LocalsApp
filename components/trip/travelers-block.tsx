@@ -57,6 +57,7 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
   const [showModal, setShowModal] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [emailInput, setEmailInput] = useState('');
+  const [roleInput, setRoleInput] = useState<'viewer' | 'editor'>('viewer');
   const [sending, setSending] = useState(false);
 
   const inviteMutation = trpc.sharing.invite.useMutation();
@@ -120,7 +121,7 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
       if (trip) {
         await upsertTripMutation.mutateAsync({ clientId: trip.id, data: JSON.stringify(trip) });
       }
-      await inviteMutation.mutateAsync({ tripClientId: tripId, email: lowerEmail, role: 'viewer' });
+      await inviteMutation.mutateAsync({ tripClientId: tripId, email: lowerEmail, role: roleInput });
 
       const color = AVATAR_COLORS[travelers.length % AVATAR_COLORS.length];
       const traveler: Traveler = {
@@ -137,6 +138,7 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
 
       setNameInput('');
       setEmailInput('');
+      setRoleInput('viewer');
       setShowModal(false);
 
       Alert.alert(
@@ -340,23 +342,43 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>{(t.travelers.role ?? 'PAPEL').toUpperCase()}</Text>
                   <View style={styles.roleRow}>
-                    <View style={[styles.roleBtn, { borderColor: colors.primary, backgroundColor: withAlpha(colors.primary, 0.1) }]}>
-                      <Ionicons name="eye-outline" size={16} color={colors.primary} />
-                      <Text style={[styles.roleBtnText, { color: colors.primary }]}>{t.sharing.roleViewer}</Text>
-                    </View>
-                    <View style={[styles.roleBtn, styles.roleBtnDisabled, { borderColor: colors.border }]}>
-                      <Ionicons name="create-outline" size={16} color={colors.muted} />
-                      <Text style={[styles.roleBtnText, { color: colors.muted }]}>{t.sharing.roleEditor}</Text>
-                      <Text style={styles.comingSoonTag}>{t.travelers.roleComingSoon}</Text>
-                    </View>
+                    <TouchableOpacity
+                      onPress={() => setRoleInput('viewer')}
+                      style={[
+                        styles.roleBtn,
+                        { borderColor: roleInput === 'viewer' ? colors.primary : colors.border },
+                        roleInput === 'viewer' && { backgroundColor: withAlpha(colors.primary, 0.1) },
+                      ]}
+                    >
+                      <Ionicons name="eye-outline" size={16} color={roleInput === 'viewer' ? colors.primary : colors.muted} />
+                      <Text style={[styles.roleBtnText, { color: roleInput === 'viewer' ? colors.primary : colors.muted }]}>
+                        {t.sharing.roleViewer}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setRoleInput('editor')}
+                      style={[
+                        styles.roleBtn,
+                        { borderColor: roleInput === 'editor' ? colors.primary : colors.border },
+                        roleInput === 'editor' && { backgroundColor: withAlpha(colors.primary, 0.1) },
+                      ]}
+                    >
+                      <Ionicons name="create-outline" size={16} color={roleInput === 'editor' ? colors.primary : colors.muted} />
+                      <Text style={[styles.roleBtnText, { color: roleInput === 'editor' ? colors.primary : colors.muted }]}>
+                        {t.sharing.roleEditor}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
+                  <Text style={styles.inputHint}>
+                    {roleInput === 'editor' ? t.sharing.roleEditorDesc : t.sharing.roleViewerDesc}
+                  </Text>
                 </View>
               )}
 
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={styles.cancelBtn}
-                  onPress={() => { setShowModal(false); setNameInput(''); setEmailInput(''); }}
+                  onPress={() => { setShowModal(false); setNameInput(''); setEmailInput(''); setRoleInput('viewer'); }}
                 >
                   <Text style={styles.cancelText}>{t.common.cancel}</Text>
                 </TouchableOpacity>
@@ -610,18 +632,9 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1.5,
   },
-  roleBtnDisabled: {
-    opacity: 0.6,
-  },
   roleBtnText: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  comingSoonTag: {
-    color: colors.muted,
-    fontSize: 9,
-    fontWeight: '700',
-    marginLeft: 2,
   },
   modalActions: {
     flexDirection: 'row',

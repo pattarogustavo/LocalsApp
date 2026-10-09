@@ -12,6 +12,7 @@ import { filterExcludedCandidates } from "./itinerary/scoring";
 import { buildDurationGuidancePromptBlock } from "./itinerary/duration";
 import { validateAndCorrectItinerary, type MustVisitPlace, type FillerRestaurantCandidate } from "./itinerary/validate";
 import { buildItineraryDaysSchema } from "./itinerary/schema";
+import { sanitizeTripPatch, getSharedTripSaveError, MAX_PATCH_JSON_LENGTH } from "./sharing/trip-merge";
 
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
@@ -19,6 +20,8 @@ const AERODATABOX_HOST = 'aerodatabox.p.rapidapi.com';
 const GOOGLE_DIRECTIONS_KEY = process.env.GOOGLE_DIRECTIONS_API_KEY || "";
 const OPENWEATHER_KEY = process.env.OPENWEATHERMAP_API_KEY || "";
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY || "";
+/** Kill switch for shared-trip editing (sharing.saveSharedTrip). Enabled unless explicitly set to "false". */
+const SHARED_EDITING_ENABLED = process.env.SHARED_EDITING_ENABLED !== "false";
 
 // Maps the app's internal language codes to the codes Google's APIs
 // (Places, Directions) expect. Falls back to pt-BR for unrecognized or
@@ -2447,6 +2450,43 @@ ${WEB_SEARCH_INSTRUCTION}`;
         return { ok: true };
       }),
 
+    /**
+     * Lets an editor save their changes into the owner's trip. Only the
+     * top-level sections present in `patch` are touched — everything else
+     * (including concurrent edits from the owner or another editor on a
+     * different section) is preserved. See server/sharing/trip-merge.ts.
+     */
+    saveSharedTrip: protectedProcedure
+      .input(z.object({
+        shareId: z.number(),
+        patch: z.record(z.string(), z.unknown()),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!SHARED_EDITING_ENABLED) {
+          throw new Error('A edição compartilhada está temporariamente desativada. Tente novamente mais tarde.');
+        }
+        if (JSON.stringify(input.patch).length > MAX_PATCH_JSON_LENGTH) {
+          throw new Error('Alteração muito grande para ser enviada.');
+        }
+        const share = await db.getTripShareById(input.shareId);
+        const saveError = getSharedTripSaveError(
+          share
+            ? {
+                status: share.status,
+                hiddenByInvitee: share.hiddenByInvitee,
+                role: share.role,
+                inviteeUserId: share.inviteeUserId,
+                inviteeEmail: share.inviteeEmail,
+              }
+            : null,
+          { id: ctx.user.id, email: ctx.user.email ?? null }
+        );
+        if (saveError) throw new Error(saveError);
+        const sanitized = sanitizeTripPatch(input.patch);
+        const { data, updatedAt } = await db.applyTripPatch(share!.tripId, sanitized);
+        return { tripData: data, updatedAt: updatedAt.toISOString() };
+      }),
+
     /** Accept a trip share invite via token */
     accept: protectedProcedure
       .input(z.object({ token: z.string().min(1) }))
@@ -2568,6 +2608,19 @@ ${WEB_SEARCH_INSTRUCTION}`;
       return rows.map((r) => ({ clientId: r.clientId, data: r.data, updatedAt: r.updatedAt.toISOString() }));
     }),
 
+    /**
+     * Fetch a single owned trip's current server state by clientId, so the
+     * owner's device can check whether an editor saved something newer
+     * without re-downloading every trip. Returns null if not found.
+     */
+    get: protectedProcedure
+      .input(z.object({ clientId: z.string().min(1).max(64) }))
+      .query(async ({ ctx, input }) => {
+        const found = await db.getTripByClientId(ctx.user.id, input.clientId);
+        if (!found) return null;
+        return { data: found.data, updatedAt: found.updatedAt.toISOString() };
+      }),
+
     /** Upsert a single trip (create or update by clientId). */
     upsert: protectedProcedure
       .input(z.object({
@@ -2587,6 +2640,30 @@ ${WEB_SEARCH_INSTRUCTION}`;
         }
         await db.upsertTrip(ctx.user.id, input.clientId, input.data, contentLanguage);
         return { ok: true };
+      }),
+
+    /**
+     * Partial update by clientId: only the top-level sections present in
+     * `patch` are merged into the stored trip (see server/sharing/trip-merge.ts)
+     * instead of overwriting the whole row — this is what lets an editor's
+     * concurrent sharing.saveSharedTrip on a different section survive the
+     * owner's own save of this same trip. The trip must already exist
+     * (created via `upsert`); this never creates a new row.
+     */
+    patch: protectedProcedure
+      .input(z.object({
+        clientId: z.string().min(1).max(64),
+        patch: z.record(z.string(), z.unknown()),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (JSON.stringify(input.patch).length > MAX_PATCH_JSON_LENGTH) {
+          throw new Error('Alteração muito grande para ser enviada.');
+        }
+        const found = await db.getTripByClientId(ctx.user.id, input.clientId);
+        if (!found) throw new Error('Trip not found');
+        const sanitized = sanitizeTripPatch(input.patch);
+        const { data, updatedAt } = await db.applyTripPatch(found.id, sanitized);
+        return { data, updatedAt: updatedAt.toISOString() };
       }),
 
     /** Delete a trip by clientId. */

@@ -674,7 +674,6 @@ export const it: Translations = {
     inviteHint: 'Se il viaggiatore ha un account TheLocals, riceverà l\'itinerario completo.',
     emailHint: 'Se fornita, verrà inviato un invito per accedere all\'itinerario.',
     role: 'Ruolo',
-    roleComingSoon: 'Presto disponibile',
   },
 
   profile: {

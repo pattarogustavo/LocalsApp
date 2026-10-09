@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { InsertUser, users, trips, tripShares, InsertTripRow } from "../drizzle/schema";
+import { mergeTripSections } from "./sharing/trip-merge";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -140,6 +141,34 @@ export async function upsertTrip(userId: number, clientId: string, data: string,
   }
 }
 
+/**
+ * Reads a trip row with a row lock, shallow-merges `patch` (already
+ * sanitized to the patchable-section whitelist by the caller) into its
+ * parsed JSON, and writes the result back — all inside one transaction, so
+ * two concurrent patches (e.g. the owner saving Transport while an editor
+ * saves Places) never clobber each other's section.
+ */
+export async function applyTripPatch(tripId: number, patch: Record<string, unknown>): Promise<{ data: string; updatedAt: Date }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (tx) => {
+    const rows = await tx.select().from(trips).where(eq(trips.id, tripId)).for("update");
+    const row = rows[0];
+    if (!row) throw new Error("Trip not found");
+    let current: Record<string, unknown>;
+    try {
+      current = JSON.parse(row.data);
+    } catch {
+      current = {};
+    }
+    const merged = mergeTripSections(current, patch);
+    const updatedAt = new Date();
+    const data = JSON.stringify(merged);
+    await tx.update(trips).set({ data, updatedAt }).where(eq(trips.id, tripId));
+    return { data, updatedAt };
+  });
+}
+
 export async function getTripByClientId(userId: number, clientId: string) {
   const db = await getDb();
   if (!db) return null;
@@ -198,6 +227,13 @@ export async function getTripSharesByTripId(tripId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(tripShares).where(eq(tripShares.tripId, tripId));
+}
+
+export async function getTripShareById(shareId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(tripShares).where(eq(tripShares.id, shareId)).limit(1);
+  return rows[0] ?? null;
 }
 
 export async function getTripSharesByInviteeEmail(email: string) {

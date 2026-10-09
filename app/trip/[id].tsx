@@ -10,9 +10,12 @@ import {
   Modal,
   StyleSheet,
   Pressable,
+  AppState,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -511,20 +514,70 @@ export default function TripDetailScreen() {
   const t = useTranslation();
   const colors = useColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
-  const { getTripById, deleteTrip, updateStartDate, updateCoverImage, updateTrip } = useTripsStore();
-  const localTrip = getTripById(id);
-  // Not found locally? It may be a trip shared with the current user (accepted invite).
-  const sharedTripsQuery = trpc.sharing.listSharedWithMe.useQuery(undefined, { enabled: !localTrip });
+  const {
+    getTripById, deleteTrip, updateStartDate, updateCoverImage, updateTrip,
+    hydrateSharedTrip, pullOwnedTripUpdates, lastWriteError, clearLastWriteError,
+  } = useTripsStore();
+  const trip = getTripById(id);
+  // A trip already known to be owned locally never needs the shared-trips
+  // query; anything else (not loaded yet, or a known shared trip we want to
+  // keep refreshing) does.
+  const isKnownOwned = !!trip && !trip.shareId;
+  const sharedTripsQuery = trpc.sharing.listSharedWithMe.useQuery(undefined, { enabled: !isKnownOwned });
   const hideForMeMutation = trpc.sharing.hideForMe.useMutation();
-  const sharedMatch = !localTrip
-    ? sharedTripsQuery.data?.find((s) => {
-        try { return (JSON.parse(s.tripData) as Trip).id === id; } catch { return false; }
-      })
-    : undefined;
-  const sharedTrip = sharedMatch ? (() => { try { return JSON.parse(sharedMatch.tripData) as Trip; } catch { return undefined; } })() : undefined;
-  const trip = localTrip ?? sharedTrip;
-  const shareId = sharedMatch?.shareId;
-  const role: TripRole = localTrip ? 'owner' : sharedMatch?.shareRole === 'editor' ? 'editor' : 'viewer';
+
+  React.useEffect(() => {
+    if (!sharedTripsQuery.data) return;
+    const match = sharedTripsQuery.data.find((s) => {
+      try { return (JSON.parse(s.tripData) as Trip).id === id; } catch { return false; }
+    });
+    if (!match) return;
+    try {
+      const parsed = JSON.parse(match.tripData) as Trip;
+      hydrateSharedTrip(match.shareId, match.shareRole, parsed);
+    } catch {
+      // Malformed payload — ignore, keep whatever we already have locally.
+    }
+  }, [sharedTripsQuery.data, id, hydrateSharedTrip]);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshSharedData = React.useCallback(async () => {
+    await Promise.all([sharedTripsQuery.refetch(), pullOwnedTripUpdates(id)]);
+  }, [sharedTripsQuery, pullOwnedTripUpdates, id]);
+
+  // Refresh on screen focus (opening the trip, or coming back to its tab)...
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshSharedData();
+    }, [refreshSharedData])
+  );
+  // ...and when the app itself comes back to the foreground.
+  React.useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshSharedData();
+    });
+    return () => sub.remove();
+  }, [refreshSharedData]);
+
+  const handlePullToRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshSharedData();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshSharedData]);
+
+  // A failed save on a shared trip is rolled back by the store already —
+  // just let the editor know instead of losing the edit silently.
+  React.useEffect(() => {
+    if (!lastWriteError) return;
+    Alert.alert(t.common.error, lastWriteError.message);
+    clearLastWriteError();
+  }, [lastWriteError, clearLastWriteError, t]);
+
+  const shareId = trip?.shareId;
+  const role: TripRole = !trip?.shareId ? 'owner' : trip.shareRole === 'editor' ? 'editor' : 'viewer';
   const permissions = useTripPermissions(role);
   const [activeTab, setActiveTab] = useState<TabKey>('geral');
 
@@ -580,7 +633,7 @@ export default function TripDetailScreen() {
           text: t.common.delete,
           style: 'destructive',
           onPress: async () => {
-            if (localTrip) {
+            if (!trip.shareId) {
               await deleteTrip(trip.id);
             } else if (shareId !== undefined) {
               try {
@@ -607,7 +660,13 @@ export default function TripDetailScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView showsVerticalScrollIndicator={false} stickyHeaderIndices={[1]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[1]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handlePullToRefresh} tintColor={colors.primary} />
+        }
+      >
         {/* Hero */}
         <View style={{ height: HERO_HEIGHT }}>
           <ImageBackground source={{ uri: heroImage }} style={{ flex: 1 }}>

@@ -291,6 +291,14 @@ export interface Trip {
   contentLanguage?: string;
   createdAt: string;
   updatedAt: string;
+  // ── Shared-trip markers (client-only; never sent to the server) ─────────────
+  // Present only when this Trip entry in the local store is a working copy of
+  // a trip SHARED with this account (fetched via sharing.listSharedWithMe),
+  // as opposed to one this account owns. Lets store/trips.ts write methods
+  // treat owned and shared trips uniformly while still routing their saves
+  // differently (cloudTrips.patch vs sharing.saveSharedTrip).
+  shareId?: number;
+  shareRole?: 'editor' | 'viewer';
 }
 
 // ─── Subscription / Plan ──────────────────────────────────────────────────────

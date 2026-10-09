@@ -661,7 +661,6 @@ export const es: Translations = {
     inviteHint: 'Si el viajero tiene una cuenta en TheLocals, recibirá el itinerario completo y podrá seguirlo en tiempo real.',
     emailHint: 'Si se proporciona, se enviará una invitación para acceder al itinerario.',
     role: 'Rol',
-    roleComingSoon: 'Próximamente',
   },
   profile: {
     title: 'Perfil y Configuración',
