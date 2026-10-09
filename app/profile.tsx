@@ -843,7 +843,7 @@ export default function ProfileScreen() {
               activeOpacity={0.7}
               onPress={() => {
                 const storeUrl = Platform.OS === 'ios'
-                  ? 'https://apps.apple.com/app/id000000000'
+                  ? 'https://apps.apple.com/app/id6797098279?action=write-review'
                   : 'https://play.google.com/store/apps/details?id=com.localsapp.app';
                 Linking.openURL(storeUrl);
               }}
