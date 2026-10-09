@@ -30,7 +30,7 @@ import { AccommodationBlock } from '@/components/trip/accommodation-block';
 import { TripPhotosBlock } from '@/components/trip/photos-block';
 import { TransportSummaryCard } from '@/components/trip/next-transport-card';
 import { useColors } from '@/hooks/use-colors';
-import { useSubscription } from '@/hooks/use-subscription';
+import { useTripPermissions, type TripPermissions, type TripRole } from '@/hooks/use-trip-permissions';
 import { ProBadge } from '@/components/trial-banner';
 import { type ThemeColorPalette } from '@/constants/theme';
 import { generateId } from '@/utils/trip-helpers';
@@ -524,6 +524,8 @@ export default function TripDetailScreen() {
   const sharedTrip = sharedMatch ? (() => { try { return JSON.parse(sharedMatch.tripData) as Trip; } catch { return undefined; } })() : undefined;
   const trip = localTrip ?? sharedTrip;
   const shareId = sharedMatch?.shareId;
+  const role: TripRole = localTrip ? 'owner' : sharedMatch?.shareRole === 'editor' ? 'editor' : 'viewer';
+  const permissions = useTripPermissions(role);
   const [activeTab, setActiveTab] = useState<TabKey>('geral');
 
   const TABS: { key: TabKey; label: string; icon: string }[] = [
@@ -633,9 +635,11 @@ export default function TripDetailScreen() {
                 </TouchableOpacity>
 
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity onPress={handlePickCoverPhoto} style={[styles.heroBtn, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
-                    <Ionicons name="camera-outline" size={16} color="#fff" />
-                  </TouchableOpacity>
+                  {permissions.canEdit && (
+                    <TouchableOpacity onPress={handlePickCoverPhoto} style={[styles.heroBtn, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
+                      <Ionicons name="camera-outline" size={16} color="#fff" />
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity onPress={handleDelete} style={[styles.heroBtn, { backgroundColor: 'rgba(192,57,43,0.5)' }]}>
                     <Ionicons name="trash-outline" size={16} color="#fff" />
                   </TouchableOpacity>
@@ -667,6 +671,7 @@ export default function TripDetailScreen() {
             <TouchableOpacity
               onPress={() => setShowEditDate(true)}
               style={styles.actionBtn}
+              disabled={!permissions.canEdit}
             >
               <Ionicons name="calendar-outline" size={14} color={colors.textAccent} />
               <Text style={styles.actionBtnText}>{t.trip.overview.dates}</Text>
@@ -678,6 +683,7 @@ export default function TripDetailScreen() {
             <TouchableOpacity
               onPress={() => setShowEditDests(true)}
               style={styles.actionBtn}
+              disabled={!permissions.canEdit}
             >
               <Ionicons name="location-outline" size={14} color={colors.textAccent} />
               <Text style={styles.actionBtnText}>{t.trip.overview.destination}</Text>
@@ -731,14 +737,14 @@ export default function TripDetailScreen() {
 
         {/* Tab Content */}
         <View style={{ padding: 16, paddingBottom: insets.bottom + 32 }}>
-          {activeTab === 'geral' && <GeralTab trip={trip} onGoToPlaces={() => setActiveTab('lugares')} onGoToTransport={() => setActiveTab('transporte')} />}
-          {activeTab === 'transporte' && <TransportTab trip={trip} />}
-          {activeTab === 'hospedagem' && <AccommodationBlock trip={trip} />}
+          {activeTab === 'geral' && <GeralTab trip={trip} permissions={permissions} onGoToPlaces={() => setActiveTab('lugares')} onGoToTransport={() => setActiveTab('transporte')} />}
+          {activeTab === 'transporte' && <TransportTab trip={trip} permissions={permissions} />}
+          {activeTab === 'hospedagem' && <AccommodationBlock trip={trip} permissions={permissions} />}
           {activeTab === 'lugares' && (
-            <PlacesScreen tripId={trip.id} places={trip.places} destinations={trip.destinations} />
+            <PlacesScreen tripId={trip.id} places={trip.places} destinations={trip.destinations} permissions={permissions} />
           )}
-          {activeTab === 'fotos' && <FotosTab trip={trip} />}
-          {activeTab === 'historia' && <HistoryTab trip={trip} />}
+          {activeTab === 'fotos' && <FotosTab trip={trip} permissions={permissions} />}
+          {activeTab === 'historia' && <HistoryTab trip={trip} permissions={permissions} />}
         </View>
       </ScrollView>
 
@@ -763,7 +769,7 @@ export default function TripDetailScreen() {
 
 // ─── Geral Tab ────────────────────────────────────────────────────────────────
 
-function GeralTab({ trip, onGoToPlaces, onGoToTransport }: { trip: any; onGoToPlaces: () => void; onGoToTransport: () => void }) {
+function GeralTab({ trip, permissions, onGoToPlaces, onGoToTransport }: { trip: any; permissions: TripPermissions; onGoToPlaces: () => void; onGoToTransport: () => void }) {
   // Aggregate all documents from all sources with source labels
   const allDocs = React.useMemo(() => {
     const docs: any[] = [];
@@ -813,29 +819,29 @@ function GeralTab({ trip, onGoToPlaces, onGoToTransport }: { trip: any; onGoToPl
       />
 
       {/* Itinerary Block (AI Day-by-Day) */}
-      <ItineraryBlock trip={trip} onGoToPlaces={onGoToPlaces} />
+      <ItineraryBlock trip={trip} permissions={permissions} onGoToPlaces={onGoToPlaces} />
 
       {/* Documents Block — aggregated from all sources */}
-      <DocumentsBlock tripId={trip.id} documents={allDocs} />
+      <DocumentsBlock tripId={trip.id} documents={allDocs} permissions={permissions} />
 
       {/* Expenses Block */}
-      <ExpensesBlock tripId={trip.id} expenses={trip.expenses} currency={trip.currency} travelers={trip.travelers || []} />
+      <ExpensesBlock tripId={trip.id} expenses={trip.expenses} currency={trip.currency} travelers={trip.travelers || []} permissions={permissions} />
 
       {/* Travelers Block */}
-      <TravelersBlock tripId={trip.id} travelers={trip.travelers} />
+      <TravelersBlock tripId={trip.id} travelers={trip.travelers} permissions={permissions} />
     </View>
   );
 }
 
-function FotosTab({ trip }: { trip: any }) {
+function FotosTab({ trip, permissions }: { trip: any; permissions: TripPermissions }) {
   return (
     <View style={{ paddingTop: 4 }}>
-      <TripPhotosBlock tripId={trip.id} tripName={trip.name || ''} fullPage />
+      <TripPhotosBlock tripId={trip.id} tripName={trip.name || ''} fullPage permissions={permissions} />
     </View>
   );
 }
 
-function TransportTab({ trip }: { trip: any }) {
+function TransportTab({ trip, permissions }: { trip: any; permissions: TripPermissions }) {
   const t = useTranslation();
   const colors = useColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
@@ -847,6 +853,7 @@ function TransportTab({ trip }: { trip: any }) {
         destinations={trip.destinations}
         cityTransportMode={trip.cityTransportMode}
         accommodations={trip.accommodations}
+        permissions={permissions}
       />
       {trip.transport.length === 0 && (
         <View style={styles.emptyState}>
@@ -859,10 +866,10 @@ function TransportTab({ trip }: { trip: any }) {
   );
 }
 
-function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: string; destination: Destination; travelMonth?: string }) {
+function DestinationInfoCard({ tripId, destination, travelMonth, permissions }: { tripId: string; destination: Destination; travelMonth?: string; permissions: TripPermissions }) {
   const generateInfo = trpc.destinationInfo.generate.useMutation();
   const { updateDestinationInfo } = useTripsStore();
-  const { hasAccess } = useSubscription();
+  const { canUseAI } = permissions;
   const [info, setInfo] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
@@ -891,18 +898,19 @@ function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: str
     }
   };
 
-  // Auto-load on mount: hydrate from cache if this destination already has
-  // saved AI info, otherwise fetch once and persist the result.
-  // Non-subscribers never trigger the AI call — they get a locked state instead.
+  // Auto-load on mount: a cached result is always shown (viewing isn't a
+  // write action), regardless of role or subscription. Only triggering a
+  // *new* generation requires AI access — users without it get a locked
+  // state instead.
   React.useEffect(() => {
-    if (!hasAccess) return;
     if (destination.aiDestinationInfo) {
       setInfo(destination.aiDestinationInfo);
       setLoaded(true);
       return;
     }
+    if (!canUseAI) return;
     load();
-  }, [hasAccess]);
+  }, [canUseAI, destination.aiDestinationInfo]);
 
   const crowdColor = (level: string) => {
     if (!level) return colors.textAccent;
@@ -922,7 +930,7 @@ function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: str
         {travelMonth && <Text style={infoStyles.destMonth}>{travelMonth}</Text>}
       </View>
 
-      {!hasAccess && (
+      {!info && !canUseAI && (
         <View style={infoStyles.aiLockedBox}>
           <View style={infoStyles.aiLockedIconBg}>
             <Ionicons name="lock-closed" size={18} color={colors.textAccent} />
@@ -940,14 +948,14 @@ function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: str
         </View>
       )}
 
-      {hasAccess && loading && (
+      {canUseAI && loading && (
         <View style={infoStyles.loadingRow}>
           <ActivityIndicator size="small" color={colors.textAccent} />
           <Text style={infoStyles.loadingText}>{t.info.loading(destination.name)}</Text>
         </View>
       )}
 
-      {hasAccess && !loading && !info && loaded && (
+      {canUseAI && !loading && !info && loaded && (
         <View style={infoStyles.loadingRow}>
           <Ionicons name="alert-circle-outline" size={16} color={colors.muted} />
           <Text style={infoStyles.loadingText}>{t.info.loadError}</Text>
@@ -1066,7 +1074,7 @@ function DestinationInfoCard({ tripId, destination, travelMonth }: { tripId: str
   );
 }
 
-function HistoryTab({ trip }: { trip: any }) {
+function HistoryTab({ trip, permissions }: { trip: any; permissions: TripPermissions }) {
   const t = useTranslation();
   const colors = useColors();
   const infoStyles = React.useMemo(() => createInfoStyles(colors), [colors]);
@@ -1087,7 +1095,7 @@ function HistoryTab({ trip }: { trip: any }) {
         </View>
       ) : (
         trip.destinations.map((dest: Destination) => (
-          <DestinationInfoCard key={dest.id} tripId={trip.id} destination={dest} travelMonth={travelMonth} />
+          <DestinationInfoCard key={dest.id} tripId={trip.id} destination={dest} travelMonth={travelMonth} permissions={permissions} />
         ))
       )}
     </ScrollView>

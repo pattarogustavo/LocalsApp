@@ -25,6 +25,7 @@ import { DatePickerField } from '@/components/ui/date-picker-field';
 import { DocAttachField } from '@/components/ui/doc-attach-field';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from '@/hooks/use-translation';
+import type { TripPermissions } from '@/hooks/use-trip-permissions';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -340,12 +341,14 @@ function AddAccommodationModal({
 
 interface AccommodationBlockProps {
   trip: Trip;
+  permissions: TripPermissions;
 }
 
-export function AccommodationBlock({ trip }: AccommodationBlockProps) {
+export function AccommodationBlock({ trip, permissions }: AccommodationBlockProps) {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { canEdit } = permissions;
   const { removeAccommodation } = useTripsStore();
   const [addingForDest, setAddingForDest] = useState<Destination | null>(null);
 
@@ -404,25 +407,29 @@ export function AccommodationBlock({ trip }: AccommodationBlockProps) {
                           </TouchableOpacity>
                         )}
                       </View>
-                      <Pressable
-                        onPress={() => removeAccommodation(trip.id, acc.id)}
-                        style={({ pressed }) => [styles.removeBtn, { opacity: pressed ? 0.7 : 1 }]}
-                      >
-                        <Ionicons name="trash-outline" size={14} color={colors.error} />
-                      </Pressable>
+                      {canEdit ? (
+                        <Pressable
+                          onPress={() => removeAccommodation(trip.id, acc.id)}
+                          style={({ pressed }) => [styles.removeBtn, { opacity: pressed ? 0.7 : 1 }]}
+                        >
+                          <Ionicons name="trash-outline" size={14} color={colors.error} />
+                        </Pressable>
+                      ) : null}
                     </View>
                   </View>
                 );
               })
             )}
 
-            <Pressable
-              onPress={() => setAddingForDest(dest)}
-              style={({ pressed }) => [styles.addAccBtn, { opacity: pressed ? 0.8 : 1 }]}
-            >
-              <Ionicons name="add" size={14} color={colors.textAccent} />
-              <Text style={styles.addAccBtnText}>{t.accommodation.addAccommodation}</Text>
-            </Pressable>
+            {canEdit ? (
+              <Pressable
+                onPress={() => setAddingForDest(dest)}
+                style={({ pressed }) => [styles.addAccBtn, { opacity: pressed ? 0.8 : 1 }]}
+              >
+                <Ionicons name="add" size={14} color={colors.textAccent} />
+                <Text style={styles.addAccBtnText}>{t.accommodation.addAccommodation}</Text>
+              </Pressable>
+            ) : null}
           </View>
         );
       })}

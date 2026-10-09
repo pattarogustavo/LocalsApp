@@ -281,6 +281,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   updateTrip: async (id: string, updates: Partial<Trip>) => {
+    if (!get().trips.some((t) => t.id === id)) {
+      console.warn(`[TripsStore] Ignored updateTrip: trip ${id} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
     );
@@ -291,6 +295,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   deleteTrip: async (id: string) => {
+    if (!get().trips.some((t) => t.id === id)) {
+      console.warn(`[TripsStore] Ignored deleteTrip: trip ${id} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.filter((t) => t.id !== id);
     set({ trips });
     await saveToStorage(trips);
@@ -298,6 +306,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   toggleFavorite: async (tripId: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored toggleFavorite: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId ? { ...t, isFavorite: !t.isFavorite, updatedAt: new Date().toISOString() } : t
     );
@@ -310,6 +322,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   // ─── Places ────────────────────────────────────────────────────────────────
 
   addPlace: async (tripId: string, place: Place) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored addPlace: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId ? { ...t, places: [...t.places, place], updatedAt: new Date().toISOString() } : t
     );
@@ -320,6 +336,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   removePlace: async (tripId: string, placeId: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored removePlace: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) => {
       if (t.id !== tripId) return t;
       const places = t.places.filter((p) => p.id !== placeId);
@@ -336,6 +356,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   updatePlace: async (tripId: string, placeId: string, updates: Partial<Place>) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored updatePlace: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, places: t.places.map((p) => p.id === placeId ? { ...p, ...updates } : p), updatedAt: new Date().toISOString() }
@@ -349,7 +373,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
 
   upsertPlace: async (tripId: string, input: UpsertPlaceInput): Promise<string> => {
     const trip = get().trips.find((t) => t.id === tripId);
-    if (!trip) return generateId();
+    if (!trip) {
+      console.warn(`[TripsStore] Ignored upsertPlace: trip ${tripId} is not an owned trip in this store.`);
+      return '';
+    }
 
     const normalizedName = input.name.trim().toLowerCase();
     const existing =
@@ -399,6 +426,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   setPlaces: async (tripId: string, places: Place[]) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored setPlaces: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId ? { ...t, places, updatedAt: new Date().toISOString() } : t
     );
@@ -411,6 +442,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   // ─── Documents ─────────────────────────────────────────────────────────────
 
   addDocument: async (tripId: string, doc: Document) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored addDocument: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, documents: [...t.documents, doc], updatedAt: new Date().toISOString() }
@@ -423,6 +458,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   removeDocument: async (tripId: string, docId: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored removeDocument: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, documents: t.documents.filter((d) => d.id !== docId), updatedAt: new Date().toISOString() }
@@ -437,6 +476,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   // ─── Expenses ──────────────────────────────────────────────────────────────
 
   addExpense: async (tripId: string, expense: Expense) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored addExpense: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, expenses: [...t.expenses, expense], updatedAt: new Date().toISOString() }
@@ -449,6 +492,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   removeExpense: async (tripId: string, expenseId: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored removeExpense: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, expenses: t.expenses.filter((e) => e.id !== expenseId), updatedAt: new Date().toISOString() }
@@ -463,6 +510,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   // ─── Travelers ─────────────────────────────────────────────────────────────
 
   addTraveler: async (tripId: string, traveler: Traveler) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored addTraveler: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, travelers: [...t.travelers, traveler], updatedAt: new Date().toISOString() }
@@ -475,6 +526,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   removeTraveler: async (tripId: string, travelerId: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored removeTraveler: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, travelers: t.travelers.filter((tr) => tr.id !== travelerId), updatedAt: new Date().toISOString() }
@@ -489,6 +544,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   // ─── Transport ─────────────────────────────────────────────────────────────
 
   addTransport: async (tripId: string, transport: Transport) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored addTransport: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, transport: [...t.transport, transport], updatedAt: new Date().toISOString() }
@@ -501,6 +560,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   removeTransport: async (tripId: string, transportId: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored removeTransport: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, transport: t.transport.filter((tr) => tr.id !== transportId), updatedAt: new Date().toISOString() }
@@ -513,6 +576,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   updateTransport: async (tripId: string, transportId: string, updates: Partial<Transport>) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored updateTransport: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? {
@@ -529,6 +596,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   updateCityTransportMode: async (tripId: string, mode) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored updateCityTransportMode: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId ? { ...t, cityTransportMode: mode, updatedAt: new Date().toISOString() } : t
     );
@@ -541,6 +612,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   // ─── Accommodations ────────────────────────────────────────────────────────
 
   addAccommodation: async (tripId: string, accommodation: Accommodation) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored addAccommodation: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, accommodations: [...t.accommodations, accommodation], updatedAt: new Date().toISOString() }
@@ -553,6 +628,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   removeAccommodation: async (tripId: string, accommodationId: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored removeAccommodation: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, accommodations: t.accommodations.filter((a) => a.id !== accommodationId), updatedAt: new Date().toISOString() }
@@ -565,6 +644,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   updateAccommodation: async (tripId: string, accommodationId: string, updates: Partial<Accommodation>) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored updateAccommodation: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? {
@@ -585,6 +668,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   // ─── Itinerary ─────────────────────────────────────────────────────────────
 
   setItinerary: async (tripId: string, days: DayItinerary[]) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored setItinerary: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, itinerary: days, aiGeneratedItinerary: true, updatedAt: new Date().toISOString() }
@@ -600,7 +687,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
 
   updateDestinations: async (tripId: string, destinations: Destination[]) => {
     const trip = get().trips.find((t) => t.id === tripId);
-    if (!trip) return;
+    if (!trip) {
+      console.warn(`[TripsStore] Ignored updateDestinations: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const totalDays = destinations.reduce((sum, d) => sum + d.days, 0);
     const endDate = new Date(trip.startDate);
     endDate.setDate(endDate.getDate() + totalDays - 1);
@@ -620,6 +710,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   updateDestinationSuggestedPlaces: async (tripId: string, destinationId: string, places: Place[]) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored updateDestinationSuggestedPlaces: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? {
@@ -638,6 +732,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   updateDestinationInfo: async (tripId: string, destinationId: string, info: any) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored updateDestinationInfo: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? {
@@ -656,6 +754,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   updateStartDate: async (tripId: string, startDate: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored updateStartDate: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trip = get().trips.find((t) => t.id === tripId);
     const endDate = trip ? (() => { const d = new Date(startDate); d.setDate(d.getDate() + trip.totalDays - 1); return d.toISOString(); })() : startDate;
     const trips = get().trips.map((t) =>
@@ -670,6 +772,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   // ─── Photos ─────────────────────────────────────────────────────────────────
 
   addPhoto: async (tripId: string, photo: TripPhoto) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored addPhoto: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, photos: [...(t.photos || []), photo], updatedAt: new Date().toISOString() }
@@ -682,6 +788,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   removePhoto: async (tripId: string, photoId: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored removePhoto: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId
         ? { ...t, photos: (t.photos || []).filter((p) => p.id !== photoId), updatedAt: new Date().toISOString() }
@@ -694,6 +804,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   updateCoverImage: async (tripId: string, url: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored updateCoverImage: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) =>
       t.id === tripId ? { ...t, coverImageUrl: url, updatedAt: new Date().toISOString() } : t
     );
@@ -706,6 +820,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   // ─── Itinerary Stop Editing ────────────────────────────────────────────────
 
   updateItineraryStop: async (tripId: string, dayIndex: number, stopId: string, updates: Partial<ItineraryStop>) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored updateItineraryStop: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) => {
       if (t.id !== tripId) return t;
       const itinerary = t.itinerary.map((day, idx) => {
@@ -721,6 +839,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   removeItineraryStop: async (tripId: string, dayIndex: number, stopId: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored removeItineraryStop: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) => {
       if (t.id !== tripId) return t;
       const itinerary = t.itinerary.map((day, idx) => {
@@ -736,6 +858,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   moveItineraryStop: async (tripId: string, fromDayIndex: number, toDayIndex: number, stopId: string, toPosition?: number) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored moveItineraryStop: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) => {
       if (t.id !== tripId) return t;
       const itinerary = t.itinerary.map((day, idx) => {
@@ -766,6 +892,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   addItineraryStop: async (tripId: string, dayIndex: number, stop: ItineraryStop) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored addItineraryStop: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) => {
       if (t.id !== tripId) return t;
       const baseItinerary = [...t.itinerary];
@@ -792,6 +922,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   reorderItineraryStops: async (tripId: string, dayIndex: number, newStops: ItineraryStop[]) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored reorderItineraryStops: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) => {
       if (t.id !== tripId) return t;
       const itinerary = t.itinerary.map((day, idx) => {
@@ -807,6 +941,10 @@ export const useTripsStore = create<TripsState>((set, get) => ({
   },
 
   removeItineraryStopAndPlace: async (tripId: string, dayIndex: number, stopId: string, placeId?: string) => {
+    if (!get().trips.some((t) => t.id === tripId)) {
+      console.warn(`[TripsStore] Ignored removeItineraryStopAndPlace: trip ${tripId} is not an owned trip in this store.`);
+      return;
+    }
     const trips = get().trips.map((t) => {
       if (t.id !== tripId) return t;
       const itinerary = t.itinerary.map((day, idx) => {

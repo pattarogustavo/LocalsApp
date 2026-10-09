@@ -22,6 +22,7 @@ import type { TripPhoto } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
+import type { TripPermissions } from '@/hooks/use-trip-permissions';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3; // 3 columns with padding
@@ -35,9 +36,11 @@ interface Props {
   tripId: string;
   tripName: string;
   fullPage?: boolean;
+  permissions: TripPermissions;
 }
 
-export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
+export function TripPhotosBlock({ tripId, tripName, fullPage, permissions }: Props) {
+  const canEdit = permissions.canEdit;
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -145,18 +148,27 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
             </View>
           )}
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={showOptions}>
-          <Ionicons name="add" size={16} color={colors.textAccent} />
-          <Text style={styles.addBtnText}>{t.common.add}</Text>
-        </TouchableOpacity>
+        {canEdit && (
+          <TouchableOpacity style={styles.addBtn} onPress={showOptions}>
+            <Ionicons name="add" size={16} color={colors.textAccent} />
+            <Text style={styles.addBtnText}>{t.common.add}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {photos.length === 0 ? (
-        <TouchableOpacity style={styles.emptyState} onPress={showOptions}>
-          <Ionicons name="camera-outline" size={28} color={colors.muted} />
-          <Text style={styles.emptyText}>{t.photos.emptyText ?? 'Adicione fotos da sua viagem'}</Text>
-          <Text style={styles.emptySubtext}>{t.photos.emptySubtext ?? 'Compartilhadas com todos os viajantes'}</Text>
-        </TouchableOpacity>
+        canEdit ? (
+          <TouchableOpacity style={styles.emptyState} onPress={showOptions}>
+            <Ionicons name="camera-outline" size={28} color={colors.muted} />
+            <Text style={styles.emptyText}>{t.photos.emptyText ?? 'Adicione fotos da sua viagem'}</Text>
+            <Text style={styles.emptySubtext}>{t.photos.emptySubtext ?? 'Compartilhadas com todos os viajantes'}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.emptyState}>
+            <Ionicons name="camera-outline" size={28} color={colors.muted} />
+            <Text style={styles.emptyText}>{t.photos.emptyText ?? 'Adicione fotos da sua viagem'}</Text>
+          </View>
+        )
       ) : (
         <View style={styles.grid}>
           {photos.map((photo) => (
@@ -164,7 +176,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
               key={photo.id}
               style={styles.photoCell}
               onPress={() => setSelectedPhoto(photo)}
-              onLongPress={() => handleDelete(photo)}
+              onLongPress={canEdit ? () => handleDelete(photo) : undefined}
             >
               <Image source={{ uri: photo.url }} style={styles.photoThumb} />
               {photo.caption ? (
@@ -175,9 +187,11 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
             </TouchableOpacity>
           ))}
           {/* Add more button */}
-          <TouchableOpacity style={styles.addMoreCell} onPress={showOptions}>
-            <Ionicons name="add" size={24} color={colors.muted} />
-          </TouchableOpacity>
+          {canEdit && (
+            <TouchableOpacity style={styles.addMoreCell} onPress={showOptions}>
+              <Ionicons name="add" size={24} color={colors.muted} />
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -207,16 +221,18 @@ export function TripPhotosBlock({ tripId, tripName, fullPage }: Props) {
                   {t.photos.addedBy ?? 'Adicionado por'} {selectedPhoto.uploadedBy} •{' '}
                   {new Date(selectedPhoto.uploadedAt).toLocaleDateString()}
                 </Text>
-                <TouchableOpacity
-                  style={styles.deletePhotoBtn}
-                  onPress={() => {
-                    setSelectedPhoto(null);
-                    setTimeout(() => handleDelete(selectedPhoto), 300);
-                  }}
-                >
-                  <Ionicons name="trash-outline" size={16} color={colors.error} />
-                  <Text style={styles.deletePhotoText}>{t.photos.deletePhoto}</Text>
-                </TouchableOpacity>
+                {canEdit && (
+                  <TouchableOpacity
+                    style={styles.deletePhotoBtn}
+                    onPress={() => {
+                      setSelectedPhoto(null);
+                      setTimeout(() => handleDelete(selectedPhoto), 300);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={colors.error} />
+                    <Text style={styles.deletePhotoText}>{t.photos.deletePhoto}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </>
           )}

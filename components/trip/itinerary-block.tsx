@@ -11,13 +11,13 @@ import { router } from 'expo-router';
 import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
-import { useSubscription } from '@/hooks/use-subscription';
 import { ProBadge } from '@/components/trial-banner';
 import { trpc } from '@/lib/trpc';
 import { CityTransportSection } from '@/components/trip/transport-block';
 import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
 import { generateId } from '@/utils/trip-helpers';
 import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop, CityTransportMode } from '@/types/voyage';
+import type { TripPermissions } from '@/hooks/use-trip-permissions';
 import { useTranslation } from '@/hooks/use-translation';
 import type { Translations } from '@/i18n';
 import { useColors } from '@/hooks/use-colors';
@@ -393,15 +393,21 @@ function StopItem({
 
         {/* Right: time (tap to edit) + move button */}
         <View style={styles.gmRightCol}>
-          {/* Time — tap to edit */}
+          {/* Time — tap to edit (only when editing is allowed) */}
           {stop.time ? (
-            <TouchableOpacity
-              onPress={(e) => { e.stopPropagation?.(); setTimeInput(stop.time || ''); setEditingTime(true); }}
-              style={styles.gmTimeBtn}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.gmTimeText}>{stop.time}</Text>
-            </TouchableOpacity>
+            onTimeChange ? (
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation?.(); setTimeInput(stop.time || ''); setEditingTime(true); }}
+                style={styles.gmTimeBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.gmTimeText}>{stop.time}</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.gmTimeBtn}>
+                <Text style={styles.gmTimeText}>{stop.time}</Text>
+              </View>
+            )
           ) : null}
           {/* Move button — only for real stops */}
           {onMove ? (
@@ -643,6 +649,7 @@ function DayView({
   onGoToPlaces,
   startDate,
   places,
+  permissions,
 }: {
   day: DayItinerary | undefined;
   dayIndex: number;
@@ -654,6 +661,7 @@ function DayView({
   onGoToPlaces: () => void;
   startDate: string;
   places?: Place[];
+  permissions: TripPermissions;
 }) {
   const t = useTranslation();
   const colors = useColors();
@@ -672,10 +680,12 @@ function DayView({
     return (
       <View style={styles.emptyDay}>
         <Text style={styles.emptyDayText}>{t.itinerary.noStops}</Text>
-        <TouchableOpacity onPress={onGoToPlaces} style={styles.goToPlacesBtn}>
-          <Ionicons name="location-outline" size={14} color={colors.textOnPrimary} />
-          <Text style={styles.goToPlacesBtnText}>{t.itinerary.addStop}</Text>
-        </TouchableOpacity>
+        {permissions.canEdit && (
+          <TouchableOpacity onPress={onGoToPlaces} style={styles.goToPlacesBtn}>
+            <Ionicons name="location-outline" size={14} color={colors.textOnPrimary} />
+            <Text style={styles.goToPlacesBtnText}>{t.itinerary.addStop}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
@@ -718,6 +728,10 @@ function DayView({
   };
 
   const handleUpdateRoutes = async () => {
+    if (!permissions.canUseAI) {
+      router.push('/paywall' as any);
+      return;
+    }
     const mode = toDirectionsMode(cityTransportMode);
     // Build origin/destination pairs for every day in the itinerary, tracking
     // which day + stop each pair belongs to so results can be applied back correctly.
@@ -763,8 +777,8 @@ function DayView({
 
   return (
     <View>
-      {/* Update routes button */}
-      {stops.length >= 2 && (
+      {/* Update routes button — AI-equivalent write action, requires canUseAI */}
+      {stops.length >= 2 && permissions.canEdit && (
         <TouchableOpacity
           onPress={handleUpdateRoutes}
           disabled={updatingRoutes}
@@ -835,10 +849,10 @@ function DayView({
             isLast={idx === rawStops.length - 1}
             prevStop={prevS}
             cityTransportMode={cityTransportMode}
-            onDelete={s.id ? () => handleDeleteStop(s) : undefined}
-            onTimeChange={s.id ? (t) => handleTimeChange(s, t) : undefined}
-            onMove={s.id ? () => { setStopToMove(s); setMoveMode('position'); setShowMoveModal(true); } : undefined}
-            onEdit={s.id ? (updates) => updateItineraryStop(tripId, dayIndex, s.id!, updates) : undefined}
+            onDelete={s.id && permissions.canEdit ? () => handleDeleteStop(s) : undefined}
+            onTimeChange={s.id && permissions.canEdit ? (t) => handleTimeChange(s, t) : undefined}
+            onMove={s.id && permissions.canEdit ? () => { setStopToMove(s); setMoveMode('position'); setShowMoveModal(true); } : undefined}
+            onEdit={s.id && permissions.canEdit ? (updates) => updateItineraryStop(tripId, dayIndex, s.id!, updates) : undefined}
             animIndex={hotelStop ? idx + 1 : idx}
             linkedPlace={linked}
           />
@@ -979,11 +993,12 @@ interface ItineraryBlockProps {
   trip: Trip;
   onGoToPlaces: () => void;
   cityTransportMode?: string;
+  permissions: TripPermissions;
 }
 
 // ─── Unscheduled Place Row ──────────────────────────────────────────────────────
 
-function UnscheduledPlaceRow({ place, onAdd, onRemove }: { place: Place; onAdd: () => void; onRemove: () => void }) {
+function UnscheduledPlaceRow({ place, onAdd, onRemove, canEdit }: { place: Place; onAdd: () => void; onRemove: () => void; canEdit: boolean }) {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -1008,16 +1023,20 @@ function UnscheduledPlaceRow({ place, onAdd, onRemove }: { place: Place; onAdd: 
         <Text style={styles.unscheduledName} numberOfLines={1}>{place.name}</Text>
         <Text style={styles.unscheduledCat}>{catLabels[cat] || cat}</Text>
       </View>
-      <TouchableOpacity onPress={onAdd} style={styles.unscheduledAddBtn}>
-        <Ionicons name="add" size={18} color={colors.textAccent} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={onRemove}
-        style={styles.unscheduledAddBtn}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Ionicons name="trash-outline" size={16} color={colors.muted} />
-      </TouchableOpacity>
+      {canEdit && (
+        <>
+          <TouchableOpacity onPress={onAdd} style={styles.unscheduledAddBtn}>
+            <Ionicons name="add" size={18} color={colors.textAccent} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onRemove}
+            style={styles.unscheduledAddBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="trash-outline" size={16} color={colors.muted} />
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 }
@@ -1062,7 +1081,7 @@ function getProfileOptions(t: Translations) {
   ];
 }
 
-export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: ItineraryBlockProps) {
+export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissions }: ItineraryBlockProps) {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -1072,7 +1091,6 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
   const PROFILE_OPTIONS = useMemo(() => getProfileOptions(t), [t]);
   const PACE_OPTIONS = useMemo(() => getPaceOptions(t), [t]);
   const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace, addAccommodation, updateTrip } = useTripsStore();
-  const { hasAccess } = useSubscription();
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
   const [generating, setGenerating] = useState(false);
@@ -1340,7 +1358,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           <Ionicons name="calendar-outline" size={15} color={colors.textAccent} />
           <Text style={styles.sectionTitle}>{t.itinerary.dayByDayTitle}</Text>
         </View>
-        {hasItinerary && (
+        {hasItinerary && permissions.canEdit && (
           <TouchableOpacity
             onPress={handleDeleteAllItinerary}
             style={styles.deleteAllBtn}
@@ -1401,41 +1419,44 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
           accommodations={trip.accommodations}
           onGoToPlaces={onGoToPlaces}
           places={trip.places}
+          permissions={permissions}
         />
 
         {/* Create/Edit button — at the BOTTOM of the itinerary content */}
-        <TouchableOpacity
-          onPress={() => {
-            if (hasItinerary) {
-              Alert.alert(
-                t.itinerary.recreateTitle,
-                t.itinerary.recreateMsg,
-                [
-                  { text: t.common.cancel, style: 'cancel' },
-                  { text: t.common.confirm, onPress: () => setShowCreateModal(true) },
-                ]
-              );
-            } else {
-              setShowCreateModal(true);
-            }
-          }}
-          style={[styles.createItineraryBtn, { marginTop: 16, marginBottom: 0 }]}
-          disabled={generating}
-        >
-          {generating ? (
-            <>
-              <ActivityIndicator size="small" color={colors.textOnPrimary} />
-              <Text style={styles.createItineraryBtnText}>{t.ai.generatingItinerary}</Text>
-            </>
-          ) : (
-            <>
-              <Ionicons name="sparkles" size={15} color={colors.textOnPrimary} />
-              <Text style={styles.createItineraryBtnText}>
-                {hasItinerary ? t.itinerary.editItinerary : t.itinerary.createItinerary}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {permissions.canEdit && (
+          <TouchableOpacity
+            onPress={() => {
+              if (hasItinerary) {
+                Alert.alert(
+                  t.itinerary.recreateTitle,
+                  t.itinerary.recreateMsg,
+                  [
+                    { text: t.common.cancel, style: 'cancel' },
+                    { text: t.common.confirm, onPress: () => setShowCreateModal(true) },
+                  ]
+                );
+              } else {
+                setShowCreateModal(true);
+              }
+            }}
+            style={[styles.createItineraryBtn, { marginTop: 16, marginBottom: 0 }]}
+            disabled={generating}
+          >
+            {generating ? (
+              <>
+                <ActivityIndicator size="small" color={colors.textOnPrimary} />
+                <Text style={styles.createItineraryBtnText}>{t.ai.generatingItinerary}</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="sparkles" size={15} color={colors.textOnPrimary} />
+                <Text style={styles.createItineraryBtnText}>
+                  {hasItinerary ? t.itinerary.editItinerary : t.itinerary.createItinerary}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Unscheduled places panel */}
@@ -1459,6 +1480,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
                 place={place}
                 onAdd={() => { setDayPickIndex(selectedDay); setDayPickPlace(place); }}
                 onRemove={() => handleRemoveUnscheduledPlace(place)}
+                canEdit={permissions.canEdit}
               />
             ))}
             {shouldCollapse && (
@@ -1493,53 +1515,57 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode }: Itiner
             <Text style={styles.paceModalSubtitle}>{t.itinerary.createSubtitle}</Text>
 
             {/* Mode options */}
-            <TouchableOpacity
-              onPress={() => {
-                setShowCreateModal(false);
-                if (!hasAccess) { router.push('/paywall' as any); return; }
-                setShowProfileModal(true);
-              }}
-              style={styles.createModeOption}
-            >
-              <View style={[styles.createModeIcon, { backgroundColor: withAlpha(colors.primary, 0.12) }]}>
-                <Ionicons name="sparkles" size={20} color={colors.textAccent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={styles.createModeLabel}>{t.itinerary.createModeAutoLabel}</Text>
-                  <ProBadge />
+            {permissions.canEdit && (
+              <TouchableOpacity
+                onPress={() => {
+                  setShowCreateModal(false);
+                  if (!permissions.canUseAI) { router.push('/paywall' as any); return; }
+                  setShowProfileModal(true);
+                }}
+                style={styles.createModeOption}
+              >
+                <View style={[styles.createModeIcon, { backgroundColor: withAlpha(colors.primary, 0.12) }]}>
+                  <Ionicons name="sparkles" size={20} color={colors.textAccent} />
                 </View>
-                <Text style={styles.createModeDesc}>{t.itinerary.createModeAutoDesc}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-            </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.createModeLabel}>{t.itinerary.createModeAutoLabel}</Text>
+                    <ProBadge />
+                  </View>
+                  <Text style={styles.createModeDesc}>{t.itinerary.createModeAutoDesc}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity
-              onPress={() => {
-                setShowCreateModal(false);
-                if (trip.places.length > 0) {
-                  // Has saved places — open inline picker
-                  setShowManualPicker(true);
-                } else {
-                  // No places — redirect to Lugares tab
-                  onGoToPlaces();
-                }
-              }}
-              style={styles.createModeOption}
-            >
-              <View style={[styles.createModeIcon, { backgroundColor: withAlpha(colors.info, 0.15) }]}>
-                <Ionicons name="list" size={20} color={colors.info} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.createModeLabel}>{t.itinerary.createModeManualLabel}</Text>
-                <Text style={styles.createModeDesc}>
-                  {trip.places.length > 0
-                    ? t.itinerary.createModeManualDescFilled(trip.places.length)
-                    : t.itinerary.createModeManualDescEmpty}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-            </TouchableOpacity>
+            {permissions.canEdit && (
+              <TouchableOpacity
+                onPress={() => {
+                  setShowCreateModal(false);
+                  if (trip.places.length > 0) {
+                    // Has saved places — open inline picker
+                    setShowManualPicker(true);
+                  } else {
+                    // No places — redirect to Lugares tab
+                    onGoToPlaces();
+                  }
+                }}
+                style={styles.createModeOption}
+              >
+                <View style={[styles.createModeIcon, { backgroundColor: withAlpha(colors.info, 0.15) }]}>
+                  <Ionicons name="list" size={20} color={colors.info} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.createModeLabel}>{t.itinerary.createModeManualLabel}</Text>
+                  <Text style={styles.createModeDesc}>
+                    {trip.places.length > 0
+                      ? t.itinerary.createModeManualDescFilled(trip.places.length)
+                      : t.itinerary.createModeManualDescEmpty}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>

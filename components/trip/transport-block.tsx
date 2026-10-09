@@ -25,6 +25,7 @@ import { useAuthStore } from '@/store/auth';
 import { getTranslations } from '@/i18n';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
+import type { TripPermissions } from '@/hooks/use-trip-permissions';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -149,11 +150,13 @@ function FlightCard({
   onRemove,
   onAddBoardingPass,
   onViewBoardingPass,
+  canEdit,
 }: {
   transport: Transport;
   onRemove: () => void;
   onAddBoardingPass: () => void;
   onViewBoardingPass: () => void;
+  canEdit: boolean;
 }) {
   const t = useTranslation();
   const colors = useColors();
@@ -192,9 +195,11 @@ function FlightCard({
             <Text style={styles.flightAirlineName}>{f.airline}</Text>
           ) : null}
         </View>
-        <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-          <Ionicons name="trash-outline" size={14} color={colors.muted} />
-        </TouchableOpacity>
+        {canEdit && (
+          <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
+            <Ionicons name="trash-outline" size={14} color={colors.muted} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Main route row — city names top, IATA big, times below */}
@@ -251,12 +256,12 @@ function FlightCard({
             <Ionicons name="qr-code-outline" size={12} color={colors.textAccent} />
             <Text style={styles.boardingPassText}>{t.transport.passagem}</Text>
           </TouchableOpacity>
-        ) : (
+        ) : canEdit ? (
           <TouchableOpacity style={styles.boardingPassBtnEmpty} onPress={onAddBoardingPass}>
             <Ionicons name="qr-code-outline" size={12} color={colors.muted} />
             <Text style={styles.boardingPassTextEmpty}>+ QR</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
     </View>
   );
@@ -264,7 +269,7 @@ function FlightCard({
 
 // ─── Car Card ────────────────────────────────────────────────────────────────
 
-function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () => void }) {
+function CarCard({ transport, onRemove, canEdit }: { transport: Transport; onRemove: () => void; canEdit: boolean }) {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -285,9 +290,11 @@ function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () =
           </View>
           <Text style={styles.flightAirlineName}>{transport.leg || t.transport.car}</Text>
         </View>
-        <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-          <Ionicons name="trash-outline" size={14} color={colors.muted} />
-        </TouchableOpacity>
+        {canEdit && (
+          <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
+            <Ionicons name="trash-outline" size={14} color={colors.muted} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Route */}
@@ -335,7 +342,7 @@ function CarCard({ transport, onRemove }: { transport: Transport; onRemove: () =
   );
 }
 
-function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: () => void }) {
+function GenericCard({ transport, onRemove, canEdit }: { transport: Transport; onRemove: () => void; canEdit: boolean }) {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -356,9 +363,11 @@ function GenericCard({ transport, onRemove }: { transport: Transport; onRemove: 
             {transport.travelTime ? <Text style={styles.airlineName}>{transport.travelTime}</Text> : null}
           </View>
         </View>
-        <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-          <Ionicons name="trash-outline" size={14} color={colors.muted} />
-        </TouchableOpacity>
+        {canEdit && (
+          <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
+            <Ionicons name="trash-outline" size={14} color={colors.muted} />
+          </TouchableOpacity>
+        )}
       </View>
       {transport.leg ? (
         <Text style={styles.legLabel}>{transport.leg}</Text>
@@ -1392,11 +1401,13 @@ function BoardingPassModal({
   visible,
   onClose,
   onReplace,
+  canEdit,
 }: {
   uri: string;
   visible: boolean;
   onClose: () => void;
   onReplace: () => void;
+  canEdit: boolean;
 }) {
   const t = useTranslation();
   const colors = useColors();
@@ -1408,11 +1419,13 @@ function BoardingPassModal({
           <Ionicons name="close" size={22} color={colors.textOnPrimary} />
         </TouchableOpacity>
         <Image source={{ uri }} style={styles.bpImage} resizeMode="contain" />
-        <TouchableOpacity style={styles.bpReplaceBtn} onPress={onReplace}>
-          {/* Fixed light icon: sits on the always-dark boarding-pass viewer scrim, not theme-driven */}
-          <Ionicons name="refresh-outline" size={14} color={colors.textOnPrimary} />
-          <Text style={styles.bpReplaceText}>{t.transport.replaceImage}</Text>
-        </TouchableOpacity>
+        {canEdit && (
+          <TouchableOpacity style={styles.bpReplaceBtn} onPress={onReplace}>
+            {/* Fixed light icon: sits on the always-dark boarding-pass viewer scrim, not theme-driven */}
+            <Ionicons name="refresh-outline" size={14} color={colors.textOnPrimary} />
+            <Text style={styles.bpReplaceText}>{t.transport.replaceImage}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </Modal>
   );
@@ -1420,7 +1433,7 @@ function BoardingPassModal({
 
 // ─── City Transport Section ────────────────────────────────────────────────────
 
-export function CityTransportSection({ tripId, cityMode }: { tripId: string; cityMode?: CityTransportMode }) {
+export function CityTransportSection({ tripId, cityMode, canEdit = true }: { tripId: string; cityMode?: CityTransportMode; canEdit?: boolean }) {
   const { updateCityTransportMode } = useTripsStore();
   const t = useTranslation();
   const colors = useColors();
@@ -1446,7 +1459,8 @@ export function CityTransportSection({ tripId, cityMode }: { tripId: string; cit
           return (
             <TouchableOpacity
               key={m.key}
-              onPress={() => updateCityTransportMode(tripId, m.key)}
+              onPress={canEdit ? () => updateCityTransportMode(tripId, m.key) : undefined}
+              disabled={!canEdit}
               style={[styles.cityModeCard, isActive && styles.cityModeCardActive]}
             >
               <Ionicons name={m.icon as any} size={20} color={isActive ? colors.textOnPrimary : colors.textAccent} />
@@ -1468,13 +1482,16 @@ export function TransportBlock({
   destinations,
   cityTransportMode,
   accommodations,
+  permissions,
 }: {
   tripId: string;
   transports: Transport[];
   destinations: Destination[];
   cityTransportMode?: CityTransportMode;
   accommodations?: Accommodation[];
+  permissions: TripPermissions;
 }) {
+  const canEdit = permissions.canEdit;
   const t = useTranslation();
   const { addTransport, removeTransport, updateTransport } = useTripsStore();
   const colors = useColors();
@@ -1593,17 +1610,26 @@ export function TransportBlock({
           <Ionicons name="airplane-outline" size={15} color={colors.textAccent} />
           <Text style={styles.sectionTitle}>{t.transport.betweenDests}</Text>
         </View>
-        <TouchableOpacity onPress={() => { setSelectedLeg(undefined); setShowModal(true); }} style={styles.addIconBtn}>
-          <Ionicons name="add" size={18} color={colors.textAccent} />
-        </TouchableOpacity>
+        {canEdit && (
+          <TouchableOpacity onPress={() => { setSelectedLeg(undefined); setShowModal(true); }} style={styles.addIconBtn}>
+            <Ionicons name="add" size={18} color={colors.textAccent} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {transports.length === 0 ? (
-        <TouchableOpacity onPress={() => { setSelectedLeg(undefined); setShowModal(true); }} style={styles.emptyState}>
-          <Ionicons name="airplane-outline" size={24} color={colors.muted} />
-          <Text style={styles.emptyText}>{t.transport.emptyTransport}</Text>
-          <Text style={styles.emptyCta}>{t.transport.tapToConfigure}</Text>
-        </TouchableOpacity>
+        canEdit ? (
+          <TouchableOpacity onPress={() => { setSelectedLeg(undefined); setShowModal(true); }} style={styles.emptyState}>
+            <Ionicons name="airplane-outline" size={24} color={colors.muted} />
+            <Text style={styles.emptyText}>{t.transport.emptyTransport}</Text>
+            <Text style={styles.emptyCta}>{t.transport.tapToConfigure}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.emptyState}>
+            <Ionicons name="airplane-outline" size={24} color={colors.muted} />
+            <Text style={styles.emptyText}>{t.transport.emptyTransport}</Text>
+          </View>
+        )
       ) : (
         <View style={{ gap: 16 }}>
           {legs.map((leg) => {
@@ -1616,13 +1642,15 @@ export function TransportBlock({
                   <View style={{ flex: 1, height: 1, backgroundColor: withAlpha(colors.primary, 0.10), marginLeft: 8 }} />
                 </View>
                 {legTransports.length === 0 ? (
-                  <TouchableOpacity
-                    style={styles.legEmptyRow}
-                    onPress={() => { setSelectedLeg(leg); setShowModal(true); }}
-                  >
-                    <Ionicons name="add-circle-outline" size={16} color={withAlpha(colors.primary, 0.4)} />
-                    <Text style={styles.legEmptyText}>{t.transport.addTransportLeg}</Text>
-                  </TouchableOpacity>
+                  canEdit && (
+                    <TouchableOpacity
+                      style={styles.legEmptyRow}
+                      onPress={() => { setSelectedLeg(leg); setShowModal(true); }}
+                    >
+                      <Ionicons name="add-circle-outline" size={16} color={withAlpha(colors.primary, 0.4)} />
+                      <Text style={styles.legEmptyText}>{t.transport.addTransportLeg}</Text>
+                    </TouchableOpacity>
+                  )
                 ) : (
                   <View style={{ gap: 10 }}>
                     {legTransports.map((t) =>
@@ -1633,11 +1661,12 @@ export function TransportBlock({
                           onRemove={() => handleRemove(t)}
                           onAddBoardingPass={() => handleAddBoardingPass(t.id)}
                           onViewBoardingPass={() => setViewingBoardingPass(t)}
+                          canEdit={canEdit}
                         />
                       ) : t.mode === 'car' && t.car ? (
-                        <CarCard key={t.id} transport={t} onRemove={() => handleRemove(t)} />
+                        <CarCard key={t.id} transport={t} onRemove={() => handleRemove(t)} canEdit={canEdit} />
                       ) : (
-                        <GenericCard key={t.id} transport={t} onRemove={() => handleRemove(t)} />
+                        <GenericCard key={t.id} transport={t} onRemove={() => handleRemove(t)} canEdit={canEdit} />
                       )
                     )}
                   </View>
@@ -1661,11 +1690,12 @@ export function TransportBlock({
                     onRemove={() => handleRemove(t)}
                     onAddBoardingPass={() => handleAddBoardingPass(t.id)}
                     onViewBoardingPass={() => setViewingBoardingPass(t)}
+                    canEdit={canEdit}
                   />
                 ) : t.mode === 'car' && t.car ? (
-                  <CarCard key={t.id} transport={t} onRemove={() => handleRemove(t)} />
+                  <CarCard key={t.id} transport={t} onRemove={() => handleRemove(t)} canEdit={canEdit} />
                 ) : (
-                  <GenericCard key={t.id} transport={t} onRemove={() => handleRemove(t)} />
+                  <GenericCard key={t.id} transport={t} onRemove={() => handleRemove(t)} canEdit={canEdit} />
                 )
               )}
               </View>
@@ -1675,7 +1705,7 @@ export function TransportBlock({
       )}
 
       {/* ── Dentro da Cidade ── */}
-      <CityTransportSection tripId={tripId} cityMode={cityTransportMode} />
+      <CityTransportSection tripId={tripId} cityMode={cityTransportMode} canEdit={canEdit} />
 
       {/* Modals */}
       <AddTransportModal
@@ -1697,6 +1727,7 @@ export function TransportBlock({
             setViewingBoardingPass(null);
             setTimeout(() => handleAddBoardingPass(id), 400);
           }}
+          canEdit={canEdit}
         />
       )}
     </View>

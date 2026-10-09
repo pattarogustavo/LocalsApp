@@ -12,6 +12,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { trpcVanilla } from '@/lib/trpc-vanilla';
 import { getApiBaseUrl } from '@/constants/api';
+import type { TripPermissions } from '@/hooks/use-trip-permissions';
 
 async function uploadTripDocumentFile(params: {
   tripId: string;
@@ -34,6 +35,7 @@ async function uploadTripDocumentFile(params: {
 interface DocumentsBlockProps {
   tripId: string;
   documents: Document[];
+  permissions: TripPermissions;
 }
 
 function withAlpha(hex: string, alpha: number): string {
@@ -50,7 +52,8 @@ const DOC_TYPES = [
   { key: 'other', label: 'Outro', icon: 'folder' },
 ];
 
-export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
+export function DocumentsBlock({ tripId, documents, permissions }: DocumentsBlockProps) {
+  const canEdit = permissions.canEdit;
   const t = useTranslation();
   const colors = useColors();
   const addDocument = useTripsStore((s) => s.addDocument);
@@ -183,29 +186,37 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
             {t.documents.title}
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={() => setShowModal(true)}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 4,
-            backgroundColor: withAlpha(colors.primary, 0.15),
-            borderRadius: 20,
-            paddingHorizontal: 10,
-            paddingVertical: 4,
-          }}
-        >
-          <Ionicons name="add" size={14} color={colors.textAccent} />
-          <Text style={{ color: colors.textAccent, fontSize: 12, fontWeight: '600' }}>{t.common.add}</Text>
-        </TouchableOpacity>
+        {canEdit && (
+          <TouchableOpacity
+            onPress={() => setShowModal(true)}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              backgroundColor: withAlpha(colors.primary, 0.15),
+              borderRadius: 20,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+            }}
+          >
+            <Ionicons name="add" size={14} color={colors.textAccent} />
+            <Text style={{ color: colors.textAccent, fontSize: 12, fontWeight: '600' }}>{t.common.add}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {documents.length === 0 ? (
-        <TouchableOpacity onPress={() => setShowModal(true)}>
+        canEdit ? (
+          <TouchableOpacity onPress={() => setShowModal(true)}>
+            <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>
+              {t.documents.noDocuments}
+            </Text>
+          </TouchableOpacity>
+        ) : (
           <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>
             {t.documents.noDocuments}
           </Text>
-        </TouchableOpacity>
+        )
       ) : (
         documents.slice(0, 3).map((doc) => {
           const typeInfo = DOC_TYPES.find((t) => t.key === doc.type) || DOC_TYPES[5];
@@ -221,9 +232,11 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
               {doc.url ? (
                 <Ionicons name="open-outline" size={13} color={withAlpha(colors.primary, 0.6)} />
               ) : null}
-              <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); removeDocument(tripId, doc.id); }}>
-                <Ionicons name="trash-outline" size={14} color={colors.muted} />
-              </TouchableOpacity>
+              {canEdit && (
+                <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); removeDocument(tripId, doc.id); }}>
+                  <Ionicons name="trash-outline" size={14} color={colors.muted} />
+                </TouchableOpacity>
+              )}
             </TouchableOpacity>
           );
         })
@@ -279,9 +292,11 @@ export function DocumentsBlock({ tripId, documents }: DocumentsBlockProps) {
                     {doc.url ? (
                       <Ionicons name="open-outline" size={14} color={colors.textAccent} />
                     ) : null}
-                    <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); removeDocument(tripId, doc.id); }}>
-                      <Ionicons name="trash-outline" size={16} color={colors.error} />
-                    </TouchableOpacity>
+                    {canEdit && (
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); removeDocument(tripId, doc.id); }}>
+                        <Ionicons name="trash-outline" size={16} color={colors.error} />
+                      </TouchableOpacity>
+                    )}
                   </TouchableOpacity>
                 );
               })}

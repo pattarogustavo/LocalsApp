@@ -9,6 +9,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import type { Translations } from '@/i18n';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
+import type { TripPermissions } from '@/hooks/use-trip-permissions';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -27,6 +28,7 @@ interface ExpensesBlockProps {
   expenses: Expense[];
   currency: string;
   travelers?: Traveler[];
+  permissions: TripPermissions;
 }
 
 function getCategories(t: Translations) {
@@ -87,7 +89,8 @@ function computeSettlement(expenses: Expense[], travelers: Traveler[], selfLabel
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: ExpensesBlockProps) {
+export function ExpensesBlock({ tripId, expenses, currency, travelers = [], permissions }: ExpensesBlockProps) {
+  const canEdit = permissions.canEdit;
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -154,10 +157,12 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
           <Ionicons name="cash-outline" size={16} color={colors.textAccent} />
           <Text style={styles.sectionTitle}>{t.expenses.title.toUpperCase()}</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowModal(true)} style={styles.addBtn}>
-          <Ionicons name="add" size={14} color={colors.textAccent} />
-          <Text style={styles.addBtnText}>{t.common.add}</Text>
-        </TouchableOpacity>
+        {canEdit && (
+          <TouchableOpacity onPress={() => setShowModal(true)} style={styles.addBtn}>
+            <Ionicons name="add" size={14} color={colors.textAccent} />
+            <Text style={styles.addBtnText}>{t.common.add}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {expenses.length === 0 ? (
@@ -182,9 +187,11 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [] }: Ex
                   </Text>
                 </View>
                 <Text style={styles.expenseAmount}>{symbol}{expense.amount.toFixed(2)}</Text>
-                <TouchableOpacity onPress={() => removeExpense(tripId, expense.id)} style={{ padding: 4 }}>
-                  <Ionicons name="trash-outline" size={14} color={colors.muted} />
-                </TouchableOpacity>
+                {canEdit && (
+                  <TouchableOpacity onPress={() => removeExpense(tripId, expense.id)} style={{ padding: 4 }}>
+                    <Ionicons name="trash-outline" size={14} color={colors.muted} />
+                  </TouchableOpacity>
+                )}
               </View>
             );
           })}

@@ -21,6 +21,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 import { trpc } from '@/lib/trpc';
+import type { TripPermissions } from '@/hooks/use-trip-permissions';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -30,6 +31,7 @@ function withAlpha(hex: string, alpha: number): string {
 interface TravelersBlockProps {
   tripId: string;
   travelers: Traveler[];
+  permissions: TripPermissions;
 }
 
 // Fixed palette of avatar colors assigned to travelers (pure data, not theme —
@@ -41,7 +43,7 @@ const AVATAR_COLORS = [
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
+export function TravelersBlock({ tripId, travelers, permissions }: TravelersBlockProps) {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -50,6 +52,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
   const getTripById = useTripsStore((s) => s.getTripById);
   const userEmail = useAuthStore((s) => s.user?.email);
   const insets = useSafeAreaInsets();
+  const canManage = permissions.canManageTravelers;
 
   const [showModal, setShowModal] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -61,7 +64,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
   const upsertTripMutation = trpc.cloudTrips.upsert.useMutation();
   const sharesQuery = trpc.sharing.listSentByMe.useQuery(
     { tripClientId: tripId },
-    { enabled: !!tripId }
+    { enabled: !!tripId && canManage }
   );
 
   const shareForEmail = useCallback((email?: string) => {
@@ -196,10 +199,12 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
           <Ionicons name="people-outline" size={16} color={colors.textAccent} />
           <Text style={styles.headerTitle}>{(t.travelers.title ?? 'VIAJANTES').toUpperCase()}</Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowModal(true)}>
-          <Ionicons name="person-add-outline" size={14} color={colors.textAccent} />
-          <Text style={styles.addBtnText}>{t.common.add}</Text>
-        </TouchableOpacity>
+        {canManage && (
+          <TouchableOpacity style={styles.addBtn} onPress={() => setShowModal(true)}>
+            <Ionicons name="person-add-outline" size={14} color={colors.textAccent} />
+            <Text style={styles.addBtnText}>{t.common.add}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Avatar row */}
@@ -215,7 +220,7 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
           return (
             <TouchableOpacity
               key={traveler.id}
-              onLongPress={() => handleRemove(traveler)}
+              onLongPress={canManage ? () => handleRemove(traveler) : undefined}
               style={[styles.avatar, { backgroundColor: traveler.color || colors.primary }]}
             >
               <Text style={styles.avatarText}>{traveler.initials}</Text>
@@ -224,9 +229,11 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
           );
         })}
 
-        <TouchableOpacity style={styles.addAvatar} onPress={() => setShowModal(true)}>
-          <Ionicons name="add" size={18} color={colors.muted} />
-        </TouchableOpacity>
+        {canManage && (
+          <TouchableOpacity style={styles.addAvatar} onPress={() => setShowModal(true)}>
+            <Ionicons name="add" size={18} color={colors.muted} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Traveler list */}
@@ -264,9 +271,11 @@ export function TravelersBlock({ tripId, travelers }: TravelersBlockProps) {
                       <Text style={styles.activeText}>{t.travelers.active ?? 'Ativo'}</Text>
                     </View>
                   ) : null}
-                  <TouchableOpacity onPress={() => handleRemove(traveler)} style={styles.removeBtn}>
-                    <Ionicons name="close" size={14} color={colors.muted} />
-                  </TouchableOpacity>
+                  {canManage && (
+                    <TouchableOpacity onPress={() => handleRemove(traveler)} style={styles.removeBtn}>
+                      <Ionicons name="close" size={14} color={colors.muted} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             );

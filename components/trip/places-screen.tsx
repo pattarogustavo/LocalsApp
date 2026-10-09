@@ -9,7 +9,6 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
-import { useSubscription } from '@/hooks/use-subscription';
 import { useTranslation } from '@/hooks/use-translation';
 import { ProBadge } from '@/components/trial-banner';
 import { trpc } from '@/lib/trpc';
@@ -19,6 +18,7 @@ import { DocAttachField } from '@/components/ui/doc-attach-field';
 import { useState as useLocalState } from 'react';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
+import type { TripPermissions } from '@/hooks/use-trip-permissions';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -68,6 +68,7 @@ function PlaceDetailModal({
   isAdded,
   onAdd,
   onRemove,
+  canEdit,
 }: {
   place: Place;
   tripId: string;
@@ -75,6 +76,7 @@ function PlaceDetailModal({
   isAdded: boolean;
   onAdd: () => void;
   onRemove: () => void;
+  canEdit: boolean;
 }) {
   const { updatePlace } = useTripsStore();
   const colors = useColors();
@@ -181,7 +183,7 @@ function PlaceDetailModal({
             ) : null}
 
             {/* Attachments section */}
-            {isAdded ? (
+            {isAdded && (place.attachments || []).length > 0 ? (
               <View style={styles.attachSection}>
                 <Text style={styles.attachSectionLabel}>DOCUMENTOS ANEXADOS</Text>
                 {(place.attachments || []).map((att, idx) => (
@@ -205,11 +207,18 @@ function PlaceDetailModal({
                     {att.url ? (
                       <Ionicons name="open-outline" size={13} color={withAlpha(ACCENT_TEAL, 0.6)} style={{ marginRight: 4 }} />
                     ) : null}
-                    <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleRemoveAttachment(att.id); }} style={styles.attachRemove}>
-                      <Ionicons name="trash-outline" size={14} color={colors.error} />
-                    </TouchableOpacity>
+                    {canEdit ? (
+                      <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleRemoveAttachment(att.id); }} style={styles.attachRemove}>
+                        <Ionicons name="trash-outline" size={14} color={colors.error} />
+                      </TouchableOpacity>
+                    ) : null}
                   </TouchableOpacity>
                 ))}
+              </View>
+            ) : null}
+
+            {isAdded && canEdit ? (
+              <View style={styles.attachSection}>
                 <DocAttachField
                   label="Adicionar documento"
                   uri={null}
@@ -219,7 +228,7 @@ function PlaceDetailModal({
               </View>
             ) : null}
 
-            {isAdded ? (
+            {canEdit && (isAdded ? (
               <TouchableOpacity
                 onPress={() => { onRemove(); onClose(); }}
                 style={styles.removeActionBtn}
@@ -235,7 +244,7 @@ function PlaceDetailModal({
                 <Ionicons name="add" size={18} color={colors.textOnPrimary} />
                 <Text style={styles.addActionText}>Adicionar à Viagem</Text>
               </TouchableOpacity>
-            )}
+            ))}
           </View>
         </View>
       </View>
@@ -249,10 +258,12 @@ function MyPlaceRow({
   place,
   onPress,
   onRemove,
+  canEdit,
 }: {
   place: Place;
   onPress: () => void;
   onRemove: () => void;
+  canEdit: boolean;
 }) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -266,9 +277,11 @@ function MyPlaceRow({
         </View>
       )}
       <Text style={styles.myPlaceName} numberOfLines={1}>{place.name}</Text>
-      <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
-        <Ionicons name="trash-outline" size={15} color={colors.error} />
-      </TouchableOpacity>
+      {canEdit ? (
+        <TouchableOpacity onPress={onRemove} style={styles.removeBtn}>
+          <Ionicons name="trash-outline" size={15} color={colors.error} />
+        </TouchableOpacity>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -281,12 +294,14 @@ function AvailPlaceRow({
   onAdd,
   onRemove,
   onPress,
+  canEdit,
 }: {
   place: Place;
   isAdded: boolean;
   onAdd: () => void;
   onRemove: () => void;
   onPress: () => void;
+  canEdit: boolean;
 }) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -306,15 +321,22 @@ function AvailPlaceRow({
         ) : null}
       </View>
       {isAdded ? (
-        <TouchableOpacity onPress={onRemove} style={styles.addedBadge}>
-          <Ionicons name="checkmark" size={12} color={colors.textAccent} />
-          <Text style={styles.addedBadgeText}>Adicionado</Text>
-        </TouchableOpacity>
-      ) : (
+        canEdit ? (
+          <TouchableOpacity onPress={onRemove} style={styles.addedBadge}>
+            <Ionicons name="checkmark" size={12} color={colors.textAccent} />
+            <Text style={styles.addedBadgeText}>Adicionado</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.addedBadge}>
+            <Ionicons name="checkmark" size={12} color={colors.textAccent} />
+            <Text style={styles.addedBadgeText}>Adicionado</Text>
+          </View>
+        )
+      ) : canEdit ? (
         <TouchableOpacity onPress={onAdd} style={styles.addChip}>
           <Text style={styles.addChipText}>Adicionar</Text>
         </TouchableOpacity>
-      )}
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -329,6 +351,7 @@ function AIPanel({
   onRemove,
   activeCategory,
   searchQuery,
+  permissions,
 }: {
   destination: Destination;
   tripId: string;
@@ -337,11 +360,12 @@ function AIPanel({
   onRemove: (id: string) => void;
   activeCategory: string;
   searchQuery: string;
+  permissions: TripPermissions;
 }) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
-  const { hasAccess } = useSubscription();
+  const { canEdit, canUseAI } = permissions;
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -379,21 +403,22 @@ function AIPanel({
     }
   }, [destination.name, destination.country, destination.id, destination.lat, destination.lng, tripId, preferredLanguage]);
 
-  // Auto-load on mount: hydrate from cache if this destination already has
-  // saved AI suggestions, otherwise fetch once and persist the result.
-  // Non-subscribers never trigger the AI call — they get a locked state instead.
+  // Auto-load on mount: a cached result is always shown (viewing isn't a
+  // write action), regardless of role or subscription. Only triggering a
+  // *new* generation requires AI access — users without it get a locked
+  // state instead.
   useEffect(() => {
-    if (!hasAccess) return;
     if (destination.aiSuggestedPlaces && destination.aiSuggestedPlaces.length > 0) {
       fetchedRef.current = true;
       setSuggestions(destination.aiSuggestedPlaces);
       setLoaded(true);
       return;
     }
+    if (!canUseAI) return;
     loadSuggestions();
-  }, [hasAccess]);
+  }, [canUseAI, destination.aiSuggestedPlaces]);
 
-  if (!hasAccess) {
+  if (suggestions.length === 0 && !canUseAI) {
     return (
       <View style={styles.aiLockedBox}>
         <View style={styles.aiLockedIconBg}>
@@ -442,12 +467,14 @@ function AIPanel({
         <Text style={styles.aiEmptyText}>
           {searchQuery ? `Nenhum resultado para "${searchQuery}"` : 'Nenhuma sugestão disponível'}
         </Text>
-        <TouchableOpacity
-          onPress={() => { fetchedRef.current = false; loadSuggestions(); }}
-          style={styles.aiRefreshBtn}
-        >
-          <Ionicons name="refresh-outline" size={14} color={colors.textAccent} />
-        </TouchableOpacity>
+        {canUseAI ? (
+          <TouchableOpacity
+            onPress={() => { fetchedRef.current = false; loadSuggestions(); }}
+            style={styles.aiRefreshBtn}
+          >
+            <Ionicons name="refresh-outline" size={14} color={colors.textAccent} />
+          </TouchableOpacity>
+        ) : null}
       </View>
     );
   }
@@ -465,6 +492,7 @@ function AIPanel({
             if (added) onRemove(added.id);
           }}
           onPress={() => setSelectedPlace(place)}
+          canEdit={canEdit}
         />
       ))}
       {selectedPlace && (
@@ -482,6 +510,7 @@ function AIPanel({
             if (added) onRemove(added.id);
             setSelectedPlace(null);
           }}
+          canEdit={canEdit}
         />
       )}
     </View>
@@ -494,6 +523,7 @@ interface PlacesScreenProps {
   tripId: string;
   places: Place[];
   destinations: Destination[];
+  permissions: TripPermissions;
 }
 
 // ─── Custom Place Search Result Row ─────────────────────────────────────────
@@ -627,10 +657,11 @@ function CustomPlacePreviewModal({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps) {
+export function PlacesScreen({ tripId, places, destinations, permissions }: PlacesScreenProps) {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
+  const { canEdit, canUseAI } = permissions;
   const { removePlace, setItinerary, upsertPlace } = useTripsStore();
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeDestFilter, setActiveDestFilter] = useState('all');
@@ -666,6 +697,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
     destId: string,
     details?: { address?: string; hours?: string; phone?: string }
   ) => {
+    if (!canEdit) return;
     Haptics.selectionAsync();
     await upsertPlace(tripId, {
       name: result.name,
@@ -686,6 +718,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
   const generateItinerary = trpc.ai.generateItinerary.useMutation();
 
   const handleAddPlace = useCallback(async (place: Place) => {
+    if (!canEdit) return;
     Haptics.selectionAsync();
     await upsertPlace(tripId, {
       name: place.name,
@@ -702,11 +735,12 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
       lng: place.lng,
       addedByAI: place.addedByAI,
     });
-  }, [tripId, upsertPlace]);
+  }, [tripId, upsertPlace, canEdit]);
 
   const handleRemovePlace = useCallback(async (placeId: string) => {
+    if (!canEdit) return;
     await removePlace(tripId, placeId);
-  }, [tripId, removePlace]);
+  }, [tripId, removePlace, canEdit]);
 
   // ── "Minha Viagem" filtered list ──
   const myPlaces = useMemo(() => {
@@ -734,7 +768,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
   }, [myPlaces, destinations]);
 
   const handleGenerateItinerary = async () => {
-    if (places.length === 0) return;
+    if (places.length === 0 || !canUseAI) return;
     setGeneratingItinerary(true);
     try {
       const { trips } = useTripsStore.getState();
@@ -858,6 +892,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
                       place={place}
                       onPress={() => setSelectedPlace(place)}
                       onRemove={() => handleRemovePlace(place.id)}
+                      canEdit={canEdit}
                     />
                   ))}
                 </View>
@@ -914,11 +949,14 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
               onRemove={handleRemovePlace}
               activeCategory={activeCategory}
               searchQuery={availSearch}
+              permissions={permissions}
             />
           </View>
         ))}
 
-        {/* ── Pesquisa personalizada via Google Places — always visible ── */}
+        {/* ── Pesquisa personalizada via Google Places — adding places is a
+            write action, so this whole block is hidden for non-editors ── */}
+        {canEdit && (
         <View style={styles.customSearchSection}>
           <View style={styles.customSearchHeader}>
             <Text style={styles.customSearchTitle}>{t.places.searchCustom}</Text>
@@ -981,6 +1019,7 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
             />
           ))}
         </View>
+        )}
       </View>
 
       {/* My place detail modal */}
@@ -992,11 +1031,12 @@ export function PlacesScreen({ tripId, places, destinations }: PlacesScreenProps
           isAdded={places.some((p) => p.id === selectedPlace.id)}
           onAdd={() => handleAddPlace(selectedPlace)}
           onRemove={() => handleRemovePlace(selectedPlace.id)}
+          canEdit={canEdit}
         />
       )}
 
       {/* Custom search result preview (Place Details) before confirming add */}
-      {customPreview && (
+      {canEdit && customPreview && (
         <CustomPlacePreviewModal
           result={customPreview}
           language={preferredLanguage}
