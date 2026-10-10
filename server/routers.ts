@@ -13,6 +13,13 @@ import { buildDurationGuidancePromptBlock } from "./itinerary/duration";
 import { validateAndCorrectItinerary, type MustVisitPlace, type FillerRestaurantCandidate } from "./itinerary/validate";
 import { buildItineraryDaysSchema } from "./itinerary/schema";
 import { sanitizeTripPatch, getSharedTripSaveError, MAX_PATCH_JSON_LENGTH } from "./sharing/trip-merge";
+import {
+  suggestPlacesCache,
+  destinationInfoCache,
+  normalizeCacheKeyPart,
+  AI_SUGGEST_PLACES_CACHE_TTL_MS,
+  AI_DESTINATION_INFO_CACHE_TTL_MS,
+} from "./cache";
 
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
@@ -989,8 +996,29 @@ export const appRouter = router({
         language: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        // Subscription check always runs before the cache is consulted, so a
+        // cache hit can never substitute for AI access on a free account.
         await requireActiveSubscription(ctx.user.id);
         const { destination, country, travelMonth, originCountry } = input;
+
+        // Keyed on every input that can change the LLM's answer (climate/visa
+        // text depends on the travel month and the traveler's origin country,
+        // not just the destination), so a hit is always a valid substitute
+        // for a fresh generation.
+        const cacheKey = [
+          normalizeCacheKeyPart(destination),
+          normalizeCacheKeyPart(country),
+          normalizeCacheKeyPart(input.language),
+          normalizeCacheKeyPart(travelMonth),
+          normalizeCacheKeyPart(originCountry),
+        ].join('|');
+        const cached = destinationInfoCache.get(cacheKey);
+        if (cached) {
+          console.log(`[destinationInfo.generate] cache hit: "${destination}"`);
+          return { data: cached };
+        }
+        console.log(`[destinationInfo.generate] cache miss: "${destination}"`);
+
         const languageName = getLanguageName(input.language);
         const prompt = `Você é um especialista em viagens. Forneça informações práticas e concisas sobre viajar para ${destination}${country ? `, ${country}` : ''}${travelMonth ? ` no mês de ${travelMonth}` : ''} para turistas do ${originCountry}.
 
@@ -1034,7 +1062,10 @@ Responda APENAS com JSON válido neste formato exato:
             response_format: { type: 'json_object' },
           });
           const content = response.choices[0].message.content as string;
-          return { data: JSON.parse(content) };
+          const data = JSON.parse(content);
+          // Never cache an empty/falsy result — only a real answer is reused.
+          if (data) destinationInfoCache.set(cacheKey, data, AI_DESTINATION_INFO_CACHE_TTL_MS);
+          return { data };
         } catch {
           return { data: null };
         }
@@ -2215,9 +2246,33 @@ Importante:
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // Subscription check always runs before the cache is consulted, so a
+        // cache hit can never substitute for AI access on a free account.
         await requireActiveSubscription(ctx.user.id);
         const { destinationName, country, existingPlaces } = input;
         const debugSteps: string[] = [];
+
+        // Not keyed on existingPlaces: the cached list is the destination's
+        // canonical curated set, shared across users. Whichever caller's
+        // existingPlaces first populates the cache may have slightly shaped
+        // which places got excluded from curation, but every caller —
+        // cached or not — still gets the "already added" filter applied
+        // below/in the curation guard, so nobody ever sees a place they
+        // already have.
+        const cacheKey = [
+          normalizeCacheKeyPart(destinationName),
+          normalizeCacheKeyPart(country),
+          normalizeCacheKeyPart(input.language),
+          (input.categories ?? []).map(normalizeCacheKeyPart).sort().join(','),
+        ].join('|');
+        const cached = suggestPlacesCache.get(cacheKey) as { places: any[] } | undefined;
+        if (cached) {
+          console.log(`[ai.suggestPlaces] cache hit: "${destinationName}"`);
+          const existingLowerCached = new Set((existingPlaces || []).map((n) => n.toLowerCase()));
+          const places = cached.places.filter((p) => !existingLowerCached.has(String(p.name).toLowerCase()));
+          return { places, debugSteps: [...debugSteps, 'cache: hit'] };
+        }
+        console.log(`[ai.suggestPlaces] cache miss: "${destinationName}"`);
 
         if (!GOOGLE_PLACES_KEY) {
           console.warn(`[ai.suggestPlaces] no GOOGLE_PLACES_API_KEY configured — returning empty list for "${destinationName}"`);
@@ -2331,6 +2386,11 @@ ${WEB_SEARCH_INSTRUCTION}`;
           })
         );
         debugSteps.push(`place-details: resolved ${detailed.filter((d) => d.address || d.imageUrl).length}/${detailed.length}`);
+
+        // Never cache an empty result — only a real curated list is reused.
+        if (detailed.length > 0) {
+          suggestPlacesCache.set(cacheKey, { places: detailed }, AI_SUGGEST_PLACES_CACHE_TTL_MS);
+        }
 
         console.log(`[ai.suggestPlaces] "${destinationName}": returning ${detailed.length} curated places`, debugSteps);
         return { places: detailed, debugSteps };
