@@ -572,6 +572,7 @@ export default function ProfileScreen() {
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* ── User card ── */}
         <View style={styles.userCard}>

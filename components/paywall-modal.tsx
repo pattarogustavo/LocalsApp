@@ -101,7 +101,11 @@ export function PaywallModal({ visible, onClose, feature }: PaywallModalProps) {
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Current plan info */}
             {userPlan.tier === 'free' && (
               <View style={[styles.freeBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>

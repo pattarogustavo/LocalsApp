@@ -176,7 +176,7 @@ function AddAccommodationModal({
           >
             {/* 1. Type */}
             <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.type.toUpperCase()}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeRow} keyboardShouldPersistTaps="handled">
               {TYPE_OPTIONS.map((t) => (
                 <Pressable
                   key={t.id}

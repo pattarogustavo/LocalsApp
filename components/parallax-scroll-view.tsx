@@ -58,6 +58,7 @@ export default function ParallaxScrollView({
         paddingRight: insets.right,
       }}
       scrollEventThrottle={16}
+      keyboardShouldPersistTaps="handled"
     >
       <Animated.View
         style={[

@@ -835,7 +835,7 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
         {/* Destination filter */}
         {destinations.length > 1 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}
-            contentContainerStyle={{ gap: 6 }}>
+            contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
             <TouchableOpacity
               onPress={() => setActiveDestFilter('all')}
               style={[styles.destChip, activeDestFilter === 'all' && styles.destChipActive]}
@@ -860,7 +860,7 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
 
         {/* Category filter */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}
-          contentContainerStyle={{ gap: 6 }}>
+          contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
           {CATEGORIES.map((cat) => (
             <TouchableOpacity
               key={cat.key}

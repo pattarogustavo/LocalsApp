@@ -663,6 +663,7 @@ export default function TripDetailScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[1]}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handlePullToRefresh} tintColor={colors.primary} />
         }
@@ -759,6 +760,7 @@ export default function TripDetailScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 8 }}
+            keyboardShouldPersistTaps="handled"
           >
             {TABS.map((tab) => {
               const isActive = activeTab === tab.key;
@@ -1146,6 +1148,7 @@ function HistoryTab({ trip, permissions }: { trip: any; permissions: TripPermiss
       style={{ flex: 1 }}
       contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     >
       {trip.destinations.length === 0 ? (
         <View style={infoStyles.emptyState}>

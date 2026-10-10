@@ -42,6 +42,7 @@ export default function ExampleItineraryScreen() {
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.card}>
           <ExampleItineraryPreview itinerary={EXAMPLE_ITINERARY_PARIS} />

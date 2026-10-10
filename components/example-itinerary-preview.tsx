@@ -89,6 +89,7 @@ export function ExampleItineraryPreview({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 8, paddingBottom: 4 }}
           style={{ marginBottom: 12 }}
+          keyboardShouldPersistTaps="handled"
         >
           {itinerary.days.map((d, i) => {
             const isSelected = i === selectedDay;

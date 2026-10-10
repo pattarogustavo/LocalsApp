@@ -116,6 +116,7 @@ function DaySelector({
       horizontal showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ gap: 8, paddingHorizontal: 2, paddingBottom: 4 }}
       style={{ marginBottom: 16 }}
+      keyboardShouldPersistTaps="handled"
     >
       {Array.from({ length: totalDays }, (_, i) => {
         const base = new Date(startDate);
@@ -524,7 +525,7 @@ function StopItem({
 
                 {/* Category */}
                 <Text style={styles.editStopLabel}>{t.expenses.category}</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} keyboardShouldPersistTaps="handled">
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {Object.entries(CATEGORY_ICONS).map(([key, icon]) => {
                       const color = CATEGORY_COLORS[key] || colors.textAccent;
@@ -957,7 +958,7 @@ function DayView({
               </View>
             ) : (
               // Day options: move to another day
-              <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {Array.from({ length: totalDays }, (_, i) => {
                   if (i === dayIndex) return null;
                   const base = new Date(startDate);
@@ -1883,7 +1884,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
             <Text style={styles.paceModalSubtitle}>
               {t.itinerary.manualPickerHint}
             </Text>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 8 }}>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 8 }} keyboardShouldPersistTaps="handled">
               {trip.places.length === 0 ? (
                 <Text style={[styles.paceModalSubtitle, { textAlign: 'center', marginTop: 24 }]}>
                   {t.itinerary.noPlacesManual}
@@ -1916,7 +1917,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
                       {/* Day selector + add button */}
                       {!alreadyScheduled && (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 6 }}>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
                             {Array.from({ length: totalDays }, (_, di) => {
                               const base = new Date(trip.startDate);
                               base.setDate(base.getDate() + di);
@@ -1974,7 +1975,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
               </TouchableOpacity>
             </View>
             <Text style={styles.paceModalSubtitle}>{t.itinerary.chooseDayForPlace}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }} keyboardShouldPersistTaps="handled">
               {Array.from({ length: totalDays }, (_, di) => {
                 const isSelected = dayPickIndex === di;
                 return (

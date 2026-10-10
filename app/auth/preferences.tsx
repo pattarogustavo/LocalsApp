@@ -141,6 +141,7 @@ export default function PreferencesScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={styles.optionsContainer}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {step === 0 && (
           <View style={styles.grid}>

@@ -50,6 +50,7 @@ export default function WelcomeOfferScreen() {
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Wordmark */}
         <View style={styles.wordmark}>

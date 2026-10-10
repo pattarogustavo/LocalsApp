@@ -881,7 +881,7 @@ function AddTransportModal({
 
             {/* Leg selector */}
             <Text style={styles.inputLabel}>{t.transport.legLabel}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }} keyboardShouldPersistTaps="handled">
               <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 2 }}>
                 {legs.map((leg) => (
                   <TouchableOpacity
@@ -897,7 +897,7 @@ function AddTransportModal({
 
             {/* Mode selector */}
             <Text style={styles.inputLabel}>{t.transport.typeLabel}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }} keyboardShouldPersistTaps="handled">
               <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 2 }}>
                 {BETWEEN_MODES.map((m) => (
                   <TouchableOpacity
@@ -1106,7 +1106,7 @@ function AddTransportModal({
                   />
                   {/* Hotel suggestion chips */}
                   {accommodations.length > 0 && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} keyboardShouldPersistTaps="handled">
                       <View style={{ flexDirection: 'row', gap: 6 }}>
                         {accommodations.filter(a => a.address).map((a) => (
                           <TouchableOpacity
@@ -1150,7 +1150,7 @@ function AddTransportModal({
                     dark
                   />
                   {accommodations.length > 0 && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} keyboardShouldPersistTaps="handled">
                       <View style={{ flexDirection: 'row', gap: 6 }}>
                         {accommodations.filter(a => a.address).map((a) => (
                           <TouchableOpacity

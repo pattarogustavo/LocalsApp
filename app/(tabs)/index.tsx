@@ -178,6 +178,7 @@ export default function HomeScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
         }
@@ -332,6 +333,7 @@ export default function HomeScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+              keyboardShouldPersistTaps="handled"
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
                 <TouchableOpacity
@@ -413,6 +415,7 @@ export default function HomeScreen() {
               data={searchResults}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ padding: 16, gap: 12 }}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.resultCard}
@@ -461,6 +464,7 @@ export default function HomeScreen() {
               data={pendingInvitesQuery.data}
               keyExtractor={(item) => String(item.shareId)}
               contentContainerStyle={{ padding: 16, gap: 12 }}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => {
                 let tripData: Trip | null = null;
                 try { tripData = JSON.parse(item.tripData); } catch {}
