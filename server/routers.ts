@@ -13,6 +13,7 @@ import { buildDurationGuidancePromptBlock } from "./itinerary/duration";
 import { validateAndCorrectItinerary, type MustVisitPlace, type FillerRestaurantCandidate } from "./itinerary/validate";
 import { buildItineraryDaysSchema } from "./itinerary/schema";
 import { sanitizeTripPatch, getSharedTripSaveError, MAX_PATCH_JSON_LENGTH } from "./sharing/trip-merge";
+import { sendPush, buildTripInviteMessage } from "./push";
 import {
   suggestPlacesCache,
   destinationInfoCache,
@@ -2521,6 +2522,18 @@ ${WEB_SEARCH_INSTRUCTION}`;
           role: input.role,
           token,
         });
+
+        // Best-effort: if the invitee already has an account, let them know
+        // by push. Never awaited — a slow/failed push must never delay or
+        // break the invite response.
+        db.getUserByEmail(email).then((invitee) => {
+          if (!invitee) return;
+          let tripName = '';
+          try { tripName = JSON.parse(trip.data)?.name ?? ''; } catch {}
+          const ownerName = ctx.user.name || ctx.user.email || '';
+          sendPush([invitee.id], (language) => buildTripInviteMessage(language, ownerName, tripName));
+        }).catch((err) => console.warn('[sharing.invite] push lookup failed:', err));
+
         return { ok: true, token };
       }),
 

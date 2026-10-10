@@ -57,6 +57,25 @@ async function sendBatch(tokens: string[], messages: Record<string, unknown>[]):
   }
 }
 
+const INVITE_MESSAGES: Record<PushLanguage, { title: string; body: (owner: string, trip: string) => string }> = {
+  pt: { title: "Novo convite de viagem", body: (owner, trip) => `${owner} convidou você para ${trip}` },
+  en: { title: "New trip invite", body: (owner, trip) => `${owner} invited you to ${trip}` },
+  es: { title: "Nueva invitación de viaje", body: (owner, trip) => `${owner} te invitó a ${trip}` },
+  fr: { title: "Nouvelle invitation de voyage", body: (owner, trip) => `${owner} vous a invité à ${trip}` },
+  de: { title: "Neue Reiseeinladung", body: (owner, trip) => `${owner} hat dich zu ${trip} eingeladen` },
+  it: { title: "Nuovo invito di viaggio", body: (owner, trip) => `${owner} ti ha invitato a ${trip}` },
+};
+
+/** The "you've been invited to a trip" push, localized per recipient device. */
+export function buildTripInviteMessage(language: PushLanguage, ownerName: string, tripName: string): PushMessageContent {
+  const texts = INVITE_MESSAGES[language] ?? INVITE_MESSAGES.pt;
+  return {
+    title: texts.title,
+    body: texts.body(ownerName, tripName),
+    data: { type: "invite" },
+  };
+}
+
 /**
  * Sends a push notification to every device registered to any of `userIds`.
  * `buildMessage` is called once per device with that device's saved

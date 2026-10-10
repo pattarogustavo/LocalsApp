@@ -1,4 +1,29 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { buildTripInviteMessage } from "../server/push";
+
+describe("buildTripInviteMessage", () => {
+  const cases: Array<[string, string]> = [
+    ["pt", "Novo convite de viagem"],
+    ["en", "New trip invite"],
+    ["es", "Nueva invitación de viaje"],
+    ["fr", "Nouvelle invitation de voyage"],
+    ["de", "Neue Reiseeinladung"],
+    ["it", "Nuovo invito di viaggio"],
+  ];
+
+  it.each(cases)("has a title and a body mentioning both names for %s", (language, expectedTitle) => {
+    const msg = buildTripInviteMessage(language as any, "Ana", "Paris");
+    expect(msg.title).toBe(expectedTitle);
+    expect(msg.body).toContain("Ana");
+    expect(msg.body).toContain("Paris");
+    expect(msg.data).toEqual({ type: "invite" });
+  });
+
+  it("falls back to pt for an unrecognized language", () => {
+    const msg = buildTripInviteMessage("xx" as any, "Ana", "Paris");
+    expect(msg.title).toBe("Novo convite de viagem");
+  });
+});
 
 describe("push.sendPush", () => {
   const originalFetch = global.fetch;
