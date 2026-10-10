@@ -35,7 +35,8 @@ export async function cancelSubscriptionNotifications(): Promise<void> {
  */
 export async function sendSubscriptionConfirmedNotification(
   plan: 'monthly' | 'annual',
-  title: string
+  title: string,
+  body: string
 ): Promise<void> {
   if (Platform.OS === 'web') return;
   const hasPermission = await requestNotificationPermissions();
@@ -45,7 +46,7 @@ export async function sendSubscriptionConfirmedNotification(
     await Notifications.scheduleNotificationAsync({
       content: {
         title,
-        body: `Your ${plan === 'annual' ? 'annual' : 'monthly'} subscription is now active. Happy travels!`,
+        body,
         data: { type: 'subscription', action: 'open_home' },
         sound: 'default',
       },
@@ -61,6 +62,7 @@ export async function sendSubscriptionConfirmedNotification(
  */
 export async function scheduleRenewalReminder(
   expiresAt: Date,
+  title: string,
   body: string
 ): Promise<void> {
   if (Platform.OS === 'web') return;
@@ -73,7 +75,7 @@ export async function scheduleRenewalReminder(
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Subscription renewing soon',
+        title,
         body,
         data: { type: 'subscription', action: 'open_profile' },
         sound: 'default',

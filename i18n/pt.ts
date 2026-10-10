@@ -838,6 +838,8 @@ export const pt = {
   notifications: {
     welcomePro: 'Bem-vindo ao TheLocals Pro!',
     renewalReminder: 'Sua assinatura TheLocals Pro renova em 3 dias.',
+    renewalReminderTitle: 'Assinatura renovando em breve',
+    subscriptionActiveBody: 'Sua assinatura {plan} está ativa agora. Boas viagens!',
   },
 
   // ── Welcome Offer ─────────────────────────────────────────────────────────────

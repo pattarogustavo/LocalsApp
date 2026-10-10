@@ -800,6 +800,8 @@ export const es: Translations = {
   notifications: {
     welcomePro: '¡Bienvenido a TheLocals Pro!',
     renewalReminder: 'Tu suscripción a TheLocals Pro se renueva en 3 días.',
+    renewalReminderTitle: 'Tu suscripción se renueva pronto',
+    subscriptionActiveBody: 'Tu suscripción {plan} ya está activa. ¡Buen viaje!',
   },
   welcomeOffer: {
     title: 'Itinerarios así, listos en minutos',

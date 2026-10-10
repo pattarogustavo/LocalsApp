@@ -816,6 +816,8 @@ export const de: Translations = {
   notifications: {
     welcomePro: 'Willkommen bei TheLocals Pro!',
     renewalReminder: 'Dein TheLocals Pro-Abonnement verlängert sich in 3 Tagen.',
+    renewalReminderTitle: 'Abo verlängert sich bald',
+    subscriptionActiveBody: 'Dein {plan}-Abo ist jetzt aktiv. Gute Reise!',
   },
 
   welcomeOffer: {

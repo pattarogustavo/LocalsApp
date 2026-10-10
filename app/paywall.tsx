@@ -139,8 +139,14 @@ export default function PaywallScreen() {
         plan: snapshot?.plan ?? selectedPlan,
         expiresAt: expiresAt ? expiresAt.toISOString() : null,
       }).catch(() => {});
-      sendSubscriptionConfirmedNotification(selectedPlan, t.notifications.welcomePro).catch(() => {});
-      if (expiresAt) scheduleRenewalReminder(expiresAt, t.notifications.renewalReminder).catch(() => {});
+      sendSubscriptionConfirmedNotification(
+        selectedPlan,
+        t.notifications.welcomePro,
+        t.notifications.subscriptionActiveBody.replace('{plan}', selectedPlan)
+      ).catch(() => {});
+      if (expiresAt) {
+        scheduleRenewalReminder(expiresAt, t.notifications.renewalReminderTitle, t.notifications.renewalReminder).catch(() => {});
+      }
       Alert.alert(
         t.paywall.subscribeSuccess,
         t.paywall.subscribeSuccessMsg.replace('{plan}', selectedPlan),
