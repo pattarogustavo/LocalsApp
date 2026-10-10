@@ -517,11 +517,10 @@ export default function TripDetailScreen() {
   const colors = useColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const {
-    getTripById, deleteTrip, updateStartDate, updateCoverImage, updateTrip,
+    deleteTrip, updateStartDate, updateCoverImage, updateTrip,
     hydrateSharedTrip, pullOwnedTripUpdates, lastWriteError, clearLastWriteError,
   } = useTripsStore(
     useShallow((s) => ({
-      getTripById: s.getTripById,
       deleteTrip: s.deleteTrip,
       updateStartDate: s.updateStartDate,
       updateCoverImage: s.updateCoverImage,
@@ -532,7 +531,10 @@ export default function TripDetailScreen() {
       clearLastWriteError: s.clearLastWriteError,
     })),
   );
-  const trip = getTripById(id);
+  // Subscribes to the actual `trips` data (not a stable `getTripById`
+  // function reference) so this re-renders whenever the store's trips
+  // array changes — e.g. after addTransport/addTraveler/addPlace etc.
+  const trip = useTripsStore((s) => s.trips.find((t) => t.id === id));
   // A trip already known to be owned locally never needs the shared-trips
   // query; anything else (not loaded yet, or a known shared trip we want to
   // keep refreshing) does.
