@@ -51,6 +51,19 @@ function AuthGuard() {
   const router = useRouter();
   const syncWithCloud = useTripsStore((s) => s.syncWithCloud);
   const queryClient = useQueryClient();
+  const utils = trpc.useUtils();
+
+  // With the app already open, a foreground 'invite' push should bump the
+  // pending-invites badge right away instead of waiting for whatever
+  // staleTime listPendingForMe has.
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      if (notification.request.content.data?.type === 'invite') {
+        utils.sharing.listPendingForMe.invalidate();
+      }
+    });
+    return () => subscription.remove();
+  }, [utils]);
 
   // Drop any react-query cache (e.g. sharing.listSentByMe/listSharedWithMe)
   // whenever the logged-in account changes, including to/from logged out —
@@ -201,13 +214,17 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    // Only `type: 'trip'` is handled here — every other notification type
-    // (flight check-in/boarding, subscription) keeps today's behavior of
-    // just opening the app with no extra navigation.
+    // Only `type: 'trip'` and `type: 'invite'` are handled here — every
+    // other notification type (flight check-in/boarding, subscription)
+    // keeps today's behavior of just opening the app with no extra
+    // navigation.
     const handleResponse = (response: Notifications.NotificationResponse) => {
       const data = response.notification.request.content.data;
       if (data?.type === 'trip' && typeof data.tripId === 'string') {
         router.push(`/trip/${data.tripId}` as any);
+      } else if (data?.type === 'invite') {
+        // Lands on Home, which reads this param to open the Convites inbox.
+        router.push('/?openInbox=1' as any);
       }
     };
 

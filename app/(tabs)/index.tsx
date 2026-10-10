@@ -18,7 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTripsStore } from '@/store/trips';
 import { useShallow } from 'zustand/react/shallow';
@@ -45,6 +45,7 @@ function withAlpha(hex: string, alpha: number): string {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { openInbox } = useLocalSearchParams<{ openInbox?: string }>();
   const { trips, loadTrips } = useTripsStore(
     useShallow((s) => ({ trips: s.trips, loadTrips: s.loadTrips })),
   );
@@ -128,6 +129,12 @@ export default function HomeScreen() {
   const declineMutation = trpc.sharing.decline.useMutation();
   const hideForMeMutation = trpc.sharing.hideForMe.useMutation();
   const pendingCount = pendingInvitesQuery.data?.length ?? 0;
+
+  // Tapping an 'invite' push notification lands here with ?openInbox=1
+  // (see app/_layout.tsx's notification response handler).
+  useEffect(() => {
+    if (openInbox) setShowInbox(true);
+  }, [openInbox]);
 
   const handleHideSharedTrip = (shareId: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
