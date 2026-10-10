@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, eq, ilike, inArray, isNull, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { InsertUser, users, trips, tripShares, pushTokens, InsertTripRow } from "../drizzle/schema";
 import { mergeTripSections } from "./sharing/trip-merge";
@@ -53,6 +53,14 @@ export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+/** Case-insensitive lookup — used to find an invitee's account by the email they were invited at. */
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(ilike(users.email, email)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
