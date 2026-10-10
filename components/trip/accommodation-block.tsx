@@ -107,7 +107,7 @@ function AddAccommodationModal({
   const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const detailsQuery = trpc.places.details.useQuery(
     { placeId: hotelPlaceId, language: preferredLanguage },
-    { enabled: hotelPlaceId.length > 0 }
+    { enabled: hotelPlaceId.length > 0, staleTime: 1000 * 60 * 60 * 24 }
   );
 
   React.useEffect(() => {

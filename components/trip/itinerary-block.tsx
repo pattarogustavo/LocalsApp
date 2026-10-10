@@ -1154,7 +1154,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
   const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const profileHotelDetailsQuery = trpc.places.details.useQuery(
     { placeId: profileHotelPlaceId, language: preferredLanguage },
-    { enabled: profileHotelPlaceId.length > 0 }
+    { enabled: profileHotelPlaceId.length > 0, staleTime: 1000 * 60 * 60 * 24 }
   );
   useEffect(() => {
     if (profileHotelDetailsQuery.data?.address) {

@@ -66,7 +66,7 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
   // tRPC query for place details (to get lat/lng/imageUrl after selection)
   const detailsQuery = trpc.places.details.useQuery(
     { placeId: '' },
-    { enabled: false }
+    { enabled: false, staleTime: 1000 * 60 * 60 * 24 }
   );
 
   const handleSelectDestination = async (prediction: {

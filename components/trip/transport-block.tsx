@@ -555,11 +555,11 @@ function AddTransportModal({
   const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const carOriginDetailsQuery = trpc.places.details.useQuery(
     { placeId: carOriginPlaceId, language: preferredLanguage },
-    { enabled: carOriginPlaceId.length > 0 }
+    { enabled: carOriginPlaceId.length > 0, staleTime: 1000 * 60 * 60 * 24 }
   );
   const carDestDetailsQuery = trpc.places.details.useQuery(
     { placeId: carDestPlaceId, language: preferredLanguage },
-    { enabled: carDestPlaceId.length > 0 }
+    { enabled: carDestPlaceId.length > 0, staleTime: 1000 * 60 * 60 * 24 }
   );
 
   // When place details resolve, update the address used for routing

@@ -591,7 +591,7 @@ function CustomPlacePreviewModal({
   const styles = useMemo(() => createStyles(colors), [colors]);
   const detailsQuery = trpc.places.curatedDetails.useQuery(
     { placeId: result.placeId, language },
-    { enabled: !!result.placeId }
+    { enabled: !!result.placeId, staleTime: 1000 * 60 * 60 * 24 }
   );
   const details = detailsQuery.data as { address?: string; hours?: string; phone?: string } | undefined;
   const address = details?.address || result.address;
