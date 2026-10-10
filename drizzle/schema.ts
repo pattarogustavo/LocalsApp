@@ -74,3 +74,22 @@ export const tripShares = pgTable("trip_shares", {
 
 export type TripShare = typeof tripShares.$inferSelect;
 export type InsertTripShare = typeof tripShares.$inferInsert;
+
+/**
+ * Expo push tokens, one row per device. A token is reassigned to whichever
+ * account most recently registered it (e.g. a shared/reinstalled device),
+ * since Expo tokens are device-scoped, not account-scoped.
+ */
+export const pushTokens = pgTable("push_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  token: varchar("token", { length: 255 }).notNull().unique(),
+  platform: varchar("platform", { length: 16 }).notNull(),
+  /** App language at the time of registration (e.g. "pt"), used to localize push content. */
+  language: varchar("language", { length: 8 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type PushToken = typeof pushTokens.$inferSelect;
+export type InsertPushToken = typeof pushTokens.$inferInsert;
