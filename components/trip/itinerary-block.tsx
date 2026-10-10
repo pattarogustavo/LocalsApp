@@ -4,6 +4,7 @@ import {
   Linking, ActivityIndicator, Modal, Alert, TextInput, FlatList,
   Platform, Animated, Image, KeyboardAvoidingView,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
@@ -322,10 +323,12 @@ function StopItem({
             <View style={styles.stopExpanded}>
               {/* Place photo — from stop or linked Place */}
               {(stop.imageUrl || linkedPlace?.imageUrl) ? (
-                <Image
+                <ExpoImage
                   source={{ uri: stop.imageUrl || linkedPlace?.imageUrl }}
                   style={styles.stopPhoto}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={150}
                 />
               ) : null}
 

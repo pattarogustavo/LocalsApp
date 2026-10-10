@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  TextInput, Image, Modal, Linking, ActivityIndicator,
+  TextInput, Modal, Linking, ActivityIndicator,
   FlatList, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -117,7 +118,7 @@ function PlaceDetailModal({
 
           {/* Photo */}
           {place.imageUrl ? (
-            <Image source={{ uri: place.imageUrl }} style={styles.placePhoto} resizeMode="cover" />
+            <Image source={{ uri: place.imageUrl }} style={styles.placePhoto} contentFit="cover" cachePolicy="memory-disk" transition={150} />
           ) : (
             <View style={[styles.placePhotoPlaceholder, { backgroundColor: withAlpha(colors.primary, 0.10) }]}>
               <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={40} color={withAlpha(ACCENT_TEAL, 0.4)} />
@@ -271,7 +272,7 @@ function MyPlaceRow({
   return (
     <TouchableOpacity onPress={onPress} style={styles.myPlaceRow} activeOpacity={0.75}>
       {place.imageUrl ? (
-        <Image source={{ uri: place.imageUrl }} style={styles.myPlaceThumb} resizeMode="cover" />
+        <Image source={{ uri: place.imageUrl }} style={styles.myPlaceThumb} contentFit="cover" cachePolicy="memory-disk" transition={150} />
       ) : (
         <View style={[styles.myPlaceThumb, { backgroundColor: withAlpha(colors.primary, 0.10), alignItems: 'center', justifyContent: 'center' }]}>
           <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={18} color={withAlpha(ACCENT_TEAL, 0.5)} />
@@ -309,7 +310,7 @@ function AvailPlaceRow({
   return (
     <TouchableOpacity onPress={onPress} style={styles.availRow} activeOpacity={0.75}>
       {place.imageUrl ? (
-        <Image source={{ uri: place.imageUrl }} style={styles.availThumb} resizeMode="cover" />
+        <Image source={{ uri: place.imageUrl }} style={styles.availThumb} contentFit="cover" cachePolicy="memory-disk" transition={150} />
       ) : (
         <View style={[styles.availThumb, { backgroundColor: withAlpha(colors.primary, 0.10), alignItems: 'center', justifyContent: 'center' }]}>
           <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={20} color={withAlpha(ACCENT_TEAL, 0.5)} />
@@ -543,7 +544,7 @@ function CustomSearchResultRow({
   return (
     <TouchableOpacity style={styles.customResultRow} onPress={onPress} activeOpacity={0.7} disabled={isAdded}>
       {result.imageUrl ? (
-        <Image source={{ uri: result.imageUrl }} style={styles.customResultImg} />
+        <Image source={{ uri: result.imageUrl }} style={styles.customResultImg} contentFit="cover" cachePolicy="memory-disk" transition={150} />
       ) : (
         <View style={[styles.customResultImg, { backgroundColor: withAlpha(ACCENT_TEAL, 0.1), alignItems: 'center', justifyContent: 'center' }]}>
           <Ionicons name="location-outline" size={20} color={withAlpha(ACCENT_TEAL, 0.5)} />
