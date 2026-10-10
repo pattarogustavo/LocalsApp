@@ -467,7 +467,11 @@ export const useTripsStore = create<TripsState>((set, get) => {
     set({ trips });
     await saveToStorage(trips);
     await pushTripToCloud(trip);
-    reconcileTripReminders(trips).catch(() => {});
+    // Creating a trip starting a week or more out is the one moment the
+    // product wants a second chance at the notification permission after an
+    // earlier "Agora não" — see ensurePermission in lib/trip-notifications.ts.
+    const daysUntilStart = (new Date(trip.startDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+    reconcileTripReminders(trips, { allowPermissionRetry: daysUntilStart >= 7 }).catch(() => {});
   },
 
   updateTrip: async (id: string, updates: Partial<Trip>) => {

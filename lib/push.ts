@@ -23,8 +23,13 @@ function getProjectId(): string | undefined {
  *
  * Idempotent: safe to call on every app open and after every login — it
  * only ever upserts the current token, never creates duplicates. Reuses
- * trip-notifications' permission flow (same OS permission, same
- * ask-once/remember-the-decline behavior), so it never prompts on its own.
+ * trip-notifications' permission flow (ensurePermission), which DOES ask —
+ * with our own explanatory alert before the system prompt — the first time
+ * there's nothing to go on yet; it just means this never prompts with its
+ * own separate dialog, since it's the same OS permission trip reminders use.
+ * Because that check runs fresh on every call, granting permission later —
+ * via that flow's one retry or via iOS Settings — means the very next app
+ * open registers the token, with no extra wiring needed here.
  */
 export async function registerForPushAsync(language: string): Promise<void> {
   if (Platform.OS !== 'ios') return;

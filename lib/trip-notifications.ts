@@ -9,23 +9,31 @@ import type { Trip } from '@/types/voyage';
 // reminders already use some of that budget — 20 trips × 2 reminders each
 // keeps trip reminders well under the limit on their own.
 const MAX_TRIPS = 20;
-const DECLINED_KEY = 'voyage_trip_reminders_declined';
+
+// How many times the user has tapped "Agora não" on OUR alert (not the
+// system's). We allow exactly one retry — see `ensurePermission` below — so
+// this caps out at 2. A system-level denial doesn't use this counter at all:
+// it's read live from `canAskAgain`, since iOS tracks that permanently and
+// never shows its own prompt again once denied.
+const SOFT_DECLINE_COUNT_KEY = 'voyage_notif_soft_decline_count';
 
 function reminderId(tripId: string, offset: '7d' | '1d'): string {
   return `trip-${tripId}-${offset}`;
 }
 
-async function hasDeclinedBefore(): Promise<boolean> {
+async function getSoftDeclineCount(): Promise<number> {
   try {
-    return (await AsyncStorage.getItem(DECLINED_KEY)) === 'true';
+    const raw = await AsyncStorage.getItem(SOFT_DECLINE_COUNT_KEY);
+    return raw ? parseInt(raw, 10) || 0 : 0;
   } catch {
-    return false;
+    return 0;
   }
 }
 
-async function markDeclined(): Promise<void> {
+async function incrementSoftDeclineCount(): Promise<void> {
   try {
-    await AsyncStorage.setItem(DECLINED_KEY, 'true');
+    const count = await getSoftDeclineCount();
+    await AsyncStorage.setItem(SOFT_DECLINE_COUNT_KEY, String(count + 1));
   } catch {}
 }
 
@@ -40,21 +48,34 @@ async function getCurrentTranslations(): Promise<Translations> {
 
 /**
  * Shows our own explanatory alert before the system permission prompt, and
- * only when there's actually something to schedule. Remembers a decline —
- * ours or the system's — so we never ask again.
+ * only when there's actually something to schedule.
+ *
+ * - A decline on the SYSTEM's own prompt is permanent and read live from
+ *   `canAskAgain` — iOS never shows that dialog again once denied, so there
+ *   is nothing for us to remember.
+ * - A decline on OUR alert ("Agora não") is soft: we allow exactly one
+ *   retry, but only when the caller passes `allowRetry: true` — reserved
+ *   for the one moment the product wants a second chance (creating a trip
+ *   starting 7+ days out). Every other caller gets the default
+ *   (`allowRetry: false`), so a soft decline otherwise sticks until that
+ *   moment comes up.
  *
  * Exported so other features that need the same OS notification permission
- * (e.g. lib/push.ts, for push-token registration) can reuse this exact
- * ask-once/remember-the-decline flow instead of prompting separately — it's
- * the same underlying permission either way.
+ * (e.g. lib/push.ts, for push-token registration) can reuse this exact ask
+ * flow instead of prompting separately — it's the same underlying
+ * permission either way.
  */
-export async function ensurePermission(t?: Translations): Promise<boolean> {
+export async function ensurePermission(options: { t?: Translations; allowRetry?: boolean } = {}): Promise<boolean> {
   if (Platform.OS === 'web') return false;
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status === 'granted') return true;
-  if (await hasDeclinedBefore()) return false;
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status === 'granted') return true;
+  if (!permission.canAskAgain) return false;
 
-  const translations = t ?? (await getCurrentTranslations());
+  const softDeclineCount = await getSoftDeclineCount();
+  if (softDeclineCount >= 2) return false;
+  if (softDeclineCount >= 1 && !options.allowRetry) return false;
+
+  const translations = options.t ?? (await getCurrentTranslations());
   const wantsToTry = await new Promise<boolean>((resolve) => {
     Alert.alert(
       translations.notifications.tripRemindersPermissionTitle,
@@ -67,16 +88,12 @@ export async function ensurePermission(t?: Translations): Promise<boolean> {
     );
   });
   if (!wantsToTry) {
-    await markDeclined();
+    await incrementSoftDeclineCount();
     return false;
   }
 
   const { status: requested } = await Notifications.requestPermissionsAsync();
-  if (requested !== 'granted') {
-    await markDeclined();
-    return false;
-  }
-  return true;
+  return requested === 'granted';
 }
 
 function destinationNameOf(trip: Trip): string {
@@ -116,8 +133,15 @@ async function cancelAllTripTypeNotifications(): Promise<void> {
  * scratch, so this is safe to call repeatedly from any trip-list-changing
  * action without ever producing duplicates or leaving stale reminders behind
  * for a deleted trip or a date that moved.
+ *
+ * `allowPermissionRetry` should only be `true` for the one call site that
+ * qualifies for a second permission ask after a soft decline — creating a
+ * trip that starts 7+ days out. Every other caller leaves it `false`.
  */
-export async function reconcileTripReminders(ownedTrips: Trip[]): Promise<void> {
+export async function reconcileTripReminders(
+  ownedTrips: Trip[],
+  options: { allowPermissionRetry?: boolean } = {},
+): Promise<void> {
   if (Platform.OS === 'web') return;
 
   try {
@@ -142,7 +166,7 @@ export async function reconcileTripReminders(ownedTrips: Trip[]): Promise<void> 
   if (upcoming.length === 0) return;
 
   const t = await getCurrentTranslations();
-  const granted = await ensurePermission(t);
+  const granted = await ensurePermission({ t, allowRetry: options.allowPermissionRetry });
   if (!granted) return;
 
   for (const trip of upcoming) {
