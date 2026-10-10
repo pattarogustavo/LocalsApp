@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
+import { useShallow } from 'zustand/react/shallow';
 import { useTranslation } from '@/hooks/use-translation';
 import { ProBadge } from '@/components/trial-banner';
 import { trpc } from '@/lib/trpc';
@@ -78,7 +79,7 @@ function PlaceDetailModal({
   onRemove: () => void;
   canEdit: boolean;
 }) {
-  const { updatePlace } = useTripsStore();
+  const updatePlace = useTripsStore((s) => s.updatePlace);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [docPickerIdx, setDocPickerIdx] = useLocalState<number | null>(null);
@@ -371,7 +372,7 @@ function AIPanel({
   const [loaded, setLoaded] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const fetchedRef = useRef(false);
-  const { updateDestinationSuggestedPlaces } = useTripsStore();
+  const updateDestinationSuggestedPlaces = useTripsStore((s) => s.updateDestinationSuggestedPlaces);
   const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
 
   const suggestPlaces = trpc.ai.suggestPlaces.useMutation();
@@ -662,7 +663,9 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
   const styles = useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
   const { canEdit, canUseAI } = permissions;
-  const { removePlace, setItinerary, upsertPlace } = useTripsStore();
+  const { removePlace, setItinerary, upsertPlace } = useTripsStore(
+    useShallow((s) => ({ removePlace: s.removePlace, setItinerary: s.setItinerary, upsertPlace: s.upsertPlace })),
+  );
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeDestFilter, setActiveDestFilter] = useState('all');
   const [availSearch, setAvailSearch] = useState('');

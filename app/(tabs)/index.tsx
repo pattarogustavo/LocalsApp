@@ -21,6 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTripsStore } from '@/store/trips';
+import { useShallow } from 'zustand/react/shallow';
 import { TripCard, TripCardStacked, getImageForTrip } from '@/components/trip-card';
 import { CreateTripSheet } from '@/components/create-trip-sheet';
 import { isTripUpcoming, isTripPast, isTripOngoing, getTripName } from '@/utils/trip-helpers';
@@ -43,13 +44,15 @@ function withAlpha(hex: string, alpha: number): string {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { trips, loadTrips } = useTripsStore();
+  const { trips, loadTrips } = useTripsStore(
+    useShallow((s) => ({ trips: s.trips, loadTrips: s.loadTrips })),
+  );
   const [showCreate, setShowCreate] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [pastExpanded, setPastExpanded] = useState(false);
-  const { user } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const { isExpired } = useSubscription();
   const t = useTranslation();
   const colors = useColors();

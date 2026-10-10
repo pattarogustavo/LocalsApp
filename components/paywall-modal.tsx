@@ -10,6 +10,7 @@ import {
 import { useColors } from '@/hooks/use-colors';
 import { SchemeColors } from '@/constants/theme';
 import { useTripsStore } from '@/store/trips';
+import { useShallow } from 'zustand/react/shallow';
 
 // Text/icon color for content drawn on top of a solid brand-colored fill, which
 // is identical in both schemes — always the light-scheme background swatch.
@@ -28,7 +29,9 @@ interface PaywallModalProps {
 
 export function PaywallModal({ visible, onClose, feature }: PaywallModalProps) {
   const colors = useColors();
-  const { userPlan, updateUserPlan } = useTripsStore();
+  const { userPlan, updateUserPlan } = useTripsStore(
+    useShallow((s) => ({ userPlan: s.userPlan, updateUserPlan: s.updateUserPlan })),
+  );
 
   // Per-plan brand accent colors: "Pro" maps to the app's primary green; "Premium"
   // keeps a distinct, deliberately fixed darker green (no theme-token equivalent)

@@ -31,7 +31,7 @@ export default function AcceptInviteScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const user = useAuthStore((s) => s.user);
-  const { syncWithCloud } = useTripsStore();
+  const syncWithCloud = useTripsStore((s) => s.syncWithCloud);
   const t = useTranslation();
 
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');

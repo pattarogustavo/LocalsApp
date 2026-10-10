@@ -59,7 +59,7 @@ export default function PaywallScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const { updateSubscription } = useAuthStore();
+  const updateSubscription = useAuthStore((s) => s.updateSubscription);
 
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>('annual');
   const [loading, setLoading] = useState(false);

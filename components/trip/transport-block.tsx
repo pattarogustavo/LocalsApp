@@ -10,6 +10,7 @@ import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
+import { useShallow } from 'zustand/react/shallow';
 import { generateId } from '@/utils/trip-helpers';
 import { trpc } from '@/lib/trpc';
 import { DatePickerField } from '@/components/ui/date-picker-field';
@@ -1434,7 +1435,7 @@ function BoardingPassModal({
 // ─── City Transport Section ────────────────────────────────────────────────────
 
 export function CityTransportSection({ tripId, cityMode, canEdit = true }: { tripId: string; cityMode?: CityTransportMode; canEdit?: boolean }) {
-  const { updateCityTransportMode } = useTripsStore();
+  const updateCityTransportMode = useTripsStore((s) => s.updateCityTransportMode);
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -1493,7 +1494,13 @@ export function TransportBlock({
 }) {
   const canEdit = permissions.canEdit;
   const t = useTranslation();
-  const { addTransport, removeTransport, updateTransport } = useTripsStore();
+  const { addTransport, removeTransport, updateTransport } = useTripsStore(
+    useShallow((s) => ({
+      addTransport: s.addTransport,
+      removeTransport: s.removeTransport,
+      updateTransport: s.updateTransport,
+    })),
+  );
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [showModal, setShowModal] = useState(false);

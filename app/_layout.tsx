@@ -14,6 +14,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useFonts, Lora_400Regular, Lora_700Bold } from "@expo-google-fonts/lora";
 import { useAuthStore } from "@/store/auth";
 import { useTripsStore } from "@/store/trips";
+import { useShallow } from "zustand/react/shallow";
 import { withTimeout } from "@/lib/_core/with-timeout";
 import { AnimatedSplash } from "@/components/animated-splash";
 import { TranslatingIndicator } from "@/components/translating-indicator";
@@ -41,7 +42,9 @@ export const unstable_settings = {
 
 // Auth guard: redirects unauthenticated users to onboarding
 function AuthGuard() {
-  const { user, initialized } = useAuthStore();
+  const { user, initialized } = useAuthStore(
+    useShallow((s) => ({ user: s.user, initialized: s.initialized })),
+  );
   const segments = useSegments();
   const router = useRouter();
   const syncWithCloud = useTripsStore((s) => s.syncWithCloud);
@@ -91,7 +94,7 @@ function AuthGuard() {
 export default function RootLayout() {
   const insets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
   const frame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
-  const { initialize } = useAuthStore();
+  const initialize = useAuthStore((s) => s.initialize);
   // AnimatedSplash renders the same compass + wordmark as the native splash,
   // then grows a background-colored circle from the compass's center until
   // it covers the whole screen — this stays up until both that animation and

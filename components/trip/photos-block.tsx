@@ -17,6 +17,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useTripsStore } from '@/store/trips';
+import { useShallow } from 'zustand/react/shallow';
 import { generateId } from '@/utils/trip-helpers';
 import type { TripPhoto } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
@@ -44,7 +45,9 @@ export function TripPhotosBlock({ tripId, tripName, fullPage, permissions }: Pro
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { trips, addPhoto, removePhoto } = useTripsStore();
+  const { trips, addPhoto, removePhoto } = useTripsStore(
+    useShallow((s) => ({ trips: s.trips, addPhoto: s.addPhoto, removePhoto: s.removePhoto })),
+  );
   const trip = trips.find((t) => t.id === tripId);
   const photos = trip?.photos || [];
 

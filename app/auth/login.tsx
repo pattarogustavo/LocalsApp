@@ -27,7 +27,7 @@ const ON_PRIMARY = SchemeColors.light.background;
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { setSession } = useAuthStore();
+  const setSession = useAuthStore((s) => s.setSession);
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);

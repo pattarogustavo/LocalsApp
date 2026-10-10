@@ -29,7 +29,7 @@ const ON_PRIMARY = SchemeColors.light.background;
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
-  const { setSession } = useAuthStore();
+  const setSession = useAuthStore((s) => s.setSession);
   const [appleLoading, setAppleLoading] = useState(false);
   const t = useTranslation();
   const colors = useColors();

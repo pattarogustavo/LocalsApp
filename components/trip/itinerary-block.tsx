@@ -10,6 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/store/auth';
 import { ProBadge } from '@/components/trial-banner';
 import { trpc } from '@/lib/trpc';
@@ -668,7 +669,15 @@ function DayView({
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
-  const { removeItineraryStop, updateItineraryStop, moveItineraryStop, reorderItineraryStops, removeItineraryStopAndPlace } = useTripsStore();
+  const { removeItineraryStop, updateItineraryStop, moveItineraryStop, reorderItineraryStops, removeItineraryStopAndPlace } = useTripsStore(
+    useShallow((s) => ({
+      removeItineraryStop: s.removeItineraryStop,
+      updateItineraryStop: s.updateItineraryStop,
+      moveItineraryStop: s.moveItineraryStop,
+      reorderItineraryStops: s.reorderItineraryStops,
+      removeItineraryStopAndPlace: s.removeItineraryStopAndPlace,
+    })),
+  );
   const batchRoute = trpc.directions.batchRoute.useMutation();
   const [updatingRoutes, setUpdatingRoutes] = useState(false);
   const [stopToMove, setStopToMove] = useState<StopLike | null>(null);
@@ -1091,7 +1100,17 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
   const RESTAURANTS_BUDGET_OPTIONS = useMemo(() => getRestaurantsBudgetOptions(t), [t]);
   const PROFILE_OPTIONS = useMemo(() => getProfileOptions(t), [t]);
   const PACE_OPTIONS = useMemo(() => getPaceOptions(t), [t]);
-  const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace, addAccommodation, updateTrip } = useTripsStore();
+  const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace, addAccommodation, updateTrip } = useTripsStore(
+    useShallow((s) => ({
+      setItinerary: s.setItinerary,
+      addItineraryStop: s.addItineraryStop,
+      setPlaces: s.setPlaces,
+      removePlace: s.removePlace,
+      upsertPlace: s.upsertPlace,
+      addAccommodation: s.addAccommodation,
+      updateTrip: s.updateTrip,
+    })),
+  );
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
   const [generating, setGenerating] = useState(false);

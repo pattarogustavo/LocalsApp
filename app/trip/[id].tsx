@@ -21,6 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/store/auth';
 import { getTripName, formatDate, getCurrencySymbol, getTripCurrencies } from '@/utils/trip-helpers';
 import { TransportBlock } from '@/components/trip/transport-block';
@@ -324,7 +325,7 @@ function EditDestinationsModal({
   const colors = useColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
-  const { updateDestinations } = useTripsStore();
+  const updateDestinations = useTripsStore((s) => s.updateDestinations);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
@@ -517,7 +518,19 @@ export default function TripDetailScreen() {
   const {
     getTripById, deleteTrip, updateStartDate, updateCoverImage, updateTrip,
     hydrateSharedTrip, pullOwnedTripUpdates, lastWriteError, clearLastWriteError,
-  } = useTripsStore();
+  } = useTripsStore(
+    useShallow((s) => ({
+      getTripById: s.getTripById,
+      deleteTrip: s.deleteTrip,
+      updateStartDate: s.updateStartDate,
+      updateCoverImage: s.updateCoverImage,
+      updateTrip: s.updateTrip,
+      hydrateSharedTrip: s.hydrateSharedTrip,
+      pullOwnedTripUpdates: s.pullOwnedTripUpdates,
+      lastWriteError: s.lastWriteError,
+      clearLastWriteError: s.clearLastWriteError,
+    })),
+  );
   const trip = getTripById(id);
   // A trip already known to be owned locally never needs the shared-trips
   // query; anything else (not loaded yet, or a known shared trip we want to
@@ -929,7 +942,7 @@ function TransportTab({ trip, permissions }: { trip: any; permissions: TripPermi
 
 function DestinationInfoCard({ tripId, destination, travelMonth, permissions }: { tripId: string; destination: Destination; travelMonth?: string; permissions: TripPermissions }) {
   const generateInfo = trpc.destinationInfo.generate.useMutation();
-  const { updateDestinationInfo } = useTripsStore();
+  const updateDestinationInfo = useTripsStore((s) => s.updateDestinationInfo);
   const { canUseAI } = permissions;
   const [info, setInfo] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);

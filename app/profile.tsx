@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { useAuthStore, type ThemeMode } from '@/store/auth';
+import { useShallow } from 'zustand/react/shallow';
 import { useSubscription } from '@/hooks/use-subscription';
 import { trpc } from '@/lib/trpc';
 import { useTranslation } from '@/hooks/use-translation';
@@ -271,7 +272,9 @@ function EditProfileModal({
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { user, updateProfile } = useAuthStore();
+  const { user, updateProfile } = useAuthStore(
+    useShallow((s) => ({ user: s.user, updateProfile: s.updateProfile })),
+  );
   const [name, setName] = useState(user?.name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
   const [loading, setLoading] = useState(false);
@@ -463,7 +466,15 @@ export default function ProfileScreen() {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { user, logout, updateProfile, themeMode, setThemeMode } = useAuthStore();
+  const { user, logout, updateProfile, themeMode, setThemeMode } = useAuthStore(
+    useShallow((s) => ({
+      user: s.user,
+      logout: s.logout,
+      updateProfile: s.updateProfile,
+      themeMode: s.themeMode,
+      setThemeMode: s.setThemeMode,
+    })),
+  );
   const { status, isActive, isExpired, subscriptionExpiresAt, plan } = useSubscription();
   const [loggingOut, setLoggingOut] = useState(false);
   const [showLangModal, setShowLangModal] = useState(false);

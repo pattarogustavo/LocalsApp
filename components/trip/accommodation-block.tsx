@@ -75,7 +75,7 @@ function AddAccommodationModal({
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { addAccommodation } = useTripsStore();
+  const addAccommodation = useTripsStore((s) => s.addAccommodation);
 
   const [type, setType] = useState<AccommodationType>('hotel');
   const [checkIn, setCheckIn] = useState<Date>(new Date(tripStartDate));
@@ -349,7 +349,7 @@ export function AccommodationBlock({ trip, permissions }: AccommodationBlockProp
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { canEdit } = permissions;
-  const { removeAccommodation } = useTripsStore();
+  const removeAccommodation = useTripsStore((s) => s.removeAccommodation);
   const [addingForDest, setAddingForDest] = useState<Destination | null>(null);
 
   return (
