@@ -840,6 +840,12 @@ export const pt = {
     renewalReminder: 'Sua assinatura TheLocals Pro renova em 3 dias.',
     renewalReminderTitle: 'Assinatura renovando em breve',
     subscriptionActiveBody: 'Sua assinatura {plan} está ativa agora. Boas viagens!',
+    tripReminder7d: (destination: string) => `Sua viagem para ${destination} começa em 7 dias`,
+    tripReminder1d: (destination: string) => `Sua viagem para ${destination} começa amanhã`,
+    tripRemindersPermissionTitle: 'Ativar lembretes de viagem?',
+    tripRemindersPermissionBody: 'Podemos te avisar quando sua viagem estiver chegando. Isso exige permissão para enviar notificações.',
+    enableNotifications: 'Ativar',
+    notNow: 'Agora não',
   },
 
   // ── Welcome Offer ─────────────────────────────────────────────────────────────

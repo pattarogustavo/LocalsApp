@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/_core/with-timeout';
 import { logoutRevenueCat } from '@/config/revenuecat';
 import { useTripsStore } from '@/store/trips';
+import { cancelTripReminders } from '@/lib/trip-notifications';
 import { trpcVanilla } from '@/lib/trpc-vanilla';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -125,6 +126,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await logoutRevenueCat().catch(() => {});
     await useTripsStore.getState().clearLocalTrips();
     await AsyncStorage.multiRemove([PROFILE_KEY]);
+    // Local trip reminders are per-device, not per-session — cancel them so
+    // they never leak into a different account that logs in on this device.
+    // Flight and subscription notifications are untouched.
+    cancelTripReminders().catch(() => {});
     set({ user: null, session: null, preferredLanguage: lang });
   },
 

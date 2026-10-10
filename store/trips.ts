@@ -18,6 +18,7 @@ import type {
 import { trpcVanilla } from '@/lib/trpc-vanilla';
 import { normalizeCityTransportMode, generateId } from '@/utils/trip-helpers';
 import { PATCHABLE_TRIP_SECTION_KEYS } from '../shared/trip-sections';
+import { reconcileTripReminders } from '@/lib/trip-notifications';
 
 interface TripsState {
   trips: Trip[];
@@ -466,6 +467,7 @@ export const useTripsStore = create<TripsState>((set, get) => {
     set({ trips });
     await saveToStorage(trips);
     await pushTripToCloud(trip);
+    reconcileTripReminders(trips).catch(() => {});
   },
 
   updateTrip: async (id: string, updates: Partial<Trip>) => {
@@ -481,6 +483,7 @@ export const useTripsStore = create<TripsState>((set, get) => {
     set({ trips });
     await saveToStorage(trips);
     await deleteTripFromCloud(id);
+    reconcileTripReminders(trips).catch(() => {});
   },
 
   // isFavorite is per-account/local-only (never shared, see
@@ -737,6 +740,7 @@ export const useTripsStore = create<TripsState>((set, get) => {
       d.setDate(d.getDate() + t.totalDays - 1);
       return { ...t, startDate, endDate: d.toISOString() };
     }, 'updateStartDate');
+    reconcileTripReminders(get().trips).catch(() => {});
   },
 
   // ─── Photos ─────────────────────────────────────────────────────────────────

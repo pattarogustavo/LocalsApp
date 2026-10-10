@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
 import { useShallow } from 'zustand/react/shallow';
+import { reconcileTripReminders } from '@/lib/trip-notifications';
 import { useAuthStore } from '@/store/auth';
 import { getTripName, formatDate, getCurrencySymbol, getTripCurrencies } from '@/utils/trip-helpers';
 import { TransportBlock } from '@/components/trip/transport-block';
@@ -651,6 +652,7 @@ export default function TripDetailScreen() {
             } else if (shareId !== undefined) {
               try {
                 await hideForMeMutation.mutateAsync({ shareId });
+                reconcileTripReminders(useTripsStore.getState().trips).catch(() => {});
               } catch {
                 // Offline or unauthenticated — ignore
               }

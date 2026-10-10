@@ -818,6 +818,12 @@ export const fr: Translations = {
     renewalReminder: 'Votre abonnement TheLocals Pro se renouvelle dans 3 jours.',
     renewalReminderTitle: 'Abonnement bientôt renouvelé',
     subscriptionActiveBody: 'Votre abonnement {plan} est maintenant actif. Bon voyage !',
+    tripReminder7d: (destination: string) => `Votre voyage à ${destination} commence dans 7 jours`,
+    tripReminder1d: (destination: string) => `Votre voyage à ${destination} commence demain`,
+    tripRemindersPermissionTitle: 'Activer les rappels de voyage ?',
+    tripRemindersPermissionBody: "Nous pouvons vous prévenir quand votre voyage approche. Cela nécessite l'autorisation d'envoyer des notifications.",
+    enableNotifications: 'Activer',
+    notNow: 'Plus tard',
   },
 
   welcomeOffer: {

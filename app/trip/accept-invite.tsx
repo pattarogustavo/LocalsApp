@@ -16,6 +16,7 @@ import { trpc } from '@/lib/trpc';
 import { useAuthStore } from '@/store/auth';
 import { useTripsStore } from '@/store/trips';
 import { useTranslation } from '@/hooks/use-translation';
+import { reconcileTripReminders } from '@/lib/trip-notifications';
 
 // Text/icon color for content drawn on top of a solid brand-colored fill, which
 // is identical in both schemes — always the light-scheme background swatch.
@@ -57,6 +58,7 @@ export default function AcceptInviteScreen() {
       const result = await acceptMutation.mutateAsync({ token });
       // Sync trips to get the newly shared trip
       await syncWithCloud();
+      reconcileTripReminders(useTripsStore.getState().trips).catch(() => {});
       setStatus('success');
     } catch (err: any) {
       setErrorMsg(err?.message ?? t.sharing.errorTitle);

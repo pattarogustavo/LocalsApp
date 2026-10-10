@@ -17,6 +17,7 @@ import { useTripsStore } from "@/store/trips";
 import { useShallow } from "zustand/react/shallow";
 import { withTimeout } from "@/lib/_core/with-timeout";
 import { AnimatedSplash } from "@/components/animated-splash";
+import { reconcileTripReminders } from "@/lib/trip-notifications";
 import { TranslatingIndicator } from "@/components/translating-indicator";
 import { configureRevenueCat, loginRevenueCat } from "@/config/revenuecat";
 
@@ -73,10 +74,13 @@ function AuthGuard() {
     }
   }, [user, initialized, segments]);
 
-  // Sync trips with cloud whenever the user logs in
+  // Sync trips with cloud whenever the user logs in, then reconcile local
+  // trip-reminder notifications against whatever that sync settled on.
   useEffect(() => {
     if (user) {
-      syncWithCloud().catch(() => {});
+      syncWithCloud()
+        .then(() => reconcileTripReminders(useTripsStore.getState().trips))
+        .catch(() => {});
     }
   }, [user?.id]);
 
@@ -95,6 +99,7 @@ export default function RootLayout() {
   const insets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
   const frame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
   const initialize = useAuthStore((s) => s.initialize);
+  const router = useRouter();
   // AnimatedSplash renders the same compass + wordmark as the native splash,
   // then grows a background-colored circle from the compass's center until
   // it covers the whole screen — this stays up until both that animation and
@@ -185,6 +190,29 @@ export default function RootLayout() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    // Only `type: 'trip'` is handled here — every other notification type
+    // (flight check-in/boarding, subscription) keeps today's behavior of
+    // just opening the app with no extra navigation.
+    const handleResponse = (response: Notifications.NotificationResponse) => {
+      const data = response.notification.request.content.data;
+      if (data?.type === 'trip' && typeof data.tripId === 'string') {
+        router.push(`/trip/${data.tripId}` as any);
+      }
+    };
+
+    // Cold start: the app was launched by tapping a notification.
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (response) handleResponse(response);
+      })
+      .catch(() => {});
+
+    // Warm/background: the app was already running (or backgrounded).
+    const subscription = Notifications.addNotificationResponseReceivedListener(handleResponse);
+    return () => subscription.remove();
+  }, [router]);
 
   const [queryClient] = useState(
     () =>

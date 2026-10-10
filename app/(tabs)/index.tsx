@@ -22,6 +22,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useTripsStore } from '@/store/trips';
 import { useShallow } from 'zustand/react/shallow';
+import { reconcileTripReminders } from '@/lib/trip-notifications';
 import { TripCard, TripCardStacked, getImageForTrip } from '@/components/trip-card';
 import { CreateTripSheet } from '@/components/create-trip-sheet';
 import { isTripUpcoming, isTripPast, isTripOngoing, getTripName } from '@/utils/trip-helpers';
@@ -142,6 +143,7 @@ export default function HomeScreen() {
             try {
               await hideForMeMutation.mutateAsync({ shareId });
               sharedTripsQuery.refetch();
+              reconcileTripReminders(trips).catch(() => {});
             } catch {
               // Offline or unauthenticated — ignore
             }
