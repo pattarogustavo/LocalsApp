@@ -981,6 +981,39 @@ export const appRouter = router({
     }),
   }),
 
+  // ─── Push Notifications (Expo) ────────────────────────────────────────────
+  push: router({
+    /**
+     * Registers (or re-registers) this device's Expo push token. Tokens are
+     * device-scoped, not account-scoped — upserting by token reassigns it
+     * to the current user if it was previously registered under a
+     * different account on the same device.
+     */
+    register: protectedProcedure
+      .input(z.object({
+        token: z.string().min(1),
+        platform: z.string().min(1),
+        language: z.string().min(1).max(8),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await db.upsertPushToken({
+          userId: ctx.user.id,
+          token: input.token,
+          platform: input.platform,
+          language: input.language,
+        });
+        return { ok: true };
+      }),
+
+    /** Removes this device's token — called on logout so it stops receiving push for this account. */
+    unregister: protectedProcedure
+      .input(z.object({ token: z.string().min(1) }))
+      .mutation(async ({ input }) => {
+        await db.deletePushToken(input.token);
+        return { ok: true };
+      }),
+  }),
+
   // ─── Destination Info (AI) ───────────────────────────────────────────────
   destinationInfo: router({
     /**

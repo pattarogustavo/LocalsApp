@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { InsertUser, users, trips, tripShares, InsertTripRow } from "../drizzle/schema";
+import { InsertUser, users, trips, tripShares, pushTokens, InsertTripRow } from "../drizzle/schema";
 import { mergeTripSections } from "./sharing/trip-merge";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -365,4 +365,41 @@ export async function getSharedTripsForUser(userId: number, email: string) {
     const share = uniqueShares.find((s) => s.tripId === trip.id)!;
     return { ...trip, shareId: share.id, shareRole: share.role };
   });
+}
+
+// ─── Push tokens ───────────────────────────────────────────────────────────────
+
+/**
+ * Upserts a device's Expo push token. Tokens are device-scoped, not
+ * account-scoped, so re-registering an existing token always reassigns it to
+ * `userId` (e.g. a shared/reinstalled device, or a different account
+ * logging in on the same phone) instead of failing on the unique constraint.
+ */
+export async function upsertPushToken(data: {
+  userId: number;
+  token: string;
+  platform: string;
+  language: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(pushTokens)
+    .values(data)
+    .onConflictDoUpdate({
+      target: pushTokens.token,
+      set: { userId: data.userId, platform: data.platform, language: data.language, updatedAt: new Date() },
+    });
+}
+
+/** Removes a single device's token — used on unregister (logout) and when Expo reports it as no longer registered. */
+export async function deletePushToken(token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(pushTokens).where(eq(pushTokens.token, token));
+}
+
+export async function getPushTokensForUsers(userIds: number[]) {
+  const db = await getDb();
+  if (!db || userIds.length === 0) return [];
+  return db.select().from(pushTokens).where(inArray(pushTokens.userId, userIds));
 }
