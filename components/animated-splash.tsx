@@ -26,9 +26,9 @@ const SCREEN_DIAGONAL = Math.sqrt(SCREEN_W * SCREEN_W + SCREEN_H * SCREEN_H);
 const CIRCLE_RADIUS = (SCREEN_DIAGONAL / 2) * 1.1;
 
 // Logo sits still for PAUSE_DURATION, then the reveal circle grows over
-// REVEAL_DURATION — ~1.4s total before onFinished can fire.
-const PAUSE_DURATION = 700;
-const REVEAL_DURATION = 700;
+// REVEAL_DURATION — ~0.7s total before onFinished can fire.
+const PAUSE_DURATION = 250;
+const REVEAL_DURATION = 450;
 
 interface AnimatedSplashProps {
   /** Called once the reveal animation has finished. */
