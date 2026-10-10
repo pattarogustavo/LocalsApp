@@ -625,8 +625,12 @@ export const useTripsStore = create<TripsState>((set, get) => {
     );
     set({ trips });
     await saveToStorage(trips);
+    // Optimistic: the screen already reflects the new traveler via `set`
+    // above, so the cloud push (which already swallows its own errors, see
+    // pushTripToCloud) runs in the background instead of making callers wait
+    // on the network for a save that's already safe locally.
     const updated = trips.find((t) => t.id === tripId);
-    if (updated) await pushTripToCloud(updated);
+    if (updated) pushTripToCloud(updated);
   },
 
   removeTraveler: async (tripId: string, travelerId: string) => {

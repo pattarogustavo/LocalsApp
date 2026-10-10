@@ -117,11 +117,18 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
 
     setSending(true);
     try {
-      const trip = getTripById(tripId);
-      if (trip) {
+      try {
+        await inviteMutation.mutateAsync({ tripClientId: tripId, email: lowerEmail, role: roleInput });
+      } catch (err: any) {
+        // The server only fails to find the trip when it was never pushed to
+        // the cloud yet (e.g. just created offline). Push it once and retry,
+        // instead of always paying for an upsert the server already has.
+        if (!String(err?.message ?? '').includes('Trip not found')) throw err;
+        const trip = getTripById(tripId);
+        if (!trip) throw err;
         await upsertTripMutation.mutateAsync({ clientId: trip.id, data: JSON.stringify(trip) });
+        await inviteMutation.mutateAsync({ tripClientId: tripId, email: lowerEmail, role: roleInput });
       }
-      await inviteMutation.mutateAsync({ tripClientId: tripId, email: lowerEmail, role: roleInput });
 
       const color = AVATAR_COLORS[travelers.length % AVATAR_COLORS.length];
       const traveler: Traveler = {

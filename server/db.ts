@@ -176,6 +176,20 @@ export async function getTripByClientId(userId: number, clientId: string) {
   return allForUser.find((r) => r.clientId === clientId) ?? null;
 }
 
+/**
+ * Same lookup as `getTripByClientId`, but filtered by both columns directly
+ * in SQL instead of loading every trip the user owns and scanning it in JS —
+ * used by the sharing procedures, which only ever need the one trip.
+ */
+export async function getUserTripByClientId(userId: number, clientId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(trips)
+    .where(and(eq(trips.userId, userId), eq(trips.clientId, clientId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 /** Trips belonging to the user whose recorded content language differs from (or is unknown vs.) `targetLanguage`. */
 export async function getUserTripsNeedingTranslation(userId: number, targetLanguage: string) {
   const db = await getDb();
@@ -262,7 +276,7 @@ export async function revokeTripShare(shareId: number, ownerId: number) {
   if (!db) throw new Error("Database not available");
   await db.update(tripShares)
     .set({ status: "revoked", updatedAt: new Date() })
-    .where(eq(tripShares.id, shareId));
+    .where(and(eq(tripShares.id, shareId), eq(tripShares.ownerId, ownerId)));
 }
 
 /** Marks a pending share as declined by the invitee. */

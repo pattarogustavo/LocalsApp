@@ -2464,8 +2464,7 @@ ${WEB_SEARCH_INSTRUCTION}`;
           throw new Error('Você não pode convidar seu próprio e-mail.');
         }
         // Check the trip belongs to the inviting user
-        const trips = await db.getUserTrips(ctx.user.id);
-        const trip = trips.find((t) => t.clientId === input.tripClientId);
+        const trip = await db.getUserTripByClientId(ctx.user.id, input.tripClientId);
         if (!trip) throw new Error('Trip not found or not owned by you');
 
         // Already has an active invite for this email? Update its role instead of duplicating.
@@ -2499,13 +2498,10 @@ ${WEB_SEARCH_INSTRUCTION}`;
         role: z.enum(['viewer', 'editor']),
       }))
       .mutation(async ({ ctx, input }) => {
-        const trips = await db.getUserTrips(ctx.user.id);
-        const ownedTripIds = trips.map((t) => t.id);
-        const allShares = (
-          await Promise.all(ownedTripIds.map((id) => db.getTripSharesByTripId(id)))
-        ).flat();
-        const share = allShares.find((s) => s.id === input.shareId);
-        if (!share) throw new Error('Share not found or not owned by you');
+        // tripShares already carries ownerId, so this is one query instead
+        // of loading every trip the user owns plus a share query per trip.
+        const share = await db.getTripShareById(input.shareId);
+        if (!share || share.ownerId !== ctx.user.id) throw new Error('Share not found or not owned by you');
         await db.updateTripShareRole(input.shareId, input.role);
         return { ok: true };
       }),
@@ -2607,8 +2603,7 @@ ${WEB_SEARCH_INSTRUCTION}`;
     listSentByMe: protectedProcedure
       .input(z.object({ tripClientId: z.string().min(1) }))
       .query(async ({ ctx, input }) => {
-        const trips = await db.getUserTrips(ctx.user.id);
-        const trip = trips.find((t) => t.clientId === input.tripClientId);
+        const trip = await db.getUserTripByClientId(ctx.user.id, input.tripClientId);
         if (!trip) return [];
         const shares = await db.getTripSharesByTripId(trip.id);
         return shares.map((s) => ({
@@ -2623,7 +2618,7 @@ ${WEB_SEARCH_INSTRUCTION}`;
     revoke: protectedProcedure
       .input(z.object({ shareId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        await db.revokeTripShare(ctx.user.id, input.shareId);
+        await db.revokeTripShare(input.shareId, ctx.user.id);
         return { ok: true };
       }),
   }),
