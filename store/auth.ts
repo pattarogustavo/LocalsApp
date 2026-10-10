@@ -5,6 +5,7 @@ import { withTimeout } from '@/lib/_core/with-timeout';
 import { logoutRevenueCat } from '@/config/revenuecat';
 import { useTripsStore } from '@/store/trips';
 import { cancelTripReminders } from '@/lib/trip-notifications';
+import { registerForPushAsync, unregisterPushAsync } from '@/lib/push';
 import { trpcVanilla } from '@/lib/trpc-vanilla';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -122,6 +123,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     const lang = get().preferredLanguage;
+    // Must run before signOut() below — it needs the still-valid session to
+    // call the (protected) unregister endpoint.
+    await unregisterPushAsync().catch(() => {});
     await supabase.auth.signOut();
     await logoutRevenueCat().catch(() => {});
     await useTripsStore.getState().clearLocalTrips();
@@ -175,6 +179,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     if (languageChanged) {
       useTripsStore.getState().translateAllTripsToLanguage(lang);
+      // Re-register so push content for this device starts going out in
+      // the new language.
+      registerForPushAsync(lang).catch(() => {});
     }
   },
 
@@ -202,6 +209,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // making the language switch itself wait on the network.
       if (languageChanged) {
         useTripsStore.getState().translateAllTripsToLanguage(data.preferredLanguage);
+        registerForPushAsync(data.preferredLanguage).catch(() => {});
       }
     }
   },

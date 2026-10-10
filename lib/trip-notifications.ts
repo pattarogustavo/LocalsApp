@@ -42,20 +42,26 @@ async function getCurrentTranslations(): Promise<Translations> {
  * Shows our own explanatory alert before the system permission prompt, and
  * only when there's actually something to schedule. Remembers a decline —
  * ours or the system's — so we never ask again.
+ *
+ * Exported so other features that need the same OS notification permission
+ * (e.g. lib/push.ts, for push-token registration) can reuse this exact
+ * ask-once/remember-the-decline flow instead of prompting separately — it's
+ * the same underlying permission either way.
  */
-async function ensurePermission(t: Translations): Promise<boolean> {
+export async function ensurePermission(t?: Translations): Promise<boolean> {
   if (Platform.OS === 'web') return false;
   const { status } = await Notifications.getPermissionsAsync();
   if (status === 'granted') return true;
   if (await hasDeclinedBefore()) return false;
 
+  const translations = t ?? (await getCurrentTranslations());
   const wantsToTry = await new Promise<boolean>((resolve) => {
     Alert.alert(
-      t.notifications.tripRemindersPermissionTitle,
-      t.notifications.tripRemindersPermissionBody,
+      translations.notifications.tripRemindersPermissionTitle,
+      translations.notifications.tripRemindersPermissionBody,
       [
-        { text: t.notifications.notNow, style: 'cancel', onPress: () => resolve(false) },
-        { text: t.notifications.enableNotifications, onPress: () => resolve(true) },
+        { text: translations.notifications.notNow, style: 'cancel', onPress: () => resolve(false) },
+        { text: translations.notifications.enableNotifications, onPress: () => resolve(true) },
       ],
       { cancelable: true, onDismiss: () => resolve(false) },
     );

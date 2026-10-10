@@ -18,6 +18,7 @@ import { useShallow } from "zustand/react/shallow";
 import { withTimeout } from "@/lib/_core/with-timeout";
 import { AnimatedSplash } from "@/components/animated-splash";
 import { reconcileTripReminders } from "@/lib/trip-notifications";
+import { registerForPushAsync } from "@/lib/push";
 import { TranslatingIndicator } from "@/components/translating-indicator";
 import { configureRevenueCat, loginRevenueCat } from "@/config/revenuecat";
 
@@ -43,8 +44,8 @@ export const unstable_settings = {
 
 // Auth guard: redirects unauthenticated users to onboarding
 function AuthGuard() {
-  const { user, initialized } = useAuthStore(
-    useShallow((s) => ({ user: s.user, initialized: s.initialized })),
+  const { user, initialized, preferredLanguage } = useAuthStore(
+    useShallow((s) => ({ user: s.user, initialized: s.initialized, preferredLanguage: s.preferredLanguage })),
   );
   const segments = useSegments();
   const router = useRouter();
@@ -73,6 +74,14 @@ function AuthGuard() {
       router.replace('/(tabs)');
     }
   }, [user, initialized, segments]);
+
+  // Register (or re-register, idempotently) this device's push token every
+  // time there's a logged-in user — covers both login and every app open.
+  useEffect(() => {
+    if (user) {
+      registerForPushAsync(preferredLanguage).catch(() => {});
+    }
+  }, [user?.id]);
 
   // Sync trips with cloud whenever the user logs in, then reconcile local
   // trip-reminder notifications against whatever that sync settled on.
