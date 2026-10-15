@@ -240,7 +240,7 @@ async function runGenerateForDestination(destination: DestinationSeed, opts: Cur
 
   return {
     slug: destination.slug,
-    proposed: proposed.length + (proposedNames.size - proposed.length),
+    proposed: proposedNames.size,
     verified: verified.length,
     discarded,
     inserted,
