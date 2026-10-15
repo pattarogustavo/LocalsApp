@@ -43,6 +43,13 @@
       "when": 1791630099220,
       "tag": "0005_add_push_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792090662065,
+      "tag": "0006_add_curated_places",
+      "breakpoints": true
     }
   ]
 }
