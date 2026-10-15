@@ -65,6 +65,8 @@ export type InvokeParams = {
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
   enableWebSearch?: boolean;
+  /** Overrides the web_search tool's max_uses (default 4) when enableWebSearch is set. */
+  webSearchMaxUses?: number;
   /** Overrides ENV.anthropicModel for this call (e.g. a cheaper model for simple, non-creative tasks like translation). */
   model?: string;
   /** Per-request timeout in milliseconds, overriding the SDK default — useful for long web-search-enabled calls. */
@@ -461,7 +463,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   if (enableWebSearch) {
     anthropicTools = [
       ...(anthropicTools ?? []),
-      { type: "web_search_20250305", name: "web_search", max_uses: 4 },
+      { type: "web_search_20250305", name: "web_search", max_uses: params.webSearchMaxUses ?? 4 },
     ];
     // The model must decide on its own whether/when to search, so it can't
     // be locked into a forced tool_choice (e.g. the json_schema output tool).
