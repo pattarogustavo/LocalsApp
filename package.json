@@ -17,6 +17,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "qr": "node scripts/generate_qr.mjs",
+    "curate:check": "tsx scripts/curate-destinations.ts check",
+    "curate:smoke": "tsx scripts/curate-destinations.ts smoke",
     "curate:generate": "tsx scripts/curate-destinations.ts generate",
     "curate:verify": "tsx scripts/curate-destinations.ts verify",
     "curate:translate": "tsx scripts/curate-destinations.ts translate",
