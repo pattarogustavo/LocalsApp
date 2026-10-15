@@ -58,6 +58,45 @@ export async function assertCuratedTablesExist(db: CurateDb): Promise<void> {
   }
 }
 
+const ROLLBACK_SENTINEL = Symbol("preflight-rollback");
+
+/**
+ * curate:check preflight: inserts a throwaway destination + place inside a
+ * transaction, then always rolls it back — proving the schema/writes work
+ * without leaving anything behind. Returns true only if the insert actually
+ * succeeded before the rollback.
+ */
+export async function runPreflightWriteCheck(db: CurateDb): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      const [destination] = await tx
+        .insert(curatedDestinations)
+        .values({
+          slug: "__curate_preflight_check__",
+          nameEn: "Preflight Check",
+          namePt: "Checagem Preflight",
+          country: "Nowhere",
+          countryCode: "XX",
+          tier: "small",
+        })
+        .returning();
+      await tx.insert(curatedPlaces).values({
+        destinationId: destination.id,
+        destinationSlug: destination.slug,
+        googlePlaceId: "__preflight_place__",
+        aiName: "Preflight Place",
+        category: "other",
+        confidence: "low",
+        status: "pending",
+        source: "manual",
+      });
+      throw ROLLBACK_SENTINEL;
+    });
+  } catch (err) {
+    if (err !== ROLLBACK_SENTINEL) throw err;
+  }
+}
+
 export async function getDestinationBySlug(db: CurateDb, slug: string): Promise<CuratedDestination | undefined> {
   const rows = await db.select().from(curatedDestinations).where(eq(curatedDestinations.slug, slug)).limit(1);
   return rows[0];
@@ -105,10 +144,19 @@ export async function getApprovedPlaces(db: CurateDb, destinationId: number): Pr
     .where(and(eq(curatedPlaces.destinationId, destinationId), eq(curatedPlaces.status, "approved")));
 }
 
-/** Inserts brand-new 'pending' rows only — never updates an existing row (approved/rejected rows are frozen). */
+/**
+ * Inserts brand-new 'pending' rows only — never updates an existing row
+ * (approved/rejected rows are frozen). Idempotent at the database level via
+ * onConflictDoNothing on (destinationId, googlePlaceId), on top of the
+ * app-level pre-filter (partitionNewCandidates) — so a checkpoint replay or
+ * a retried insert can never duplicate or clobber a row.
+ */
 export async function insertPendingPlaces(db: CurateDb, rows: InsertCuratedPlace[]): Promise<void> {
   if (rows.length === 0) return;
-  await db.insert(curatedPlaces).values(rows);
+  await db
+    .insert(curatedPlaces)
+    .values(rows)
+    .onConflictDoNothing({ target: [curatedPlaces.destinationId, curatedPlaces.googlePlaceId] });
 }
 
 export async function markPlacesClosed(db: CurateDb, placeIds: number[]): Promise<void> {

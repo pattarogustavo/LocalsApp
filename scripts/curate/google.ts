@@ -6,7 +6,24 @@
  * a real Google match using the minimal field mask.
  */
 
+import { withRetry, isRetryableGoogleError, GoogleApiStatusError } from "./retry";
+
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
+
+const GOOGLE_RETRY_OPTIONS = { maxAttempts: 4, baseDelayMs: 500, isRetryable: isRetryableGoogleError };
+
+/** Fetches a Google Places JSON endpoint with retry on OVER_QUERY_LIMIT/UNKNOWN_ERROR/network errors. */
+async function fetchGoogleJson(url: string): Promise<any> {
+  return withRetry(async () => {
+    const res = await fetch(url);
+    const data = (await res.json()) as any;
+    const nonRetryablePassthrough = new Set(["OK", "ZERO_RESULTS", "NOT_FOUND", "INVALID_REQUEST"]);
+    if (data.status && !nonRetryablePassthrough.has(data.status)) {
+      throw new GoogleApiStatusError(data.status);
+    }
+    return data;
+  }, GOOGLE_RETRY_OPTIONS);
+}
 
 export class GoogleCallBudget {
   private calls = 0;
@@ -42,8 +59,7 @@ export async function resolveCityCenter(
   const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
   url.searchParams.set("query", `${destinationName}, ${country}`);
   url.searchParams.set("key", GOOGLE_PLACES_KEY);
-  const res = await fetch(url.toString());
-  const data = (await res.json()) as any;
+  const data = await fetchGoogleJson(url.toString());
   const top = data?.results?.[0];
   const loc = top?.geometry?.location;
   if (typeof loc?.lat !== "number" || typeof loc?.lng !== "number") return null;
@@ -80,8 +96,7 @@ export async function findPlaceMatch(
   url.searchParams.set("fields", "place_id,name,geometry,business_status");
   url.searchParams.set("locationbias", `point:${center.lat},${center.lng}`);
   url.searchParams.set("key", GOOGLE_PLACES_KEY);
-  const res = await fetch(url.toString());
-  const data = (await res.json()) as any;
+  const data = await fetchGoogleJson(url.toString());
   const match = data?.candidates?.[0];
   const loc = match?.geometry?.location;
   if (!match?.place_id || typeof loc?.lat !== "number" || typeof loc?.lng !== "number") return null;
@@ -104,8 +119,7 @@ export async function checkPlaceStatus(placeId: string, budget: GoogleCallBudget
   url.searchParams.set("place_id", placeId);
   url.searchParams.set("fields", "business_status");
   url.searchParams.set("key", GOOGLE_PLACES_KEY);
-  const res = await fetch(url.toString());
-  const data = (await res.json()) as any;
+  const data = await fetchGoogleJson(url.toString());
   if (data.status === "NOT_FOUND" || data.status === "INVALID_REQUEST") return "not_found";
   if (data.status !== "OK") return "not_found";
   const status = data.result?.business_status;
