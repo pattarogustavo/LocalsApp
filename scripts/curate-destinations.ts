@@ -190,10 +190,8 @@ async function runAndCheckpointBatch(
     usedWebSearchFallback: outcome.usedWebSearchFallback,
     notes: outcome.notes,
   };
-  if (!opts.dryRun || true) {
-    // Always checkpoint, even in --dry-run — it's local disk, not the database.
-    saveCheckpoint(ROOT_DIR, slug, key, data);
-  }
+  // Always checkpoint, even in --dry-run — it's local disk, not the database.
+  saveCheckpoint(ROOT_DIR, slug, key, data);
   return data;
 }
 
