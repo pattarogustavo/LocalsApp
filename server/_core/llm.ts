@@ -67,6 +67,8 @@ export type InvokeParams = {
   enableWebSearch?: boolean;
   /** Overrides ENV.anthropicModel for this call (e.g. a cheaper model for simple, non-creative tasks like translation). */
   model?: string;
+  /** Per-request timeout in milliseconds, overriding the SDK default — useful for long web-search-enabled calls. */
+  timeoutMs?: number;
 };
 
 export type ToolCall = {
@@ -466,14 +468,17 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     anthropicToolChoice = { type: "auto" };
   }
 
-  const response = await getClient().messages.create({
-    model: params.model ?? ENV.anthropicModel,
-    max_tokens: maxTokens ?? max_tokens ?? 8192,
-    system: systemPrompt,
-    messages: anthropicMessages,
-    tools: anthropicTools,
-    tool_choice: anthropicToolChoice,
-  });
+  const response = await getClient().messages.create(
+    {
+      model: params.model ?? ENV.anthropicModel,
+      max_tokens: maxTokens ?? max_tokens ?? 8192,
+      system: systemPrompt,
+      messages: anthropicMessages,
+      tools: anthropicTools,
+      tool_choice: anthropicToolChoice,
+    },
+    params.timeoutMs ? { timeout: params.timeoutMs } : undefined,
+  );
 
   return toInvokeResult(response, {
     jsonSchemaToolName,
