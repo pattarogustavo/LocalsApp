@@ -1,32 +1,24 @@
-import { invokeLLM } from "../../server/_core/llm";
+import { invokeLLM, type InvokeResult } from "../../server/_core/llm";
 import { buildResearchPrompt, buildStructurePrompt, buildTranslatePrompt, type ResearchPromptParams, type TranslateBatchItem } from "./prompts";
+import { withRetry, isRetryableAnthropicError, getAnthropicRetryAfterMs } from "./retry";
+import { validateProposedPlaces, type RawProposedPlace, type ValidatedPlace } from "./validate-place";
 
 export const RESEARCH_MODEL = "claude-opus-5-5";
 export const TRANSLATE_MODEL = "claude-haiku-4-5-20251001";
 
 /** Long timeout for the web-search-enabled research call, which can take several minutes. */
 export const RESEARCH_TIMEOUT_MS = 5 * 60 * 1000;
+export const STRUCTURE_TIMEOUT_MS = 2 * 60 * 1000;
 
-export const PROPOSED_PLACE_CATEGORIES = ["attraction", "restaurant", "cafe", "museum", "hidden_gem", "other"] as const;
-export const PROPOSED_PLACE_TAGS = ["culture", "gastronomy", "nature", "adventure", "shopping", "relaxation", "nightlife", "art"] as const;
-export const PROPOSED_PLACE_PRICE_TIERS = ["budget", "moderate", "luxury"] as const;
-export const PROPOSED_PLACE_MEALS = ["breakfast", "lunch", "dinner", "snack"] as const;
-export const PROPOSED_PLACE_CONFIDENCE = ["high", "medium", "low"] as const;
+/** Per-call retry budget: up to 4 attempts with exponential backoff, honoring Retry-After. */
+const CALL_RETRY_OPTIONS = {
+  maxAttempts: 4,
+  baseDelayMs: 1000,
+  isRetryable: isRetryableAnthropicError,
+  getRetryAfterMs: getAnthropicRetryAfterMs,
+};
 
-export interface ProposedPlace {
-  name: string;
-  neighborhood?: string;
-  category: (typeof PROPOSED_PLACE_CATEGORIES)[number];
-  tags: (typeof PROPOSED_PLACE_TAGS)[number][];
-  priceTier?: (typeof PROPOSED_PLACE_PRICE_TIERS)[number];
-  meals?: (typeof PROPOSED_PLACE_MEALS)[number][];
-  cuisine?: string;
-  isLocalCuisine: boolean;
-  confidence: (typeof PROPOSED_PLACE_CONFIDENCE)[number];
-  priority: number;
-  descriptionPt: string;
-  descriptionEn: string;
-}
+export type ProposedPlace = ValidatedPlace;
 
 const STRUCTURE_SCHEMA = {
   name: "proposed_places",
@@ -40,13 +32,16 @@ const STRUCTURE_SCHEMA = {
           properties: {
             name: { type: "string" },
             neighborhood: { type: "string" },
-            category: { type: "string", enum: PROPOSED_PLACE_CATEGORIES },
-            tags: { type: "array", items: { type: "string", enum: PROPOSED_PLACE_TAGS } },
-            priceTier: { type: "string", enum: PROPOSED_PLACE_PRICE_TIERS },
-            meals: { type: "array", items: { type: "string", enum: PROPOSED_PLACE_MEALS } },
+            category: { type: "string", enum: ["attraction", "restaurant", "cafe", "museum", "hidden_gem", "other"] },
+            tags: {
+              type: "array",
+              items: { type: "string", enum: ["culture", "gastronomy", "nature", "adventure", "shopping", "relaxation", "nightlife", "art"] },
+            },
+            priceTier: { type: "string", enum: ["budget", "moderate", "luxury"] },
+            meals: { type: "array", items: { type: "string", enum: ["breakfast", "lunch", "dinner", "snack"] } },
             cuisine: { type: "string" },
             isLocalCuisine: { type: "boolean" },
-            confidence: { type: "string", enum: PROPOSED_PLACE_CONFIDENCE },
+            confidence: { type: "string", enum: ["high", "medium", "low"] },
             priority: { type: "number" },
             descriptionPt: { type: "string" },
             descriptionEn: { type: "string" },
@@ -65,7 +60,7 @@ export interface AiCallStats {
   completionTokens: number;
 }
 
-function newStats(): AiCallStats {
+export function newAiCallStats(): AiCallStats {
   return { calls: 0, promptTokens: 0, completionTokens: 0 };
 }
 
@@ -75,36 +70,87 @@ function trackUsage(stats: AiCallStats, usage: { prompt_tokens: number; completi
   stats.completionTokens += usage?.completion_tokens ?? 0;
 }
 
-/** Step 1: free-text research call with web search enabled, no forced schema. */
-export async function researchPlaces(params: ResearchPromptParams, stats: AiCallStats): Promise<string> {
-  const result = await invokeLLM({
-    model: RESEARCH_MODEL,
-    enableWebSearch: true,
-    timeoutMs: RESEARCH_TIMEOUT_MS,
-    maxTokens: 8192,
-    messages: [{ role: "user", content: buildResearchPrompt(params) }],
-  });
-  trackUsage(stats, result.usage);
-  const content = result.choices[0]?.message.content;
-  return typeof content === "string" ? content : "";
+function isTruncated(result: InvokeResult): boolean {
+  return result.choices[0]?.finish_reason === "length";
 }
 
-/** Step 2: converts step-1 free text into a structured, schema-validated list. Never combined with web search in the same call. */
-export async function structurePlaces(researchText: string, stats: AiCallStats): Promise<ProposedPlace[]> {
-  const result = await invokeLLM({
-    outputSchema: STRUCTURE_SCHEMA,
-    maxTokens: 8192,
-    messages: [{ role: "user", content: buildStructurePrompt(researchText) }],
-  });
-  trackUsage(stats, result.usage);
-  const content = result.choices[0]?.message.content;
-  if (typeof content !== "string" || !content) return [];
-  const parsed = JSON.parse(content) as { places?: ProposedPlace[] };
-  return parsed.places ?? [];
+export interface ResearchBatchResult {
+  text: string;
+  truncated: boolean;
+  usedWebSearch: boolean;
 }
 
-export function newAiCallStats(): AiCallStats {
-  return newStats();
+/**
+ * Step 1: free-text research call for one small batch, with web search
+ * enabled and retried on transient errors. If the web-search-enabled call
+ * still fails after its retry budget, retries ONE more time without web
+ * search — `usedWebSearch` reports which path actually produced the result.
+ */
+export async function researchBatch(params: ResearchPromptParams, stats: AiCallStats): Promise<ResearchBatchResult> {
+  const prompt = buildResearchPrompt(params);
+
+  async function callOnce(enableWebSearch: boolean): Promise<InvokeResult> {
+    return withRetry(
+      () =>
+        invokeLLM({
+          model: RESEARCH_MODEL,
+          enableWebSearch,
+          webSearchMaxUses: enableWebSearch ? 5 : undefined,
+          timeoutMs: RESEARCH_TIMEOUT_MS,
+          maxTokens: 8192,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      CALL_RETRY_OPTIONS,
+    );
+  }
+
+  try {
+    const result = await callOnce(true);
+    trackUsage(stats, result.usage);
+    const content = result.choices[0]?.message.content;
+    return { text: typeof content === "string" ? content : "", truncated: isTruncated(result), usedWebSearch: true };
+  } catch {
+    // Web search exhausted its retries — one last attempt without it.
+    const result = await callOnce(false);
+    trackUsage(stats, result.usage);
+    const content = result.choices[0]?.message.content;
+    return { text: typeof content === "string" ? content : "", truncated: isTruncated(result), usedWebSearch: false };
+  }
+}
+
+export interface StructureBatchResult {
+  places: ProposedPlace[];
+  invalidCount: number;
+  truncated: boolean;
+}
+
+/** Step 2: converts step-1 free text into a structured, schema-validated, individually-validated list. Never combined with web search in the same call. */
+export async function structureBatch(researchText: string, stats: AiCallStats): Promise<StructureBatchResult> {
+  const result = await withRetry(
+    () =>
+      invokeLLM({
+        outputSchema: STRUCTURE_SCHEMA,
+        timeoutMs: STRUCTURE_TIMEOUT_MS,
+        maxTokens: 8192,
+        messages: [{ role: "user", content: buildStructurePrompt(researchText) }],
+      }),
+    CALL_RETRY_OPTIONS,
+  );
+  trackUsage(stats, result.usage);
+
+  const content = result.choices[0]?.message.content;
+  const truncated = isTruncated(result);
+  if (typeof content !== "string" || !content) return { places: [], invalidCount: 0, truncated };
+
+  let raw: RawProposedPlace[];
+  try {
+    raw = (JSON.parse(content) as { places?: RawProposedPlace[] }).places ?? [];
+  } catch {
+    return { places: [], invalidCount: 0, truncated: true };
+  }
+
+  const { valid, invalidCount } = validateProposedPlaces(raw);
+  return { places: valid, invalidCount, truncated };
 }
 
 const TRANSLATE_SCHEMA = {
@@ -139,22 +185,32 @@ export interface TranslatedBatchItem {
   it: string;
 }
 
-/** Batched es/fr/de/it translation for a destination's approved places, from their English description. */
-export async function translateBatch(
-  destinationName: string,
-  items: TranslateBatchItem[],
-  stats: AiCallStats,
-): Promise<TranslatedBatchItem[]> {
-  if (items.length === 0) return [];
-  const result = await invokeLLM({
-    model: TRANSLATE_MODEL,
-    outputSchema: TRANSLATE_SCHEMA,
-    maxTokens: 8192,
-    messages: [{ role: "user", content: buildTranslatePrompt(destinationName, items) }],
-  });
+export interface TranslateBatchResult {
+  translations: TranslatedBatchItem[];
+  truncated: boolean;
+}
+
+/** Batched es/fr/de/it translation for up to MAX_PLACES_PER_BATCH places, from their English description. */
+export async function translateBatch(destinationName: string, items: TranslateBatchItem[], stats: AiCallStats): Promise<TranslateBatchResult> {
+  if (items.length === 0) return { translations: [], truncated: false };
+  const result = await withRetry(
+    () =>
+      invokeLLM({
+        model: TRANSLATE_MODEL,
+        outputSchema: TRANSLATE_SCHEMA,
+        maxTokens: 8192,
+        messages: [{ role: "user", content: buildTranslatePrompt(destinationName, items) }],
+      }),
+    CALL_RETRY_OPTIONS,
+  );
   trackUsage(stats, result.usage);
   const content = result.choices[0]?.message.content;
-  if (typeof content !== "string" || !content) return [];
-  const parsed = JSON.parse(content) as { translations?: TranslatedBatchItem[] };
-  return parsed.translations ?? [];
+  const truncated = isTruncated(result);
+  if (typeof content !== "string" || !content) return { translations: [], truncated };
+  try {
+    const parsed = JSON.parse(content) as { translations?: TranslatedBatchItem[] };
+    return { translations: parsed.translations ?? [], truncated };
+  } catch {
+    return { translations: [], truncated: true };
+  }
 }
