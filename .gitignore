@@ -68,3 +68,6 @@ Thumbs.db
 
 # Apple API Key (sensitive - do not commit)
 AuthKey_*.p8
+
+# Curated-places review exports (scripts/curate-destinations.ts)
+exports/
