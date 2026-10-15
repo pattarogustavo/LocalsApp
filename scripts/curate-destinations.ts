@@ -4,25 +4,39 @@ import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
 
-import { parseArgs, type CurateOptions } from "./curate/cli-args";
+import { parseArgs, SMOKE_DEFAULT_SLUG, type CurateOptions } from "./curate/cli-args";
 import { DESTINATIONS, countryNameFor, getDestinationsBySlug, getPilotDestinations, type DestinationSeed } from "./data/destinations";
-import { TIER_GOALS, DEFAULT_MAX_GOOGLE_CALLS, MAX_COMPLEMENT_ROUNDS, MAX_AI_CALLS_PER_DESTINATION, VERIFICATION_CONCURRENCY, MAX_DISTANCE_FROM_CENTER_KM, restaurantCandidateTarget, totalCandidateTarget } from "./data/curation-config";
+import {
+  TIER_GOALS,
+  MAX_COMPLEMENT_ROUNDS,
+  MAX_AI_CALLS_PER_DESTINATION,
+  VERIFICATION_CONCURRENCY,
+  MAX_DISTANCE_FROM_CENTER_KM,
+  categoryCapFor,
+} from "./data/curation-config";
+import { planBatches, batchKey, GROUP_LABELS, GROUP_CATEGORIES, type BatchPlan, type GroupKey } from "./curate/batches";
 import { GoogleCallBudget, resolveCityCenter, findPlaceMatch, checkPlaceStatus } from "./curate/google";
-import { newAiCallStats, researchPlaces, structurePlaces, translateBatch, type ProposedPlace, type AiCallStats } from "./curate/ai";
+import { newAiCallStats, researchBatch, structureBatch, translateBatch, RESEARCH_MODEL, type ProposedPlace, type AiCallStats } from "./curate/ai";
+import { invokeLLM } from "../server/_core/llm";
+import { runBatchWithSplitting, type BatchRunOutcome } from "./curate/batch-runner";
 import { verifyCandidate } from "./curate/verify";
 import { dedupeByPlaceId } from "./curate/dedupe";
 import { selectRestaurants, localCuisineRatio, type RestaurantCandidate } from "./curate/distribution";
 import { applyCategoryCaps } from "./curate/caps";
-import { computeShortfall, remainingRestaurantRoom } from "./curate/shortfall";
+import { computeShortfall } from "./curate/shortfall";
 import { partitionNewCandidates } from "./curate/status-guard";
 import { buildBaseDescriptions, mergeTranslations, isCompleteDescriptions, type Descriptions } from "./curate/descriptions";
 import { buildExportMarkdown, type ExportPlace } from "./curate/export";
 import { mapWithConcurrency } from "./curate/concurrency";
+import { chunkItems } from "./curate/chunk";
+import { saveCheckpoint, loadCheckpoint, hasCheckpoint, listCheckpointKeys, clearCheckpoints } from "./curate/checkpoint";
+import { createLogger, formatBatchLine, type CurateLogger } from "./curate/logger";
 import {
   getCurateDb,
   closeCurateDb,
   maskDatabaseHost,
   assertCuratedTablesExist,
+  runPreflightWriteCheck,
   upsertDestinationMeta,
   getDestinationBySlug,
   getExistingPlaceIds,
@@ -38,7 +52,8 @@ import {
 } from "./curate/db";
 import type { InsertCuratedPlace, CuratedPlace } from "../drizzle/schema";
 
-const EXPORTS_DIR = path.resolve(process.cwd(), "exports");
+const ROOT_DIR = process.cwd();
+const EXPORTS_DIR = path.resolve(ROOT_DIR, "exports");
 
 function resolveSelection(opts: CurateOptions): DestinationSeed[] {
   if (opts.only) return getDestinationsBySlug(opts.only);
@@ -59,15 +74,24 @@ async function confirmDatabaseWrite(opts: CurateOptions): Promise<void> {
   }
 }
 
-// ─── curate:generate ───────────────────────────────────────────────────────
+// ─── batch execution (shared by generate and smoke) ────────────────────────
 
 interface VerifiedPlace extends ProposedPlace {
   googlePlaceId: string;
 }
 
+interface BatchCheckpointData {
+  verified: VerifiedPlace[];
+  discarded: { name: string; reason: string }[];
+  invalidCount: number;
+  failed: boolean;
+  usedWebSearchFallback: boolean;
+  notes: string[];
+}
+
 async function verifyProposedPlaces(
   proposed: ProposedPlace[],
-  destination: DestinationSeed,
+  destination: Pick<DestinationSeed, "nameEn">,
   center: { lat: number; lng: number },
   budget: GoogleCallBudget,
   discarded: { name: string; reason: string }[],
@@ -93,11 +117,96 @@ async function verifyProposedPlaces(
   return dedupeByPlaceId(matches.filter((m): m is VerifiedPlace => m != null));
 }
 
+/** Runs one research+structure+verify batch (with truncation splitting), checkpointing the result BEFORE any DB write. */
+async function runAndCheckpointBatch(
+  slug: string,
+  key: string,
+  plan: Pick<BatchPlan, "group" | "categories">,
+  size: number,
+  promptExtra: { groupLabel: string; categoryCaps?: Record<string, number>; excludeNames: string[]; onlyMissing?: string },
+  destination: DestinationSeed,
+  country: string,
+  goals: (typeof TIER_GOALS)[keyof typeof TIER_GOALS],
+  center: { lat: number; lng: number },
+  budget: GoogleCallBudget,
+  aiStats: AiCallStats,
+  opts: CurateOptions,
+  logger: CurateLogger,
+  batchLabel: string,
+): Promise<BatchCheckpointData> {
+  if (!opts.refresh && hasCheckpoint(ROOT_DIR, slug, key)) {
+    const cached = loadCheckpoint<BatchCheckpointData>(ROOT_DIR, slug, key);
+    if (cached) {
+      logger.info(`${batchLabel}: reused checkpoint (${cached.verified.length} lugares)`);
+      return cached;
+    }
+  }
+
+  const start = Date.now();
+  const discarded: { name: string; reason: string }[] = [];
+  let invalidCount = 0;
+
+  const outcome: BatchRunOutcome<ProposedPlace> = await runBatchWithSplitting(size, async (size) => {
+    if (size <= 0) return { items: [], truncated: false };
+    if (aiStats.calls + 2 > MAX_AI_CALLS_PER_DESTINATION) {
+      logger.info(`${batchLabel}: AI call budget exhausted, skipping`);
+      return { items: [], truncated: false };
+    }
+    const research = await researchBatch(
+      {
+        destinationName: destination.nameEn,
+        country,
+        goals,
+        group: plan.group,
+        groupLabel: promptExtra.groupLabel,
+        batchSize: size,
+        categoryCaps: promptExtra.categoryCaps,
+        excludeNames: promptExtra.excludeNames,
+        onlyMissing: promptExtra.onlyMissing,
+      },
+      aiStats,
+    );
+    const structured = await structureBatch(research.text, aiStats);
+    invalidCount += structured.invalidCount;
+    return {
+      items: structured.places,
+      truncated: research.truncated || structured.truncated,
+      usedWebSearchFallback: !research.usedWebSearch,
+    };
+  });
+
+  const verified = await verifyProposedPlaces(outcome.items, destination, center, budget, discarded);
+  const elapsedSec = Math.round((Date.now() - start) / 1000);
+
+  const status = outcome.failed ? "falhou" : outcome.usedWebSearchFallback ? "ok (sem pesquisa web)" : "ok";
+  logger.info(`${batchLabel}: ${formatBatchLine(1, 1, status, verified.length, elapsedSec).replace(/^lote 1\/1: /, "")}`);
+  for (const note of outcome.notes) logger.log(`  ${batchLabel}: ${note}`);
+
+  const data: BatchCheckpointData = {
+    verified,
+    discarded,
+    invalidCount,
+    failed: outcome.failed,
+    usedWebSearchFallback: outcome.usedWebSearchFallback,
+    notes: outcome.notes,
+  };
+  if (!opts.dryRun || true) {
+    // Always checkpoint, even in --dry-run — it's local disk, not the database.
+    saveCheckpoint(ROOT_DIR, slug, key, data);
+  }
+  return data;
+}
+
+// ─── curate:generate ───────────────────────────────────────────────────────
+
 interface GenerateReport {
   slug: string;
   proposed: number;
   verified: number;
+  invalidCount: number;
   discarded: { name: string; reason: string }[];
+  failedBatches: string[];
+  webSearchFallbackBatches: string[];
   inserted: number;
   skippedExisting: number;
   missingGoals: string[];
@@ -106,54 +215,115 @@ interface GenerateReport {
   googleCalls: number;
 }
 
-async function runGenerateForDestination(destination: DestinationSeed, opts: CurateOptions, db: CurateDb | null, budget: GoogleCallBudget): Promise<GenerateReport> {
+async function runGenerateForDestination(
+  destination: DestinationSeed,
+  opts: CurateOptions,
+  db: CurateDb | null,
+  budget: GoogleCallBudget,
+  logger: CurateLogger,
+): Promise<GenerateReport> {
   const start = Date.now();
   const goals = TIER_GOALS[destination.tier];
   const country = countryNameFor(destination.countryCode);
   const aiStats = newAiCallStats();
-  const discarded: { name: string; reason: string }[] = [];
   const googleCallsBefore = budget.count;
 
+  if (opts.refresh) clearCheckpoints(ROOT_DIR, destination.slug);
+
   const center = await resolveCityCenter(destination.nameEn, country, budget);
-  if (!center) {
-    throw new Error(`Could not resolve a center point for "${destination.nameEn}, ${country}"`);
-  }
+  if (!center) throw new Error(`Could not resolve a center point for "${destination.nameEn}, ${country}"`);
 
-  const researchText = await researchPlaces({ destinationName: destination.nameEn, country, goals }, aiStats);
-  const proposed = await structurePlaces(researchText, aiStats);
+  const plans = planBatches(goals, destination.tier);
+  const proposedNames = new Set<string>();
+  const failedBatches: string[] = [];
+  const webSearchFallbackBatches: string[] = [];
+  let invalidCount = 0;
+  const allDiscarded: { name: string; reason: string }[] = [];
+  const batchKeysRun: string[] = [];
 
-  let verified = await verifyProposedPlaces(proposed, destination, center, budget, discarded);
-  const proposedNames = new Set(proposed.map((p) => p.name));
-
-  for (let round = 0; round < MAX_COMPLEMENT_ROUNDS; round++) {
-    const restaurants = verified.filter((v) => v.category === "restaurant");
-    const shortfall = computeShortfall({ total: verified.length, restaurants: restaurants.length }, goals);
-    if (shortfall.meetsGoals) break;
-    if (aiStats.calls + 2 > MAX_AI_CALLS_PER_DESTINATION) break;
-
-    const missingParts = [
-      shortfall.needsMoreRestaurants ? `${shortfall.missingRestaurants} restaurantes de culinária local` : null,
-      shortfall.needsMoreTotal ? `${shortfall.missingTotal} lugares adicionais (qualquer categoria elegível)` : null,
-    ].filter(Boolean);
-
-    const complementText = await researchPlaces(
-      {
-        destinationName: destination.nameEn,
-        country,
-        goals,
-        onlyMissing: missingParts.join(" e "),
-        excludeNames: [...proposedNames],
-      },
+  // Destinations and batches always run in sequence — never in parallel.
+  for (const plan of plans) {
+    const key = batchKey(plan);
+    batchKeysRun.push(key);
+    const caps = Object.fromEntries(plan.categories.map((c) => [c, categoryCapFor(c, destination.tier)]).filter(([, v]) => v != null)) as Record<string, number>;
+    const data = await runAndCheckpointBatch(
+      destination.slug,
+      key,
+      plan,
+      plan.size,
+      { groupLabel: GROUP_LABELS[plan.group], categoryCaps: Object.keys(caps).length ? caps : undefined, excludeNames: [...proposedNames] },
+      destination,
+      country,
+      goals,
+      center,
+      budget,
       aiStats,
+      opts,
+      logger,
+      `[${destination.slug}] lote ${key}`,
     );
-    const complementProposed = await structurePlaces(complementText, aiStats);
-    for (const p of complementProposed) proposedNames.add(p.name);
-
-    const complementVerified = await verifyProposedPlaces(complementProposed, destination, center, budget, discarded);
-    verified = dedupeByPlaceId([...verified, ...complementVerified]);
+    for (const v of data.verified) proposedNames.add(v.name);
+    if (data.failed) failedBatches.push(key);
+    if (data.usedWebSearchFallback) webSearchFallbackBatches.push(key);
+    invalidCount += data.invalidCount;
+    allDiscarded.push(...data.discarded);
   }
 
-  const restaurantCandidates: RestaurantCandidate[] = verified
+  // At most one complement round — restaurants first, then anything else needed, each its own small batch.
+  let verifiedSoFar = dedupeByPlaceId(batchKeysRun.flatMap((k) => loadCheckpoint<BatchCheckpointData>(ROOT_DIR, destination.slug, k)?.verified ?? []));
+  for (let round = 0; round < MAX_COMPLEMENT_ROUNDS; round++) {
+    const restaurants = verifiedSoFar.filter((v) => v.category === "restaurant");
+    const shortfall = computeShortfall({ total: verifiedSoFar.length, restaurants: restaurants.length }, goals);
+    if (shortfall.meetsGoals) break;
+    if (aiStats.calls + 4 > MAX_AI_CALLS_PER_DESTINATION) break;
+
+    const complementPlans: { group: GroupKey; size: number; onlyMissing: string }[] = [];
+    if (shortfall.needsMoreRestaurants) {
+      complementPlans.push({ group: "B", size: Math.min(15, shortfall.missingRestaurants + 2), onlyMissing: `${shortfall.missingRestaurants} restaurantes de culinária local adicionais` });
+    }
+    if (shortfall.needsMoreTotal) {
+      complementPlans.push({ group: "D", size: Math.min(15, shortfall.missingTotal), onlyMissing: `${shortfall.missingTotal} lugares adicionais (segredos de morador, bairros, vida noturna ou compras)` });
+    }
+
+    try {
+      for (const cp of complementPlans) {
+        const key = `complement-${cp.group}-${round + 1}`;
+        batchKeysRun.push(key);
+        const caps = Object.fromEntries(GROUP_CATEGORIES[cp.group].map((c) => [c, categoryCapFor(c, destination.tier)]).filter(([, v]) => v != null)) as Record<string, number>;
+        const data = await runAndCheckpointBatch(
+          destination.slug,
+          key,
+          { group: cp.group, categories: GROUP_CATEGORIES[cp.group] },
+          cp.size,
+          { groupLabel: GROUP_LABELS[cp.group], categoryCaps: Object.keys(caps).length ? caps : undefined, excludeNames: [...proposedNames], onlyMissing: cp.onlyMissing },
+          destination,
+          country,
+          goals,
+          center,
+          budget,
+          aiStats,
+          opts,
+          logger,
+          `[${destination.slug}] lote ${key}`,
+        );
+        for (const v of data.verified) proposedNames.add(v.name);
+        if (data.failed) failedBatches.push(key);
+        if (data.usedWebSearchFallback) webSearchFallbackBatches.push(key);
+        invalidCount += data.invalidCount;
+        allDiscarded.push(...data.discarded);
+      }
+    } catch (err) {
+      logger.info(`[${destination.slug}] complementação falhou, seguindo sem ela: ${(err as Error).message}`);
+      break;
+    }
+
+    verifiedSoFar = dedupeByPlaceId(batchKeysRun.flatMap((k) => loadCheckpoint<BatchCheckpointData>(ROOT_DIR, destination.slug, k)?.verified ?? []));
+  }
+
+  // Assembly happens from the checkpoints (fresh or reused), never from partial in-memory state alone.
+  const allVerified = dedupeByPlaceId(batchKeysRun.flatMap((k) => loadCheckpoint<BatchCheckpointData>(ROOT_DIR, destination.slug, k)?.verified ?? []));
+
+  const restaurantCandidates: RestaurantCandidate[] = allVerified
     .filter((v) => v.category === "restaurant")
     .map((v) => ({
       id: v.googlePlaceId,
@@ -164,18 +334,15 @@ async function runGenerateForDestination(destination: DestinationSeed, opts: Cur
       priority: v.priority,
     }));
   const selectedRestaurantIds = new Set(selectRestaurants(restaurantCandidates, goals).map((r) => r.id));
-  const keptRestaurants = verified.filter((v) => v.category === "restaurant" && selectedRestaurantIds.has(v.googlePlaceId));
-  for (const v of verified.filter((v) => v.category === "restaurant" && !selectedRestaurantIds.has(v.googlePlaceId))) {
-    discarded.push({ name: v.name, reason: "restaurant selection: over restaurantsMax or not needed for distribution" });
+  const keptRestaurants = allVerified.filter((v) => v.category === "restaurant" && selectedRestaurantIds.has(v.googlePlaceId));
+  for (const v of allVerified.filter((v) => v.category === "restaurant" && !selectedRestaurantIds.has(v.googlePlaceId))) {
+    allDiscarded.push({ name: v.name, reason: "restaurant selection: over restaurantsMax or not needed for distribution" });
   }
 
-  const others = verified.filter((v) => v.category !== "restaurant");
-  const cappedOthers = applyCategoryCaps(
-    others.map((o) => ({ ...o, category: o.category, priority: o.priority })),
-    destination.tier,
-  );
+  const others = allVerified.filter((v) => v.category !== "restaurant");
+  const cappedOthers = applyCategoryCaps(others, destination.tier);
   for (const o of others) {
-    if (!cappedOthers.includes(o)) discarded.push({ name: o.name, reason: `category cap reached (${o.category})` });
+    if (!cappedOthers.includes(o)) allDiscarded.push({ name: o.name, reason: `category cap reached (${o.category})` });
   }
 
   const finalPlaces = [...keptRestaurants, ...cappedOthers];
@@ -195,10 +362,7 @@ async function runGenerateForDestination(destination: DestinationSeed, opts: Cur
   if (opts.dryRun) {
     fs.mkdirSync(EXPORTS_DIR, { recursive: true });
     const outPath = path.join(EXPORTS_DIR, `dry-run-${destination.slug}.json`);
-    fs.writeFileSync(
-      outPath,
-      JSON.stringify({ destination, goals, center, places: finalPlaces, discarded, missingGoals }, null, 2),
-    );
+    fs.writeFileSync(outPath, JSON.stringify({ destination, goals, center, places: finalPlaces, discarded: allDiscarded, missingGoals }, null, 2));
     inserted = finalPlaces.length;
   } else if (db) {
     const destinationRow = await upsertDestinationMeta(db, {
@@ -213,7 +377,7 @@ async function runGenerateForDestination(destination: DestinationSeed, opts: Cur
     });
 
     const existingIds = await getExistingPlaceIds(db, destinationRow.id);
-    const { toInsert, toSkip } = partitionNewCandidates(finalPlaces.map((p) => ({ ...p, googlePlaceId: p.googlePlaceId })), existingIds);
+    const { toInsert, toSkip } = partitionNewCandidates(finalPlaces, existingIds);
     skippedExisting = toSkip.length;
 
     const rows: InsertCuratedPlace[] = toInsert.map((p) => ({
@@ -233,7 +397,7 @@ async function runGenerateForDestination(destination: DestinationSeed, opts: Cur
       source: "ai",
       descriptions: buildBaseDescriptions(p.descriptionPt, p.descriptionEn),
     }));
-    await insertPendingPlaces(db, rows);
+    await insertPendingPlaces(db, rows); // idempotent (onConflictDoNothing)
     await markDestinationGenerated(db, destinationRow.id);
     inserted = rows.length;
   }
@@ -241,8 +405,11 @@ async function runGenerateForDestination(destination: DestinationSeed, opts: Cur
   return {
     slug: destination.slug,
     proposed: proposedNames.size,
-    verified: verified.length,
-    discarded,
+    verified: allVerified.length,
+    invalidCount,
+    discarded: allDiscarded,
+    failedBatches,
+    webSearchFallbackBatches,
     inserted,
     skippedExisting,
     missingGoals,
@@ -254,20 +421,25 @@ async function runGenerateForDestination(destination: DestinationSeed, opts: Cur
 
 function printPlan(selection: DestinationSeed[]) {
   let totalGoogleEstimate = 0;
+  let totalAiCallsEstimate = 0;
   for (const d of selection) {
     const goals = TIER_GOALS[d.tier];
-    const candidateCount = totalCandidateTarget(goals);
+    const plans = planBatches(goals, d.tier);
+    const candidateCount = plans.reduce((sum, p) => sum + p.size, 0);
     const googleEstimate = 1 + candidateCount; // city center + one findPlaceFromText per candidate
+    const aiEstimate = plans.length * 2; // research + structure per batch
     totalGoogleEstimate += googleEstimate;
-    console.log(
-      `${d.slug} [${d.tier}] goals: total=${goals.total} restaurants=${goals.restaurantsMin}-${goals.restaurantsMax} cafes>=${goals.cafesMin} ` +
-        `| candidates requested: total=${candidateCount} restaurants=${restaurantCandidateTarget(goals)} | est. Google calls: ${googleEstimate}`,
-    );
+    totalAiCallsEstimate += aiEstimate;
+    console.log(`${d.slug} [${d.tier}] goals: total=${goals.total} restaurants=${goals.restaurantsMin}-${goals.restaurantsMax} cafes>=${goals.cafesMin}`);
+    for (const p of plans) {
+      console.log(`  lote ${batchKey(p)} (${p.of} no grupo): ${p.size} lugares [${p.categories.join(", ")}]`);
+    }
+    console.log(`  | est. AI calls: ${aiEstimate} (+ até 4 de complementação) | est. Google calls: ${googleEstimate}`);
   }
-  console.log(`\nTotal estimated Google calls across ${selection.length} destination(s): ${totalGoogleEstimate}`);
+  console.log(`\nTotal estimado para ${selection.length} destino(s): ~${totalAiCallsEstimate} chamadas de IA, ~${totalGoogleEstimate} chamadas ao Google.`);
 }
 
-async function runGenerate(opts: CurateOptions, selection: DestinationSeed[]): Promise<void> {
+async function runGenerate(opts: CurateOptions, selection: DestinationSeed[], logger: CurateLogger): Promise<void> {
   if (opts.plan) {
     printPlan(selection);
     return;
@@ -279,33 +451,152 @@ async function runGenerate(opts: CurateOptions, selection: DestinationSeed[]): P
   if (db) await assertCuratedTablesExist(db);
 
   const budget = new GoogleCallBudget(opts.maxGoogleCalls);
+  const failedDestinations: string[] = [];
 
   for (const destination of selection) {
-    console.log(`\n=== ${destination.slug} ===`);
+    logger.info(`\n=== ${destination.slug} ===`);
     try {
-      const report = await runGenerateForDestination(destination, opts, db, budget);
-      console.log(
-        `proposed=${report.proposed} verified=${report.verified} discarded=${report.discarded.length} ` +
+      const report = await runGenerateForDestination(destination, opts, db, budget, logger);
+      logger.info(
+        `proposed=${report.proposed} verified=${report.verified} invalid=${report.invalidCount} discarded=${report.discarded.length} ` +
           `inserted=${report.inserted} skippedExisting=${report.skippedExisting} elapsedMs=${report.elapsedMs} ` +
           `aiCalls=${report.aiStats.calls} promptTokens=${report.aiStats.promptTokens} completionTokens=${report.aiStats.completionTokens} ` +
           `googleCalls=${report.googleCalls}`,
       );
-      if (report.missingGoals.length) console.log(`  missing goals: ${report.missingGoals.join("; ")}`);
+      if (report.failedBatches.length) logger.info(`  failed batches: ${report.failedBatches.join(", ")}`);
+      if (report.webSearchFallbackBatches.length) logger.info(`  batches without web search: ${report.webSearchFallbackBatches.join(", ")}`);
+      if (report.missingGoals.length) logger.info(`  missing goals: ${report.missingGoals.join("; ")}`);
       if (report.discarded.length) {
-        for (const d of report.discarded.slice(0, 20)) console.log(`  discarded "${d.name}": ${d.reason}`);
-        if (report.discarded.length > 20) console.log(`  ...and ${report.discarded.length - 20} more`);
+        for (const d of report.discarded.slice(0, 20)) logger.log(`  discarded "${d.name}": ${d.reason}`);
+        if (report.discarded.length > 20) logger.log(`  ...and ${report.discarded.length - 20} more`);
       }
     } catch (err) {
-      console.error(`[${destination.slug}] generation failed:`, err);
+      failedDestinations.push(destination.slug);
+      logger.info(`[${destination.slug}] generation failed: ${(err as Error).message}`);
     }
   }
 
   if (db) await closeCurateDb();
+
+  if (failedDestinations.length) {
+    logger.info(`\nDestinos que falharam: ${failedDestinations.join(", ")}`);
+    process.exitCode = 1;
+  }
+}
+
+// ─── curate:smoke ──────────────────────────────────────────────────────────
+
+async function runSmoke(opts: CurateOptions, logger: CurateLogger): Promise<void> {
+  const slug = opts.only?.[0] ?? SMOKE_DEFAULT_SLUG;
+  const [destination] = getDestinationsBySlug([slug]);
+  const goals = TIER_GOALS[destination.tier];
+  const country = countryNameFor(destination.countryCode);
+  const aiStats = newAiCallStats();
+  const budget = new GoogleCallBudget(opts.maxGoogleCalls);
+  const start = Date.now();
+
+  logger.info(`Smoke test: ${destination.slug}, 1 lote de 8 lugares (grupo A), sem gravar no banco.`);
+
+  const center = await resolveCityCenter(destination.nameEn, country, budget);
+  if (!center) throw new Error(`Could not resolve a center point for "${destination.nameEn}, ${country}"`);
+
+  const plan: Pick<BatchPlan, "group" | "categories"> = { group: "A", categories: GROUP_CATEGORIES.A };
+  const data = await runAndCheckpointBatch(
+    destination.slug,
+    "smoke",
+    plan,
+    8,
+    { groupLabel: GROUP_LABELS.A, excludeNames: [] },
+    destination,
+    country,
+    goals,
+    center,
+    budget,
+    aiStats,
+    { ...opts, refresh: true }, // smoke always runs fresh
+    logger,
+    `[smoke:${destination.slug}]`,
+  );
+
+  const elapsedSec = Math.round((Date.now() - start) / 1000);
+  logger.info(`\nResultado: ${data.verified.length} lugares verificados em ${elapsedSec}s`);
+  for (const place of data.verified) {
+    logger.info(`  - ${place.name} (${place.category}, ${place.confidence}) [${place.googlePlaceId}]`);
+  }
+  logger.info(`aiCalls=${aiStats.calls} promptTokens=${aiStats.promptTokens} completionTokens=${aiStats.completionTokens} googleCalls=${budget.count}`);
+}
+
+// ─── curate:check (preflight) ───────────────────────────────────────────────
+
+async function checkItem(logger: CurateLogger, label: string, fn: () => Promise<void>): Promise<boolean> {
+  try {
+    await fn();
+    logger.info(`OK: ${label}`);
+    return true;
+  } catch (err) {
+    logger.info(`FALHOU: ${label} — ${(err as Error).message}`);
+    return false;
+  }
+}
+
+async function runCheck(logger: CurateLogger): Promise<void> {
+  let allOk = true;
+
+  allOk =
+    (await checkItem(logger, "variáveis de ambiente (DATABASE_URL, GOOGLE_PLACES_API_KEY, ANTHROPIC_API_KEY)", async () => {
+      const missing = ["DATABASE_URL", "GOOGLE_PLACES_API_KEY", "ANTHROPIC_API_KEY"].filter((k) => !process.env[k]);
+      if (missing.length) throw new Error(`faltando: ${missing.join(", ")}`);
+    })) && allOk;
+
+  let db: CurateDb | null = null;
+  allOk =
+    (await checkItem(logger, "conexão com o banco e tabelas curated_*", async () => {
+      db = getCurateDb();
+      await assertCuratedTablesExist(db);
+    })) && allOk;
+
+  if (db) {
+    allOk =
+      (await checkItem(logger, "escrita de teste (insert + ROLLBACK)", async () => {
+        await runPreflightWriteCheck(db!);
+      })) && allOk;
+  }
+
+  allOk =
+    (await checkItem(logger, "chamada ao Google Places (busca de cidade)", async () => {
+      const budget = new GoogleCallBudget(1);
+      const center = await resolveCityCenter("Paris", "France", budget);
+      if (!center) throw new Error("sem resultado");
+    })) && allOk;
+
+  allOk =
+    (await checkItem(logger, "chamada mínima à Anthropic (modelo de pesquisa, sem busca web)", async () => {
+      await invokeLLM({ model: RESEARCH_MODEL, maxTokens: 20, messages: [{ role: "user", content: "Responda apenas: ok" }] });
+    })) && allOk;
+
+  allOk =
+    (await checkItem(logger, "chamada mínima à Anthropic COM busca web habilitada", async () => {
+      await invokeLLM({
+        model: RESEARCH_MODEL,
+        maxTokens: 200,
+        enableWebSearch: true,
+        messages: [{ role: "user", content: "Pesquise na web a capital da França e responda em uma palavra." }],
+      });
+    })) && allOk;
+
+  if (db) await closeCurateDb();
+
+  if (!allOk) {
+    console.log("\nPré-voo encontrou falhas — veja acima.");
+    process.exitCode = 1;
+  } else {
+    console.log("\nPré-voo OK.");
+  }
 }
 
 // ─── curate:verify ─────────────────────────────────────────────────────────
 
-async function runVerify(opts: CurateOptions, selection: DestinationSeed[]): Promise<void> {
+async function runVerify(opts: CurateOptions, selection: DestinationSeed[], logger: CurateLogger): Promise<void> {
   const db = getCurateDb();
   await assertCuratedTablesExist(db);
   const budget = new GoogleCallBudget(opts.maxGoogleCalls);
@@ -313,7 +604,7 @@ async function runVerify(opts: CurateOptions, selection: DestinationSeed[]): Pro
   for (const destination of selection) {
     const destinationRow = await getDestinationBySlug(db, destination.slug);
     if (!destinationRow) {
-      console.log(`${destination.slug}: no destination row yet, skipping`);
+      logger.info(`${destination.slug}: no destination row yet, skipping`);
       continue;
     }
     const approved = await getApprovedPlaces(db, destinationRow.id);
@@ -330,7 +621,7 @@ async function runVerify(opts: CurateOptions, selection: DestinationSeed[]): Pro
     });
     await markPlacesClosed(db, toClose);
     await markDestinationVerified(db, destinationRow.id);
-    console.log(`${destination.slug}: checked ${approved.length} approved places, ${closed} now closed/not found`);
+    logger.info(`${destination.slug}: checked ${approved.length} approved places, ${closed} now closed/not found`);
   }
 
   await closeCurateDb();
@@ -338,42 +629,52 @@ async function runVerify(opts: CurateOptions, selection: DestinationSeed[]): Pro
 
 // ─── curate:translate ──────────────────────────────────────────────────────
 
-async function runTranslate(_opts: CurateOptions, selection: DestinationSeed[]): Promise<void> {
+const TRANSLATE_CHUNK_SIZE = 15;
+
+async function runTranslate(_opts: CurateOptions, selection: DestinationSeed[], logger: CurateLogger): Promise<void> {
   const db = getCurateDb();
   await assertCuratedTablesExist(db);
 
   for (const destination of selection) {
     const destinationRow = await getDestinationBySlug(db, destination.slug);
     if (!destinationRow) {
-      console.log(`${destination.slug}: no destination row yet, skipping`);
+      logger.info(`${destination.slug}: no destination row yet, skipping`);
       continue;
     }
     const approved = await getApprovedPlaces(db, destinationRow.id);
     const needing = approved.filter((p) => p.descriptions?.en && !isCompleteDescriptions((p.descriptions ?? {}) as Descriptions));
     if (needing.length === 0) {
-      console.log(`${destination.slug}: nothing to translate`);
+      logger.info(`${destination.slug}: nothing to translate`);
       continue;
     }
 
     const stats = newAiCallStats();
-    const batch = await translateBatch(
-      destination.nameEn,
-      needing.map((p) => ({ id: String(p.id), en: p.descriptions!.en! })),
-      stats,
-    );
-    const byId = new Map(batch.map((b) => [b.id, b]));
-    for (const place of needing) {
-      const translated = byId.get(String(place.id));
-      if (!translated) continue;
-      const merged = mergeTranslations((place.descriptions ?? {}) as Descriptions, {
-        es: translated.es,
-        fr: translated.fr,
-        de: translated.de,
-        it: translated.it,
+    let translatedCount = 0;
+    const chunks = chunkItems(needing, TRANSLATE_CHUNK_SIZE);
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const outcome = await runBatchWithSplitting(chunk.length, async (size) => {
+        const subset = chunk.slice(0, size);
+        const result = await translateBatch(destination.nameEn, subset.map((p) => ({ id: String(p.id), en: p.descriptions!.en! })), stats);
+        return { items: result.translations, truncated: result.truncated };
       });
-      await updatePlaceDescriptions(db, place.id, merged);
+
+      const byId = new Map(outcome.items.map((b) => [b.id, b]));
+      for (const place of chunk) {
+        const translated = byId.get(String(place.id));
+        if (!translated) continue;
+        const merged = mergeTranslations((place.descriptions ?? {}) as Descriptions, {
+          es: translated.es,
+          fr: translated.fr,
+          de: translated.de,
+          it: translated.it,
+        });
+        await updatePlaceDescriptions(db, place.id, merged);
+        translatedCount++;
+      }
+      logger.info(`${destination.slug}: ${formatBatchLine(i + 1, chunks.length, outcome.failed ? "falhou" : "ok", outcome.items.length, 0)}`);
     }
-    console.log(`${destination.slug}: translated ${batch.length}/${needing.length} places`);
+    logger.info(`${destination.slug}: translated ${translatedCount}/${needing.length} places`);
   }
 
   await closeCurateDb();
@@ -396,7 +697,7 @@ function toExportPlace(place: CuratedPlace): ExportPlace {
   };
 }
 
-async function runExport(_opts: CurateOptions, selection: DestinationSeed[]): Promise<void> {
+async function runExport(_opts: CurateOptions, selection: DestinationSeed[], logger: CurateLogger): Promise<void> {
   const db = getCurateDb();
   await assertCuratedTablesExist(db);
   fs.mkdirSync(EXPORTS_DIR, { recursive: true });
@@ -404,7 +705,7 @@ async function runExport(_opts: CurateOptions, selection: DestinationSeed[]): Pr
   for (const destination of selection) {
     const destinationRow = await getDestinationBySlug(db, destination.slug);
     if (!destinationRow) {
-      console.log(`${destination.slug}: no destination row yet, skipping`);
+      logger.info(`${destination.slug}: no destination row yet, skipping`);
       continue;
     }
     const places = await getPlacesForDestination(db, destinationRow.id);
@@ -412,7 +713,7 @@ async function runExport(_opts: CurateOptions, selection: DestinationSeed[]): Pr
     const markdown = buildExportMarkdown(`${destination.nameEn} (${destination.namePt})`, places.map(toExportPlace), goals);
     const outPath = path.join(EXPORTS_DIR, `${destination.slug}.md`);
     fs.writeFileSync(outPath, markdown);
-    console.log(`${destination.slug}: wrote ${outPath} (${places.length} places)`);
+    logger.info(`${destination.slug}: wrote ${outPath} (${places.length} places)`);
   }
 
   await closeCurateDb();
@@ -422,16 +723,27 @@ async function runExport(_opts: CurateOptions, selection: DestinationSeed[]): Pr
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  const logger = createLogger(ROOT_DIR);
+
+  if (opts.command === "check") {
+    await runCheck(logger);
+    return;
+  }
+  if (opts.command === "smoke") {
+    await runSmoke(opts, logger);
+    return;
+  }
+
   const selection = resolveSelection(opts);
 
   if (opts.command === "generate") {
-    await runGenerate(opts, selection);
+    await runGenerate(opts, selection, logger);
   } else if (opts.command === "verify") {
-    await runVerify(opts, selection);
+    await runVerify(opts, selection, logger);
   } else if (opts.command === "translate") {
-    await runTranslate(opts, selection);
+    await runTranslate(opts, selection, logger);
   } else {
-    await runExport(opts, selection);
+    await runExport(opts, selection, logger);
   }
 }
 
