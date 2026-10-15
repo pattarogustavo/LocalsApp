@@ -29,11 +29,9 @@ export const TIER_GOALS: Record<DestinationTier, TierGoals> = {
 export const BASE_CATEGORY_CAPS: Record<string, number> = {
   museum: 15,
   attraction: 15,
-  park_viewpoint: 8,
-  neighborhood_walk: 5,
-  nightlife: 5,
-  shopping: 4,
   hidden_gem: 8,
+  /** Covers neighborhood walks, nightlife and shopping — the DB category enum doesn't split these further. */
+  other: 10,
 };
 
 export const TIER_CAP_SCALE: Record<DestinationTier, number> = {
@@ -49,17 +47,23 @@ export const VERIFICATION_CONCURRENCY = 5;
 /** Max distance (km) from a destination's center for a verified candidate to be accepted. */
 export const MAX_DISTANCE_FROM_CENTER_KM = 35;
 
-/** Max extra AI research/structuring rounds run to complement a shortfall. */
-export const MAX_COMPLEMENT_ROUNDS = 2;
+/** Max extra AI research/structuring rounds run to complement a shortfall — at most 1; skip complementation if it fails. */
+export const MAX_COMPLEMENT_ROUNDS = 1;
 
 /** If verified total is below this fraction of the target total, trigger complementation. */
 export const COMPLEMENT_TOTAL_THRESHOLD = 1.15;
 
-/** Max AI calls (research + structure + complement rounds) allowed per destination. */
-export const MAX_AI_CALLS_PER_DESTINATION = 8;
+/** Max AI calls (research + structure, across every batch + the complement round) allowed per destination. */
+export const MAX_AI_CALLS_PER_DESTINATION = 40;
 
 /** Default cap on Google API calls per script execution (across all destinations). */
 export const DEFAULT_MAX_GOOGLE_CALLS = 1500;
+
+/** No research/structure batch asks for more than this many places at once. */
+export const MAX_PLACES_PER_BATCH = 15;
+
+/** Max times a too-large/truncated batch is halved and retried before being marked failed. */
+export const MAX_BATCH_SPLIT_LEVELS = 2;
 
 export function categoryCapFor(category: string, tier: DestinationTier): number | undefined {
   const base = BASE_CATEGORY_CAPS[category];
