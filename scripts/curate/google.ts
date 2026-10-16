@@ -72,41 +72,51 @@ export interface GoogleMatch {
   lat: number;
   lng: number;
   businessStatus?: string;
+  /** e.g. ["park"], ["route", "intersection"] — used to reject address/intersection results. */
+  types: string[];
 }
 
 /**
- * Finds a Google Places match for an AI-proposed place by name, biased
+ * Finds Google Places candidates for an AI-proposed place by name, biased
  * toward the destination center, using the minimal field mask needed for
- * verification (place_id, name, geometry, business_status — nothing else is
- * requested or stored).
+ * verification (place_id, name, geometry, business_status, types — nothing
+ * else is requested or stored). Returns every usable candidate Google gives
+ * back (normally just one, occasionally more for an ambiguous query) so the
+ * caller can reject an address/intersection match and fall through to the
+ * next candidate instead of discarding the place outright.
  */
-export async function findPlaceMatch(
+export async function findPlaceMatches(
   name: string,
   neighborhood: string | undefined,
   destinationName: string,
   center: { lat: number; lng: number },
   budget: GoogleCallBudget,
-): Promise<GoogleMatch | null> {
+): Promise<GoogleMatch[]> {
   if (!GOOGLE_PLACES_KEY) throw new Error("GOOGLE_PLACES_API_KEY is not configured");
   budget.consume();
   const input = [name, neighborhood, destinationName].filter(Boolean).join(", ");
   const url = new URL("https://maps.googleapis.com/maps/api/place/findplacefromtext/json");
   url.searchParams.set("input", input);
   url.searchParams.set("inputtype", "textquery");
-  url.searchParams.set("fields", "place_id,name,geometry,business_status");
+  url.searchParams.set("fields", "place_id,name,geometry,business_status,types");
   url.searchParams.set("locationbias", `point:${center.lat},${center.lng}`);
   url.searchParams.set("key", GOOGLE_PLACES_KEY);
   const data = await fetchGoogleJson(url.toString());
-  const match = data?.candidates?.[0];
-  const loc = match?.geometry?.location;
-  if (!match?.place_id || typeof loc?.lat !== "number" || typeof loc?.lng !== "number") return null;
-  return {
-    placeId: match.place_id,
-    name: match.name,
-    lat: loc.lat,
-    lng: loc.lng,
-    businessStatus: match.business_status,
-  };
+  const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
+  const matches: GoogleMatch[] = [];
+  for (const candidate of candidates) {
+    const loc = candidate?.geometry?.location;
+    if (!candidate?.place_id || typeof loc?.lat !== "number" || typeof loc?.lng !== "number") continue;
+    matches.push({
+      placeId: candidate.place_id,
+      name: candidate.name,
+      lat: loc.lat,
+      lng: loc.lng,
+      businessStatus: candidate.business_status,
+      types: Array.isArray(candidate.types) ? candidate.types : [],
+    });
+  }
+  return matches;
 }
 
 export type PlaceDetailsStatus = "ok" | "closed" | "not_found";

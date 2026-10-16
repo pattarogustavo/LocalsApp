@@ -41,6 +41,7 @@ export function buildResearchPrompt(params: ResearchPromptParams): string {
     "- Priorize o que moradores e guias respeitados realmente recomendam. Evite armadilhas de turista, exceto as genuinamente icônicas.",
     "- Varie bairros — não concentre tudo em uma única região.",
     "- Nunca repita um lugar já proposto (veja a lista de exclusão abaixo, se houver).",
+    '- Cada entrada deve ser UM único lugar pesquisável pelo seu nome oficial — nunca combine dois lugares em uma só entrada usando "&", " e ", " and ", "/" ou "+" (ex.: não proponha "Hyde Park & Kensington Gardens"; liste "Hyde Park" e "Kensington Gardens" como entradas separadas, ou proponha apenas o principal).',
     "",
     "Para cada lugar, informe: nome como é conhecido, bairro, categoria, tags relevantes (apenas dentre: culture, gastronomy, nature, adventure, shopping, relaxation, nightlife, art), faixa de preço (se restaurante/café), refeições em que se encaixa (breakfast, lunch, dinner, snack), tipo de culinária (se aplicável), se a culinária é local/típica ou estrangeira, seu nível de confiança (high/medium/low — o quanto é consenso entre fontes), prioridade relativa, e uma descrição ORIGINAL de 1 a 2 frases (o que ver ou fazer, mais uma dica prática) — nunca copiada de um site.",
   ];

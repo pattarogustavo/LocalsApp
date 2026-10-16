@@ -65,17 +65,24 @@ export interface AiCallStats {
   calls: number;
   promptTokens: number;
   completionTokens: number;
+  /** Total web_search tool invocations billed across all calls (server_tool_use.web_search_requests), not a count of calls. */
+  webSearchRequests: number;
   byModel: Record<string, ModelUsage>;
 }
 
 export function newAiCallStats(): AiCallStats {
-  return { calls: 0, promptTokens: 0, completionTokens: 0, byModel: {} };
+  return { calls: 0, promptTokens: 0, completionTokens: 0, webSearchRequests: 0, byModel: {} };
 }
 
-function trackUsage(stats: AiCallStats, model: string, usage: { prompt_tokens: number; completion_tokens: number } | undefined) {
+function trackUsage(
+  stats: AiCallStats,
+  model: string,
+  usage: { prompt_tokens: number; completion_tokens: number; web_search_requests?: number } | undefined,
+) {
   stats.calls += 1;
   stats.promptTokens += usage?.prompt_tokens ?? 0;
   stats.completionTokens += usage?.completion_tokens ?? 0;
+  stats.webSearchRequests += usage?.web_search_requests ?? 0;
   const perModel = stats.byModel[model] ?? { calls: 0, promptTokens: 0, completionTokens: 0 };
   perModel.calls += 1;
   perModel.promptTokens += usage?.prompt_tokens ?? 0;

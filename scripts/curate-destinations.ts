@@ -15,7 +15,7 @@ import {
   categoryCapFor,
 } from "./data/curation-config";
 import { planBatches, batchKey, GROUP_LABELS, GROUP_CATEGORIES, type BatchPlan, type GroupKey } from "./curate/batches";
-import { GoogleCallBudget, resolveCityCenter, findPlaceMatch, checkPlaceStatus } from "./curate/google";
+import { GoogleCallBudget, resolveCityCenter, findPlaceMatches, checkPlaceStatus } from "./curate/google";
 import {
   newAiCallStats,
   researchBatch,
@@ -30,7 +30,16 @@ import {
 import { invokeLLM } from "../server/_core/llm";
 import { estimateTotalCostUsd, formatModelCostUsd } from "./data/model-prices";
 import { runBatchWithSplitting, type BatchRunOutcome } from "./curate/batch-runner";
-import { verifyCandidate } from "./curate/verify";
+import {
+  verifyCandidate,
+  checkPlaceIdAndTypes,
+  newDiscardReasonCounts,
+  trackPlaceIdRejection,
+  trackNameMismatch,
+  addDiscardReasonCounts,
+  formatDiscardReasonCounts,
+  type DiscardReasonCounts,
+} from "./curate/verify";
 import { dedupeByPlaceId } from "./curate/dedupe";
 import { selectRestaurants, localCuisineRatio, type RestaurantCandidate } from "./curate/distribution";
 import { applyCategoryCaps } from "./curate/caps";
@@ -94,10 +103,59 @@ interface VerifiedPlace extends ProposedPlace {
 interface BatchCheckpointData {
   verified: VerifiedPlace[];
   discarded: { name: string; reason: string }[];
+  discardReasonCounts: DiscardReasonCounts;
   invalidCount: number;
   failed: boolean;
   usedWebSearchFallback: boolean;
   notes: string[];
+}
+
+/**
+ * Verifies one AI-proposed place against Google, trying each candidate in
+ * turn: a candidate whose place_id/types mark it as an address or
+ * intersection (see scripts/curate/verify.ts) is skipped in favor of the
+ * next one instead of discarding the place outright.
+ */
+async function verifyOnePlace(
+  place: ProposedPlace,
+  destination: Pick<DestinationSeed, "nameEn">,
+  center: { lat: number; lng: number },
+  budget: GoogleCallBudget,
+  discardCounts: DiscardReasonCounts,
+): Promise<{ place: VerifiedPlace; reason?: never } | { place?: never; reason: string }> {
+  const candidates = await findPlaceMatches(place.name, place.neighborhood, destination.nameEn, center, budget);
+  if (candidates.length === 0) return { reason: "no Google match found" };
+
+  const allowNeighborhood = GROUP_CATEGORIES.D.includes(place.category);
+  let lastReason = "no Google candidate passed verification";
+
+  for (const candidate of candidates) {
+    const idCheck = checkPlaceIdAndTypes(candidate.placeId, candidate.types, allowNeighborhood);
+    if (!idCheck.accepted) {
+      trackPlaceIdRejection(discardCounts, idCheck.reason!);
+      lastReason = idCheck.reason === "address_id" ? "id de endereço" : idCheck.reason === "address_type" ? "tipo de endereço" : "id muito longo";
+      continue;
+    }
+
+    const verification = verifyCandidate(
+      { aiName: place.name, googleName: candidate.name, googleLocation: { lat: candidate.lat, lng: candidate.lng }, businessStatus: candidate.businessStatus },
+      center,
+      MAX_DISTANCE_FROM_CENTER_KM,
+    );
+    if (!verification.accepted) {
+      if (verification.reason === "name_mismatch") {
+        trackNameMismatch(discardCounts);
+        lastReason = "nome não confere";
+      } else {
+        lastReason = verification.reason ?? "rejected";
+      }
+      continue;
+    }
+
+    return { place: { ...place, googlePlaceId: candidate.placeId } as VerifiedPlace };
+  }
+
+  return { reason: lastReason };
 }
 
 async function verifyProposedPlaces(
@@ -106,23 +164,15 @@ async function verifyProposedPlaces(
   center: { lat: number; lng: number },
   budget: GoogleCallBudget,
   discarded: { name: string; reason: string }[],
+  discardCounts: DiscardReasonCounts,
 ): Promise<VerifiedPlace[]> {
   const matches = await mapWithConcurrency(proposed, VERIFICATION_CONCURRENCY, async (place) => {
-    const match = await findPlaceMatch(place.name, place.neighborhood, destination.nameEn, center, budget);
-    if (!match) {
-      discarded.push({ name: place.name, reason: "no Google match found" });
+    const result = await verifyOnePlace(place, destination, center, budget, discardCounts);
+    if (result.reason !== undefined) {
+      discarded.push({ name: place.name, reason: result.reason });
       return null;
     }
-    const verification = verifyCandidate(
-      { aiName: place.name, googleName: match.name, googleLocation: { lat: match.lat, lng: match.lng }, businessStatus: match.businessStatus },
-      center,
-      MAX_DISTANCE_FROM_CENTER_KM,
-    );
-    if (!verification.accepted) {
-      discarded.push({ name: place.name, reason: verification.reason ?? "rejected" });
-      return null;
-    }
-    return { ...place, googlePlaceId: match.placeId } as VerifiedPlace;
+    return result.place;
   });
 
   return dedupeByPlaceId(matches.filter((m): m is VerifiedPlace => m != null));
@@ -155,6 +205,7 @@ async function runAndCheckpointBatch(
 
   const start = Date.now();
   const discarded: { name: string; reason: string }[] = [];
+  const discardCounts = newDiscardReasonCounts();
   let invalidCount = 0;
 
   const outcome: BatchRunOutcome<ProposedPlace> = await runBatchWithSplitting(size, async (size) => {
@@ -186,7 +237,7 @@ async function runAndCheckpointBatch(
     };
   });
 
-  const verified = await verifyProposedPlaces(outcome.items, destination, center, budget, discarded);
+  const verified = await verifyProposedPlaces(outcome.items, destination, center, budget, discarded, discardCounts);
   const elapsedSec = Math.round((Date.now() - start) / 1000);
 
   const status = outcome.failed ? "falhou" : outcome.usedWebSearchFallback ? "ok (sem pesquisa web)" : "ok";
@@ -196,6 +247,7 @@ async function runAndCheckpointBatch(
   const data: BatchCheckpointData = {
     verified,
     discarded,
+    discardReasonCounts: discardCounts,
     invalidCount,
     failed: outcome.failed,
     usedWebSearchFallback: outcome.usedWebSearchFallback,
@@ -214,6 +266,7 @@ interface GenerateReport {
   verified: number;
   invalidCount: number;
   discarded: { name: string; reason: string }[];
+  discardReasonCounts: DiscardReasonCounts;
   failedBatches: string[];
   webSearchFallbackBatches: string[];
   inserted: number;
@@ -248,6 +301,7 @@ async function runGenerateForDestination(
   const webSearchFallbackBatches: string[] = [];
   let invalidCount = 0;
   const allDiscarded: { name: string; reason: string }[] = [];
+  let allDiscardCounts = newDiscardReasonCounts();
   const batchKeysRun: string[] = [];
 
   // Destinations and batches always run in sequence — never in parallel.
@@ -276,6 +330,7 @@ async function runGenerateForDestination(
     if (data.usedWebSearchFallback) webSearchFallbackBatches.push(key);
     invalidCount += data.invalidCount;
     allDiscarded.push(...data.discarded);
+    allDiscardCounts = addDiscardReasonCounts(allDiscardCounts, data.discardReasonCounts);
   }
 
   // At most one complement round — restaurants first, then anything else needed, each its own small batch.
@@ -320,6 +375,7 @@ async function runGenerateForDestination(
         if (data.usedWebSearchFallback) webSearchFallbackBatches.push(key);
         invalidCount += data.invalidCount;
         allDiscarded.push(...data.discarded);
+        allDiscardCounts = addDiscardReasonCounts(allDiscardCounts, data.discardReasonCounts);
       }
     } catch (err) {
       logger.info(`[${destination.slug}] complementação falhou, seguindo sem ela: ${(err as Error).message}`);
@@ -417,6 +473,7 @@ async function runGenerateForDestination(
     verified: allVerified.length,
     invalidCount,
     discarded: allDiscarded,
+    discardReasonCounts: allDiscardCounts,
     failedBatches,
     webSearchFallbackBatches,
     inserted,
@@ -463,6 +520,7 @@ async function runGenerate(opts: CurateOptions, selection: DestinationSeed[], lo
   const budget = new GoogleCallBudget(opts.maxGoogleCalls);
   const failedDestinations: string[] = [];
   const totalByModel: Record<string, { promptTokens: number; completionTokens: number }> = {};
+  let totalWebSearchRequests = 0;
 
   for (const destination of selection) {
     logger.info(`\n=== ${destination.slug} ===`);
@@ -473,8 +531,9 @@ async function runGenerate(opts: CurateOptions, selection: DestinationSeed[], lo
         `proposed=${report.proposed} verified=${report.verified} invalid=${report.invalidCount} discarded=${report.discarded.length} ` +
           `inserted=${report.inserted} skippedExisting=${report.skippedExisting} elapsedMs=${report.elapsedMs} ` +
           `aiCalls=${report.aiStats.calls} promptTokens=${report.aiStats.promptTokens} completionTokens=${report.aiStats.completionTokens} ` +
-          `googleCalls=${report.googleCalls}`,
+          `webSearchRequests=${report.aiStats.webSearchRequests} googleCalls=${report.googleCalls}`,
       );
+      logger.info(`  descartes por motivo: ${formatDiscardReasonCounts(report.discardReasonCounts)}`);
       logger.info(`  custo estimado (apenas tokens, NÃO inclui busca web nem Google): ${formatModelCostUsd(destCost)}`);
       for (const [model, usage] of Object.entries(report.aiStats.byModel)) {
         const acc = totalByModel[model] ?? { promptTokens: 0, completionTokens: 0 };
@@ -482,6 +541,7 @@ async function runGenerate(opts: CurateOptions, selection: DestinationSeed[], lo
         acc.completionTokens += usage.completionTokens;
         totalByModel[model] = acc;
       }
+      totalWebSearchRequests += report.aiStats.webSearchRequests;
       if (report.failedBatches.length) logger.info(`  failed batches: ${report.failedBatches.join(", ")}`);
       if (report.webSearchFallbackBatches.length) logger.info(`  batches without web search: ${report.webSearchFallbackBatches.join(", ")}`);
       if (report.missingGoals.length) logger.info(`  missing goals: ${report.missingGoals.join("; ")}`);
@@ -498,7 +558,8 @@ async function runGenerate(opts: CurateOptions, selection: DestinationSeed[], lo
   if (db) await closeCurateDb();
 
   const totalCost = estimateTotalCostUsd(totalByModel);
-  logger.info(`\nCusto total estimado (apenas tokens, NÃO inclui busca web nem Google): ${formatModelCostUsd(totalCost)}`);
+  logger.info(`\nBuscas na web realizadas (total): ${totalWebSearchRequests}`);
+  logger.info(`Custo total estimado (apenas tokens, NÃO inclui busca web nem Google): ${formatModelCostUsd(totalCost)}`);
 
   if (failedDestinations.length) {
     logger.info(`\nDestinos que falharam: ${failedDestinations.join(", ")}`);
@@ -545,7 +606,13 @@ async function runSmoke(opts: CurateOptions, logger: CurateLogger): Promise<void
   for (const place of data.verified) {
     logger.info(`  - ${place.name} (${place.category}, ${place.confidence}) [${place.googlePlaceId}]`);
   }
-  logger.info(`aiCalls=${aiStats.calls} promptTokens=${aiStats.promptTokens} completionTokens=${aiStats.completionTokens} googleCalls=${budget.count}`);
+  logger.info(`  descartes por motivo: ${formatDiscardReasonCounts(data.discardReasonCounts)}`);
+  logger.info(`Modelos: pesquisa=${RESEARCH_MODEL} estruturação=${STRUCTURE_MODEL} tradução=${TRANSLATE_MODEL}`);
+  logger.info(
+    `aiCalls=${aiStats.calls} promptTokens=${aiStats.promptTokens} completionTokens=${aiStats.completionTokens} ` +
+      `webSearchRequests=${aiStats.webSearchRequests} googleCalls=${budget.count}`,
+  );
+  logger.info(`Custo estimado (apenas tokens, NÃO inclui busca web nem Google): ${formatModelCostUsd(estimateTotalCostUsd(aiStats.byModel))}`);
 }
 
 // ─── curate:check (preflight) ───────────────────────────────────────────────

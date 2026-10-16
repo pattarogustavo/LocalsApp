@@ -99,6 +99,8 @@ export type InvokeResult = {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    /** Count of server-side web_search tool invocations billed for this request, when any were made. */
+    web_search_requests?: number;
   };
 };
 
@@ -395,6 +397,9 @@ const toInvokeResult = (
       prompt_tokens: response.usage.input_tokens,
       completion_tokens: response.usage.output_tokens,
       total_tokens: response.usage.input_tokens + response.usage.output_tokens,
+      ...(response.usage.server_tool_use?.web_search_requests != null
+        ? { web_search_requests: response.usage.server_tool_use.web_search_requests }
+        : {}),
     },
   };
 };
