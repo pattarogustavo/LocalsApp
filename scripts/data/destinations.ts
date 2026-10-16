@@ -74,16 +74,16 @@ export const DESTINATIONS: DestinationSeed[] = [
   { slug: "budapest-hu", nameEn: "Budapest", namePt: "Budapeste", countryCode: "HU", tier: "large" },
   { slug: "nice-fr", nameEn: "Nice", namePt: "Nice", countryCode: "FR", tier: "large" },
   { slug: "zurich-ch", nameEn: "Zurich", namePt: "Zurique", countryCode: "CH", tier: "large" },
-  { slug: "dubai-ae", nameEn: "Dubai", namePt: "Dubai", countryCode: "AE", tier: "large" },
+  { slug: "dubai-ae", nameEn: "Dubai", namePt: "Dubai", countryCode: "AE", tier: "large", status: "inactive" },
   { slug: "mecca-sa", nameEn: "Mecca", namePt: "Meca", countryCode: "SA", tier: "large", status: "inactive" },
-  { slug: "antalya-tr", nameEn: "Antalya", namePt: "Antália", countryCode: "TR", tier: "large" },
-  { slug: "abu-dhabi-ae", nameEn: "Abu Dhabi", namePt: "Abu Dhabi", countryCode: "AE", tier: "large" },
-  { slug: "riyadh-sa", nameEn: "Riyadh", namePt: "Riad", countryCode: "SA", tier: "large" },
-  { slug: "cairo-eg", nameEn: "Cairo", namePt: "Cairo", countryCode: "EG", tier: "large" },
-  { slug: "marrakech-ma", nameEn: "Marrakech", namePt: "Marrakech", countryCode: "MA", tier: "large" },
-  { slug: "cape-town-za", nameEn: "Cape Town", namePt: "Cidade do Cabo", countryCode: "ZA", tier: "large" },
-  { slug: "johannesburg-za", nameEn: "Johannesburg", namePt: "Joanesburgo", countryCode: "ZA", tier: "large" },
-  { slug: "doha-qa", nameEn: "Doha", namePt: "Doha", countryCode: "QA", tier: "large" },
+  { slug: "antalya-tr", nameEn: "Antalya", namePt: "Antália", countryCode: "TR", tier: "large", status: "inactive" },
+  { slug: "abu-dhabi-ae", nameEn: "Abu Dhabi", namePt: "Abu Dhabi", countryCode: "AE", tier: "large", status: "inactive" },
+  { slug: "riyadh-sa", nameEn: "Riyadh", namePt: "Riad", countryCode: "SA", tier: "large", status: "inactive" },
+  { slug: "cairo-eg", nameEn: "Cairo", namePt: "Cairo", countryCode: "EG", tier: "large", status: "inactive" },
+  { slug: "marrakech-ma", nameEn: "Marrakech", namePt: "Marrakech", countryCode: "MA", tier: "large", status: "inactive" },
+  { slug: "cape-town-za", nameEn: "Cape Town", namePt: "Cidade do Cabo", countryCode: "ZA", tier: "large", status: "inactive" },
+  { slug: "johannesburg-za", nameEn: "Johannesburg", namePt: "Joanesburgo", countryCode: "ZA", tier: "large", status: "inactive" },
+  { slug: "doha-qa", nameEn: "Doha", namePt: "Doha", countryCode: "QA", tier: "large", status: "inactive" },
   { slug: "new-york-us", nameEn: "New York", namePt: "Nova York", countryCode: "US", tier: "mega" },
   { slug: "miami-us", nameEn: "Miami", namePt: "Miami", countryCode: "US", tier: "large" },
   { slug: "orlando-us", nameEn: "Orlando", namePt: "Orlando", countryCode: "US", tier: "large" },
@@ -99,18 +99,18 @@ export const DESTINATIONS: DestinationSeed[] = [
   { slug: "rio-de-janeiro-br", nameEn: "Rio de Janeiro", namePt: "Rio de Janeiro", countryCode: "BR", tier: "large" },
   { slug: "sao-paulo-br", nameEn: "São Paulo", namePt: "São Paulo", countryCode: "BR", tier: "large" },
   { slug: "buenos-aires-ar", nameEn: "Buenos Aires", namePt: "Buenos Aires", countryCode: "AR", tier: "large" },
-  { slug: "bangkok-th", nameEn: "Bangkok", namePt: "Bangkok", countryCode: "TH", tier: "large" },
-  { slug: "hong-kong-hk", nameEn: "Hong Kong", namePt: "Hong Kong", countryCode: "HK", tier: "large" },
-  { slug: "macau-mo", nameEn: "Macau", namePt: "Macau", countryCode: "MO", tier: "large" },
-  { slug: "tokyo-jp", nameEn: "Tokyo", namePt: "Tóquio", countryCode: "JP", tier: "mega" },
-  { slug: "singapore-sg", nameEn: "Singapore", namePt: "Singapura", countryCode: "SG", tier: "large" },
+  { slug: "bangkok-th", nameEn: "Bangkok", namePt: "Bangkok", countryCode: "TH", tier: "large", status: "inactive" },
+  { slug: "hong-kong-hk", nameEn: "Hong Kong", namePt: "Hong Kong", countryCode: "HK", tier: "large", status: "inactive" },
+  { slug: "macau-mo", nameEn: "Macau", namePt: "Macau", countryCode: "MO", tier: "large", status: "inactive" },
+  { slug: "tokyo-jp", nameEn: "Tokyo", namePt: "Tóquio", countryCode: "JP", tier: "mega", status: "inactive" },
+  { slug: "singapore-sg", nameEn: "Singapore", namePt: "Singapura", countryCode: "SG", tier: "large", status: "inactive" },
 ];
 
 /** Number of leading entries that `--pilot` operates on. */
 export const PILOT_SIZE = 5;
 
 export function getPilotDestinations(): DestinationSeed[] {
-  return DESTINATIONS.slice(0, PILOT_SIZE);
+  return DESTINATIONS.filter((d) => (d.status ?? "active") === "active").slice(0, PILOT_SIZE);
 }
 
 export function getDestinationsBySlug(slugs: string[]): DestinationSeed[] {

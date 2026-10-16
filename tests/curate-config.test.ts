@@ -33,10 +33,14 @@ describe("destinations seed list", () => {
     expect(countryNameFor("ZZ")).toBe("ZZ");
   });
 
-  it("marks mecca-sa as inactive, every other destination active by default", () => {
+  it("marks mecca-sa as inactive", () => {
     const mecca = DESTINATIONS.find((d) => d.slug === "mecca-sa");
     expect(mecca?.status).toBe("inactive");
-    const others = DESTINATIONS.filter((d) => d.slug !== "mecca-sa");
+  });
+
+  it("every destination not explicitly marked inactive defaults to active", () => {
+    const explicitlyInactive = new Set(DESTINATIONS.filter((d) => d.status === "inactive").map((d) => d.slug));
+    const others = DESTINATIONS.filter((d) => !explicitlyInactive.has(d.slug));
     expect(others.every((d) => d.status === undefined)).toBe(true);
   });
 });

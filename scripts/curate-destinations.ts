@@ -446,7 +446,7 @@ function printPlan(selection: DestinationSeed[]) {
     }
     console.log(`  | est. AI calls: ${aiEstimate} (+ até 4 de complementação) | est. Google calls: ${googleEstimate}`);
   }
-  console.log(`\nTotal estimado para ${selection.length} destino(s): ~${totalAiCallsEstimate} chamadas de IA, ~${totalGoogleEstimate} chamadas ao Google.`);
+  console.log(`\nTotal estimado para ${selection.length} destino(s) ativo(s): ~${totalAiCallsEstimate} chamadas de IA, ~${totalGoogleEstimate} chamadas ao Google.`);
 }
 
 async function runGenerate(opts: CurateOptions, selection: DestinationSeed[], logger: CurateLogger): Promise<void> {
