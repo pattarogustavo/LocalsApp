@@ -14,12 +14,13 @@ import {
   MAX_DISTANCE_FROM_CENTER_KM,
   categoryCapFor,
 } from "./data/curation-config";
-import { planBatches, batchKey, iconBatchPlan, GROUP_LABELS, GROUP_CATEGORIES, type BatchPlan, type GroupKey } from "./curate/batches";
+import { planBatches, batchKey, iconBatchPlan, allowNeighborhoodForGroup, GROUP_LABELS, GROUP_CATEGORIES, type BatchPlan, type GroupKey } from "./curate/batches";
 import { GoogleCallBudget, resolveCityCenter, findPlaceMatches, checkPlaceStatus } from "./curate/google";
 import {
   newAiCallStats,
   researchBatch,
   structureBatch,
+  structureManualPlaces,
   translateBatch,
   RESEARCH_MODEL,
   STRUCTURE_MODEL,
@@ -31,16 +32,9 @@ import {
 import { invokeLLM } from "../server/_core/llm";
 import { estimateTotalCostUsd, formatModelCostUsd } from "./data/model-prices";
 import { runBatchWithSplitting, type BatchRunOutcome } from "./curate/batch-runner";
-import {
-  verifyCandidate,
-  checkPlaceIdAndTypes,
-  newDiscardReasonCounts,
-  trackPlaceIdRejection,
-  trackNameMismatch,
-  addDiscardReasonCounts,
-  formatDiscardReasonCounts,
-  type DiscardReasonCounts,
-} from "./curate/verify";
+import { newDiscardReasonCounts, addDiscardReasonCounts, formatDiscardReasonCounts, type DiscardReasonCounts } from "./curate/verify";
+import { pickVerifiedCandidate } from "./curate/match-google";
+import { matchManualNames, pairStructuredWithMatches } from "./curate/manual-add";
 import { dedupeByPlaceId } from "./curate/dedupe";
 import {
   MAX_INVALID_EXAMPLES,
@@ -117,44 +111,12 @@ async function verifyOnePlace(
   center: { lat: number; lng: number },
   budget: GoogleCallBudget,
   discardCounts: DiscardReasonCounts,
+  allowNeighborhood: boolean,
 ): Promise<{ place: VerifiedPlace; reason?: never; googleName?: never } | { place?: never; reason: string; googleName?: string }> {
   const candidates = await findPlaceMatches(place.name, place.neighborhood, destination.nameEn, center, budget);
-  if (candidates.length === 0) return { reason: "no Google match found" };
-
-  const allowNeighborhood = GROUP_CATEGORIES.D.includes(place.category);
-  let lastReason = "no Google candidate passed verification";
-  let lastGoogleName: string | undefined;
-
-  for (const candidate of candidates) {
-    const idCheck = checkPlaceIdAndTypes(candidate.placeId, candidate.types, allowNeighborhood);
-    if (!idCheck.accepted) {
-      trackPlaceIdRejection(discardCounts, idCheck.reason!);
-      lastReason = idCheck.reason === "address_id" ? "id de endereço" : idCheck.reason === "address_type" ? "tipo de endereço" : "id muito longo";
-      lastGoogleName = undefined;
-      continue;
-    }
-
-    const verification = verifyCandidate(
-      { aiName: place.name, googleName: candidate.name, googleLocation: { lat: candidate.lat, lng: candidate.lng }, businessStatus: candidate.businessStatus },
-      center,
-      MAX_DISTANCE_FROM_CENTER_KM,
-    );
-    if (!verification.accepted) {
-      if (verification.reason === "name_mismatch") {
-        trackNameMismatch(discardCounts);
-        lastReason = "nome não confere";
-        lastGoogleName = candidate.name;
-      } else {
-        lastReason = verification.reason ?? "rejected";
-        lastGoogleName = undefined;
-      }
-      continue;
-    }
-
-    return { place: { ...place, googlePlaceId: candidate.placeId } as VerifiedPlace };
-  }
-
-  return { reason: lastReason, googleName: lastGoogleName };
+  const outcome = pickVerifiedCandidate(place.name, candidates, center, MAX_DISTANCE_FROM_CENTER_KM, allowNeighborhood, discardCounts);
+  if (!outcome.accepted) return { reason: outcome.reason, googleName: outcome.googleName };
+  return { place: { ...place, googlePlaceId: outcome.googlePlaceId } as VerifiedPlace };
 }
 
 async function verifyProposedPlaces(
@@ -164,9 +126,11 @@ async function verifyProposedPlaces(
   budget: GoogleCallBudget,
   discarded: DiscardedEntry[],
   discardCounts: DiscardReasonCounts,
+  group: GroupKey,
 ): Promise<VerifiedPlace[]> {
+  const allowNeighborhood = allowNeighborhoodForGroup(group);
   const matches = await mapWithConcurrency(proposed, VERIFICATION_CONCURRENCY, async (place) => {
-    const result = await verifyOnePlace(place, destination, center, budget, discardCounts);
+    const result = await verifyOnePlace(place, destination, center, budget, discardCounts, allowNeighborhood);
     if (result.reason !== undefined) {
       discarded.push({ name: place.name, reason: result.reason, googleName: result.googleName });
       return null;
@@ -243,7 +207,7 @@ async function runAndCheckpointBatch(
     };
   });
 
-  const verified = await verifyProposedPlaces(outcome.items, destination, center, budget, discarded, discardCounts);
+  const verified = await verifyProposedPlaces(outcome.items, destination, center, budget, discarded, discardCounts, plan.group);
   const elapsedSec = Math.round((Date.now() - start) / 1000);
 
   const status = outcome.failed ? "falhou" : outcome.usedWebSearchFallback ? "ok (sem pesquisa web)" : "ok";
@@ -897,6 +861,116 @@ async function runExport(_opts: CurateOptions, selection: DestinationSeed[], log
   await closeCurateDb();
 }
 
+// ─── curate:add (manually-chosen places) ───────────────────────────────────
+
+async function runAdd(opts: CurateOptions, selection: DestinationSeed[], logger: CurateLogger): Promise<void> {
+  const destination = selection[0];
+  const names = opts.names ?? [];
+
+  await confirmDatabaseWrite(opts);
+
+  const lock = acquireLock(ROOT_DIR, destination.slug);
+  try {
+    const db = opts.dryRun ? null : getCurateDb();
+    if (db) await assertCuratedTablesExist(db);
+
+    const budget = new GoogleCallBudget(opts.maxGoogleCalls);
+    const country = countryNameFor(destination.countryCode);
+    const aiStats = newAiCallStats();
+
+    const center = await resolveCityCenter(destination.nameEn, country, budget);
+    if (!center) throw new Error(`Could not resolve a center point for "${destination.nameEn}, ${country}"`);
+
+    const discardCounts = newDiscardReasonCounts();
+    const { accepted, rejected } = await matchManualNames(
+      names,
+      (name) => findPlaceMatches(name, undefined, destination.nameEn, center, budget),
+      center,
+      MAX_DISTANCE_FROM_CENTER_KM,
+      discardCounts,
+    );
+    const dedupedAccepted = dedupeByPlaceId(accepted);
+
+    let finalized: { place: ProposedPlace; googlePlaceId: string }[] = [];
+    if (dedupedAccepted.length > 0) {
+      const structured = await structureManualPlaces(destination.nameEn, country, dedupedAccepted.map((m) => m.name), aiStats);
+      if (structured.invalidCount > 0) {
+        logger.info(`  ${structured.invalidCount} inválidos na estruturação (${formatInvalidReasonCounts(structured.invalidReasonCounts)})`);
+      }
+      const paired = pairStructuredWithMatches(structured.places, dedupedAccepted);
+      finalized = paired.finalized;
+      for (const m of paired.unmatched) {
+        rejected.push({ name: m.name, reason: "estruturação não retornou este lugar" });
+      }
+    }
+
+    for (const r of rejected) {
+      logger.info(`  rejeitado "${r.name}": ${r.reason}${r.googleName ? ` (Google: "${r.googleName}")` : ""}`);
+    }
+
+    let added = 0;
+    let alreadyExisting = 0;
+
+    if (opts.dryRun) {
+      added = finalized.length;
+      fs.mkdirSync(EXPORTS_DIR, { recursive: true });
+      const outPath = path.join(EXPORTS_DIR, `dry-run-add-${destination.slug}.json`);
+      fs.writeFileSync(
+        outPath,
+        JSON.stringify({ destination: destination.slug, names, added: finalized.map((f) => f.place), rejected }, null, 2),
+      );
+    } else if (db) {
+      const destinationRow = await upsertDestinationMeta(db, {
+        slug: destination.slug,
+        nameEn: destination.nameEn,
+        namePt: destination.namePt,
+        country,
+        countryCode: destination.countryCode,
+        tier: destination.tier,
+        googlePlaceId: center.placeId,
+        status: destination.status ?? "active",
+      });
+
+      const existingIds = await getExistingPlaceIds(db, destinationRow.id);
+      const { toInsert, toSkip } = partitionNewCandidates(
+        finalized.map((f) => ({ ...f.place, googlePlaceId: f.googlePlaceId })),
+        existingIds,
+      );
+      alreadyExisting = toSkip.length;
+
+      const rows: InsertCuratedPlace[] = toInsert.map((p) => ({
+        destinationId: destinationRow.id,
+        destinationSlug: destination.slug,
+        googlePlaceId: p.googlePlaceId,
+        aiName: p.name,
+        aiNeighborhood: p.neighborhood,
+        category: p.category,
+        tags: p.tags,
+        priceTier: p.priceTier,
+        meals: p.meals,
+        cuisine: p.cuisine,
+        confidence: p.confidence,
+        rank: p.priority,
+        status: "pending",
+        source: "manual",
+        descriptions: buildBaseDescriptions(p.descriptionPt, p.descriptionEn),
+      }));
+      await insertPendingPlaces(db, rows); // idempotent (onConflictDoNothing)
+      added = rows.length;
+    }
+
+    const destCost = estimateTotalCostUsd(aiStats.byModel);
+    logger.info(`\n=== ${destination.slug} (curate:add) ===`);
+    logger.info(`solicitados=${names.length} adicionados=${added} já existentes=${alreadyExisting} rejeitados=${rejected.length}`);
+    logger.info(`  descartes por motivo: ${formatDiscardReasonCounts(discardCounts)}`);
+    logger.info(`  custo estimado (apenas tokens, NÃO inclui busca web nem Google): ${formatModelCostUsd(destCost)}`);
+
+    if (db) await closeCurateDb();
+  } finally {
+    lock.release();
+  }
+}
+
 // ─── entrypoint ─────────────────────────────────────────────────────────────
 
 async function main() {
@@ -914,7 +988,9 @@ async function main() {
 
   const selection = resolveSelection(opts);
 
-  if (opts.command === "generate") {
+  if (opts.command === "add") {
+    await runAdd(opts, selection, logger);
+  } else if (opts.command === "generate") {
     await runGenerate(opts, selection, logger);
   } else if (opts.command === "verify") {
     await runVerify(opts, selection, logger);

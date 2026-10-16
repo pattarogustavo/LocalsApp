@@ -5,6 +5,7 @@ import {
   planBatches,
   batchKey,
   iconBatchPlan,
+  allowNeighborhoodForGroup,
   ICON_BATCH_SIZE,
   GROUP_CATEGORIES,
   GROUP_LABELS,
@@ -105,5 +106,15 @@ describe("iconBatchPlan", () => {
 
   it("GROUP_CATEGORIES.I matches the icon plan's categories", () => {
     expect(GROUP_CATEGORIES.I).toEqual(iconBatchPlan().categories);
+  });
+});
+
+describe("allowNeighborhoodForGroup", () => {
+  it("allows neighborhood/sublocality only for groups D and I", () => {
+    expect(allowNeighborhoodForGroup("D")).toBe(true);
+    expect(allowNeighborhoodForGroup("I")).toBe(true);
+    expect(allowNeighborhoodForGroup("A")).toBe(false);
+    expect(allowNeighborhoodForGroup("B")).toBe(false);
+    expect(allowNeighborhoodForGroup("C")).toBe(false);
   });
 });

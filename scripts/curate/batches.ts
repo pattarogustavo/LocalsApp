@@ -29,6 +29,16 @@ export const GROUP_LABELS: Record<GroupKey, string> = {
 /** Max places proposed in the icon batch — see iconBatchPlan. */
 export const ICON_BATCH_SIZE = 12;
 
+/**
+ * A standalone Google result typed neighborhood/sublocality is only a
+ * legitimate match for group D (bairros/passeios) and the icon batch I —
+ * icons like Covent Garden or Notting Hill are themselves neighborhoods.
+ * Every other group rejects it (see checkPlaceIdAndTypes in ./verify).
+ */
+export function allowNeighborhoodForGroup(group: GroupKey): boolean {
+  return group === "D" || group === "I";
+}
+
 function sumCaps(categories: string[], tier: DestinationTier): number {
   return categories.reduce((sum, cat) => sum + (categoryCapFor(cat, tier) ?? Infinity), 0);
 }

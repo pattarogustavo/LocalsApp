@@ -93,6 +93,25 @@ export function buildStructurePrompt(researchText: string): string {
   ].join("\n");
 }
 
+/**
+ * Structuring-only prompt for curate:add: the names were chosen manually by
+ * a human editor (not researched), so this never asks the model to pick or
+ * replace places — only to fill in the structured fields for exactly the
+ * names given, in the same order, for pairing back to their Google match.
+ */
+export function buildManualStructurePrompt(destinationName: string, country: string, names: string[]): string {
+  const list = names.map((n) => `- ${n}`).join("\n");
+  return [
+    `Você é um curador local especializado em ${destinationName}, ${country}.`,
+    "Os lugares abaixo foram escolhidos manualmente por um editor humano — não pesquise alternativas, não substitua nenhum deles e não omita nenhum.",
+    "Para CADA lugar da lista, na mesma ordem, produza: category, tags (apenas dentre: culture, gastronomy, nature, adventure, shopping, relaxation, nightlife, art), priceTier e meals (se for restaurante/café), cuisine (se aplicável), isLocalCuisine, confidence (sempre \"high\"), priority (sempre 1), e descriptionPt/descriptionEn ORIGINAIS de 1 a 2 frases cada (o que ver ou fazer, mais uma dica prática) — nunca copiadas de um site.",
+    'Mantenha o campo "name" EXATAMENTE como está escrito na lista abaixo, sem traduzir ou reformatar — é usado para parear a resposta ao lugar original.',
+    "",
+    "--- LUGARES ---",
+    list,
+  ].join("\n");
+}
+
 export interface TranslateBatchItem {
   id: string | number;
   en: string;

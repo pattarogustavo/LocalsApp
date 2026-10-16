@@ -1,6 +1,6 @@
 import { DEFAULT_MAX_GOOGLE_CALLS } from "../data/curation-config";
 
-export type CurateCommand = "generate" | "verify" | "translate" | "export" | "check" | "smoke";
+export type CurateCommand = "generate" | "verify" | "translate" | "export" | "check" | "smoke" | "add";
 
 export interface CurateOptions {
   command: CurateCommand;
@@ -12,12 +12,14 @@ export interface CurateOptions {
   yes: boolean;
   refresh: boolean;
   maxGoogleCalls: number;
+  /** --names="Name 1; Name 2; ..." — semicolon-separated, "add" only. */
+  names?: string[];
 }
 
-const COMMANDS: CurateCommand[] = ["generate", "verify", "translate", "export", "check", "smoke"];
+const COMMANDS: CurateCommand[] = ["generate", "verify", "translate", "export", "check", "smoke", "add"];
 
 /** Commands that always operate on a specific destination set and therefore require --pilot/--all/--only. */
-const COMMANDS_REQUIRING_SELECTION: CurateCommand[] = ["generate", "verify", "translate", "export"];
+const COMMANDS_REQUIRING_SELECTION: CurateCommand[] = ["generate", "verify", "translate", "export", "add"];
 
 export const SMOKE_DEFAULT_SLUG = "london-gb";
 
@@ -42,6 +44,7 @@ export function parseArgs(argv: string[]): CurateOptions {
   let yes = false;
   let refresh = false;
   let maxGoogleCalls = DEFAULT_MAX_GOOGLE_CALLS;
+  let names: string[] | undefined;
 
   for (const arg of rest) {
     if (arg === "--pilot") pilot = true;
@@ -52,6 +55,7 @@ export function parseArgs(argv: string[]): CurateOptions {
     else if (arg === "--refresh") refresh = true;
     else if (arg.startsWith("--only=")) only = arg.slice("--only=".length).split(",").map((s) => s.trim()).filter(Boolean);
     else if (arg.startsWith("--max-google-calls=")) maxGoogleCalls = Number(arg.slice("--max-google-calls=".length));
+    else if (arg.startsWith("--names=")) names = arg.slice("--names=".length).split(";").map((s) => s.trim()).filter(Boolean);
     else throw new Error(`Unknown flag "${arg}"`);
   }
 
@@ -61,6 +65,11 @@ export function parseArgs(argv: string[]): CurateOptions {
   if (!Number.isFinite(maxGoogleCalls) || maxGoogleCalls <= 0) {
     throw new Error("--max-google-calls must be a positive number");
   }
+  if (command === "add") {
+    if (pilot || all) throw new Error('"add" requires a single destination via --only=slug (not --pilot/--all)');
+    if (!only || only.length !== 1) throw new Error('"add" requires exactly one destination: --only=slug');
+    if (!names || names.length === 0) throw new Error('"add" requires --names="Name 1; Name 2; ..."');
+  }
 
-  return { command: command as CurateCommand, pilot, only, all, plan, dryRun, yes, refresh, maxGoogleCalls };
+  return { command: command as CurateCommand, pilot, only, all, plan, dryRun, yes, refresh, maxGoogleCalls, names };
 }

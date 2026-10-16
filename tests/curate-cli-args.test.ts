@@ -51,4 +51,35 @@ describe("parseArgs", () => {
     const opts = parseArgs(["smoke", "--only=paris-fr"]);
     expect(opts.only).toEqual(["paris-fr"]);
   });
+
+  describe("add", () => {
+    it("parses --names as a trimmed, semicolon-separated list", () => {
+      const opts = parseArgs(["add", "--only=london-gb", '--names=Buckingham Palace; Big Ben ; Trafalgar Square']);
+      expect(opts.command).toBe("add");
+      expect(opts.names).toEqual(["Buckingham Palace", "Big Ben", "Trafalgar Square"]);
+    });
+
+    it("requires --names", () => {
+      expect(() => parseArgs(["add", "--only=london-gb"])).toThrow(/--names/);
+    });
+
+    it("requires a destination selection at all", () => {
+      expect(() => parseArgs(["add", "--names=Big Ben"])).toThrow(/Specify a destination selection/);
+    });
+
+    it("rejects more than one --only destination", () => {
+      expect(() => parseArgs(["add", "--only=paris-fr,london-gb", "--names=Big Ben"])).toThrow(/exactly one destination/);
+    });
+
+    it("rejects --pilot/--all", () => {
+      expect(() => parseArgs(["add", "--pilot", "--names=Big Ben"])).toThrow(/single destination/);
+      expect(() => parseArgs(["add", "--all", "--names=Big Ben"])).toThrow(/single destination/);
+    });
+
+    it("accepts --dry-run and --yes like other commands", () => {
+      const opts = parseArgs(["add", "--only=london-gb", "--names=Big Ben", "--dry-run", "--yes"]);
+      expect(opts.dryRun).toBe(true);
+      expect(opts.yes).toBe(true);
+    });
+  });
 });

@@ -89,6 +89,65 @@ describe("CURATE_WEB_SEARCH_MAX_USES", () => {
   });
 });
 
+describe("structureManualPlaces", () => {
+  it("never enables web search and forces confidence=high, priority=1 regardless of what the model returned", async () => {
+    vi.resetModules();
+    const llm = await import("../server/_core/llm");
+    const invokeLLM = llm.invokeLLM as unknown as ReturnType<typeof vi.fn>;
+    invokeLLM.mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              places: [
+                {
+                  name: "Buckingham Palace",
+                  category: "attraction",
+                  tags: ["culture"],
+                  isLocalCuisine: false,
+                  confidence: "low",
+                  priority: 9,
+                  descriptionPt: "Residência oficial da família real.",
+                  descriptionEn: "Official residence of the royal family.",
+                },
+              ],
+            }),
+          },
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    });
+
+    const ai = await import("../scripts/curate/ai");
+    const stats = ai.newAiCallStats();
+    const result = await ai.structureManualPlaces("London", "United Kingdom", ["Buckingham Palace"], stats);
+
+    expect(invokeLLM).toHaveBeenCalledWith(expect.not.objectContaining({ enableWebSearch: true }));
+    expect(result.places).toHaveLength(1);
+    expect(result.places[0].confidence).toBe("high");
+    expect(result.places[0].priority).toBe(1);
+    expect(result.places[0].name).toBe("Buckingham Palace");
+  });
+
+  it("propagates invalid items the same way structureBatch does", async () => {
+    vi.resetModules();
+    const llm = await import("../server/_core/llm");
+    const invokeLLM = llm.invokeLLM as unknown as ReturnType<typeof vi.fn>;
+    invokeLLM.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ places: [{ name: "", category: "attraction" }] }) }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    });
+
+    const ai = await import("../scripts/curate/ai");
+    const stats = ai.newAiCallStats();
+    const result = await ai.structureManualPlaces("London", "United Kingdom", ["Something"], stats);
+
+    expect(result.places).toEqual([]);
+    expect(result.invalidCount).toBe(1);
+  });
+});
+
 describe("web search request counting", () => {
   it("sums usage.web_search_requests across calls into AiCallStats.webSearchRequests", async () => {
     vi.resetModules();

@@ -1,5 +1,12 @@
 import { invokeLLM, type InvokeResult } from "../../server/_core/llm";
-import { buildResearchPrompt, buildStructurePrompt, buildTranslatePrompt, type ResearchPromptParams, type TranslateBatchItem } from "./prompts";
+import {
+  buildResearchPrompt,
+  buildStructurePrompt,
+  buildManualStructurePrompt,
+  buildTranslatePrompt,
+  type ResearchPromptParams,
+  type TranslateBatchItem,
+} from "./prompts";
 import { withRetry, isRetryableAnthropicError, getAnthropicRetryAfterMs, isWebSearchUnsupportedError } from "./retry";
 import { validateProposedPlaces, type RawProposedPlace, type ValidatedPlace, type InvalidPlaceExample } from "./validate-place";
 
@@ -159,8 +166,8 @@ export interface StructureBatchResult {
   truncated: boolean;
 }
 
-/** Step 2: converts step-1 free text into a structured, schema-validated, individually-validated list. Never combined with web search in the same call. */
-export async function structureBatch(researchText: string, stats: AiCallStats): Promise<StructureBatchResult> {
+/** Shared by structureBatch and structureManualPlaces: one structuring call (no web search) for a given prompt, parsed and individually validated. */
+async function runStructureCall(prompt: string, stats: AiCallStats): Promise<StructureBatchResult> {
   const result = await withRetry(
     () =>
       invokeLLM({
@@ -168,7 +175,7 @@ export async function structureBatch(researchText: string, stats: AiCallStats): 
         outputSchema: STRUCTURE_SCHEMA,
         timeoutMs: STRUCTURE_TIMEOUT_MS,
         maxTokens: 8192,
-        messages: [{ role: "user", content: buildStructurePrompt(researchText) }],
+        messages: [{ role: "user", content: prompt }],
       }),
     CALL_RETRY_OPTIONS,
   );
@@ -187,6 +194,23 @@ export async function structureBatch(researchText: string, stats: AiCallStats): 
 
   const { valid, invalidCount, invalidReasonCounts, invalidExamples } = validateProposedPlaces(raw);
   return { places: valid, invalidCount, invalidReasonCounts, invalidExamples, truncated };
+}
+
+/** Step 2: converts step-1 free text into a structured, schema-validated, individually-validated list. Never combined with web search in the same call. */
+export async function structureBatch(researchText: string, stats: AiCallStats): Promise<StructureBatchResult> {
+  return runStructureCall(buildStructurePrompt(researchText), stats);
+}
+
+/**
+ * curate:add's single structuring call: no research step, no web search —
+ * just fills in the structured fields for a fixed, human-chosen list of
+ * names. Reuses the exact same schema/normalization/validation as
+ * structureBatch, then forces confidence="high" and priority=1 (the manual
+ * places' defining trait) regardless of what the model returned.
+ */
+export async function structureManualPlaces(destinationName: string, country: string, names: string[], stats: AiCallStats): Promise<StructureBatchResult> {
+  const result = await runStructureCall(buildManualStructurePrompt(destinationName, country, names), stats);
+  return { ...result, places: result.places.map((p) => ({ ...p, confidence: "high", priority: 1 })) };
 }
 
 const TRANSLATE_SCHEMA = {

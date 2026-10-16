@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildResearchPrompt, buildStructurePrompt, buildTranslatePrompt } from "../scripts/curate/prompts";
+import { buildResearchPrompt, buildStructurePrompt, buildManualStructurePrompt, buildTranslatePrompt } from "../scripts/curate/prompts";
 import { TIER_GOALS } from "../scripts/data/curation-config";
 
 function baseParams(overrides: Partial<Parameters<typeof buildResearchPrompt>[0]> = {}) {
@@ -89,6 +89,25 @@ describe("buildStructurePrompt", () => {
   it("embeds the research text verbatim", () => {
     const prompt = buildStructurePrompt("some free-text research output");
     expect(prompt).toContain("some free-text research output");
+  });
+});
+
+describe("buildManualStructurePrompt", () => {
+  it("lists every given name and asks the model to keep them exactly as given", () => {
+    const prompt = buildManualStructurePrompt("London", "United Kingdom", ["Buckingham Palace", "Big Ben", "Covent Garden Market"]);
+    expect(prompt).toContain("London");
+    expect(prompt).toContain("United Kingdom");
+    expect(prompt).toContain("- Buckingham Palace");
+    expect(prompt).toContain("- Big Ben");
+    expect(prompt).toContain("- Covent Garden Market");
+    expect(prompt).toMatch(/escolhidos manualmente/);
+    expect(prompt).toMatch(/EXATAMENTE/);
+  });
+
+  it("asks for confidence high and priority 1", () => {
+    const prompt = buildManualStructurePrompt("Paris", "France", ["Louvre"]);
+    expect(prompt).toContain('confidence (sempre "high")');
+    expect(prompt).toContain("priority (sempre 1)");
   });
 });
 
