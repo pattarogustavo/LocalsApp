@@ -127,6 +127,43 @@ describe("validateProposedPlace", () => {
   });
 });
 
+describe("normalizeRawPlace with lenientCategory (curate:add)", () => {
+  it("maps an unrecognized category to 'other' instead of leaving it invalid", () => {
+    for (const cat of ["neighborhood", "district", "area", "street", "street market"]) {
+      expect(normalizeRawPlace({ category: cat }, { lenientCategory: true }).category).toBe("other");
+    }
+  });
+
+  it("still maps a documented synonym normally (e.g. landmark -> attraction)", () => {
+    expect(normalizeRawPlace({ category: "landmark" }, { lenientCategory: true }).category).toBe("attraction");
+  });
+
+  it("without lenientCategory, an unrecognized category is left untouched (stays invalid)", () => {
+    expect(normalizeRawPlace({ category: "district" }).category).toBe("district");
+  });
+});
+
+describe("validateProposedPlace with lenientCategory (curate:add)", () => {
+  it("accepts a place whose category is unrecognized, mapped to other, keeping valid tags", () => {
+    const result = validateProposedPlace(validRaw({ category: "district", tags: ["culture", "shopping"] }), { lenientCategory: true });
+    expect(result.valid).toBe(true);
+    expect(result.place?.category).toBe("other");
+    expect(result.place?.tags).toEqual(["culture", "shopping"]);
+  });
+
+  it("defaults tags to ['culture'] when every tag is invented, even when the category became other", () => {
+    const result = validateProposedPlace(validRaw({ category: "street market", tags: ["made-up"] }), { lenientCategory: true });
+    expect(result.valid).toBe(true);
+    expect(result.place?.category).toBe("other");
+    expect(result.place?.tags).toEqual(["culture"]);
+  });
+
+  it("rejects the same unrecognized category without lenientCategory (batch generation stays strict)", () => {
+    const result = validateProposedPlace(validRaw({ category: "district" }));
+    expect(result.valid).toBe(false);
+  });
+});
+
 describe("normalizeRawPlace", () => {
   it("maps every documented category synonym to its stored category", () => {
     const synonyms: Record<string, string> = {

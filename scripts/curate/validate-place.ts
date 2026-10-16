@@ -82,6 +82,18 @@ const CATEGORY_SYNONYMS: Record<string, (typeof VALID_CATEGORIES)[number]> = {
   theatre: "other",
 };
 
+export interface NormalizeOptions {
+  /**
+   * curate:add only: a category with no VALID_CATEGORIES/CATEGORY_SYNONYMS
+   * match falls back to "other" instead of invalidating the item — a
+   * manually-picked place (neighborhood, district, street market, ...) is
+   * never discarded over a category word the structuring call phrased
+   * differently. Batch generation (structureBatch) never sets this, and
+   * stays strict: an unrecognized category there still invalidates the item.
+   */
+  lenientCategory?: boolean;
+}
+
 /**
  * Coerces common, harmless shape mismatches BEFORE validation, so a place is
  * only ever rejected for something that's actually wrong (missing name,
@@ -92,13 +104,14 @@ const CATEGORY_SYNONYMS: Record<string, (typeof VALID_CATEGORIES)[number]> = {
  * non-empty, category valid after mapping, isLocalCuisine present for
  * restaurant/cafe).
  */
-export function normalizeRawPlace(raw: RawProposedPlace): RawProposedPlace {
+export function normalizeRawPlace(raw: RawProposedPlace, options: NormalizeOptions = {}): RawProposedPlace {
   const normalized: RawProposedPlace = { ...raw };
 
   if (typeof normalized.category === "string") {
     const cat = normalized.category.toLowerCase().trim();
     if ((VALID_CATEGORIES as readonly string[]).includes(cat)) normalized.category = cat;
     else if (CATEGORY_SYNONYMS[cat]) normalized.category = CATEGORY_SYNONYMS[cat];
+    else if (options.lenientCategory) normalized.category = "other";
   }
 
   if (Array.isArray(normalized.tags)) {
@@ -138,8 +151,8 @@ export function normalizeRawPlace(raw: RawProposedPlace): RawProposedPlace {
 }
 
 /** Validates one structured place (after normalization). Returns the validated (type-narrowed) object, or the list of reasons it was rejected. */
-export function validateProposedPlace(rawInput: RawProposedPlace): ValidationResult {
-  const raw = normalizeRawPlace(rawInput);
+export function validateProposedPlace(rawInput: RawProposedPlace, options: NormalizeOptions = {}): ValidationResult {
+  const raw = normalizeRawPlace(rawInput, options);
   const errors: string[] = [];
 
   if (!isNonEmptyString(raw.name)) errors.push("name is missing or empty");
@@ -220,11 +233,11 @@ export interface ValidatePlacesSummary {
 }
 
 /** Validates a whole batch, discarding invalid items individually instead of failing the batch. */
-export function validateProposedPlaces(raw: RawProposedPlace[]): ValidatePlacesSummary {
+export function validateProposedPlaces(raw: RawProposedPlace[], options: NormalizeOptions = {}): ValidatePlacesSummary {
   const valid: ValidatedPlace[] = [];
   const invalid: { input: RawProposedPlace; errors: string[] }[] = [];
   for (const item of raw) {
-    const result = validateProposedPlace(item);
+    const result = validateProposedPlace(item, options);
     if (result.valid && result.place) {
       valid.push(result.place);
     } else {

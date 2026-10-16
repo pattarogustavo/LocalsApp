@@ -34,7 +34,7 @@ import { estimateTotalCostUsd, formatModelCostUsd } from "./data/model-prices";
 import { runBatchWithSplitting, type BatchRunOutcome } from "./curate/batch-runner";
 import { newDiscardReasonCounts, addDiscardReasonCounts, formatDiscardReasonCounts, type DiscardReasonCounts } from "./curate/verify";
 import { pickVerifiedCandidate } from "./curate/match-google";
-import { matchManualNames, pairStructuredWithMatches } from "./curate/manual-add";
+import { matchManualNames, pairStructuredWithMatches, formatManualAddedLine, type ManualAddFinalized } from "./curate/manual-add";
 import { dedupeByPlaceId } from "./curate/dedupe";
 import {
   MAX_INVALID_EXAMPLES,
@@ -891,16 +891,16 @@ async function runAdd(opts: CurateOptions, selection: DestinationSeed[], logger:
     );
     const dedupedAccepted = dedupeByPlaceId(accepted);
 
-    let finalized: { place: ProposedPlace; googlePlaceId: string }[] = [];
+    let finalized: ManualAddFinalized[] = [];
     if (dedupedAccepted.length > 0) {
       const structured = await structureManualPlaces(destination.nameEn, country, dedupedAccepted.map((m) => m.name), aiStats);
       if (structured.invalidCount > 0) {
         logger.info(`  ${structured.invalidCount} inválidos na estruturação (${formatInvalidReasonCounts(structured.invalidReasonCounts)})`);
       }
-      const paired = pairStructuredWithMatches(structured.places, dedupedAccepted);
+      const paired = pairStructuredWithMatches(structured.places, dedupedAccepted, structured.invalidExamples);
       finalized = paired.finalized;
-      for (const m of paired.unmatched) {
-        rejected.push({ name: m.name, reason: "estruturação não retornou este lugar" });
+      for (const u of paired.unmatched) {
+        rejected.push({ name: u.name, reason: u.reason, googleName: u.googleName });
       }
     }
 
@@ -910,9 +910,11 @@ async function runAdd(opts: CurateOptions, selection: DestinationSeed[], logger:
 
     let added = 0;
     let alreadyExisting = 0;
+    let addedEntries: typeof finalized = [];
 
     if (opts.dryRun) {
       added = finalized.length;
+      addedEntries = finalized;
       fs.mkdirSync(EXPORTS_DIR, { recursive: true });
       const outPath = path.join(EXPORTS_DIR, `dry-run-add-${destination.slug}.json`);
       fs.writeFileSync(
@@ -932,28 +934,26 @@ async function runAdd(opts: CurateOptions, selection: DestinationSeed[], logger:
       });
 
       const existingIds = await getExistingPlaceIds(db, destinationRow.id);
-      const { toInsert, toSkip } = partitionNewCandidates(
-        finalized.map((f) => ({ ...f.place, googlePlaceId: f.googlePlaceId })),
-        existingIds,
-      );
+      const { toInsert, toSkip } = partitionNewCandidates(finalized, existingIds);
       alreadyExisting = toSkip.length;
+      addedEntries = toInsert;
 
-      const rows: InsertCuratedPlace[] = toInsert.map((p) => ({
+      const rows: InsertCuratedPlace[] = toInsert.map((f) => ({
         destinationId: destinationRow.id,
         destinationSlug: destination.slug,
-        googlePlaceId: p.googlePlaceId,
-        aiName: p.name,
-        aiNeighborhood: p.neighborhood,
-        category: p.category,
-        tags: p.tags,
-        priceTier: p.priceTier,
-        meals: p.meals,
-        cuisine: p.cuisine,
-        confidence: p.confidence,
-        rank: p.priority,
+        googlePlaceId: f.googlePlaceId,
+        aiName: f.place.name,
+        aiNeighborhood: f.place.neighborhood,
+        category: f.place.category,
+        tags: f.place.tags,
+        priceTier: f.place.priceTier,
+        meals: f.place.meals,
+        cuisine: f.place.cuisine,
+        confidence: f.place.confidence,
+        rank: f.place.priority,
         status: "pending",
         source: "manual",
-        descriptions: buildBaseDescriptions(p.descriptionPt, p.descriptionEn),
+        descriptions: buildBaseDescriptions(f.place.descriptionPt, f.place.descriptionEn),
       }));
       await insertPendingPlaces(db, rows); // idempotent (onConflictDoNothing)
       added = rows.length;
@@ -962,6 +962,12 @@ async function runAdd(opts: CurateOptions, selection: DestinationSeed[], logger:
     const destCost = estimateTotalCostUsd(aiStats.byModel);
     logger.info(`\n=== ${destination.slug} (curate:add) ===`);
     logger.info(`solicitados=${names.length} adicionados=${added} já existentes=${alreadyExisting} rejeitados=${rejected.length}`);
+    if (addedEntries.length) {
+      logger.info("  lugares adicionados:");
+      for (const entry of addedEntries) {
+        logger.info(`    ${formatManualAddedLine({ requestedName: entry.requestedName, ...entry.place })}`);
+      }
+    }
     logger.info(`  descartes por motivo: ${formatDiscardReasonCounts(discardCounts)}`);
     logger.info(`  custo estimado (apenas tokens, NÃO inclui busca web nem Google): ${formatModelCostUsd(destCost)}`);
 

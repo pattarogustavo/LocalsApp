@@ -3,7 +3,7 @@ import type { GoogleMatch } from "./google";
 import { namesReasonablyMatch } from "./normalize";
 import { pickVerifiedCandidate } from "./match-google";
 import type { DiscardReasonCounts } from "./verify";
-import type { ValidatedPlace } from "./validate-place";
+import type { ValidatedPlace, InvalidPlaceExample } from "./validate-place";
 
 export interface ManualAddAcceptedMatch {
   name: string;
@@ -53,25 +53,44 @@ export async function matchManualNames(
 }
 
 export interface ManualAddFinalized {
+  /** The name as originally given in --names, before Google verification or structuring. */
+  requestedName: string;
   place: ValidatedPlace;
   googlePlaceId: string;
   googleName: string;
 }
 
+export interface ManualAddUnmatched {
+  name: string;
+  googlePlaceId: string;
+  googleName: string;
+  /** The real reason this name has no structured place: the structuring call's own validation error when found, otherwise a generic fallback. */
+  reason: string;
+}
+
 export interface PairStructuredResult {
   finalized: ManualAddFinalized[];
-  /** Google matches the structuring call never returned a place for — reported back as a rejection. */
-  unmatched: ManualAddAcceptedMatch[];
+  /** Google matches the structuring call never returned a place for — reported back as a rejection, with the real reason when known. */
+  unmatched: ManualAddUnmatched[];
 }
+
+const UNMATCHED_FALLBACK_REASON = "estruturação não retornou este lugar";
 
 /**
  * Pairs each AI-structured place back to the Google match it came from, by
  * name similarity (same threshold used for Google verification) — the
  * structuring call is asked to keep names unchanged, but is never trusted to
  * echo them back byte-for-byte or in order. Each Google match is used at
- * most once.
+ * most once. A Google match left unpaired is cross-referenced against
+ * `invalidExamples` (the structuring call's own per-item validation errors)
+ * so its rejection reports the real cause (e.g. `category="district" não é
+ * uma das: ...`) instead of a generic "no place returned" message.
  */
-export function pairStructuredWithMatches(structured: ValidatedPlace[], matched: ManualAddAcceptedMatch[]): PairStructuredResult {
+export function pairStructuredWithMatches(
+  structured: ValidatedPlace[],
+  matched: ManualAddAcceptedMatch[],
+  invalidExamples: InvalidPlaceExample[] = [],
+): PairStructuredResult {
   const remaining = [...matched];
   const finalized: ManualAddFinalized[] = [];
 
@@ -79,8 +98,28 @@ export function pairStructuredWithMatches(structured: ValidatedPlace[], matched:
     const idx = remaining.findIndex((m) => namesReasonablyMatch(m.name, place.name));
     if (idx === -1) continue;
     const [m] = remaining.splice(idx, 1);
-    finalized.push({ place, googlePlaceId: m.googlePlaceId, googleName: m.googleName });
+    finalized.push({ requestedName: m.name, place, googlePlaceId: m.googlePlaceId, googleName: m.googleName });
   }
 
-  return { finalized, unmatched: remaining };
+  const unmatched: ManualAddUnmatched[] = remaining.map((m) => {
+    const invalid = invalidExamples.find((e) => namesReasonablyMatch(e.name, m.name));
+    const reason = invalid ? `estruturação inválida: ${invalid.errors.join("; ")}` : UNMATCHED_FALLBACK_REASON;
+    return { name: m.name, googlePlaceId: m.googlePlaceId, googleName: m.googleName, reason };
+  });
+
+  return { finalized, unmatched };
+}
+
+export interface ManualAddLogEntry {
+  requestedName: string;
+  category: string;
+  tags: string[];
+  priceTier?: string;
+  descriptionPt: string;
+}
+
+/** "requested name — category=... tags=[...] priceTier=... descriptionPt="first 100 chars…"" for the pre-write confirmation list. */
+export function formatManualAddedLine(entry: ManualAddLogEntry): string {
+  const truncated = entry.descriptionPt.length > 100 ? `${entry.descriptionPt.slice(0, 100)}…` : entry.descriptionPt;
+  return `"${entry.requestedName}" — category=${entry.category} tags=[${entry.tags.join(", ")}] priceTier=${entry.priceTier ?? "(nenhum)"} descriptionPt="${truncated}"`;
 }

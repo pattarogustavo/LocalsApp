@@ -8,7 +8,7 @@ import {
   type TranslateBatchItem,
 } from "./prompts";
 import { withRetry, isRetryableAnthropicError, getAnthropicRetryAfterMs, isWebSearchUnsupportedError } from "./retry";
-import { validateProposedPlaces, type RawProposedPlace, type ValidatedPlace, type InvalidPlaceExample } from "./validate-place";
+import { validateProposedPlaces, type RawProposedPlace, type ValidatedPlace, type InvalidPlaceExample, type NormalizeOptions } from "./validate-place";
 
 export const RESEARCH_MODEL = process.env.CURATE_RESEARCH_MODEL || "claude-sonnet-5";
 export const STRUCTURE_MODEL = process.env.CURATE_STRUCTURE_MODEL || "claude-haiku-4-5-20251001";
@@ -167,7 +167,7 @@ export interface StructureBatchResult {
 }
 
 /** Shared by structureBatch and structureManualPlaces: one structuring call (no web search) for a given prompt, parsed and individually validated. */
-async function runStructureCall(prompt: string, stats: AiCallStats): Promise<StructureBatchResult> {
+async function runStructureCall(prompt: string, stats: AiCallStats, validateOptions: NormalizeOptions = {}): Promise<StructureBatchResult> {
   const result = await withRetry(
     () =>
       invokeLLM({
@@ -192,7 +192,7 @@ async function runStructureCall(prompt: string, stats: AiCallStats): Promise<Str
     return { places: [], invalidCount: 0, invalidReasonCounts: {}, invalidExamples: [], truncated: true };
   }
 
-  const { valid, invalidCount, invalidReasonCounts, invalidExamples } = validateProposedPlaces(raw);
+  const { valid, invalidCount, invalidReasonCounts, invalidExamples } = validateProposedPlaces(raw, validateOptions);
   return { places: valid, invalidCount, invalidReasonCounts, invalidExamples, truncated };
 }
 
@@ -205,11 +205,15 @@ export async function structureBatch(researchText: string, stats: AiCallStats): 
  * curate:add's single structuring call: no research step, no web search —
  * just fills in the structured fields for a fixed, human-chosen list of
  * names. Reuses the exact same schema/normalization/validation as
- * structureBatch, then forces confidence="high" and priority=1 (the manual
- * places' defining trait) regardless of what the model returned.
+ * structureBatch, except an unrecognized category falls back to "other"
+ * instead of invalidating the item (lenientCategory — see NormalizeOptions:
+ * a manually-picked place is never discarded over a category word like
+ * "district" or "street market"), then forces confidence="high" and
+ * priority=1 (the manual places' defining trait) regardless of what the
+ * model returned.
  */
 export async function structureManualPlaces(destinationName: string, country: string, names: string[], stats: AiCallStats): Promise<StructureBatchResult> {
-  const result = await runStructureCall(buildManualStructurePrompt(destinationName, country, names), stats);
+  const result = await runStructureCall(buildManualStructurePrompt(destinationName, country, names), stats, { lenientCategory: true });
   return { ...result, places: result.places.map((p) => ({ ...p, confidence: "high", priority: 1 })) };
 }
 
