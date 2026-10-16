@@ -14,6 +14,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useTranslation } from '@/hooks/use-translation';
 import { ProBadge } from '@/components/trial-banner';
 import { trpc } from '@/lib/trpc';
+import { trpcVanilla } from '@/lib/trpc-vanilla';
 import type { Place, Destination, PlaceAttachment } from '@/types/voyage';
 import { generateId } from '@/utils/trip-helpers';
 import { DocAttachField } from '@/components/ui/doc-attach-field';
@@ -33,33 +34,54 @@ const ACCENT_TEAL = '#52B788';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CATEGORIES = [
-  { key: 'all',        label: 'Todos',       icon: 'grid-outline' },
-  { key: 'attraction', label: 'Atrações',    icon: 'camera-outline' },
-  { key: 'restaurant', label: 'Restaurantes', icon: 'restaurant-outline' },
-  { key: 'cafe',       label: 'Cafés',       icon: 'cafe-outline' },
-  { key: 'museum',     label: 'Museus',      icon: 'book-outline' },
-  { key: 'hidden_gem', label: 'Escondidos',  icon: 'diamond-outline' },
-  { key: 'other',      label: 'Outros',      icon: 'location-outline' },
-];
+function getCategories(t: ReturnType<typeof useTranslation>) {
+  return [
+    { key: 'all',          label: t.places.categories.all,        icon: 'grid-outline' },
+    { key: 'attraction',   label: t.places.categories.attraction, icon: 'camera-outline' },
+    { key: 'restaurant',   label: t.places.categories.restaurant, icon: 'restaurant-outline' },
+    { key: 'cafe',         label: t.places.categories.cafe,       icon: 'cafe-outline' },
+    { key: 'museum',       label: t.places.categories.museum,     icon: 'book-outline' },
+    { key: 'park',         label: t.places.categories.park,         icon: 'leaf-outline' },
+    { key: 'beach',        label: t.places.categories.beach,        icon: 'sunny-outline' },
+    { key: 'market',       label: t.places.categories.market,       icon: 'basket-outline' },
+    { key: 'neighborhood', label: t.places.categories.neighborhood, icon: 'navigate-outline' },
+    { key: 'hidden_gem',   label: t.places.categories.hiddenGem,  icon: 'diamond-outline' },
+    { key: 'other',        label: t.places.categories.other,      icon: 'location-outline' },
+  ];
+}
 
-const CATEGORY_LABELS: Record<string, string> = {
-  attraction: 'Atrações',
-  restaurant: 'Restaurantes',
-  cafe: 'Cafés',
-  museum: 'Museus',
-  hidden_gem: 'Joias Escondidas',
-  other: 'Outros',
-};
+function getCategoryLabel(t: ReturnType<typeof useTranslation>, category: string): string {
+  const map: Record<string, string> = {
+    attraction: t.places.categories.attraction,
+    restaurant: t.places.categories.restaurant,
+    cafe: t.places.categories.cafe,
+    museum: t.places.categories.museum,
+    park: t.places.categories.park,
+    beach: t.places.categories.beach,
+    market: t.places.categories.market,
+    neighborhood: t.places.categories.neighborhood,
+    hidden_gem: t.places.categories.hiddenGem,
+    other: t.places.categories.other,
+  };
+  return map[category] || category;
+}
 
 const CATEGORY_ICONS: Record<string, string> = {
   attraction: 'camera-outline',
   restaurant: 'restaurant-outline',
   cafe: 'cafe-outline',
   museum: 'book-outline',
+  park: 'leaf-outline',
+  beach: 'sunny-outline',
+  market: 'basket-outline',
+  neighborhood: 'navigate-outline',
   hidden_gem: 'diamond-outline',
   other: 'location-outline',
 };
+
+// Category keys only (excludes 'all'), for logic that doesn't need the
+// translated label — e.g. grouping places by category.
+const CATEGORY_KEYS = ['attraction', 'restaurant', 'cafe', 'museum', 'park', 'beach', 'market', 'neighborhood', 'hidden_gem', 'other'];
 
 // ─── Place Detail Modal ───────────────────────────────────────────────────────
 
@@ -83,6 +105,7 @@ function PlaceDetailModal({
   const updatePlace = useTripsStore((s) => s.updatePlace);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const t = useTranslation();
   const [docPickerIdx, setDocPickerIdx] = useLocalState<number | null>(null);
 
   const handleAddAttachment = async (uri: string) => {
@@ -131,7 +154,7 @@ function PlaceDetailModal({
             </TouchableOpacity>
 
             <Text style={styles.detailName}>{place.name}</Text>
-            <Text style={styles.detailCategory}>{CATEGORY_LABELS[place.category] || place.category}</Text>
+            <Text style={styles.detailCategory}>{getCategoryLabel(t, place.category)}</Text>
 
             {place.description ? (
               <Text style={styles.detailDesc}>{place.description}</Text>
@@ -370,9 +393,12 @@ function AIPanel({
   const { canEdit, canUseAI } = permissions;
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingSlow, setLoadingSlow] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const fetchedRef = useRef(false);
+  const detailsFetchedRef = useRef<Set<string>>(new Set());
   const updateDestinationSuggestedPlaces = useTripsStore((s) => s.updateDestinationSuggestedPlaces);
   const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
 
@@ -382,11 +408,14 @@ function AIPanel({
     if (fetchedRef.current) return;
     fetchedRef.current = true;
     setLoading(true);
+    setLoadError(false);
+    const slowTimer = setTimeout(() => setLoadingSlow(true), 10000);
     try {
       const result = await suggestPlaces.mutateAsync({
         destinationName: destination.name,
         country: destination.country || '',
-        categories: ['attraction', 'restaurant', 'cafe', 'museum', 'hidden_gem'],
+        categories: ['attraction', 'restaurant', 'cafe', 'museum', 'park', 'beach', 'market', 'neighborhood', 'hidden_gem'],
+        categoriesV2: true,
         existingPlaces: addedPlaces.map((p) => p.name),
         lat: destination.lat,
         lng: destination.lng,
@@ -399,11 +428,50 @@ function AIPanel({
       }
     } catch (e) {
       console.error('AI suggest places error:', e);
+      fetchedRef.current = false;
+      setLoadError(true);
     } finally {
+      clearTimeout(slowTimer);
       setLoading(false);
+      setLoadingSlow(false);
       setLoaded(true);
     }
   }, [destination.name, destination.country, destination.id, destination.lat, destination.lng, tripId, preferredLanguage]);
+
+  // Backfill address/photo (from Google, via place_id) for catalog-sourced
+  // suggestions that came back without them — in batches of up to 12, as
+  // places.catalogDetails caps its input size.
+  useEffect(() => {
+    const needsDetails = suggestions.filter(
+      (p) => p.placeId && !detailsFetchedRef.current.has(p.placeId) && (!p.imageUrl || !p.address)
+    );
+    if (needsDetails.length === 0) return;
+    const batch = needsDetails.slice(0, 12);
+    batch.forEach((p) => detailsFetchedRef.current.add(p.placeId!));
+    (async () => {
+      try {
+        const res = await trpcVanilla.places.catalogDetails.query({
+          placeIds: batch.map((p) => p.placeId!),
+          language: preferredLanguage,
+        });
+        const details = res?.details;
+        if (!details) return;
+        setSuggestions((prev) => prev.map((p) => {
+          const d = p.placeId ? details[p.placeId] : undefined;
+          if (!d) return p;
+          return {
+            ...p,
+            address: p.address ?? d.address,
+            hours: p.hours ?? d.hours,
+            phone: p.phone ?? d.phone,
+            imageUrl: p.imageUrl ?? d.imageUrl,
+          };
+        }));
+      } catch (e) {
+        console.error('[places.catalogDetails] batch fetch error:', e);
+      }
+    })();
+  }, [suggestions, preferredLanguage]);
 
   // Auto-load on mount: a cached result is always shown (viewing isn't a
   // write action), regardless of role or subscription. Only triggering a
@@ -457,7 +525,24 @@ function AIPanel({
     return (
       <View style={styles.aiLoadingRow}>
         <ActivityIndicator size="small" color={colors.textAccent} />
-        <Text style={styles.aiLoadingText}>Preparando sugestões só pra sua viagem a {destination.name}...</Text>
+        <Text style={styles.aiLoadingText}>{loadingSlow ? t.places.loadingPlacesSlow : t.places.loadingPlaces}</Text>
+      </View>
+    );
+  }
+
+  if (loadError && suggestions.length === 0) {
+    return (
+      <View style={styles.aiEmptyRow}>
+        <Ionicons name="cloud-offline-outline" size={16} color={colors.error} />
+        <Text style={styles.aiEmptyText}>{t.places.errorTitle}</Text>
+        <Text style={styles.aiEmptyText}>{t.places.errorMessage}</Text>
+        <TouchableOpacity
+          onPress={() => { fetchedRef.current = false; loadSuggestions(); }}
+          style={styles.aiRefreshBtn}
+        >
+          <Ionicons name="refresh-outline" size={14} color={colors.textAccent} />
+          <Text style={styles.aiLoadingText}>{t.places.retry}</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -467,7 +552,7 @@ function AIPanel({
       <View style={styles.aiEmptyRow}>
         <Ionicons name="search-outline" size={16} color={colors.muted} />
         <Text style={styles.aiEmptyText}>
-          {searchQuery ? `Nenhum resultado para "${searchQuery}"` : 'Nenhuma sugestão disponível'}
+          {searchQuery ? `${t.places.noCustomResults}` : t.places.noAvailable}
         </Text>
         {canUseAI ? (
           <TouchableOpacity
@@ -761,9 +846,9 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
       const destPlaces = myPlaces.filter((p) => p.destinationId === dest.id);
       if (destPlaces.length > 0) {
         const byCategory: Record<string, Place[]> = {};
-        for (const cat of CATEGORIES.slice(1)) {
-          const catPlaces = destPlaces.filter((p) => p.category === cat.key);
-          if (catPlaces.length > 0) byCategory[cat.key] = catPlaces;
+        for (const catKey of CATEGORY_KEYS) {
+          const catPlaces = destPlaces.filter((p) => p.category === catKey);
+          if (catPlaces.length > 0) byCategory[catKey] = catPlaces;
         }
         acc[dest.id] = { dest, byCategory };
       }
@@ -865,7 +950,7 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
         {/* Category filter */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}
           contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
-          {CATEGORIES.map((cat) => (
+          {getCategories(t).map((cat) => (
             <TouchableOpacity
               key={cat.key}
               onPress={() => setActiveCategory(cat.key)}
@@ -889,7 +974,7 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
               )}
               {Object.entries(byCategory).map(([catKey, catPlaces]) => (
                 <View key={catKey}>
-                  <Text style={styles.catGroupLabel}>{CATEGORY_LABELS[catKey] || catKey}</Text>
+                  <Text style={styles.catGroupLabel}>{getCategoryLabel(t, catKey)}</Text>
                   {catPlaces.map((place) => (
                     <MyPlaceRow
                       key={place.id}
