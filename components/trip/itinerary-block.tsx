@@ -43,6 +43,10 @@ const CATEGORY_ICONS: Record<string, string> = {
   restaurant: 'restaurant-outline',
   cafe: 'cafe-outline',
   museum: 'book-outline',
+  park: 'leaf-outline',
+  beach: 'sunny-outline',
+  market: 'basket-outline',
+  neighborhood: 'navigate-outline',
   hidden_gem: 'diamond-outline',
   hotel: 'bed-outline',
   other: 'location-outline',
@@ -53,10 +57,30 @@ const CATEGORY_COLORS: Record<string, string> = {
   restaurant: '#E07B5A',
   cafe: '#C4A35A',
   museum: '#7B9FD4',
+  park: '#52B788',
+  beach: '#4FA8D8',
+  market: '#D9A441',
+  neighborhood: '#9B7EDE',
   hidden_gem: '#B88BF5',
   hotel: '#7B9FD4',
   other: '#A8D5B5',
 };
+
+function CATEGORY_LABEL_MAP(t: Translations): Record<string, string> {
+  return {
+    attraction: t.places.categories.attraction,
+    restaurant: t.places.categories.restaurant,
+    cafe: t.places.categories.cafe,
+    museum: t.places.categories.museum,
+    park: t.places.categories.park,
+    beach: t.places.categories.beach,
+    market: t.places.categories.market,
+    neighborhood: t.places.categories.neighborhood,
+    hidden_gem: t.places.categories.hiddenGem,
+    hotel: t.places.categories.hotel,
+    other: t.places.categories.other,
+  };
+}
 
 function getPaceOptions(t: Translations): { id: TravelPace; label: string; icon: string; desc: string }[] {
   return [
@@ -542,7 +566,7 @@ function StopItem({
                         >
                           <Ionicons name={icon as any} size={14} color={isActive ? color : colors.muted} />
                           <Text style={[styles.editCatChipText, { color: isActive ? color : colors.muted }]}>
-                            {key === 'attraction' ? t.places.categories.attraction : key === 'restaurant' ? t.places.categories.restaurant : key === 'cafe' ? t.places.categories.cafe : key === 'museum' ? t.places.categories.museum : key === 'hidden_gem' ? t.places.categories.hiddenGem : key === 'hotel' ? t.places.categories.hotel : t.places.categories.all}
+                            {CATEGORY_LABEL_MAP(t)[key] || t.places.categories.all}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -1023,6 +1047,10 @@ function UnscheduledPlaceRow({ place, onAdd, onRemove, canEdit }: { place: Place
     restaurant: t.places.categorySingular.restaurant,
     cafe: t.places.categorySingular.cafe,
     museum: t.places.categorySingular.museum,
+    park: t.places.categorySingular.park,
+    beach: t.places.categorySingular.beach,
+    market: t.places.categorySingular.market,
+    neighborhood: t.places.categorySingular.neighborhood,
     hidden_gem: t.places.categorySingular.hiddenGem,
     hotel: t.places.categorySingular.hotel,
     other: t.places.categorySingular.other,

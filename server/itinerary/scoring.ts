@@ -37,7 +37,7 @@ const STYLE_TYPE_MAP: Record<TravelStyleKey, string[]> = {
   gastronomia: ['restaurant', 'food', 'bakery', 'cafe', 'meal_takeaway', 'meal_delivery', 'market'],
   natureza: ['park', 'natural_feature', 'botanical_garden', 'zoo', 'campground', 'hiking_area'],
   montanha: ['natural_feature', 'hiking_area', 'campground', 'park'],
-  praia: ['natural_feature'],
+  praia: ['natural_feature', 'beach'],
   aventura: ['amusement_park', 'zoo', 'stadium', 'hiking_area', 'campground', 'gym', 'bowling_alley'],
   relaxamento: ['spa', 'park', 'natural_feature', 'botanical_garden'],
   compras: ['shopping_mall', 'department_store', 'clothing_store', 'book_store', 'jewelry_store', 'store', 'market'],

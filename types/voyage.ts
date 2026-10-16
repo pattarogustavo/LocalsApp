@@ -94,7 +94,9 @@ export interface Destination {
 
 // ─── Place ────────────────────────────────────────────────────────────────────
 
-export type PlaceCategory = 'attraction' | 'restaurant' | 'cafe' | 'museum' | 'hidden_gem' | 'other';
+export type PlaceCategory =
+  | 'attraction' | 'restaurant' | 'cafe' | 'museum' | 'hidden_gem' | 'other'
+  | 'park' | 'beach' | 'market' | 'neighborhood';
 
 export interface PlaceAttachment {
   id: string;

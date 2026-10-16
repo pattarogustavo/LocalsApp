@@ -68,6 +68,10 @@ const DURATION_BY_APP_CATEGORY: Record<string, DurationRange> = {
   cafe: range(20, 35, 60),
   hidden_gem: range(30, 60, 90),
   other: range(30, 60, 90),
+  park: range(30, 60, 90),
+  beach: range(60, 120, 180),
+  market: range(45, 75, 120),
+  neighborhood: range(60, 90, 120),
 };
 
 const QUICK_MEAL_RANGE = range(20, 30, 45);
