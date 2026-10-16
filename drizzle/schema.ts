@@ -182,3 +182,27 @@ export const curatedPlaces = pgTable("curated_places", {
 
 export type CuratedPlace = typeof curatedPlaces.$inferSelect;
 export type InsertCuratedPlace = typeof curatedPlaces.$inferInsert;
+
+/**
+ * Tracks destinations requested via ai.suggestPlaces that did NOT match the
+ * curated catalog — lets us see which destinations to curate next. Holds no
+ * personal data (no user id, no IP): just the destination identity, a
+ * request count, and when it was first/last seen.
+ */
+export const catalogRequests = pgTable("catalog_requests", {
+  id: serial("id").primaryKey(),
+  /** normalizeDestinationName() output — lowercased, accent-stripped, punctuation-stripped. */
+  destinationNormalized: varchar("destinationNormalized", { length: 255 }).notNull(),
+  destinationName: text("destinationName").notNull(),
+  country: text("country"),
+  /** Language of the most recent request for this destination (not part of the identity key). */
+  language: varchar("language", { length: 8 }),
+  count: integer("count").default(1).notNull(),
+  firstRequestedAt: timestamp("firstRequestedAt").defaultNow().notNull(),
+  lastRequestedAt: timestamp("lastRequestedAt").defaultNow().notNull(),
+}, (table) => [
+  unique().on(table.destinationNormalized, table.country),
+]);
+
+export type CatalogRequest = typeof catalogRequests.$inferSelect;
+export type InsertCatalogRequest = typeof catalogRequests.$inferInsert;

@@ -22,7 +22,9 @@ import {
   AI_DESTINATION_INFO_CACHE_TTL_MS,
 } from "./cache";
 
-const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
+import { GOOGLE_PLACES_KEY, mapToGoogleLanguage, pickBestGooglePhoto, resolveGooglePhotoUrl, fetchCuratedPlaceDetails } from "./google-places";
+import * as catalog from "./catalog";
+
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
 const AERODATABOX_HOST = 'aerodatabox.p.rapidapi.com';
 const GOOGLE_DIRECTIONS_KEY = process.env.GOOGLE_DIRECTIONS_API_KEY || "";
@@ -30,23 +32,8 @@ const OPENWEATHER_KEY = process.env.OPENWEATHERMAP_API_KEY || "";
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY || "";
 /** Kill switch for shared-trip editing (sharing.saveSharedTrip). Enabled unless explicitly set to "false". */
 const SHARED_EDITING_ENABLED = process.env.SHARED_EDITING_ENABLED !== "false";
-
-// Maps the app's internal language codes to the codes Google's APIs
-// (Places, Directions) expect. Falls back to pt-BR for unrecognized or
-// missing values, so callers that don't pass a language keep working as before.
-const GOOGLE_LANGUAGE_MAP: Record<string, string> = {
-  pt: "pt-BR",
-  en: "en",
-  es: "es",
-  fr: "fr",
-  de: "de",
-  it: "it",
-};
-
-function mapToGoogleLanguage(lang?: string): string {
-  const code = lang?.slice(0, 2).toLowerCase();
-  return (code && GOOGLE_LANGUAGE_MAP[code]) || "pt-BR";
-}
+/** Kill switch for the web-search tool in the ai.suggestPlaces fallback flow. Disabled unless explicitly set to "true" (cost control). */
+const SUGGEST_FALLBACK_WEB_SEARCH = process.env.SUGGEST_FALLBACK_WEB_SEARCH === "true";
 
 // Human-readable (Portuguese) name for each supported language code, used to
 // instruct the LLM which language to write generated text in — since the
@@ -362,51 +349,6 @@ async function fetchWikipediaPhoto(cityName: string, country?: string): Promise<
 }
 
 /**
- * Pick the best photo from a Google Places `photos` array.
- * User-submitted photos vary wildly in subject and orientation, so we prefer
- * strictly landscape shots (width > height) — more likely to be a view of the place
- * rather than a close-up of food, an interior, or a menu — and among those
- * pick the highest resolution. If no landscape photo exists, fall back to
- * the highest-resolution photo overall so we never end up without an image.
- */
-function pickBestGooglePhoto(
-  photos: { photo_reference: string; width?: number; height?: number }[] | undefined
-): string | undefined {
-  if (!photos || photos.length === 0) return undefined;
-
-  const byResolutionDesc = (a: typeof photos[number], b: typeof photos[number]) =>
-    (b.width || 0) * (b.height || 0) - (a.width || 0) * (a.height || 0);
-
-  const landscape = photos.filter((p) => (p.width || 0) > (p.height || 0));
-  const pool = landscape.length > 0 ? landscape : photos;
-
-  return [...pool].sort(byResolutionDesc)[0]?.photo_reference;
-}
-
-/**
- * Resolve a Google Places photo_reference to a stable public photo URL,
- * following the redirect so we store an lh3.googleusercontent.com URL
- * (no API key exposed to the client).
- */
-async function resolveGooglePhotoUrl(photoReference: string): Promise<string | undefined> {
-  try {
-    const photoUrl = new URL("https://maps.googleapis.com/maps/api/place/photo");
-    photoUrl.searchParams.set("maxwidth", "1200");
-    photoUrl.searchParams.set("photo_reference", photoReference);
-    photoUrl.searchParams.set("key", GOOGLE_PLACES_KEY);
-    const photoRes = await fetch(photoUrl.toString(), { redirect: "follow" });
-    if (photoRes.ok && photoRes.url.includes("googleusercontent.com")) {
-      return photoRes.url;
-    }
-    // Fallback: return the redirect URL (React Native follows redirects natively)
-    return photoUrl.toString();
-  } catch (photoErr) {
-    console.error("[places.details] photo fetch failed:", photoErr);
-    return undefined;
-  }
-}
-
-/**
  * Resolve a destination name to a center lat/lng via Places Text Search.
  * Used as a fallback when the client doesn't have coordinates cached yet
  * (e.g. a destination added before coordinates were persisted).
@@ -536,40 +478,6 @@ async function fetchRealCandidatesForDestinations(
 }
 
 /**
- * Fetch real address/hours/phone/photo for a single place_id via Place Details,
- * reusing the same landscape + highest-resolution photo curation as places.details.
- */
-async function fetchCuratedPlaceDetails(placeId: string, language?: string): Promise<{ address?: string; hours?: string; phone?: string; imageUrl?: string; lat?: number; lng?: number }> {
-  try {
-    const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
-    url.searchParams.set("place_id", placeId);
-    url.searchParams.set("fields", "formatted_address,opening_hours,formatted_phone_number,photos,geometry");
-    url.searchParams.set("language", mapToGoogleLanguage(language));
-    url.searchParams.set("key", GOOGLE_PLACES_KEY);
-    const res = await fetch(url.toString());
-    const data = (await res.json()) as any;
-    if (data.status !== "OK") return {};
-    const result = data.result;
-    let imageUrl: string | undefined;
-    const bestPhotoRef = pickBestGooglePhoto(result?.photos);
-    if (bestPhotoRef) {
-      imageUrl = await resolveGooglePhotoUrl(bestPhotoRef);
-    }
-    return {
-      address: result?.formatted_address,
-      hours: result?.opening_hours?.weekday_text?.join("\n"),
-      phone: result?.formatted_phone_number,
-      imageUrl,
-      lat: result?.geometry?.location?.lat,
-      lng: result?.geometry?.location?.lng,
-    };
-  } catch (err) {
-    console.error(`[ai.suggestPlaces] place details fetch failed for place_id=${placeId}:`, err);
-    return {};
-  }
-}
-
-/**
  * Backfills real opening_hours (weekday_text) onto the top-ranked candidates
  * only (capped at `limit`) — one Place Details call per candidate is too
  * costly/slow to run for the entire raw pool, so this runs *after* ranking,
@@ -615,6 +523,106 @@ async function resolvePlaceIdByName(name: string, lat?: number, lng?: number, la
     console.error(`[ai.generateFromScratch] findPlaceFromText failed for "${name}":`, err);
     return undefined;
   }
+}
+
+// ─── Deterministic fallback for ai.suggestPlaces (item 4b) ───────────────────
+// Engaged when the AI curation step fails, times out, returns invalid JSON,
+// or the hallucination guard discards every pick — picks straight from the
+// real Google candidate pool with no LLM call, so a destination outside the
+// curated catalog never ends up with an empty list just because the AI step
+// had a bad day.
+
+/** Short, generic description per app category, used only by the deterministic fallback (no AI call). */
+const GENERIC_CATEGORY_DESCRIPTIONS: Record<string, Record<string, string>> = {
+  attraction: {
+    pt: "Ponto turístico bem avaliado por quem visita.", en: "A well-rated spot visitors recommend.",
+    es: "Un lugar bien valorado por los visitantes.", fr: "Un lieu bien noté par les visiteurs.",
+    de: "Ein von Besuchern gut bewerteter Ort.", it: "Un luogo ben valutato dai visitatori.",
+  },
+  restaurant: {
+    pt: "Restaurante bem avaliado na região.", en: "A well-rated restaurant in the area.",
+    es: "Un restaurante bien valorado en la zona.", fr: "Un restaurant bien noté dans le quartier.",
+    de: "Ein gut bewertetes Restaurant in der Gegend.", it: "Un ristorante ben valutato nella zona.",
+  },
+  cafe: {
+    pt: "Café bem avaliado por quem passa por ali.", en: "A well-rated cafe nearby.",
+    es: "Una cafetería bien valorada por aquí cerca.", fr: "Un café bien noté dans les environs.",
+    de: "Ein gut bewertetes Café in der Nähe.", it: "Un caffè ben valutato nelle vicinanze.",
+  },
+  museum: {
+    pt: "Museu bem avaliado por quem visita.", en: "A well-rated museum visitors recommend.",
+    es: "Un museo bien valorado por los visitantes.", fr: "Un musée bien noté par les visiteurs.",
+    de: "Ein von Besuchern gut bewertetes Museum.", it: "Un museo ben valutato dai visitatori.",
+  },
+  hidden_gem: {
+    pt: "Boa nota, mas ainda pouco conhecido — uma descoberta.", en: "Highly rated but still under the radar — a real find.",
+    es: "Muy bien valorado pero poco conocido — un verdadero hallazgo.", fr: "Très bien noté mais encore peu connu — une vraie découverte.",
+    de: "Sehr gut bewertet, aber noch wenig bekannt — ein echter Fund.", it: "Molto apprezzato ma ancora poco conosciuto — una vera scoperta.",
+  },
+  other: {
+    pt: "Lugar bem avaliado por quem visita.", en: "A well-rated place visitors recommend.",
+    es: "Un lugar bien valorado por los visitantes.", fr: "Un lieu bien noté par les visiteurs.",
+    de: "Ein von Besuchern gut bewerteter Ort.", it: "Un luogo ben valutato dai visitatori.",
+  },
+};
+
+function genericCategoryDescription(category: string, language?: string): string {
+  const lang = language?.slice(0, 2).toLowerCase() || "pt";
+  const table = GENERIC_CATEGORY_DESCRIPTIONS[category] || GENERIC_CATEGORY_DESCRIPTIONS.other;
+  return table[lang] || table.pt;
+}
+
+/** Buckets a real candidate into an app PlaceCategory using only its Google `types` + rating/review signals (no AI). */
+function categorizeCandidate(candidate: NearbyCandidate): string {
+  if (candidate.types.includes("museum")) return "museum";
+  if (candidate.types.includes("cafe")) return "cafe";
+  if (candidate.types.includes("restaurant")) return "restaurant";
+  // "hidden gem": well-rated but comparatively few reviews — "discovered by few".
+  if ((candidate.rating ?? 0) >= 4.4 && candidate.userRatingsTotal > 0 && candidate.userRatingsTotal < 150) return "hidden_gem";
+  return "attraction";
+}
+
+/**
+ * Picks up to `limit` real candidates with no AI call: ranked by
+ * rating × log10(reviews) (a simple, deterministic quality proxy), then
+ * diversified round-robin across categories so the result isn't all
+ * restaurants or all attractions.
+ */
+function buildDeterministicFallbackPlaces(
+  candidates: NearbyCandidate[],
+  excludeNamesLower: Set<string>,
+  language: string | undefined,
+  limit = 15,
+): { placeId: string; category: string; description: string }[] {
+  const scored = candidates
+    .filter((c) => !excludeNamesLower.has(c.name.toLowerCase()))
+    .map((c) => ({ candidate: c, category: categorizeCandidate(c), score: (c.rating ?? 3.5) * Math.log10(c.userRatingsTotal + 1) }))
+    .sort((a, b) => b.score - a.score);
+
+  const byCategory = new Map<string, typeof scored>();
+  for (const entry of scored) {
+    const arr = byCategory.get(entry.category) ?? [];
+    arr.push(entry);
+    byCategory.set(entry.category, arr);
+  }
+
+  const picked: typeof scored = [];
+  let exhausted = false;
+  while (picked.length < limit && !exhausted) {
+    exhausted = true;
+    for (const arr of byCategory.values()) {
+      if (arr.length === 0) continue;
+      picked.push(arr.shift()!);
+      exhausted = false;
+      if (picked.length >= limit) break;
+    }
+  }
+
+  return picked.map(({ candidate, category }) => ({
+    placeId: candidate.placeId,
+    category,
+    description: genericCategoryDescription(category, language),
+  }));
 }
 
 // Terms expected in the caption of a photo that actually depicts a place/city,
@@ -1605,6 +1613,20 @@ Responda APENAS com JSON válido neste formato exato:
         if (!GOOGLE_PLACES_KEY) return {};
         return fetchCuratedPlaceDetails(input.placeId, input.language);
       }),
+
+    /**
+     * Batch Google Place Details (address/hours/phone/photo) for up to 12
+     * catalog-sourced place_ids at once, cached for up to 1h — lets the app
+     * backfill details for catalog suggestions beyond the top 20 already
+     * resolved by ai.suggestPlaces, on demand as they scroll into view.
+     */
+    catalogDetails: protectedProcedure
+      .input(z.object({ placeIds: z.array(z.string()).min(1).max(12), language: z.string().optional() }))
+      .query(async ({ ctx, input }) => {
+        await requireActiveSubscription(ctx.user.id);
+        const details = await catalog.fetchCatalogDetailsBatch(input.placeIds, input.language);
+        return { details };
+      }),
   }),
 
   // ─── AI / Itinerary ────────────────────────────────────────────────────────
@@ -2259,13 +2281,13 @@ Importante:
       }),
 
     /**
-     * Suggest places for a destination using a two-stage flow:
-     * 1. Real candidates from Google Places Nearby Search (verified to exist,
-     *    with real ratings/review counts).
-     * 2. The AI curates that real list — picks the best subset, classifies
-     *    category, writes a 1-sentence description — but can't invent places.
-     * Finally, Place Details resolves address/hours/phone/photo only for the
-     * places the AI actually picked.
+     * Suggest places for a destination. Order: subscription check → curated
+     * catalog (server/catalog.ts, our own editorial content, no invented
+     * places) → fallback flow (real Google candidates + AI curation, or a
+     * fully deterministic selection if the AI step fails/times out/comes
+     * back invalid). See server/catalog.ts and the deterministic-fallback
+     * helpers above (buildDeterministicFallbackPlaces) for the two paths
+     * that replace the old single Google+AI flow.
      */
     suggestPlaces: protectedProcedure
       .input(
@@ -2277,14 +2299,42 @@ Importante:
           lat: z.number().optional(),
           lng: z.number().optional(),
           language: z.string().optional(),
+          // Lets an old app build keep working: when unset/false, catalog
+          // places using the new categories (park/beach/market/neighborhood)
+          // are mapped back to the pre-existing category set in the response.
+          categoriesV2: z.boolean().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
-        // Subscription check always runs before the cache is consulted, so a
-        // cache hit can never substitute for AI access on a free account.
+        // Subscription check always runs before anything else, so neither the
+        // catalog nor a cache hit can substitute for AI access on a free account.
         await requireActiveSubscription(ctx.user.id);
-        const { destinationName, country, existingPlaces } = input;
+        const { destinationName, country, existingPlaces, categoriesV2 } = input;
         const debugSteps: string[] = [];
+        const existingLower = new Set((existingPlaces || []).map((n) => n.toLowerCase()));
+
+        // ── Curated catalog first ─────────────────────────────────────────
+        const catalogDestination = await catalog.findCatalogDestination(destinationName, country, input.lat, input.lng);
+        if (catalogDestination) {
+          debugSteps.push(`catalog: matched destination "${catalogDestination.slug}"`);
+          const approved = await catalog.getApprovedCuratedPlaces(catalogDestination.id);
+          if (approved.length > 0) {
+            let places = catalog.buildCatalogPlaceResults(approved, input.categories, input.language, categoriesV2);
+            places = places.filter((p) => !existingLower.has(p.name.toLowerCase()));
+            places = await catalog.fetchDetailsForTopCandidates(places, 20, input.language);
+            debugSteps.push(`catalog: returning ${places.length} places`);
+            console.log(`[ai.suggestPlaces] "${destinationName}": served from catalog (${places.length} places)`, debugSteps);
+            return { places, debugSteps, source: 'catalog' as const };
+          }
+          debugSteps.push('catalog: destination matched but has no approved places — falling back');
+        } else {
+          debugSteps.push(catalog.CATALOG_ENABLED ? 'catalog: no match' : 'catalog: disabled');
+          if (catalog.CATALOG_ENABLED) {
+            await catalog.recordCatalogMiss(destinationName, country, input.language);
+          }
+        }
+
+        // ── Fallback flow (destination outside the catalog, or not curated yet) ──
 
         // Not keyed on existingPlaces: the cached list is the destination's
         // canonical curated set, shared across users. Whichever caller's
@@ -2299,18 +2349,17 @@ Importante:
           normalizeCacheKeyPart(input.language),
           (input.categories ?? []).map(normalizeCacheKeyPart).sort().join(','),
         ].join('|');
-        const cached = suggestPlacesCache.get(cacheKey) as { places: any[] } | undefined;
+        const cached = suggestPlacesCache.get(cacheKey) as { places: any[]; source: 'ai' | 'fallback' } | undefined;
         if (cached) {
           console.log(`[ai.suggestPlaces] cache hit: "${destinationName}"`);
-          const existingLowerCached = new Set((existingPlaces || []).map((n) => n.toLowerCase()));
-          const places = cached.places.filter((p) => !existingLowerCached.has(String(p.name).toLowerCase()));
-          return { places, debugSteps: [...debugSteps, 'cache: hit'] };
+          const places = cached.places.filter((p) => !existingLower.has(String(p.name).toLowerCase()));
+          return { places, debugSteps: [...debugSteps, 'cache: hit'], source: cached.source };
         }
         console.log(`[ai.suggestPlaces] cache miss: "${destinationName}"`);
 
         if (!GOOGLE_PLACES_KEY) {
           console.warn(`[ai.suggestPlaces] no GOOGLE_PLACES_API_KEY configured — returning empty list for "${destinationName}"`);
-          return { places: [], debugSteps: ["google-places-key: missing"] };
+          return { places: [], debugSteps: [...debugSteps, "google-places-key: missing"], source: 'fallback' as const, reason: 'no-google-key' as const };
         }
 
         // ── Stage 1: real candidates from Google Places ──────────────────────
@@ -2326,7 +2375,7 @@ Importante:
 
         if (!center) {
           console.warn(`[ai.suggestPlaces] could not resolve a center point for "${destinationName}" — returning empty list`, debugSteps);
-          return { places: [], debugSteps };
+          return { places: [], debugSteps, source: 'fallback' as const, reason: 'no-center' as const };
         }
 
         const candidates = await fetchRealPlaceCandidates(center.lat, center.lng, undefined, undefined, input.language);
@@ -2335,10 +2384,16 @@ Importante:
 
         if (candidates.length === 0) {
           console.warn(`[ai.suggestPlaces] no real candidates found near "${destinationName}"`, debugSteps);
-          return { places: [], debugSteps };
+          return { places: [], debugSteps, source: 'fallback' as const, reason: 'no-candidates' as const };
         }
 
         // ── Stage 2: AI curates the real list (can't invent places) ──────────
+        // Capped at 25s total and, by default, without the web_search tool
+        // (SUGGEST_FALLBACK_WEB_SEARCH=true opts back in) — this is the
+        // fallback path for destinations outside the curated catalog, so it
+        // must stay cheap and fast. Any failure here (timeout, bad JSON, the
+        // hallucination guard discarding every pick) falls through to the
+        // deterministic selection below instead of erroring out.
         const existingList = existingPlaces && existingPlaces.length > 0 ? existingPlaces.join(", ") : "";
         const candidatesList = candidates
           .map((c) => `[${c.placeId}] ${c.name} — tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}${c.hasPhoto ? "" : " (sem foto)"}`)
@@ -2358,53 +2413,60 @@ Sua tarefa:
 - Escreva uma descrição de 1 frase para cada, em ${languageName}, não em português, a menos que ${languageName} seja português.
 
 Retorne um JSON com o array "places": [{ placeId (exatamente o place_id entre colchetes do candidato escolhido), category, description }]
-
-${WEB_SEARCH_INSTRUCTION}`;
-
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: `Você é um especialista em viagens que cura listas de lugares reais já verificados no Google Places. Nunca invente lugares fora da lista fornecida. Escreva as descrições em ${languageName}, não em português, a menos que ${languageName} seja português. Responda em JSON válido.` },
-            { role: "user", content: prompt },
-          ],
-          response_format: { type: "json_object" },
-          max_tokens: 6000,
-          enableWebSearch: true,
-        });
-
-        const content = response.choices[0].message.content as string;
-        let parsed: any;
-        try {
-          parsed = JSON.parse(content);
-        } catch (err) {
-          console.error("[ai.suggestPlaces] Failed to parse LLM response as JSON. Raw content (first 500 chars):", content.slice(0, 500));
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Não foi possível sugerir lugares: a resposta da IA veio incompleta ou inválida. Tente novamente.",
-            cause: err,
-          });
-        }
-
-        let curated: any[] = Array.isArray(parsed.places) ? parsed.places : [];
-        debugSteps.push(`ai curation: chose ${curated.length}`);
+${SUGGEST_FALLBACK_WEB_SEARCH ? `\n${WEB_SEARCH_INSTRUCTION}` : ''}`;
 
         const VALID_CATEGORIES = new Set(['attraction', 'restaurant', 'cafe', 'museum', 'hidden_gem', 'other']);
-        const existingLower = new Set((existingPlaces || []).map((n) => n.toLowerCase()));
 
-        // Guard against hallucination: only keep picks that reference a real candidate
-        // and aren't in the user's existing list (in case the AI didn't fully comply).
-        const validCurated = curated
-          .filter((c) => typeof c?.placeId === "string" && candidatesByPlaceId.has(c.placeId))
-          .filter((c) => !existingLower.has(candidatesByPlaceId.get(c.placeId)!.name.toLowerCase()))
-          .map((c) => ({
-            placeId: c.placeId as string,
-            category: VALID_CATEGORIES.has(c.category) ? c.category : 'other',
-            description: typeof c.description === 'string' ? c.description : '',
-          }));
-        debugSteps.push(`ai curation: ${validCurated.length} valid after guard`);
+        let picked: { placeId: string; category: string; description: string }[] = [];
+        let source: 'ai' | 'fallback' = 'fallback';
 
-        // ── Stage 3: real details (address/hours/phone/photo) for the curated picks only ──
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: `Você é um especialista em viagens que cura listas de lugares reais já verificados no Google Places. Nunca invente lugares fora da lista fornecida. Escreva as descrições em ${languageName}, não em português, a menos que ${languageName} seja português. Responda em JSON válido.` },
+              { role: "user", content: prompt },
+            ],
+            response_format: { type: "json_object" },
+            max_tokens: 6000,
+            enableWebSearch: SUGGEST_FALLBACK_WEB_SEARCH,
+            timeoutMs: 25000,
+          });
+
+          const content = response.choices[0].message.content as string;
+          const parsed = JSON.parse(content);
+          const curated: any[] = Array.isArray(parsed.places) ? parsed.places : [];
+          debugSteps.push(`ai curation: chose ${curated.length}`);
+
+          // Guard against hallucination: only keep picks that reference a real candidate
+          // and aren't in the user's existing list (in case the AI didn't fully comply).
+          const validCurated = curated
+            .filter((c) => typeof c?.placeId === "string" && candidatesByPlaceId.has(c.placeId))
+            .filter((c) => !existingLower.has(candidatesByPlaceId.get(c.placeId)!.name.toLowerCase()))
+            .map((c) => ({
+              placeId: c.placeId as string,
+              category: VALID_CATEGORIES.has(c.category) ? c.category : 'other',
+              description: typeof c.description === 'string' ? c.description : '',
+            }));
+          debugSteps.push(`ai curation: ${validCurated.length} valid after guard`);
+
+          if (validCurated.length > 0) {
+            picked = validCurated;
+            source = 'ai';
+          }
+        } catch (err) {
+          console.error(`[ai.suggestPlaces] AI curation failed for "${destinationName}", using deterministic fallback:`, err);
+          debugSteps.push('ai curation: failed/timed out');
+        }
+
+        if (picked.length === 0) {
+          picked = buildDeterministicFallbackPlaces(candidates, existingLower, input.language, 15);
+          source = 'fallback';
+          debugSteps.push(`deterministic fallback: picked ${picked.length}`);
+        }
+
+        // ── Stage 3: real details (address/hours/phone/photo) for the picks only ──
         const detailed = await Promise.all(
-          validCurated.map(async (c) => {
+          picked.map(async (c) => {
             const candidate = candidatesByPlaceId.get(c.placeId)!;
             const details = await fetchCuratedPlaceDetails(c.placeId, input.language);
             return {
@@ -2422,12 +2484,17 @@ ${WEB_SEARCH_INSTRUCTION}`;
         debugSteps.push(`place-details: resolved ${detailed.filter((d) => d.address || d.imageUrl).length}/${detailed.length}`);
 
         // Never cache an empty result — only a real curated list is reused.
+        // candidates.length > 0 at this point, so detailed is only ever empty
+        // if something upstream is broken — treat that defensively as 'ai-failed'.
         if (detailed.length > 0) {
-          suggestPlacesCache.set(cacheKey, { places: detailed }, AI_SUGGEST_PLACES_CACHE_TTL_MS);
+          suggestPlacesCache.set(cacheKey, { places: detailed, source }, AI_SUGGEST_PLACES_CACHE_TTL_MS);
         }
 
-        console.log(`[ai.suggestPlaces] "${destinationName}": returning ${detailed.length} curated places`, debugSteps);
-        return { places: detailed, debugSteps };
+        console.log(`[ai.suggestPlaces] "${destinationName}": returning ${detailed.length} places (source=${source})`, debugSteps);
+        if (detailed.length === 0) {
+          return { places: detailed, debugSteps, source, reason: 'ai-failed' as const };
+        }
+        return { places: detailed, debugSteps, source };
       }),
     }),
 
