@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { DESTINATIONS, PILOT_SIZE, getPilotDestinations, getDestinationsBySlug, countryNameFor } from "../scripts/data/destinations";
 import {
   TIER_GOALS,
-  categoryCapFor,
+  NON_FOOD_SPLIT_A,
+  NON_FOOD_SPLIT_D,
   restaurantCandidateTarget,
   totalCandidateTarget,
 } from "../scripts/data/curation-config";
@@ -52,18 +53,10 @@ describe("curation-config", () => {
     }
   });
 
-  it("category caps scale down from mega to small", () => {
-    const mega = categoryCapFor("museum", "mega")!;
-    const large = categoryCapFor("museum", "large")!;
-    const medium = categoryCapFor("museum", "medium")!;
-    const small = categoryCapFor("museum", "small")!;
-    expect(mega).toBeGreaterThanOrEqual(large);
-    expect(large).toBeGreaterThanOrEqual(medium);
-    expect(medium).toBeGreaterThanOrEqual(small);
-  });
-
-  it("returns undefined for an unknown category", () => {
-    expect(categoryCapFor("not_a_category", "mega")).toBeUndefined();
+  it("the non-food A/D split is a complete, non-negative fraction", () => {
+    expect(NON_FOOD_SPLIT_A).toBeGreaterThan(0);
+    expect(NON_FOOD_SPLIT_D).toBeGreaterThan(0);
+    expect(NON_FOOD_SPLIT_A + NON_FOOD_SPLIT_D).toBeCloseTo(1);
   });
 
   it("over-generates candidate counts via ceil(target * overGenerate)", () => {

@@ -47,7 +47,10 @@ const STRUCTURE_SCHEMA = {
           properties: {
             name: { type: "string" },
             neighborhood: { type: "string" },
-            category: { type: "string", enum: ["attraction", "restaurant", "cafe", "museum", "hidden_gem", "other"] },
+            category: {
+              type: "string",
+              enum: ["attraction", "museum", "park", "beach", "market", "neighborhood", "restaurant", "cafe", "hidden_gem", "other"],
+            },
             tags: {
               type: "array",
               items: { type: "string", enum: ["culture", "gastronomy", "nature", "adventure", "shopping", "relaxation", "nightlife", "art"] },

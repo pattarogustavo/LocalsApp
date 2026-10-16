@@ -6,7 +6,18 @@
  * that fails is dropped individually (never written partial/invalid).
  */
 
-export const VALID_CATEGORIES = ["attraction", "restaurant", "cafe", "museum", "hidden_gem", "other"] as const;
+export const VALID_CATEGORIES = [
+  "attraction",
+  "museum",
+  "park",
+  "beach",
+  "market",
+  "neighborhood",
+  "restaurant",
+  "cafe",
+  "hidden_gem",
+  "other",
+] as const;
 export const VALID_TAGS = ["culture", "gastronomy", "nature", "adventure", "shopping", "relaxation", "nightlife", "art"] as const;
 export const VALID_PRICE_TIERS = ["budget", "moderate", "luxury"] as const;
 export const VALID_MEALS = ["breakfast", "lunch", "dinner", "snack"] as const;
@@ -66,14 +77,33 @@ const CATEGORY_SYNONYMS: Record<string, (typeof VALID_CATEGORIES)[number]> = {
   monument: "attraction",
   palace: "attraction",
   square: "attraction",
-  park: "attraction",
   viewpoint: "attraction",
   church: "attraction",
   cathedral: "attraction",
   bridge: "attraction",
   castle: "attraction",
   gallery: "museum",
-  market: "other",
+  garden: "park",
+  gardens: "park",
+  "botanical garden": "park",
+  heath: "park",
+  common: "park",
+  "green space": "park",
+  beaches: "beach",
+  seaside: "beach",
+  shore: "beach",
+  bay: "beach",
+  cove: "beach",
+  "food market": "market",
+  "flea market": "market",
+  "flower market": "market",
+  "street market": "market",
+  "antiques market": "market",
+  "farmers market": "market",
+  district: "neighborhood",
+  area: "neighborhood",
+  quarter: "neighborhood",
+  village: "neighborhood",
   shop: "other",
   bookstore: "other",
   nightclub: "other",

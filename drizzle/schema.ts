@@ -15,6 +15,10 @@ export const curatedPlaceCategoryEnum = pgEnum("curated_place_category", [
   "museum",
   "hidden_gem",
   "other",
+  "park",
+  "beach",
+  "market",
+  "neighborhood",
 ]);
 export const curatedPlacePriceTierEnum = pgEnum("curated_place_price_tier", ["budget", "moderate", "luxury"]);
 export const curatedPlaceConfidenceEnum = pgEnum("curated_place_confidence", ["high", "medium", "low"]);

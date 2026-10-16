@@ -30,17 +30,30 @@ export interface CountSummaryLine {
   overMax: boolean;
 }
 
-/** "restaurantes: X (mín M, máx N)" style line, flagged when count exceeds max. */
+/**
+ * "restaurantes: X (mín M, máx N)" style line, flagged when count exceeds
+ * max. Only ever called with min/max for restaurants — no category has a
+ * ceiling, so every other count is plain (see buildSummaryLines).
+ */
 export function formatCountLine(label: string, count: number, min?: number, max?: number): string {
   const bounds = min != null && max != null ? ` (mín ${min}, máx ${max})` : "";
   const warning = max != null && count > max ? " ⚠️ acima do máximo" : "";
   return `${label}: ${count}${bounds}${warning}`;
 }
 
+/**
+ * Summary lines for the export markdown/report: total, a restaurants line
+ * (the only category with a min/max and an out-of-bounds warning — no
+ * category is ever capped), a plain count for every other category present
+ * (reflecting whatever the city actually has, e.g. many beaches or few
+ * markets), then price-tier and confidence breakdowns.
+ */
 export function buildSummaryLines(places: ExportPlace[], goals: TierGoals): string[] {
   const restaurants = places.filter((p) => p.category === "restaurant");
-  const cafes = places.filter((p) => p.category === "cafe");
   const total = places.length;
+
+  const byCategory: Record<string, number> = {};
+  for (const p of places) byCategory[p.category] = (byCategory[p.category] ?? 0) + 1;
 
   const byPriceTier: Record<string, number> = {};
   for (const p of restaurants) {
@@ -50,10 +63,15 @@ export function buildSummaryLines(places: ExportPlace[], goals: TierGoals): stri
   const byConfidence: Record<Confidence, number> = { high: 0, medium: 0, low: 0 };
   for (const p of places) byConfidence[p.confidence]++;
 
+  const categoryLines = Object.entries(byCategory)
+    .filter(([category]) => category !== "restaurant")
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([category, count]) => formatCountLine(category, count));
+
   const lines = [
-    formatCountLine("total", total, undefined, goals.total),
+    formatCountLine("total", total),
     formatCountLine("restaurantes", restaurants.length, goals.restaurantsMin, goals.restaurantsMax),
-    formatCountLine("cafés", cafes.length, goals.cafesMin, undefined),
+    ...categoryLines,
     ...Object.entries(byPriceTier).map(([tier, count]) => formatCountLine(`preço: ${tier}`, count)),
     ...Object.entries(byConfidence).map(([level, count]) => formatCountLine(`confiança: ${level}`, count)),
   ];

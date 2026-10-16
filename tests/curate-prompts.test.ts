@@ -20,7 +20,17 @@ describe("buildResearchPrompt", () => {
     expect(prompt).toContain("Paris");
     expect(prompt).toContain("France");
     expect(prompt).toContain("atrações, monumentos, museus e parques/mirantes");
-    expect(prompt).toContain("15 lugares");
+    expect(prompt).toContain("até 15 lugares");
+  });
+
+  it("never forces a category quota — asks to reflect what the city actually has and return fewer if needed", () => {
+    const prompt = buildResearchPrompt(baseParams());
+    expect(prompt).toMatch(/nunca force uma distribuição por categoria/);
+    expect(prompt).toMatch(/devolva menos do que foi pedido/);
+    expect(prompt).toMatch(/park \(parque ou jardim\)/);
+    expect(prompt).toMatch(/beach \(praia\)/);
+    expect(prompt).toMatch(/market \(mercado de comida, flores, antiguidades ou de rua\)/);
+    expect(prompt).toMatch(/neighborhood \(bairro ou região para passear\)/);
   });
 
   it("always requires currently-open places and excludes non-iconic chains", () => {
@@ -39,17 +49,11 @@ describe("buildResearchPrompt", () => {
   });
 
   it("adds breakfast/snack coverage only for the cafe group (C)", () => {
-    const cafePrompt = buildResearchPrompt(baseParams({ group: "C", groupLabel: "cafés, padarias e mercados" }));
+    const cafePrompt = buildResearchPrompt(baseParams({ group: "C", groupLabel: "cafés e mercados" }));
     expect(cafePrompt).toMatch(/café da manhã.*lanche|lanche.*café da manhã/);
 
     const attractionPrompt = buildResearchPrompt(baseParams());
     expect(attractionPrompt).not.toMatch(/café da manhã/);
-  });
-
-  it("includes category caps when provided", () => {
-    const prompt = buildResearchPrompt(baseParams({ categoryCaps: { museum: 15, attraction: 15 } }));
-    expect(prompt).toContain("museum: no máximo 15");
-    expect(prompt).toContain("attraction: no máximo 15");
   });
 
   it("frames the icon batch around the city's biggest icons instead of the normal batch ask", () => {
@@ -65,10 +69,10 @@ describe("buildResearchPrompt", () => {
     expect(prompt).toMatch(/casas de show, bares sem cozinha ou clubes/);
   });
 
-  it("restricts cafes/markets to places where people eat or drink, excluding non-food fairs", () => {
-    const prompt = buildResearchPrompt(baseParams({ group: "C", groupLabel: "cafés, padarias e mercados" }));
-    expect(prompt).toMatch(/Priorize locais onde se come ou bebe/);
-    expect(prompt).toMatch(/Feiras de flores, de artesanato ou de antiguidades NÃO contam/);
+  it("tells group C to split cafeterias/bakeries (cafe) from food/flower/antiques/street markets (market)", () => {
+    const prompt = buildResearchPrompt(baseParams({ group: "C", groupLabel: "cafés e mercados" }));
+    expect(prompt).toMatch(/Cafeterias e padarias são categoria cafe/);
+    expect(prompt).toMatch(/mercados de comida, flores, antiguidades ou de rua são categoria market/);
   });
 
   it("switches to the complement framing and lists exclusions when provided", () => {

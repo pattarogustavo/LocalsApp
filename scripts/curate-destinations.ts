@@ -12,7 +12,6 @@ import {
   MAX_AI_CALLS_PER_DESTINATION,
   VERIFICATION_CONCURRENCY,
   MAX_DISTANCE_FROM_CENTER_KM,
-  categoryCapFor,
 } from "./data/curation-config";
 import { planBatches, batchKey, iconBatchPlan, allowNeighborhoodForGroup, GROUP_LABELS, GROUP_CATEGORIES, type BatchPlan, type GroupKey } from "./curate/batches";
 import { GoogleCallBudget, resolveCityCenter, findPlaceMatches, checkPlaceStatus } from "./curate/google";
@@ -42,8 +41,8 @@ import {
   formatInvalidReasonCounts,
   type InvalidPlaceExample,
 } from "./curate/validate-place";
-import { selectRestaurants, localCuisineRatio, type RestaurantCandidate } from "./curate/distribution";
-import { applyCategoryCaps } from "./curate/caps";
+import { localCuisineRatio } from "./curate/distribution";
+import { assembleFinalPlaces } from "./curate/assemble";
 import { computeShortfall } from "./curate/shortfall";
 import { partitionNewCandidates } from "./curate/status-guard";
 import { buildBaseDescriptions, mergeTranslations, isCompleteDescriptions, type Descriptions } from "./curate/descriptions";
@@ -147,7 +146,7 @@ async function runAndCheckpointBatch(
   key: string,
   plan: Pick<BatchPlan, "group" | "categories">,
   size: number,
-  promptExtra: { groupLabel: string; categoryCaps?: Record<string, number>; excludeNames: string[]; onlyMissing?: string; isIconBatch?: boolean },
+  promptExtra: { groupLabel: string; excludeNames: string[]; onlyMissing?: string; isIconBatch?: boolean },
   destination: DestinationSeed,
   country: string,
   goals: (typeof TIER_GOALS)[keyof typeof TIER_GOALS],
@@ -187,7 +186,6 @@ async function runAndCheckpointBatch(
         group: plan.group,
         groupLabel: promptExtra.groupLabel,
         batchSize: size,
-        categoryCaps: promptExtra.categoryCaps,
         excludeNames: promptExtra.excludeNames,
         onlyMissing: promptExtra.onlyMissing,
         isIconBatch: promptExtra.isIconBatch,
@@ -332,13 +330,12 @@ async function runGenerateForDestinationLocked(
   for (const plan of plans) {
     const key = batchKey(plan);
     batchKeysRun.push(key);
-    const caps = Object.fromEntries(plan.categories.map((c) => [c, categoryCapFor(c, destination.tier)]).filter(([, v]) => v != null)) as Record<string, number>;
     const data = await runAndCheckpointBatch(
       destination.slug,
       key,
       plan,
       plan.size,
-      { groupLabel: GROUP_LABELS[plan.group], categoryCaps: Object.keys(caps).length ? caps : undefined, excludeNames: [...proposedNames] },
+      { groupLabel: GROUP_LABELS[plan.group], excludeNames: [...proposedNames] },
       destination,
       country,
       goals,
@@ -378,13 +375,12 @@ async function runGenerateForDestinationLocked(
       for (const cp of complementPlans) {
         const key = `complement-${cp.group}-${round + 1}`;
         batchKeysRun.push(key);
-        const caps = Object.fromEntries(GROUP_CATEGORIES[cp.group].map((c) => [c, categoryCapFor(c, destination.tier)]).filter(([, v]) => v != null)) as Record<string, number>;
         const data = await runAndCheckpointBatch(
           destination.slug,
           key,
           { group: cp.group, categories: GROUP_CATEGORIES[cp.group] },
           cp.size,
-          { groupLabel: GROUP_LABELS[cp.group], categoryCaps: Object.keys(caps).length ? caps : undefined, excludeNames: [...proposedNames], onlyMissing: cp.onlyMissing },
+          { groupLabel: GROUP_LABELS[cp.group], excludeNames: [...proposedNames], onlyMissing: cp.onlyMissing },
           destination,
           country,
           goals,
@@ -414,29 +410,10 @@ async function runGenerateForDestinationLocked(
   // Assembly happens from the checkpoints (fresh or reused), never from partial in-memory state alone.
   const allVerified = dedupeByPlaceId(batchKeysRun.flatMap((k) => loadBatchCheckpoint(ROOT_DIR, destination.slug, k)?.verified ?? []));
 
-  const restaurantCandidates: RestaurantCandidate[] = allVerified
-    .filter((v) => v.category === "restaurant")
-    .map((v) => ({
-      id: v.googlePlaceId,
-      priceTier: v.priceTier ?? "moderate",
-      isLocalCuisine: v.isLocalCuisine,
-      neighborhood: v.neighborhood,
-      meals: v.meals ?? [],
-      priority: v.priority,
-    }));
-  const selectedRestaurantIds = new Set(selectRestaurants(restaurantCandidates, goals).map((r) => r.id));
-  const keptRestaurants = allVerified.filter((v) => v.category === "restaurant" && selectedRestaurantIds.has(v.googlePlaceId));
-  for (const v of allVerified.filter((v) => v.category === "restaurant" && !selectedRestaurantIds.has(v.googlePlaceId))) {
+  const { finalPlaces, discardedRestaurants } = assembleFinalPlaces(allVerified, goals);
+  for (const v of discardedRestaurants) {
     allDiscarded.push({ name: v.name, reason: "restaurant selection: over restaurantsMax or not needed for distribution" });
   }
-
-  const others = allVerified.filter((v) => v.category !== "restaurant");
-  const cappedOthers = applyCategoryCaps(others, destination.tier);
-  for (const o of others) {
-    if (!cappedOthers.includes(o)) allDiscarded.push({ name: o.name, reason: `category cap reached (${o.category})` });
-  }
-
-  const finalPlaces = [...keptRestaurants, ...cappedOthers];
 
   const missingGoals: string[] = [];
   const finalRestaurants = finalPlaces.filter((p) => p.category === "restaurant");

@@ -9,10 +9,8 @@ export interface ResearchPromptParams {
   group: GroupKey;
   /** Human-readable description of what the group covers, e.g. "restaurantes". */
   groupLabel: string;
-  /** How many places to propose in this call — always <= MAX_PLACES_PER_BATCH. */
+  /** How many places to propose in this call — always <= MAX_PLACES_PER_BATCH. Never a forced quota: see the "fewer than asked" rule below. */
   batchSize: number;
-  /** Category caps (scaled for this tier) relevant to this group, e.g. { museum: 15, attraction: 15 }. */
-  categoryCaps?: Record<string, number>;
   /** Previously proposed names (any group, any batch) to exclude so lots never repeat a place. */
   excludeNames?: string[];
   /** Set only for a complement round: describes specifically what's still missing. */
@@ -26,26 +24,32 @@ export interface ResearchPromptParams {
  * schema) for a SINGLE small batch within one group (A/B/C/D — see
  * scripts/curate/batches.ts). Every batch shares the same quality bar:
  * real, locally-recommended, currently open places with an original 1-2
- * sentence description — never copied from a source.
+ * sentence description — never copied from a source. No category quota is
+ * ever forced: the batch size is a ceiling, and the model is explicitly told
+ * to reflect what the city actually has (many beaches/parks/museums, or few
+ * of any of them) rather than distribute evenly across categories.
  */
 export function buildResearchPrompt(params: ResearchPromptParams): string {
-  const { destinationName, country, goals, group, groupLabel, batchSize, categoryCaps, excludeNames, onlyMissing, isIconBatch } = params;
+  const { destinationName, country, goals, group, groupLabel, batchSize, excludeNames, onlyMissing, isIconBatch } = params;
 
   const lines = [
     `Você é um curador local especializado em ${destinationName}, ${country}.`,
     isIconBatch
-      ? `Proponha até ${batchSize} lugares com os MAIORES ÍCONES de ${destinationName} — os lugares que qualquer guia de viagem cita primeiro e que definem a cidade (ex.: em Londres: Buckingham Palace, Big Ben/Casas do Parlamento, Trafalgar Square, Covent Garden, Camden Market, Notting Hill/Portobello Road, Hyde Park). Categoria attraction, museum ou other.`
+      ? `Proponha até ${batchSize} lugares com os MAIORES ÍCONES de ${destinationName} — os lugares que qualquer guia de viagem cita primeiro e que definem a cidade (ex.: em Londres: Buckingham Palace, Big Ben/Casas do Parlamento, Trafalgar Square, Covent Garden, Camden Market, Notting Hill/Portobello Road, Hyde Park).`
       : onlyMissing
         ? `Esta é uma rodada de complementação do grupo "${groupLabel}": proponha apenas ${onlyMissing}.`
-        : `Proponha ${batchSize} lugares do grupo "${groupLabel}" (categoria: ${group}).`,
+        : `Proponha até ${batchSize} lugares do grupo "${groupLabel}" para esta cidade.`,
     "",
     "Regras gerais, válidas para todo lugar proposto:",
+    "- Proponha o que realmente importa nesta cidade, na ordem de relevância — nunca force uma distribuição por categoria. Se a cidade tiver muitos lugares de um mesmo tipo (museus, praias, parques, etc.), reflita isso na lista; se tiver poucos lugares relevantes, devolva menos do que foi pedido em vez de completar a cota com itens fracos.",
+    "- Evite lugares quase idênticos entre si (ex.: duas praias ou dois mercados muito parecidos) — varie também bairros e interesses.",
     "- Só lugares em funcionamento HOJE — nunca um lugar fechado definitivamente ou que não existe mais.",
     "- Evite redes de fast-food e franquias (locais ou internacionais), exceto as realmente icônicas do destino.",
     "- Priorize o que moradores e guias respeitados realmente recomendam. Evite armadilhas de turista, exceto as genuinamente icônicas.",
-    "- Varie bairros — não concentre tudo em uma única região.",
     "- Nunca repita um lugar já proposto (veja a lista de exclusão abaixo, se houver).",
     '- Cada entrada deve ser UM único lugar pesquisável pelo seu nome oficial — nunca combine dois lugares em uma só entrada usando "&", " e ", " and ", "/" ou "+" (ex.: não proponha "Hyde Park & Kensington Gardens"; liste "Hyde Park" e "Kensington Gardens" como entradas separadas, ou proponha apenas o principal).',
+    "",
+    "Categorias disponíveis: attraction, museum, park (parque ou jardim), beach (praia), market (mercado de comida, flores, antiguidades ou de rua), neighborhood (bairro ou região para passear), restaurant, cafe, hidden_gem, other. Use a categoria mais específica possível — nunca force um lugar para attraction/other quando park/beach/market/neighborhood descreve melhor.",
     "",
     "Para cada lugar, informe: nome como é conhecido, bairro, categoria, tags relevantes (apenas dentre: culture, gastronomy, nature, adventure, shopping, relaxation, nightlife, art), faixa de preço (se restaurante/café), refeições em que se encaixa (breakfast, lunch, dinner, snack), tipo de culinária (se aplicável), se a culinária é local/típica ou estrangeira, seu nível de confiança (high/medium/low — o quanto é consenso entre fontes), prioridade relativa, e uma descrição ORIGINAL de 1 a 2 frases (o que ver ou fazer, mais uma dica prática) — nunca copiada de um site.",
   ];
@@ -63,16 +67,9 @@ export function buildResearchPrompt(params: ResearchPromptParams): string {
   if (group === "C") {
     lines.push(
       "",
-      "Cubra tanto café da manhã quanto lanche entre os cafés/padarias/mercados propostos.",
-      "Priorize locais onde se come ou bebe (cafeterias, padarias, mercados de comida). Feiras de flores, de artesanato ou de antiguidades NÃO contam como cafés/mercados.",
+      "Cubra tanto café da manhã quanto lanche entre os cafés propostos.",
+      "Cafeterias e padarias são categoria cafe; mercados de comida, flores, antiguidades ou de rua são categoria market.",
     );
-  }
-
-  if (categoryCaps && Object.keys(categoryCaps).length > 0) {
-    const capsText = Object.entries(categoryCaps)
-      .map(([cat, cap]) => `${cat}: no máximo ${cap}`)
-      .join("; ");
-    lines.push("", `Respeite os tetos por categoria deste destino: ${capsText}.`);
   }
 
   if (excludeNames?.length) {

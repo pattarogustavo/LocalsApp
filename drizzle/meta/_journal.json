@@ -50,6 +50,13 @@
       "when": 1792090662065,
       "tag": "0006_add_curated_places",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792155075220,
+      "tag": "0007_solid_madrox",
+      "breakpoints": true
     }
   ]
 }

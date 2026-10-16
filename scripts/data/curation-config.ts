@@ -22,24 +22,16 @@ export const TIER_GOALS: Record<DestinationTier, TierGoals> = {
 };
 
 /**
- * Category caps at "mega" scale. Scaled down per tier by TIER_CAP_SCALE below.
- * These are ceilings ("up to"), never a forced minimum — a destination with
- * fewer good options in a category is simply left under the cap.
+ * No category has a ceiling: a destination with many museums, beaches or
+ * parks should have that reflected in its catalog instead of being trimmed
+ * to an arbitrary cap. The only two shares that are genuinely configurable
+ * are how the non-food candidate budget (everything left after restaurants,
+ * cafés/markets, and the fixed-size icon batch) splits between group A
+ * (attraction/museum/park/beach) and group D (hidden_gem/neighborhood/other)
+ * — see computeGroupTargets in ./curate/batches. Must sum to 1.
  */
-export const BASE_CATEGORY_CAPS: Record<string, number> = {
-  museum: 15,
-  attraction: 15,
-  hidden_gem: 8,
-  /** Covers neighborhood walks, nightlife and shopping — the DB category enum doesn't split these further. */
-  other: 10,
-};
-
-export const TIER_CAP_SCALE: Record<DestinationTier, number> = {
-  mega: 1,
-  large: 0.8,
-  medium: 0.6,
-  small: 0.4,
-};
+export const NON_FOOD_SPLIT_A = 0.6;
+export const NON_FOOD_SPLIT_D = 0.4;
 
 /** Max simultaneous Google Places verification calls. */
 export const VERIFICATION_CONCURRENCY = 5;
@@ -64,12 +56,6 @@ export const MAX_PLACES_PER_BATCH = 15;
 
 /** Max times a too-large/truncated batch is halved and retried before being marked failed. */
 export const MAX_BATCH_SPLIT_LEVELS = 2;
-
-export function categoryCapFor(category: string, tier: DestinationTier): number | undefined {
-  const base = BASE_CATEGORY_CAPS[category];
-  if (base == null) return undefined;
-  return Math.max(1, Math.round(base * TIER_CAP_SCALE[tier]));
-}
 
 export function restaurantCandidateTarget(goals: TierGoals): number {
   return Math.ceil(goals.restaurantsMin * goals.overGenerate);

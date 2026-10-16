@@ -48,6 +48,14 @@ describe("validateProposedPlace", () => {
     expect(result.place?.category).toBe("attraction");
   });
 
+  it("accepts the new direct categories (park, beach, market, neighborhood)", () => {
+    for (const category of ["park", "beach", "market", "neighborhood"] as const) {
+      const result = validateProposedPlace(validRaw({ category }));
+      expect(result.valid).toBe(true);
+      expect(result.place?.category).toBe(category);
+    }
+  });
+
   it("drops an invented tag instead of invalidating the place", () => {
     const result = validateProposedPlace(validRaw({ tags: ["culture", "unknown-tag"] }));
     expect(result.valid).toBe(true);
@@ -128,38 +136,39 @@ describe("validateProposedPlace", () => {
 });
 
 describe("normalizeRawPlace with lenientCategory (curate:add)", () => {
-  it("maps an unrecognized category to 'other' instead of leaving it invalid", () => {
-    for (const cat of ["neighborhood", "district", "area", "street", "street market"]) {
+  it("maps a truly unrecognized category to 'other' instead of leaving it invalid", () => {
+    for (const cat of ["street", "spaceship", "tour"]) {
       expect(normalizeRawPlace({ category: cat }, { lenientCategory: true }).category).toBe("other");
     }
   });
 
-  it("still maps a documented synonym normally (e.g. landmark -> attraction)", () => {
+  it("still maps a documented synonym normally (e.g. landmark -> attraction, district -> neighborhood)", () => {
     expect(normalizeRawPlace({ category: "landmark" }, { lenientCategory: true }).category).toBe("attraction");
+    expect(normalizeRawPlace({ category: "district" }, { lenientCategory: true }).category).toBe("neighborhood");
   });
 
-  it("without lenientCategory, an unrecognized category is left untouched (stays invalid)", () => {
-    expect(normalizeRawPlace({ category: "district" }).category).toBe("district");
+  it("without lenientCategory, a truly unrecognized category is left untouched (stays invalid)", () => {
+    expect(normalizeRawPlace({ category: "spaceship" }).category).toBe("spaceship");
   });
 });
 
 describe("validateProposedPlace with lenientCategory (curate:add)", () => {
   it("accepts a place whose category is unrecognized, mapped to other, keeping valid tags", () => {
-    const result = validateProposedPlace(validRaw({ category: "district", tags: ["culture", "shopping"] }), { lenientCategory: true });
+    const result = validateProposedPlace(validRaw({ category: "spaceship", tags: ["culture", "shopping"] }), { lenientCategory: true });
     expect(result.valid).toBe(true);
     expect(result.place?.category).toBe("other");
     expect(result.place?.tags).toEqual(["culture", "shopping"]);
   });
 
   it("defaults tags to ['culture'] when every tag is invented, even when the category became other", () => {
-    const result = validateProposedPlace(validRaw({ category: "street market", tags: ["made-up"] }), { lenientCategory: true });
+    const result = validateProposedPlace(validRaw({ category: "spaceship", tags: ["made-up"] }), { lenientCategory: true });
     expect(result.valid).toBe(true);
     expect(result.place?.category).toBe("other");
     expect(result.place?.tags).toEqual(["culture"]);
   });
 
   it("rejects the same unrecognized category without lenientCategory (batch generation stays strict)", () => {
-    const result = validateProposedPlace(validRaw({ category: "district" }));
+    const result = validateProposedPlace(validRaw({ category: "spaceship" }));
     expect(result.valid).toBe(false);
   });
 });
@@ -171,14 +180,33 @@ describe("normalizeRawPlace", () => {
       monument: "attraction",
       palace: "attraction",
       square: "attraction",
-      park: "attraction",
       viewpoint: "attraction",
       church: "attraction",
       cathedral: "attraction",
       bridge: "attraction",
       castle: "attraction",
       gallery: "museum",
-      market: "other",
+      garden: "park",
+      gardens: "park",
+      "botanical garden": "park",
+      heath: "park",
+      common: "park",
+      "green space": "park",
+      beaches: "beach",
+      seaside: "beach",
+      shore: "beach",
+      bay: "beach",
+      cove: "beach",
+      "food market": "market",
+      "flea market": "market",
+      "flower market": "market",
+      "street market": "market",
+      "antiques market": "market",
+      "farmers market": "market",
+      district: "neighborhood",
+      area: "neighborhood",
+      quarter: "neighborhood",
+      village: "neighborhood",
       shop: "other",
       bookstore: "other",
       nightclub: "other",
@@ -188,6 +216,12 @@ describe("normalizeRawPlace", () => {
     };
     for (const [input, expected] of Object.entries(synonyms)) {
       expect(normalizeRawPlace({ category: input }).category).toBe(expected);
+    }
+  });
+
+  it("leaves the new direct categories (park, beach, market, neighborhood) untouched", () => {
+    for (const cat of ["park", "beach", "market", "neighborhood"]) {
+      expect(normalizeRawPlace({ category: cat }).category).toBe(cat);
     }
   });
 

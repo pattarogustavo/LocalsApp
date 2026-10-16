@@ -10,7 +10,14 @@ import {
   GROUP_CATEGORIES,
   GROUP_LABELS,
 } from "../scripts/curate/batches";
-import { TIER_GOALS, MAX_PLACES_PER_BATCH, restaurantCandidateTarget, totalCandidateTarget } from "../scripts/data/curation-config";
+import {
+  TIER_GOALS,
+  MAX_PLACES_PER_BATCH,
+  NON_FOOD_SPLIT_A,
+  NON_FOOD_SPLIT_D,
+  restaurantCandidateTarget,
+  totalCandidateTarget,
+} from "../scripts/data/curation-config";
 
 describe("computeGroupTargets", () => {
   it("gives B exactly the restaurant candidate target and C the cafe candidate target", () => {
@@ -21,19 +28,23 @@ describe("computeGroupTargets", () => {
     expect(byGroup.C).toBe(Math.ceil(goals.cafesMin * goals.overGenerate));
   });
 
-  it("splits the remaining total between A and D", () => {
+  it("splits what's left after restaurants, cafés/markets AND the icon batch between A and D, with nothing uncounted", () => {
     const goals = TIER_GOALS.mega;
     const targets = computeGroupTargets(goals, "mega");
     const byGroup = Object.fromEntries(targets.map((t) => [t.group, t.target]));
     const total = totalCandidateTarget(goals);
-    expect(byGroup.A + byGroup.B + byGroup.C + byGroup.D).toBe(total);
+    expect(byGroup.A + byGroup.B + byGroup.C + byGroup.D + ICON_BATCH_SIZE).toBe(total);
   });
 
-  it("never gives A more than the sum of its category caps", () => {
+  it("splits the non-food budget between A and D by NON_FOOD_SPLIT_A/D, with no per-category composition or cap", () => {
     for (const tier of ["mega", "large", "medium", "small"] as const) {
-      const targets = computeGroupTargets(TIER_GOALS[tier], tier);
-      const a = targets.find((t) => t.group === "A")!;
-      expect(a.target).toBeLessThanOrEqual(30); // museum(15)+attraction(15) at mega scale, less for smaller tiers
+      const goals = TIER_GOALS[tier];
+      const targets = computeGroupTargets(goals, tier);
+      const byGroup = Object.fromEntries(targets.map((t) => [t.group, t.target]));
+      const total = totalCandidateTarget(goals);
+      const remaining = Math.max(0, total - byGroup.B - byGroup.C - ICON_BATCH_SIZE);
+      expect(byGroup.A).toBe(Math.round(remaining * NON_FOOD_SPLIT_A));
+      expect(byGroup.D).toBe(remaining - byGroup.A);
     }
   });
 });
@@ -72,6 +83,13 @@ describe("planBatches", () => {
     expect(restaurantBatch.categories).toEqual(GROUP_CATEGORIES.B);
   });
 
+  it("assigns the new categories to their documented groups", () => {
+    expect(GROUP_CATEGORIES.A).toEqual(["attraction", "museum", "park", "beach"]);
+    expect(GROUP_CATEGORIES.B).toEqual(["restaurant"]);
+    expect(GROUP_CATEGORIES.C).toEqual(["cafe", "market"]);
+    expect(GROUP_CATEGORIES.D).toEqual(["hidden_gem", "neighborhood", "other"]);
+  });
+
   it("produces a unique, stable batchKey per batch", () => {
     const plans = planBatches(TIER_GOALS.mega, "mega");
     const keys = plans.map(batchKey);
@@ -88,11 +106,11 @@ describe("planBatches", () => {
 });
 
 describe("iconBatchPlan", () => {
-  it("proposes up to ICON_BATCH_SIZE places in attraction/museum/other", () => {
+  it("proposes up to ICON_BATCH_SIZE places in attraction/museum/park/beach/neighborhood/other", () => {
     const plan = iconBatchPlan();
     expect(plan.group).toBe("I");
     expect(plan.size).toBe(ICON_BATCH_SIZE);
-    expect(plan.categories).toEqual(["attraction", "museum", "other"]);
+    expect(plan.categories).toEqual(["attraction", "museum", "park", "beach", "neighborhood", "other"]);
   });
 
   it("has a stable batchKey distinct from every goal-driven batch", () => {

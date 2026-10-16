@@ -1,28 +1,36 @@
 import type { DestinationTier } from "../data/destinations";
-import { categoryCapFor, restaurantCandidateTarget, totalCandidateTarget, MAX_PLACES_PER_BATCH, type TierGoals } from "../data/curation-config";
+import {
+  restaurantCandidateTarget,
+  totalCandidateTarget,
+  MAX_PLACES_PER_BATCH,
+  NON_FOOD_SPLIT_A,
+  NON_FOOD_SPLIT_D,
+  type TierGoals,
+} from "../data/curation-config";
 
 export type GroupKey = "A" | "B" | "C" | "D" | "I";
 
 /**
  * Maps each research/structure group to the stored `curated_places.category`
- * values it's allowed to produce. B/C map 1:1 to restaurant/cafe (governed
- * by their own min/max, not a category cap); A/D cover everything else and
- * are bounded by BASE_CATEGORY_CAPS. I (icons) shares A/D's categories but is
- * a separate, fixed-size batch run once per destination (see iconBatchPlan).
+ * values it's allowed to produce. No group/category has a ceiling — see
+ * NON_FOOD_SPLIT_A/D in ../data/curation-config for the only configurable
+ * share (how much of the non-food candidate budget goes to A vs. D). I
+ * (icons) is a separate, fixed-size batch run once per destination (see
+ * iconBatchPlan).
  */
 export const GROUP_CATEGORIES: Record<GroupKey, string[]> = {
-  A: ["attraction", "museum"],
+  A: ["attraction", "museum", "park", "beach"],
   B: ["restaurant"],
-  C: ["cafe"],
-  D: ["hidden_gem", "other"],
-  I: ["attraction", "museum", "other"],
+  C: ["cafe", "market"],
+  D: ["hidden_gem", "neighborhood", "other"],
+  I: ["attraction", "museum", "park", "beach", "neighborhood", "other"],
 };
 
 export const GROUP_LABELS: Record<GroupKey, string> = {
-  A: "atrações, monumentos, museus e parques/mirantes",
+  A: "atrações, monumentos, museus, parques e praias",
   B: "restaurantes",
-  C: "cafés, padarias e mercados",
-  D: "segredos de morador, bairros/passeios, vida noturna e compras",
+  C: "cafés e mercados",
+  D: "segredos de morador, bairros, vida noturna e compras",
   I: "ícones imperdíveis da cidade",
 };
 
@@ -39,10 +47,6 @@ export function allowNeighborhoodForGroup(group: GroupKey): boolean {
   return group === "D" || group === "I";
 }
 
-function sumCaps(categories: string[], tier: DestinationTier): number {
-  return categories.reduce((sum, cat) => sum + (categoryCapFor(cat, tier) ?? Infinity), 0);
-}
-
 export interface GroupTarget {
   group: GroupKey;
   target: number;
@@ -51,19 +55,20 @@ export interface GroupTarget {
 /**
  * Splits the destination's total candidate target across the four groups.
  * B and C get exactly ceil(min x overGenerate) each (their own fixed
- * bounds). A and D split what's left of the total, with A clamped to the
- * sum of its category caps (museum/attraction) — any amount A can't use
- * falls through to D instead, since D's categories (hidden_gem/other)
- * have more headroom.
+ * bounds). What's left over — the non-food budget — is whatever remains
+ * after restaurants, cafés/markets, AND the fixed-size icon batch (which
+ * also proposes attraction/museum/park/beach/neighborhood/other candidates),
+ * split between A and D by NON_FOOD_SPLIT_A/D (no per-category composition
+ * or cap: a destination with many museums or beaches should simply get
+ * many museum/beach candidates).
  */
-export function computeGroupTargets(goals: TierGoals, tier: DestinationTier): GroupTarget[] {
+export function computeGroupTargets(goals: TierGoals, _tier: DestinationTier): GroupTarget[] {
   const targetB = restaurantCandidateTarget(goals);
   const targetC = Math.ceil(goals.cafesMin * goals.overGenerate);
   const total = totalCandidateTarget(goals);
-  const remaining = Math.max(0, total - targetB - targetC);
+  const remaining = Math.max(0, total - targetB - targetC - ICON_BATCH_SIZE);
 
-  const capA = sumCaps(GROUP_CATEGORIES.A, tier);
-  const targetA = Math.min(Math.ceil(remaining / 2), capA);
+  const targetA = Math.round(remaining * NON_FOOD_SPLIT_A);
   const targetD = remaining - targetA;
 
   return [
@@ -113,9 +118,10 @@ export function batchKey(plan: Pick<BatchPlan, "group" | "index">): string {
 
 /**
  * The icon batch: up to ICON_BATCH_SIZE of the destination's most iconic
- * places, run once before the goal-driven plans. It does not count toward
- * any tier's total-target (see computeGroupTargets) — duplicates against
- * the rest of the catalog are simply dropped at dedupe time.
+ * places, run once before the goal-driven plans. Its size is subtracted from
+ * the non-food budget in computeGroupTargets (rather than counted twice);
+ * duplicates against the rest of the catalog are simply dropped at dedupe
+ * time.
  */
 export function iconBatchPlan(): BatchPlan {
   return { group: "I", index: 1, of: 1, size: ICON_BATCH_SIZE, categories: GROUP_CATEGORIES.I };
