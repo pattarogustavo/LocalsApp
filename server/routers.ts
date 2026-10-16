@@ -372,7 +372,7 @@ async function resolveDestinationCenter(destinationName: string, country?: strin
   }
 }
 
-interface NearbyCandidate {
+export interface NearbyCandidate {
   name: string;
   placeId: string;
   rating?: number;
@@ -566,14 +566,14 @@ const GENERIC_CATEGORY_DESCRIPTIONS: Record<string, Record<string, string>> = {
   },
 };
 
-function genericCategoryDescription(category: string, language?: string): string {
+export function genericCategoryDescription(category: string, language?: string): string {
   const lang = language?.slice(0, 2).toLowerCase() || "pt";
   const table = GENERIC_CATEGORY_DESCRIPTIONS[category] || GENERIC_CATEGORY_DESCRIPTIONS.other;
   return table[lang] || table.pt;
 }
 
 /** Buckets a real candidate into an app PlaceCategory using only its Google `types` + rating/review signals (no AI). */
-function categorizeCandidate(candidate: NearbyCandidate): string {
+export function categorizeCandidate(candidate: NearbyCandidate): string {
   if (candidate.types.includes("museum")) return "museum";
   if (candidate.types.includes("cafe")) return "cafe";
   if (candidate.types.includes("restaurant")) return "restaurant";
@@ -588,7 +588,7 @@ function categorizeCandidate(candidate: NearbyCandidate): string {
  * diversified round-robin across categories so the result isn't all
  * restaurants or all attractions.
  */
-function buildDeterministicFallbackPlaces(
+export function buildDeterministicFallbackPlaces(
   candidates: NearbyCandidate[],
   excludeNamesLower: Set<string>,
   language: string | undefined,
