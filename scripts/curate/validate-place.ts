@@ -245,9 +245,9 @@ export function formatInvalidReasonCounts(counts: Record<string, number>): strin
   return entries.map(([field, n]) => `${field}=${n}`).join(", ");
 }
 
-/** Merges two invalid-reason-count maps field by field. */
-export function addInvalidReasonCounts(a: Record<string, number>, b: Record<string, number>): Record<string, number> {
-  const result: Record<string, number> = { ...a };
-  for (const [field, n] of Object.entries(b)) result[field] = (result[field] ?? 0) + n;
+/** Merges two invalid-reason-count maps field by field. Tolerates undefined/null for either argument (treated as empty) — a checkpoint saved before this field existed can still hand one in. */
+export function addInvalidReasonCounts(a: Record<string, number> | null | undefined, b: Record<string, number> | null | undefined): Record<string, number> {
+  const result: Record<string, number> = { ...(a ?? {}) };
+  for (const [field, n] of Object.entries(b ?? {})) result[field] = (result[field] ?? 0) + n;
   return result;
 }

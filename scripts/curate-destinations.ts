@@ -56,7 +56,8 @@ import { buildBaseDescriptions, mergeTranslations, isCompleteDescriptions, type 
 import { buildExportMarkdown, type ExportPlace } from "./curate/export";
 import { mapWithConcurrency } from "./curate/concurrency";
 import { chunkItems } from "./curate/chunk";
-import { saveCheckpoint, loadCheckpoint, hasCheckpoint, listCheckpointKeys, clearCheckpoints } from "./curate/checkpoint";
+import { saveCheckpoint, hasCheckpoint, listCheckpointKeys, clearCheckpoints } from "./curate/checkpoint";
+import { loadBatchCheckpoint, type BatchCheckpointData, type VerifiedPlace, type DiscardedEntry } from "./curate/batch-checkpoint";
 import { createLogger, formatBatchLine, type CurateLogger } from "./curate/logger";
 import { acquireLock } from "./curate/lock";
 import {
@@ -103,29 +104,6 @@ async function confirmDatabaseWrite(opts: CurateOptions): Promise<void> {
 }
 
 // ─── batch execution (shared by generate and smoke) ────────────────────────
-
-interface VerifiedPlace extends ProposedPlace {
-  googlePlaceId: string;
-}
-
-/** `googleName` is set only for name_mismatch discards, kept locally (checkpoint only, never the database) to calibrate the matching threshold. */
-interface DiscardedEntry {
-  name: string;
-  reason: string;
-  googleName?: string;
-}
-
-interface BatchCheckpointData {
-  verified: VerifiedPlace[];
-  discarded: DiscardedEntry[];
-  discardReasonCounts: DiscardReasonCounts;
-  invalidCount: number;
-  invalidReasonCounts: Record<string, number>;
-  invalidExamples: InvalidPlaceExample[];
-  failed: boolean;
-  usedWebSearchFallback: boolean;
-  notes: string[];
-}
 
 /**
  * Verifies one AI-proposed place against Google, trying each candidate in
@@ -217,7 +195,7 @@ async function runAndCheckpointBatch(
   batchLabel: string,
 ): Promise<BatchCheckpointData> {
   if (!opts.refresh && hasCheckpoint(ROOT_DIR, slug, key)) {
-    const cached = loadCheckpoint<BatchCheckpointData>(ROOT_DIR, slug, key);
+    const cached = loadBatchCheckpoint(ROOT_DIR, slug, key);
     if (cached) {
       logger.info(`${batchLabel}: reused checkpoint (${cached.verified.length} lugares)`);
       return cached;
@@ -417,7 +395,7 @@ async function runGenerateForDestinationLocked(
   }
 
   // At most one complement round — restaurants first, then anything else needed, each its own small batch.
-  let verifiedSoFar = dedupeByPlaceId(batchKeysRun.flatMap((k) => loadCheckpoint<BatchCheckpointData>(ROOT_DIR, destination.slug, k)?.verified ?? []));
+  let verifiedSoFar = dedupeByPlaceId(batchKeysRun.flatMap((k) => loadBatchCheckpoint(ROOT_DIR, destination.slug, k)?.verified ?? []));
   for (let round = 0; round < MAX_COMPLEMENT_ROUNDS; round++) {
     const restaurants = verifiedSoFar.filter((v) => v.category === "restaurant");
     const shortfall = computeShortfall({ total: verifiedSoFar.length, restaurants: restaurants.length }, goals);
@@ -466,11 +444,11 @@ async function runGenerateForDestinationLocked(
       break;
     }
 
-    verifiedSoFar = dedupeByPlaceId(batchKeysRun.flatMap((k) => loadCheckpoint<BatchCheckpointData>(ROOT_DIR, destination.slug, k)?.verified ?? []));
+    verifiedSoFar = dedupeByPlaceId(batchKeysRun.flatMap((k) => loadBatchCheckpoint(ROOT_DIR, destination.slug, k)?.verified ?? []));
   }
 
   // Assembly happens from the checkpoints (fresh or reused), never from partial in-memory state alone.
-  const allVerified = dedupeByPlaceId(batchKeysRun.flatMap((k) => loadCheckpoint<BatchCheckpointData>(ROOT_DIR, destination.slug, k)?.verified ?? []));
+  const allVerified = dedupeByPlaceId(batchKeysRun.flatMap((k) => loadBatchCheckpoint(ROOT_DIR, destination.slug, k)?.verified ?? []));
 
   const restaurantCandidates: RestaurantCandidate[] = allVerified
     .filter((v) => v.category === "restaurant")

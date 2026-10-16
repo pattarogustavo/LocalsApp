@@ -181,6 +181,12 @@ describe("countInvalidReasons / formatInvalidReasonCounts / addInvalidReasonCoun
   it("merges two count maps field by field", () => {
     expect(addInvalidReasonCounts({ tags: 2, name: 1 }, { tags: 3, category: 1 })).toEqual({ tags: 5, name: 1, category: 1 });
   });
+
+  it("treats undefined/null arguments as empty instead of throwing (old checkpoints may lack this field)", () => {
+    expect(addInvalidReasonCounts({ tags: 2 }, undefined)).toEqual({ tags: 2 });
+    expect(addInvalidReasonCounts(undefined, { tags: 2 })).toEqual({ tags: 2 });
+    expect(addInvalidReasonCounts(null, null)).toEqual({});
+  });
 });
 
 describe("validateProposedPlaces", () => {

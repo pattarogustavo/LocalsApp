@@ -113,4 +113,12 @@ describe("discard reason counts", () => {
     const total = addDiscardReasonCounts(a, b);
     expect(total).toEqual({ addressId: 2, addressType: 1, idTooLong: 1, nameMismatch: 1 });
   });
+
+  it("treats undefined/null arguments as zero instead of throwing (old checkpoints may lack this field)", () => {
+    const a = newDiscardReasonCounts();
+    trackNameMismatch(a);
+    expect(addDiscardReasonCounts(a, undefined)).toEqual(a);
+    expect(addDiscardReasonCounts(undefined, a)).toEqual(a);
+    expect(addDiscardReasonCounts(null, null)).toEqual({ addressId: 0, addressType: 0, idTooLong: 0, nameMismatch: 0 });
+  });
 });

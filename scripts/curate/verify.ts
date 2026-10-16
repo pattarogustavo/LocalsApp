@@ -108,12 +108,13 @@ export function trackNameMismatch(counts: DiscardReasonCounts): void {
   counts.nameMismatch += 1;
 }
 
-export function addDiscardReasonCounts(a: DiscardReasonCounts, b: DiscardReasonCounts): DiscardReasonCounts {
+/** Tolerates undefined/null for either argument (treated as zero) — a checkpoint saved before a field existed can still hand one in. */
+export function addDiscardReasonCounts(a: DiscardReasonCounts | null | undefined, b: DiscardReasonCounts | null | undefined): DiscardReasonCounts {
   return {
-    addressId: a.addressId + b.addressId,
-    addressType: a.addressType + b.addressType,
-    idTooLong: a.idTooLong + b.idTooLong,
-    nameMismatch: a.nameMismatch + b.nameMismatch,
+    addressId: (a?.addressId ?? 0) + (b?.addressId ?? 0),
+    addressType: (a?.addressType ?? 0) + (b?.addressType ?? 0),
+    idTooLong: (a?.idTooLong ?? 0) + (b?.idTooLong ?? 0),
+    nameMismatch: (a?.nameMismatch ?? 0) + (b?.nameMismatch ?? 0),
   };
 }
 
