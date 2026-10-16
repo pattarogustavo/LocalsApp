@@ -42,6 +42,12 @@ import {
   type DiscardReasonCounts,
 } from "./curate/verify";
 import { dedupeByPlaceId } from "./curate/dedupe";
+import {
+  MAX_INVALID_EXAMPLES,
+  addInvalidReasonCounts,
+  formatInvalidReasonCounts,
+  type InvalidPlaceExample,
+} from "./curate/validate-place";
 import { selectRestaurants, localCuisineRatio, type RestaurantCandidate } from "./curate/distribution";
 import { applyCategoryCaps } from "./curate/caps";
 import { computeShortfall } from "./curate/shortfall";
@@ -102,11 +108,20 @@ interface VerifiedPlace extends ProposedPlace {
   googlePlaceId: string;
 }
 
+/** `googleName` is set only for name_mismatch discards, kept locally (checkpoint only, never the database) to calibrate the matching threshold. */
+interface DiscardedEntry {
+  name: string;
+  reason: string;
+  googleName?: string;
+}
+
 interface BatchCheckpointData {
   verified: VerifiedPlace[];
-  discarded: { name: string; reason: string }[];
+  discarded: DiscardedEntry[];
   discardReasonCounts: DiscardReasonCounts;
   invalidCount: number;
+  invalidReasonCounts: Record<string, number>;
+  invalidExamples: InvalidPlaceExample[];
   failed: boolean;
   usedWebSearchFallback: boolean;
   notes: string[];
@@ -124,18 +139,20 @@ async function verifyOnePlace(
   center: { lat: number; lng: number },
   budget: GoogleCallBudget,
   discardCounts: DiscardReasonCounts,
-): Promise<{ place: VerifiedPlace; reason?: never } | { place?: never; reason: string }> {
+): Promise<{ place: VerifiedPlace; reason?: never; googleName?: never } | { place?: never; reason: string; googleName?: string }> {
   const candidates = await findPlaceMatches(place.name, place.neighborhood, destination.nameEn, center, budget);
   if (candidates.length === 0) return { reason: "no Google match found" };
 
   const allowNeighborhood = GROUP_CATEGORIES.D.includes(place.category);
   let lastReason = "no Google candidate passed verification";
+  let lastGoogleName: string | undefined;
 
   for (const candidate of candidates) {
     const idCheck = checkPlaceIdAndTypes(candidate.placeId, candidate.types, allowNeighborhood);
     if (!idCheck.accepted) {
       trackPlaceIdRejection(discardCounts, idCheck.reason!);
       lastReason = idCheck.reason === "address_id" ? "id de endereço" : idCheck.reason === "address_type" ? "tipo de endereço" : "id muito longo";
+      lastGoogleName = undefined;
       continue;
     }
 
@@ -148,8 +165,10 @@ async function verifyOnePlace(
       if (verification.reason === "name_mismatch") {
         trackNameMismatch(discardCounts);
         lastReason = "nome não confere";
+        lastGoogleName = candidate.name;
       } else {
         lastReason = verification.reason ?? "rejected";
+        lastGoogleName = undefined;
       }
       continue;
     }
@@ -157,7 +176,7 @@ async function verifyOnePlace(
     return { place: { ...place, googlePlaceId: candidate.placeId } as VerifiedPlace };
   }
 
-  return { reason: lastReason };
+  return { reason: lastReason, googleName: lastGoogleName };
 }
 
 async function verifyProposedPlaces(
@@ -165,13 +184,13 @@ async function verifyProposedPlaces(
   destination: Pick<DestinationSeed, "nameEn">,
   center: { lat: number; lng: number },
   budget: GoogleCallBudget,
-  discarded: { name: string; reason: string }[],
+  discarded: DiscardedEntry[],
   discardCounts: DiscardReasonCounts,
 ): Promise<VerifiedPlace[]> {
   const matches = await mapWithConcurrency(proposed, VERIFICATION_CONCURRENCY, async (place) => {
     const result = await verifyOnePlace(place, destination, center, budget, discardCounts);
     if (result.reason !== undefined) {
-      discarded.push({ name: place.name, reason: result.reason });
+      discarded.push({ name: place.name, reason: result.reason, googleName: result.googleName });
       return null;
     }
     return result.place;
@@ -206,9 +225,11 @@ async function runAndCheckpointBatch(
   }
 
   const start = Date.now();
-  const discarded: { name: string; reason: string }[] = [];
+  const discarded: DiscardedEntry[] = [];
   const discardCounts = newDiscardReasonCounts();
   let invalidCount = 0;
+  let invalidReasonCounts: Record<string, number> = {};
+  let invalidExamples: InvalidPlaceExample[] = [];
 
   const outcome: BatchRunOutcome<ProposedPlace> = await runBatchWithSplitting(size, async (size) => {
     if (size <= 0) return { items: [], truncated: false };
@@ -233,6 +254,10 @@ async function runAndCheckpointBatch(
     );
     const structured = await structureBatch(research.text, aiStats);
     invalidCount += structured.invalidCount;
+    invalidReasonCounts = addInvalidReasonCounts(invalidReasonCounts, structured.invalidReasonCounts);
+    if (invalidExamples.length < MAX_INVALID_EXAMPLES) {
+      invalidExamples = [...invalidExamples, ...structured.invalidExamples].slice(0, MAX_INVALID_EXAMPLES);
+    }
     return {
       items: structured.places,
       truncated: research.truncated || structured.truncated,
@@ -246,12 +271,17 @@ async function runAndCheckpointBatch(
   const status = outcome.failed ? "falhou" : outcome.usedWebSearchFallback ? "ok (sem pesquisa web)" : "ok";
   logger.info(`${batchLabel}: ${formatBatchLine(1, 1, status, verified.length, elapsedSec).replace(/^lote 1\/1: /, "")}`);
   for (const note of outcome.notes) logger.log(`  ${batchLabel}: ${note}`);
+  if (invalidCount > 0) {
+    logger.info(`${batchLabel}: ${invalidCount} inválidos (${formatInvalidReasonCounts(invalidReasonCounts)})`);
+  }
 
   const data: BatchCheckpointData = {
     verified,
     discarded,
     discardReasonCounts: discardCounts,
     invalidCount,
+    invalidReasonCounts,
+    invalidExamples,
     failed: outcome.failed,
     usedWebSearchFallback: outcome.usedWebSearchFallback,
     notes: outcome.notes,
@@ -268,7 +298,8 @@ interface GenerateReport {
   proposed: number;
   verified: number;
   invalidCount: number;
-  discarded: { name: string; reason: string }[];
+  invalidReasonCounts: Record<string, number>;
+  discarded: DiscardedEntry[];
   discardReasonCounts: DiscardReasonCounts;
   failedBatches: string[];
   webSearchFallbackBatches: string[];
@@ -322,7 +353,8 @@ async function runGenerateForDestinationLocked(
   const failedBatches: string[] = [];
   const webSearchFallbackBatches: string[] = [];
   let invalidCount = 0;
-  const allDiscarded: { name: string; reason: string }[] = [];
+  let allInvalidReasonCounts: Record<string, number> = {};
+  const allDiscarded: DiscardedEntry[] = [];
   let allDiscardCounts = newDiscardReasonCounts();
   const batchKeysRun: string[] = [];
 
@@ -350,6 +382,7 @@ async function runGenerateForDestinationLocked(
   if (iconData.failed) failedBatches.push(iconKey);
   if (iconData.usedWebSearchFallback) webSearchFallbackBatches.push(iconKey);
   invalidCount += iconData.invalidCount;
+  allInvalidReasonCounts = addInvalidReasonCounts(allInvalidReasonCounts, iconData.invalidReasonCounts);
   allDiscarded.push(...iconData.discarded);
   allDiscardCounts = addDiscardReasonCounts(allDiscardCounts, iconData.discardReasonCounts);
 
@@ -378,6 +411,7 @@ async function runGenerateForDestinationLocked(
     if (data.failed) failedBatches.push(key);
     if (data.usedWebSearchFallback) webSearchFallbackBatches.push(key);
     invalidCount += data.invalidCount;
+    allInvalidReasonCounts = addInvalidReasonCounts(allInvalidReasonCounts, data.invalidReasonCounts);
     allDiscarded.push(...data.discarded);
     allDiscardCounts = addDiscardReasonCounts(allDiscardCounts, data.discardReasonCounts);
   }
@@ -423,6 +457,7 @@ async function runGenerateForDestinationLocked(
         if (data.failed) failedBatches.push(key);
         if (data.usedWebSearchFallback) webSearchFallbackBatches.push(key);
         invalidCount += data.invalidCount;
+        allInvalidReasonCounts = addInvalidReasonCounts(allInvalidReasonCounts, data.invalidReasonCounts);
         allDiscarded.push(...data.discarded);
         allDiscardCounts = addDiscardReasonCounts(allDiscardCounts, data.discardReasonCounts);
       }
@@ -524,6 +559,7 @@ async function runGenerateForDestinationLocked(
     proposed: proposedNames.size,
     verified: allVerified.length,
     invalidCount,
+    invalidReasonCounts: allInvalidReasonCounts,
     discarded: allDiscarded,
     discardReasonCounts: allDiscardCounts,
     failedBatches,
@@ -589,6 +625,9 @@ async function runGenerate(opts: CurateOptions, selection: DestinationSeed[], lo
           `webSearchRequests=${report.aiStats.webSearchRequests} googleCalls=${report.googleCalls}`,
       );
       logger.info(`  descartes por motivo: ${formatDiscardReasonCounts(report.discardReasonCounts)}`);
+      if (report.invalidCount > 0) {
+        logger.info(`  inválidos por motivo: ${formatInvalidReasonCounts(report.invalidReasonCounts)}`);
+      }
       const categoryCountsText =
         Object.entries(report.categoryCounts)
           .map(([cat, n]) => `${cat}=${n}`)
@@ -609,7 +648,9 @@ async function runGenerate(opts: CurateOptions, selection: DestinationSeed[], lo
       if (report.webSearchFallbackBatches.length) logger.info(`  batches without web search: ${report.webSearchFallbackBatches.join(", ")}`);
       if (report.missingGoals.length) logger.info(`  missing goals: ${report.missingGoals.join("; ")}`);
       if (report.discarded.length) {
-        for (const d of report.discarded.slice(0, 20)) logger.log(`  discarded "${d.name}": ${d.reason}`);
+        for (const d of report.discarded.slice(0, 20)) {
+          logger.log(`  discarded "${d.name}": ${d.reason}${d.googleName ? ` (Google: "${d.googleName}")` : ""}`);
+        }
         if (report.discarded.length > 20) logger.log(`  ...and ${report.discarded.length - 20} more`);
       }
     } catch (err) {

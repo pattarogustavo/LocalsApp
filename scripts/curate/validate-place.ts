@@ -56,8 +56,90 @@ function isStringArrayOf<T extends string>(value: unknown, allowed: readonly T[]
   return Array.isArray(value) && value.every((v) => typeof v === "string" && (allowed as readonly string[]).includes(v));
 }
 
-/** Validates one structured place. Returns the validated (type-narrowed) object, or the list of reasons it was rejected. */
-export function validateProposedPlace(raw: RawProposedPlace): ValidationResult {
+/**
+ * Common synonyms the AI proposes instead of the stored category enum.
+ * Anything not listed here and not already a VALID_CATEGORIES value stays
+ * invalid — this is a fixed mapping, never a fuzzy guess.
+ */
+const CATEGORY_SYNONYMS: Record<string, (typeof VALID_CATEGORIES)[number]> = {
+  landmark: "attraction",
+  monument: "attraction",
+  palace: "attraction",
+  square: "attraction",
+  park: "attraction",
+  viewpoint: "attraction",
+  church: "attraction",
+  cathedral: "attraction",
+  bridge: "attraction",
+  castle: "attraction",
+  gallery: "museum",
+  market: "other",
+  shop: "other",
+  bookstore: "other",
+  nightclub: "other",
+  bar: "other",
+  venue: "other",
+  theatre: "other",
+};
+
+/**
+ * Coerces common, harmless shape mismatches BEFORE validation, so a place is
+ * only ever rejected for something that's actually wrong (missing name,
+ * missing description, unrecognizable category) rather than a cosmetic
+ * detail the AI got slightly wrong (an invented tag, a stringified priority,
+ * a category synonym). Each rule below is additive and never widens what
+ * validateProposedPlace still requires (name/descriptionPt/descriptionEn
+ * non-empty, category valid after mapping, isLocalCuisine present for
+ * restaurant/cafe).
+ */
+export function normalizeRawPlace(raw: RawProposedPlace): RawProposedPlace {
+  const normalized: RawProposedPlace = { ...raw };
+
+  if (typeof normalized.category === "string") {
+    const cat = normalized.category.toLowerCase().trim();
+    if ((VALID_CATEGORIES as readonly string[]).includes(cat)) normalized.category = cat;
+    else if (CATEGORY_SYNONYMS[cat]) normalized.category = CATEGORY_SYNONYMS[cat];
+  }
+
+  if (Array.isArray(normalized.tags)) {
+    const allowed = normalized.tags.filter((t) => typeof t === "string" && (VALID_TAGS as readonly string[]).includes(t));
+    normalized.tags = allowed.length > 0 ? allowed : ["culture"];
+  }
+
+  if (normalized.isLocalCuisine == null) {
+    const cat = typeof normalized.category === "string" ? normalized.category : undefined;
+    if (cat !== "restaurant" && cat !== "cafe") normalized.isLocalCuisine = false;
+  }
+
+  if (normalized.priority == null) {
+    normalized.priority = 5;
+  } else if (typeof normalized.priority === "string") {
+    const parsed = Number(normalized.priority);
+    if (Number.isFinite(parsed)) normalized.priority = parsed;
+  }
+
+  if (normalized.confidence == null) {
+    normalized.confidence = "medium";
+  } else if (!(typeof normalized.confidence === "string" && (VALID_CONFIDENCE as readonly string[]).includes(normalized.confidence))) {
+    normalized.confidence = "medium";
+  }
+
+  if (normalized.priceTier != null && !(typeof normalized.priceTier === "string" && (VALID_PRICE_TIERS as readonly string[]).includes(normalized.priceTier))) {
+    normalized.priceTier = undefined;
+  }
+
+  if (normalized.meals != null) {
+    normalized.meals = Array.isArray(normalized.meals)
+      ? normalized.meals.filter((m) => typeof m === "string" && (VALID_MEALS as readonly string[]).includes(m))
+      : undefined;
+  }
+
+  return normalized;
+}
+
+/** Validates one structured place (after normalization). Returns the validated (type-narrowed) object, or the list of reasons it was rejected. */
+export function validateProposedPlace(rawInput: RawProposedPlace): ValidationResult {
+  const raw = normalizeRawPlace(rawInput);
   const errors: string[] = [];
 
   if (!isNonEmptyString(raw.name)) errors.push("name is missing or empty");
@@ -102,10 +184,39 @@ export function validateProposedPlace(raw: RawProposedPlace): ValidationResult {
   };
 }
 
+export interface InvalidPlaceExample {
+  name: string;
+  errors: string[];
+}
+
+/** Max invalid-place examples kept per validated batch (checkpoint + log). */
+export const MAX_INVALID_EXAMPLES = 8;
+
+/** The leading identifier word of a validation error message, e.g. "tags is not an array" -> "tags". Used to count invalid reasons by field. */
+function errorField(error: string): string {
+  return error.match(/^[A-Za-z]+/)?.[0] ?? "other";
+}
+
+/** Tallies how many invalid items failed because of each field, e.g. { tags: 9, isLocalCuisine: 2 }. */
+export function countInvalidReasons(invalid: { errors: string[] }[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of invalid) {
+    for (const error of item.errors) {
+      const field = errorField(error);
+      counts[field] = (counts[field] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
 export interface ValidatePlacesSummary {
   valid: ValidatedPlace[];
   invalidCount: number;
   invalid: { input: RawProposedPlace; errors: string[] }[];
+  /** Invalid-reason tallies by field (see countInvalidReasons), for per-batch and destination-level reporting. */
+  invalidReasonCounts: Record<string, number>;
+  /** Up to MAX_INVALID_EXAMPLES invalid items, kept for the checkpoint/log so discards are debuggable. */
+  invalidExamples: InvalidPlaceExample[];
 }
 
 /** Validates a whole batch, discarding invalid items individually instead of failing the batch. */
@@ -120,5 +231,23 @@ export function validateProposedPlaces(raw: RawProposedPlace[]): ValidatePlacesS
       invalid.push({ input: item, errors: result.errors });
     }
   }
-  return { valid, invalidCount: invalid.length, invalid };
+  const invalidExamples: InvalidPlaceExample[] = invalid.slice(0, MAX_INVALID_EXAMPLES).map((i) => ({
+    name: isNonEmptyString(i.input.name) ? i.input.name : "(sem nome)",
+    errors: i.errors,
+  }));
+  return { valid, invalidCount: invalid.length, invalid, invalidReasonCounts: countInvalidReasons(invalid), invalidExamples };
+}
+
+/** "tags=9, isLocalCuisine=2" style summary of countInvalidReasons' output, for logs/reports. */
+export function formatInvalidReasonCounts(counts: Record<string, number>): string {
+  const entries = Object.entries(counts).filter(([, n]) => n > 0);
+  if (entries.length === 0) return "(nenhum)";
+  return entries.map(([field, n]) => `${field}=${n}`).join(", ");
+}
+
+/** Merges two invalid-reason-count maps field by field. */
+export function addInvalidReasonCounts(a: Record<string, number>, b: Record<string, number>): Record<string, number> {
+  const result: Record<string, number> = { ...a };
+  for (const [field, n] of Object.entries(b)) result[field] = (result[field] ?? 0) + n;
+  return result;
 }

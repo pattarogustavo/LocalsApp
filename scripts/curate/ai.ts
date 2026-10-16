@@ -1,7 +1,7 @@
 import { invokeLLM, type InvokeResult } from "../../server/_core/llm";
 import { buildResearchPrompt, buildStructurePrompt, buildTranslatePrompt, type ResearchPromptParams, type TranslateBatchItem } from "./prompts";
 import { withRetry, isRetryableAnthropicError, getAnthropicRetryAfterMs, isWebSearchUnsupportedError } from "./retry";
-import { validateProposedPlaces, type RawProposedPlace, type ValidatedPlace } from "./validate-place";
+import { validateProposedPlaces, type RawProposedPlace, type ValidatedPlace, type InvalidPlaceExample } from "./validate-place";
 
 export const RESEARCH_MODEL = process.env.CURATE_RESEARCH_MODEL || "claude-sonnet-5";
 export const STRUCTURE_MODEL = process.env.CURATE_STRUCTURE_MODEL || "claude-haiku-4-5-20251001";
@@ -154,6 +154,8 @@ export async function researchBatch(params: ResearchPromptParams, stats: AiCallS
 export interface StructureBatchResult {
   places: ProposedPlace[];
   invalidCount: number;
+  invalidReasonCounts: Record<string, number>;
+  invalidExamples: InvalidPlaceExample[];
   truncated: boolean;
 }
 
@@ -174,17 +176,17 @@ export async function structureBatch(researchText: string, stats: AiCallStats): 
 
   const content = result.choices[0]?.message.content;
   const truncated = isTruncated(result);
-  if (typeof content !== "string" || !content) return { places: [], invalidCount: 0, truncated };
+  if (typeof content !== "string" || !content) return { places: [], invalidCount: 0, invalidReasonCounts: {}, invalidExamples: [], truncated };
 
   let raw: RawProposedPlace[];
   try {
     raw = (JSON.parse(content) as { places?: RawProposedPlace[] }).places ?? [];
   } catch {
-    return { places: [], invalidCount: 0, truncated: true };
+    return { places: [], invalidCount: 0, invalidReasonCounts: {}, invalidExamples: [], truncated: true };
   }
 
-  const { valid, invalidCount } = validateProposedPlaces(raw);
-  return { places: valid, invalidCount, truncated };
+  const { valid, invalidCount, invalidReasonCounts, invalidExamples } = validateProposedPlaces(raw);
+  return { places: valid, invalidCount, invalidReasonCounts, invalidExamples, truncated };
 }
 
 const TRANSLATE_SCHEMA = {
