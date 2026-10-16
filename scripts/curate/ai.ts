@@ -7,6 +7,13 @@ export const RESEARCH_MODEL = process.env.CURATE_RESEARCH_MODEL || "claude-sonne
 export const STRUCTURE_MODEL = process.env.CURATE_STRUCTURE_MODEL || "claude-haiku-4-5-20251001";
 export const TRANSLATE_MODEL = process.env.CURATE_TRANSLATE_MODEL || "claude-haiku-4-5-20251001";
 
+/** Max web_search tool uses per research call. Configurable since some destinations need more digging than others. */
+export const WEB_SEARCH_MAX_USES = (() => {
+  const raw = process.env.CURATE_WEB_SEARCH_MAX_USES;
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 3;
+})();
+
 /** Long timeout for the web-search-enabled research call, which can take several minutes. */
 export const RESEARCH_TIMEOUT_MS = 5 * 60 * 1000;
 export const STRUCTURE_TIMEOUT_MS = 2 * 60 * 1000;
@@ -115,7 +122,7 @@ export async function researchBatch(params: ResearchPromptParams, stats: AiCallS
         invokeLLM({
           model: RESEARCH_MODEL,
           enableWebSearch,
-          webSearchMaxUses: enableWebSearch ? 5 : undefined,
+          webSearchMaxUses: enableWebSearch ? WEB_SEARCH_MAX_USES : undefined,
           timeoutMs: RESEARCH_TIMEOUT_MS,
           maxTokens: 8192,
           messages: [{ role: "user", content: prompt }],

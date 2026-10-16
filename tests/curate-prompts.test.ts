@@ -52,6 +52,25 @@ describe("buildResearchPrompt", () => {
     expect(prompt).toContain("attraction: no máximo 15");
   });
 
+  it("frames the icon batch around the city's biggest icons instead of the normal batch ask", () => {
+    const prompt = buildResearchPrompt(baseParams({ isIconBatch: true, batchSize: 12 }));
+    expect(prompt).toMatch(/MAIORES ÍCONES/);
+    expect(prompt).toContain("12");
+    expect(prompt).not.toContain("Proponha 12 lugares do grupo");
+  });
+
+  it("restricts restaurants to places whose main activity is serving meals", () => {
+    const prompt = buildResearchPrompt(baseParams({ group: "B", groupLabel: "restaurantes" }));
+    expect(prompt).toMatch(/atividade principal é servir refeições/);
+    expect(prompt).toMatch(/casas de show, bares sem cozinha ou clubes/);
+  });
+
+  it("restricts cafes/markets to places where people eat or drink, excluding non-food fairs", () => {
+    const prompt = buildResearchPrompt(baseParams({ group: "C", groupLabel: "cafés, padarias e mercados" }));
+    expect(prompt).toMatch(/Priorize locais onde se come ou bebe/);
+    expect(prompt).toMatch(/Feiras de flores, de artesanato ou de antiguidades NÃO contam/);
+  });
+
   it("switches to the complement framing and lists exclusions when provided", () => {
     const prompt = buildResearchPrompt(
       baseParams({

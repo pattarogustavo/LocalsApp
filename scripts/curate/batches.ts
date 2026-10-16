@@ -1,19 +1,21 @@
 import type { DestinationTier } from "../data/destinations";
 import { categoryCapFor, restaurantCandidateTarget, totalCandidateTarget, MAX_PLACES_PER_BATCH, type TierGoals } from "../data/curation-config";
 
-export type GroupKey = "A" | "B" | "C" | "D";
+export type GroupKey = "A" | "B" | "C" | "D" | "I";
 
 /**
  * Maps each research/structure group to the stored `curated_places.category`
  * values it's allowed to produce. B/C map 1:1 to restaurant/cafe (governed
  * by their own min/max, not a category cap); A/D cover everything else and
- * are bounded by BASE_CATEGORY_CAPS.
+ * are bounded by BASE_CATEGORY_CAPS. I (icons) shares A/D's categories but is
+ * a separate, fixed-size batch run once per destination (see iconBatchPlan).
  */
 export const GROUP_CATEGORIES: Record<GroupKey, string[]> = {
   A: ["attraction", "museum"],
   B: ["restaurant"],
   C: ["cafe"],
   D: ["hidden_gem", "other"],
+  I: ["attraction", "museum", "other"],
 };
 
 export const GROUP_LABELS: Record<GroupKey, string> = {
@@ -21,7 +23,11 @@ export const GROUP_LABELS: Record<GroupKey, string> = {
   B: "restaurantes",
   C: "cafés, padarias e mercados",
   D: "segredos de morador, bairros/passeios, vida noturna e compras",
+  I: "ícones imperdíveis da cidade",
 };
+
+/** Max places proposed in the icon batch — see iconBatchPlan. */
+export const ICON_BATCH_SIZE = 12;
 
 function sumCaps(categories: string[], tier: DestinationTier): number {
   return categories.reduce((sum, cat) => sum + (categoryCapFor(cat, tier) ?? Infinity), 0);
@@ -93,4 +99,14 @@ export function planBatches(goals: TierGoals, tier: DestinationTier): BatchPlan[
 /** Stable key identifying a batch for checkpointing/logging, e.g. "A-1". */
 export function batchKey(plan: Pick<BatchPlan, "group" | "index">): string {
   return `${plan.group}-${plan.index}`;
+}
+
+/**
+ * The icon batch: up to ICON_BATCH_SIZE of the destination's most iconic
+ * places, run once before the goal-driven plans. It does not count toward
+ * any tier's total-target (see computeGroupTargets) — duplicates against
+ * the rest of the catalog are simply dropped at dedupe time.
+ */
+export function iconBatchPlan(): BatchPlan {
+  return { group: "I", index: 1, of: 1, size: ICON_BATCH_SIZE, categories: GROUP_CATEGORIES.I };
 }

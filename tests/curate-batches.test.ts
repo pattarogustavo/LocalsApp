@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { computeGroupTargets, splitIntoBatchSizes, planBatches, batchKey, GROUP_CATEGORIES } from "../scripts/curate/batches";
+import {
+  computeGroupTargets,
+  splitIntoBatchSizes,
+  planBatches,
+  batchKey,
+  iconBatchPlan,
+  ICON_BATCH_SIZE,
+  GROUP_CATEGORIES,
+  GROUP_LABELS,
+} from "../scripts/curate/batches";
 import { TIER_GOALS, MAX_PLACES_PER_BATCH, restaurantCandidateTarget, totalCandidateTarget } from "../scripts/data/curation-config";
 
 describe("computeGroupTargets", () => {
@@ -67,5 +76,34 @@ describe("planBatches", () => {
     const keys = plans.map(batchKey);
     expect(new Set(keys).size).toBe(keys.length);
     expect(keys).toContain("B-1");
+  });
+
+  it("never includes the icon group — that batch runs separately via iconBatchPlan", () => {
+    for (const tier of ["mega", "large", "medium", "small"] as const) {
+      const plans = planBatches(TIER_GOALS[tier], tier);
+      expect(plans.some((p) => p.group === "I")).toBe(false);
+    }
+  });
+});
+
+describe("iconBatchPlan", () => {
+  it("proposes up to ICON_BATCH_SIZE places in attraction/museum/other", () => {
+    const plan = iconBatchPlan();
+    expect(plan.group).toBe("I");
+    expect(plan.size).toBe(ICON_BATCH_SIZE);
+    expect(plan.categories).toEqual(["attraction", "museum", "other"]);
+  });
+
+  it("has a stable batchKey distinct from every goal-driven batch", () => {
+    const plan = iconBatchPlan();
+    expect(batchKey(plan)).toBe("I-1");
+  });
+
+  it("has a group label describing the city's icons", () => {
+    expect(GROUP_LABELS.I).toMatch(/ícon/i);
+  });
+
+  it("GROUP_CATEGORIES.I matches the icon plan's categories", () => {
+    expect(GROUP_CATEGORIES.I).toEqual(iconBatchPlan().categories);
   });
 });

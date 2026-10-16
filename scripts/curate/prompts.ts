@@ -17,6 +17,8 @@ export interface ResearchPromptParams {
   excludeNames?: string[];
   /** Set only for a complement round: describes specifically what's still missing. */
   onlyMissing?: string;
+  /** Set only for the icon batch (group I): frames the ask as "the city's biggest icons" instead of the normal goal-driven batch. */
+  isIconBatch?: boolean;
 }
 
 /**
@@ -27,13 +29,15 @@ export interface ResearchPromptParams {
  * sentence description — never copied from a source.
  */
 export function buildResearchPrompt(params: ResearchPromptParams): string {
-  const { destinationName, country, goals, group, groupLabel, batchSize, categoryCaps, excludeNames, onlyMissing } = params;
+  const { destinationName, country, goals, group, groupLabel, batchSize, categoryCaps, excludeNames, onlyMissing, isIconBatch } = params;
 
   const lines = [
     `Você é um curador local especializado em ${destinationName}, ${country}.`,
-    onlyMissing
-      ? `Esta é uma rodada de complementação do grupo "${groupLabel}": proponha apenas ${onlyMissing}.`
-      : `Proponha ${batchSize} lugares do grupo "${groupLabel}" (categoria: ${group}).`,
+    isIconBatch
+      ? `Proponha até ${batchSize} lugares com os MAIORES ÍCONES de ${destinationName} — os lugares que qualquer guia de viagem cita primeiro e que definem a cidade (ex.: em Londres: Buckingham Palace, Big Ben/Casas do Parlamento, Trafalgar Square, Covent Garden, Camden Market, Notting Hill/Portobello Road, Hyde Park). Categoria attraction, museum ou other.`
+      : onlyMissing
+        ? `Esta é uma rodada de complementação do grupo "${groupLabel}": proponha apenas ${onlyMissing}.`
+        : `Proponha ${batchSize} lugares do grupo "${groupLabel}" (categoria: ${group}).`,
     "",
     "Regras gerais, válidas para todo lugar proposto:",
     "- Só lugares em funcionamento HOJE — nunca um lugar fechado definitivamente ou que não existe mais.",
@@ -49,6 +53,7 @@ export function buildResearchPrompt(params: ResearchPromptParams): string {
   if (group === "B") {
     lines.push(
       "",
+      "Só proponha estabelecimentos cuja atividade principal é servir refeições — nunca casas de show, bares sem cozinha ou clubes.",
       `Distribua os restaurantes entre as faixas budget, moderate e luxury, com pelo menos ${goals.perBudgetMin} em cada faixa.`,
       "Varie também as refeições cobertas (breakfast/lunch/dinner/snack) entre os restaurantes propostos.",
       `Pelo menos ${goals.localCuisineMinPct}% devem ser de culinária local/típica; no máximo 2 a 3 podem ser de referência mundial estrangeira.`,
@@ -56,7 +61,11 @@ export function buildResearchPrompt(params: ResearchPromptParams): string {
   }
 
   if (group === "C") {
-    lines.push("", "Cubra tanto café da manhã quanto lanche entre os cafés/padarias/mercados propostos.");
+    lines.push(
+      "",
+      "Cubra tanto café da manhã quanto lanche entre os cafés/padarias/mercados propostos.",
+      "Priorize locais onde se come ou bebe (cafeterias, padarias, mercados de comida). Feiras de flores, de artesanato ou de antiguidades NÃO contam como cafés/mercados.",
+    );
   }
 
   if (categoryCaps && Object.keys(categoryCaps).length > 0) {

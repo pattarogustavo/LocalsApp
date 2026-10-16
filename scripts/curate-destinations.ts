@@ -14,7 +14,7 @@ import {
   MAX_DISTANCE_FROM_CENTER_KM,
   categoryCapFor,
 } from "./data/curation-config";
-import { planBatches, batchKey, GROUP_LABELS, GROUP_CATEGORIES, type BatchPlan, type GroupKey } from "./curate/batches";
+import { planBatches, batchKey, iconBatchPlan, GROUP_LABELS, GROUP_CATEGORIES, type BatchPlan, type GroupKey } from "./curate/batches";
 import { GoogleCallBudget, resolveCityCenter, findPlaceMatches, checkPlaceStatus } from "./curate/google";
 import {
   newAiCallStats,
@@ -24,6 +24,7 @@ import {
   RESEARCH_MODEL,
   STRUCTURE_MODEL,
   TRANSLATE_MODEL,
+  WEB_SEARCH_MAX_USES,
   type ProposedPlace,
   type AiCallStats,
 } from "./curate/ai";
@@ -51,6 +52,7 @@ import { mapWithConcurrency } from "./curate/concurrency";
 import { chunkItems } from "./curate/chunk";
 import { saveCheckpoint, loadCheckpoint, hasCheckpoint, listCheckpointKeys, clearCheckpoints } from "./curate/checkpoint";
 import { createLogger, formatBatchLine, type CurateLogger } from "./curate/logger";
+import { acquireLock } from "./curate/lock";
 import {
   getCurateDb,
   closeCurateDb,
@@ -184,7 +186,7 @@ async function runAndCheckpointBatch(
   key: string,
   plan: Pick<BatchPlan, "group" | "categories">,
   size: number,
-  promptExtra: { groupLabel: string; categoryCaps?: Record<string, number>; excludeNames: string[]; onlyMissing?: string },
+  promptExtra: { groupLabel: string; categoryCaps?: Record<string, number>; excludeNames: string[]; onlyMissing?: string; isIconBatch?: boolean },
   destination: DestinationSeed,
   country: string,
   goals: (typeof TIER_GOALS)[keyof typeof TIER_GOALS],
@@ -225,6 +227,7 @@ async function runAndCheckpointBatch(
         categoryCaps: promptExtra.categoryCaps,
         excludeNames: promptExtra.excludeNames,
         onlyMissing: promptExtra.onlyMissing,
+        isIconBatch: promptExtra.isIconBatch,
       },
       aiStats,
     );
@@ -275,6 +278,9 @@ interface GenerateReport {
   elapsedMs: number;
   aiStats: AiCallStats;
   googleCalls: number;
+  categoryCounts: Record<string, number>;
+  /** True if this run found (and replaced) a lock left behind by a dead process — a sign of a previous run that didn't exit cleanly. */
+  staleLockReplaced: boolean;
 }
 
 async function runGenerateForDestination(
@@ -283,6 +289,22 @@ async function runGenerateForDestination(
   db: CurateDb | null,
   budget: GoogleCallBudget,
   logger: CurateLogger,
+): Promise<GenerateReport> {
+  const lock = acquireLock(ROOT_DIR, destination.slug);
+  try {
+    return await runGenerateForDestinationLocked(destination, opts, db, budget, logger, lock.staleLockReplaced);
+  } finally {
+    lock.release();
+  }
+}
+
+async function runGenerateForDestinationLocked(
+  destination: DestinationSeed,
+  opts: CurateOptions,
+  db: CurateDb | null,
+  budget: GoogleCallBudget,
+  logger: CurateLogger,
+  staleLockReplaced: boolean,
 ): Promise<GenerateReport> {
   const start = Date.now();
   const goals = TIER_GOALS[destination.tier];
@@ -303,6 +325,33 @@ async function runGenerateForDestination(
   const allDiscarded: { name: string; reason: string }[] = [];
   let allDiscardCounts = newDiscardReasonCounts();
   const batchKeysRun: string[] = [];
+
+  // Icon batch (up to ICON_BATCH_SIZE of the city's biggest icons) runs first and doesn't count toward any tier total-target.
+  const iconPlan = iconBatchPlan();
+  const iconKey = batchKey(iconPlan);
+  batchKeysRun.push(iconKey);
+  const iconData = await runAndCheckpointBatch(
+    destination.slug,
+    iconKey,
+    iconPlan,
+    iconPlan.size,
+    { groupLabel: GROUP_LABELS.I, excludeNames: [...proposedNames], isIconBatch: true },
+    destination,
+    country,
+    goals,
+    center,
+    budget,
+    aiStats,
+    opts,
+    logger,
+    `[${destination.slug}] lote ${iconKey}`,
+  );
+  for (const v of iconData.verified) proposedNames.add(v.name);
+  if (iconData.failed) failedBatches.push(iconKey);
+  if (iconData.usedWebSearchFallback) webSearchFallbackBatches.push(iconKey);
+  invalidCount += iconData.invalidCount;
+  allDiscarded.push(...iconData.discarded);
+  allDiscardCounts = addDiscardReasonCounts(allDiscardCounts, iconData.discardReasonCounts);
 
   // Destinations and batches always run in sequence — never in parallel.
   for (const plan of plans) {
@@ -467,6 +516,9 @@ async function runGenerateForDestination(
     inserted = rows.length;
   }
 
+  const categoryCounts: Record<string, number> = {};
+  for (const p of finalPlaces) categoryCounts[p.category] = (categoryCounts[p.category] ?? 0) + 1;
+
   return {
     slug: destination.slug,
     proposed: proposedNames.size,
@@ -482,11 +534,14 @@ async function runGenerateForDestination(
     elapsedMs: Date.now() - start,
     aiStats,
     googleCalls: budget.count - googleCallsBefore,
+    categoryCounts,
+    staleLockReplaced,
   };
 }
 
 function printPlan(selection: DestinationSeed[]) {
   console.log(`Modelos: pesquisa=${RESEARCH_MODEL} estruturação=${STRUCTURE_MODEL} tradução=${TRANSLATE_MODEL}`);
+  console.log(`Buscas na web: até ${WEB_SEARCH_MAX_USES} por lote de pesquisa (CURATE_WEB_SEARCH_MAX_USES)`);
   let totalGoogleEstimate = 0;
   let totalAiCallsEstimate = 0;
   for (const d of selection) {
@@ -534,7 +589,15 @@ async function runGenerate(opts: CurateOptions, selection: DestinationSeed[], lo
           `webSearchRequests=${report.aiStats.webSearchRequests} googleCalls=${report.googleCalls}`,
       );
       logger.info(`  descartes por motivo: ${formatDiscardReasonCounts(report.discardReasonCounts)}`);
+      const categoryCountsText =
+        Object.entries(report.categoryCounts)
+          .map(([cat, n]) => `${cat}=${n}`)
+          .join(", ") || "(nenhum)";
+      logger.info(`  lugares por categoria: ${categoryCountsText}`);
       logger.info(`  custo estimado (apenas tokens, NÃO inclui busca web nem Google): ${formatModelCostUsd(destCost)}`);
+      if (report.staleLockReplaced) {
+        logger.info(`  aviso: trava de execução anterior (processo morto) foi encontrada e substituída — possível execução simultânea detectada.`);
+      }
       for (const [model, usage] of Object.entries(report.aiStats.byModel)) {
         const acc = totalByModel[model] ?? { promptTokens: 0, completionTokens: 0 };
         acc.promptTokens += usage.promptTokens;
