@@ -16,8 +16,19 @@ import {
 } from "./data/curation-config";
 import { planBatches, batchKey, GROUP_LABELS, GROUP_CATEGORIES, type BatchPlan, type GroupKey } from "./curate/batches";
 import { GoogleCallBudget, resolveCityCenter, findPlaceMatch, checkPlaceStatus } from "./curate/google";
-import { newAiCallStats, researchBatch, structureBatch, translateBatch, RESEARCH_MODEL, type ProposedPlace, type AiCallStats } from "./curate/ai";
+import {
+  newAiCallStats,
+  researchBatch,
+  structureBatch,
+  translateBatch,
+  RESEARCH_MODEL,
+  STRUCTURE_MODEL,
+  TRANSLATE_MODEL,
+  type ProposedPlace,
+  type AiCallStats,
+} from "./curate/ai";
 import { invokeLLM } from "../server/_core/llm";
+import { estimateTotalCostUsd, formatModelCostUsd } from "./data/model-prices";
 import { runBatchWithSplitting, type BatchRunOutcome } from "./curate/batch-runner";
 import { verifyCandidate } from "./curate/verify";
 import { dedupeByPlaceId } from "./curate/dedupe";
@@ -418,6 +429,7 @@ async function runGenerateForDestination(
 }
 
 function printPlan(selection: DestinationSeed[]) {
+  console.log(`Modelos: pesquisa=${RESEARCH_MODEL} estruturação=${STRUCTURE_MODEL} tradução=${TRANSLATE_MODEL}`);
   let totalGoogleEstimate = 0;
   let totalAiCallsEstimate = 0;
   for (const d of selection) {
@@ -450,17 +462,26 @@ async function runGenerate(opts: CurateOptions, selection: DestinationSeed[], lo
 
   const budget = new GoogleCallBudget(opts.maxGoogleCalls);
   const failedDestinations: string[] = [];
+  const totalByModel: Record<string, { promptTokens: number; completionTokens: number }> = {};
 
   for (const destination of selection) {
     logger.info(`\n=== ${destination.slug} ===`);
     try {
       const report = await runGenerateForDestination(destination, opts, db, budget, logger);
+      const destCost = estimateTotalCostUsd(report.aiStats.byModel);
       logger.info(
         `proposed=${report.proposed} verified=${report.verified} invalid=${report.invalidCount} discarded=${report.discarded.length} ` +
           `inserted=${report.inserted} skippedExisting=${report.skippedExisting} elapsedMs=${report.elapsedMs} ` +
           `aiCalls=${report.aiStats.calls} promptTokens=${report.aiStats.promptTokens} completionTokens=${report.aiStats.completionTokens} ` +
           `googleCalls=${report.googleCalls}`,
       );
+      logger.info(`  custo estimado (apenas tokens, NÃO inclui busca web nem Google): ${formatModelCostUsd(destCost)}`);
+      for (const [model, usage] of Object.entries(report.aiStats.byModel)) {
+        const acc = totalByModel[model] ?? { promptTokens: 0, completionTokens: 0 };
+        acc.promptTokens += usage.promptTokens;
+        acc.completionTokens += usage.completionTokens;
+        totalByModel[model] = acc;
+      }
       if (report.failedBatches.length) logger.info(`  failed batches: ${report.failedBatches.join(", ")}`);
       if (report.webSearchFallbackBatches.length) logger.info(`  batches without web search: ${report.webSearchFallbackBatches.join(", ")}`);
       if (report.missingGoals.length) logger.info(`  missing goals: ${report.missingGoals.join("; ")}`);
@@ -475,6 +496,9 @@ async function runGenerate(opts: CurateOptions, selection: DestinationSeed[], lo
   }
 
   if (db) await closeCurateDb();
+
+  const totalCost = estimateTotalCostUsd(totalByModel);
+  logger.info(`\nCusto total estimado (apenas tokens, NÃO inclui busca web nem Google): ${formatModelCostUsd(totalCost)}`);
 
   if (failedDestinations.length) {
     logger.info(`\nDestinos que falharam: ${failedDestinations.join(", ")}`);
@@ -567,13 +591,20 @@ async function runCheck(logger: CurateLogger): Promise<void> {
       if (!center) throw new Error("sem resultado");
     })) && allOk;
 
-  allOk =
-    (await checkItem(logger, "chamada mínima à Anthropic (modelo de pesquisa, sem busca web)", async () => {
-      await invokeLLM({ model: RESEARCH_MODEL, maxTokens: 20, messages: [{ role: "user", content: "Responda apenas: ok" }] });
-    })) && allOk;
+  const modelsToTest: { label: string; model: string }[] = [
+    { label: "pesquisa", model: RESEARCH_MODEL },
+    { label: "estruturação", model: STRUCTURE_MODEL },
+    { label: "tradução", model: TRANSLATE_MODEL },
+  ];
+  for (const { label, model } of modelsToTest) {
+    allOk =
+      (await checkItem(logger, `chamada mínima à Anthropic (modelo de ${label}: ${model})`, async () => {
+        await invokeLLM({ model, maxTokens: 20, messages: [{ role: "user", content: "Responda apenas: ok" }] });
+      })) && allOk;
+  }
 
   allOk =
-    (await checkItem(logger, "chamada mínima à Anthropic COM busca web habilitada", async () => {
+    (await checkItem(logger, `chamada mínima à Anthropic COM busca web habilitada (modelo de pesquisa: ${RESEARCH_MODEL})`, async () => {
       await invokeLLM({
         model: RESEARCH_MODEL,
         maxTokens: 200,

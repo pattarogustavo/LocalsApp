@@ -1,10 +1,11 @@
 import { invokeLLM, type InvokeResult } from "../../server/_core/llm";
 import { buildResearchPrompt, buildStructurePrompt, buildTranslatePrompt, type ResearchPromptParams, type TranslateBatchItem } from "./prompts";
-import { withRetry, isRetryableAnthropicError, getAnthropicRetryAfterMs } from "./retry";
+import { withRetry, isRetryableAnthropicError, getAnthropicRetryAfterMs, isWebSearchUnsupportedError } from "./retry";
 import { validateProposedPlaces, type RawProposedPlace, type ValidatedPlace } from "./validate-place";
 
-export const RESEARCH_MODEL = "claude-opus-5-5";
-export const TRANSLATE_MODEL = "claude-haiku-4-5-20251001";
+export const RESEARCH_MODEL = process.env.CURATE_RESEARCH_MODEL || "claude-sonnet-5";
+export const STRUCTURE_MODEL = process.env.CURATE_STRUCTURE_MODEL || "claude-haiku-4-5-20251001";
+export const TRANSLATE_MODEL = process.env.CURATE_TRANSLATE_MODEL || "claude-haiku-4-5-20251001";
 
 /** Long timeout for the web-search-enabled research call, which can take several minutes. */
 export const RESEARCH_TIMEOUT_MS = 5 * 60 * 1000;
@@ -54,20 +55,32 @@ const STRUCTURE_SCHEMA = {
   },
 } as const;
 
-export interface AiCallStats {
+export interface ModelUsage {
   calls: number;
   promptTokens: number;
   completionTokens: number;
 }
 
-export function newAiCallStats(): AiCallStats {
-  return { calls: 0, promptTokens: 0, completionTokens: 0 };
+export interface AiCallStats {
+  calls: number;
+  promptTokens: number;
+  completionTokens: number;
+  byModel: Record<string, ModelUsage>;
 }
 
-function trackUsage(stats: AiCallStats, usage: { prompt_tokens: number; completion_tokens: number } | undefined) {
+export function newAiCallStats(): AiCallStats {
+  return { calls: 0, promptTokens: 0, completionTokens: 0, byModel: {} };
+}
+
+function trackUsage(stats: AiCallStats, model: string, usage: { prompt_tokens: number; completion_tokens: number } | undefined) {
   stats.calls += 1;
   stats.promptTokens += usage?.prompt_tokens ?? 0;
   stats.completionTokens += usage?.completion_tokens ?? 0;
+  const perModel = stats.byModel[model] ?? { calls: 0, promptTokens: 0, completionTokens: 0 };
+  perModel.calls += 1;
+  perModel.promptTokens += usage?.prompt_tokens ?? 0;
+  perModel.completionTokens += usage?.completion_tokens ?? 0;
+  stats.byModel[model] = perModel;
 }
 
 function isTruncated(result: InvokeResult): boolean {
@@ -106,13 +119,19 @@ export async function researchBatch(params: ResearchPromptParams, stats: AiCallS
 
   try {
     const result = await callOnce(true);
-    trackUsage(stats, result.usage);
+    trackUsage(stats, RESEARCH_MODEL, result.usage);
     const content = result.choices[0]?.message.content;
     return { text: typeof content === "string" ? content : "", truncated: isTruncated(result), usedWebSearch: true };
-  } catch {
-    // Web search exhausted its retries — one last attempt without it.
+  } catch (err) {
+    if (isWebSearchUnsupportedError(err)) {
+      throw new Error(
+        `O modelo de pesquisa configurado (CURATE_RESEARCH_MODEL=${RESEARCH_MODEL}) não suporta a ferramenta de busca web. ` +
+          `Escolha um modelo que suporte web search — não haverá troca automática de modelo.`,
+      );
+    }
+    // Web search exhausted its retries for a transient reason — one last attempt without it.
     const result = await callOnce(false);
-    trackUsage(stats, result.usage);
+    trackUsage(stats, RESEARCH_MODEL, result.usage);
     const content = result.choices[0]?.message.content;
     return { text: typeof content === "string" ? content : "", truncated: isTruncated(result), usedWebSearch: false };
   }
@@ -129,6 +148,7 @@ export async function structureBatch(researchText: string, stats: AiCallStats): 
   const result = await withRetry(
     () =>
       invokeLLM({
+        model: STRUCTURE_MODEL,
         outputSchema: STRUCTURE_SCHEMA,
         timeoutMs: STRUCTURE_TIMEOUT_MS,
         maxTokens: 8192,
@@ -136,7 +156,7 @@ export async function structureBatch(researchText: string, stats: AiCallStats): 
       }),
     CALL_RETRY_OPTIONS,
   );
-  trackUsage(stats, result.usage);
+  trackUsage(stats, STRUCTURE_MODEL, result.usage);
 
   const content = result.choices[0]?.message.content;
   const truncated = isTruncated(result);
@@ -203,7 +223,7 @@ export async function translateBatch(destinationName: string, items: TranslateBa
       }),
     CALL_RETRY_OPTIONS,
   );
-  trackUsage(stats, result.usage);
+  trackUsage(stats, TRANSLATE_MODEL, result.usage);
   const content = result.choices[0]?.message.content;
   const truncated = isTruncated(result);
   if (typeof content !== "string" || !content) return { translations: [], truncated };

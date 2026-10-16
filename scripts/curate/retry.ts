@@ -73,6 +73,14 @@ export function isRetryableGoogleError(err: unknown): boolean {
   return typeof status === "string" && RETRYABLE_GOOGLE_STATUSES.has(status);
 }
 
+/** Matches an Anthropic 400 complaining that the model doesn't support the web_search tool — never retryable, never worth silently falling back on. */
+export function isWebSearchUnsupportedError(err: unknown): boolean {
+  const status = (err as { status?: number })?.status;
+  if (status !== 400) return false;
+  const message = (err as { message?: string; error?: { error?: { message?: string } } })?.message ?? (err as { error?: { error?: { message?: string } } })?.error?.error?.message ?? "";
+  return /web_search|web search/i.test(message);
+}
+
 /** Wraps a Google status string in an Error so isRetryableGoogleError can recognize it uniformly. */
 export class GoogleApiStatusError extends Error {
   googleStatus: string;
