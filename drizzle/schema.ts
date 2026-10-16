@@ -194,7 +194,8 @@ export const catalogRequests = pgTable("catalog_requests", {
   /** normalizeDestinationName() output — lowercased, accent-stripped, punctuation-stripped. */
   destinationNormalized: varchar("destinationNormalized", { length: 255 }).notNull(),
   destinationName: text("destinationName").notNull(),
-  country: text("country"),
+  /** Empty string (never NULL) when the app didn't send a country — a NULL would make the unique constraint below treat every such row as distinct. */
+  country: text("country").default("").notNull(),
   /** Language of the most recent request for this destination (not part of the identity key). */
   language: varchar("language", { length: 8 }),
   count: integer("count").default(1).notNull(),

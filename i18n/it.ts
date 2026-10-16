@@ -337,6 +337,7 @@ export const it: Translations = {
     errorTitle: 'Impossibile caricare i suggerimenti',
     errorMessage: 'Controlla la tua connessione e riprova.',
     retry: 'Riprova',
+    showMore: 'Mostra altro',
     categories: {
       all: 'Tutti',
       restaurant: 'Ristoranti',

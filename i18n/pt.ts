@@ -342,6 +342,7 @@ export const pt = {
     errorTitle: 'Não foi possível carregar sugestões',
     errorMessage: 'Verifique sua conexão e tente novamente.',
     retry: 'Tentar de novo',
+    showMore: 'Ver mais',
     categories: {
       all: 'Todos',
       restaurant: 'Restaurantes',

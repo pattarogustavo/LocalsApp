@@ -331,6 +331,7 @@ export const es: Translations = {
     errorTitle: 'No se pudieron cargar las sugerencias',
     errorMessage: 'Verifica tu conexión e intenta de nuevo.',
     retry: 'Intentar de nuevo',
+    showMore: 'Ver más',
     categories: {
       all: 'Todos',
       restaurant: 'Restaurantes',

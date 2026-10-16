@@ -2,7 +2,7 @@ CREATE TABLE "catalog_requests" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"destinationNormalized" varchar(255) NOT NULL,
 	"destinationName" text NOT NULL,
-	"country" text,
+	"country" text DEFAULT '' NOT NULL,
 	"language" varchar(8),
 	"count" integer DEFAULT 1 NOT NULL,
 	"firstRequestedAt" timestamp DEFAULT now() NOT NULL,

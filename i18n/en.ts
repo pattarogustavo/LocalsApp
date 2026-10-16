@@ -337,6 +337,7 @@ export const en: Translations = {
     errorTitle: "Couldn't load suggestions",
     errorMessage: 'Check your connection and try again.',
     retry: 'Try again',
+    showMore: 'Show more',
     categories: {
       all: 'All',
       restaurant: 'Restaurants',

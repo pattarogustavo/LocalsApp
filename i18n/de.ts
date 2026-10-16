@@ -337,6 +337,7 @@ export const de: Translations = {
     errorTitle: 'Vorschläge konnten nicht geladen werden',
     errorMessage: 'Überprüfe deine Verbindung und versuche es erneut.',
     retry: 'Erneut versuchen',
+    showMore: 'Mehr anzeigen',
     categories: {
       all: 'All',
       restaurant: 'Restaurants',

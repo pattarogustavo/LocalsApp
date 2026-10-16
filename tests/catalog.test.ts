@@ -115,6 +115,51 @@ describe("catalog.findCatalogDestination — destination matching", () => {
   });
 });
 
+describe("catalog.recordCatalogMiss — never stores a NULL country", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    process.env.DATABASE_URL = "postgresql://user:pass@localhost:5432/test";
+  });
+
+  it("stores an empty string, not null, when no country was given", async () => {
+    const chain = createChain();
+    const fakeDb = { insert: vi.fn(() => chain) };
+    vi.doMock("drizzle-orm/postgres-js", () => ({ drizzle: () => fakeDb }));
+    const catalog = await import("../server/catalog");
+    await catalog.recordCatalogMiss("Nowhereville", undefined, "en");
+    const valuesCall = chain.calls.find((c: any[]) => c[0] === "values");
+    expect(valuesCall?.[1].country).toBe("");
+    expect(valuesCall?.[1].country).not.toBeNull();
+  });
+
+  it("trims a provided country", async () => {
+    const chain = createChain();
+    const fakeDb = { insert: vi.fn(() => chain) };
+    vi.doMock("drizzle-orm/postgres-js", () => ({ drizzle: () => fakeDb }));
+    const catalog = await import("../server/catalog");
+    await catalog.recordCatalogMiss("Paris", "  France  ", "fr");
+    const valuesCall = chain.calls.find((c: any[]) => c[0] === "values");
+    expect(valuesCall?.[1].country).toBe("France");
+  });
+
+  it("upserts on conflict targeting (destinationNormalized, country) so a repeated miss increments count instead of inserting a duplicate row", async () => {
+    const chain = createChain();
+    const fakeDb = { insert: vi.fn(() => chain) };
+    vi.doMock("drizzle-orm/postgres-js", () => ({ drizzle: () => fakeDb }));
+    const catalog = await import("../server/catalog");
+    await catalog.recordCatalogMiss("Nowhereville", undefined, "en");
+    const conflictCall = chain.calls.find((c: any[]) => c[0] === "onConflictDoUpdate");
+    expect(conflictCall?.[1].target).toHaveLength(2);
+  });
+
+  it("never throws even if the database insert fails", async () => {
+    const fakeDb = { insert: vi.fn(() => { throw new Error("db down"); }) };
+    vi.doMock("drizzle-orm/postgres-js", () => ({ drizzle: () => fakeDb }));
+    const catalog = await import("../server/catalog");
+    await expect(catalog.recordCatalogMiss("X", "Y", "en")).resolves.toBeUndefined();
+  });
+});
+
 describe("catalog.toCompatCategory — old-app category compatibility (categoriesV2)", () => {
   beforeEach(() => {
     vi.resetModules();

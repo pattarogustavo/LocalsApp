@@ -337,6 +337,7 @@ export const fr: Translations = {
     errorTitle: 'Impossible de charger les suggestions',
     errorMessage: 'Vérifiez votre connexion et réessayez.',
     retry: 'Réessayer',
+    showMore: 'Voir plus',
     categories: {
       all: 'Tous',
       restaurant: 'Restaurants',

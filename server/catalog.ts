@@ -315,7 +315,10 @@ export async function recordCatalogMiss(destinationName: string, country: string
     const db = await getDb();
     if (!db) return;
     const destinationNormalized = normalizeDestinationName(destinationName);
-    const countryValue = country?.trim() || null;
+    // Never NULL: the unique constraint is on (destinationNormalized, country),
+    // and NULL != NULL in SQL would make every country-less request for the
+    // same destination insert a new row instead of incrementing count.
+    const countryValue = country?.trim() ?? "";
     await db
       .insert(catalogRequests)
       .values({

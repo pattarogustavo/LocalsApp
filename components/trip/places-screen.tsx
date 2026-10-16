@@ -79,6 +79,12 @@ const CATEGORY_ICONS: Record<string, string> = {
   other: 'location-outline',
 };
 
+// How many AI-suggested places are rendered (and eligible for the
+// places.catalogDetails backfill) at a time in AIPanel, before the user
+// taps "Show more" — keeps Google Place Details calls bounded to what's
+// actually visible instead of the whole suggestion list.
+const VISIBLE_PAGE_SIZE = 24;
+
 // Category keys only (excludes 'all'), for logic that doesn't need the
 // translated label — e.g. grouping places by category.
 const CATEGORY_KEYS = ['attraction', 'restaurant', 'cafe', 'museum', 'park', 'beach', 'market', 'neighborhood', 'hidden_gem', 'other'];
@@ -397,6 +403,11 @@ function AIPanel({
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  // How many of the filtered suggestions are currently rendered — caps the
+  // places.catalogDetails backfill to what's actually on screen, instead of
+  // chasing the whole suggestion list. Grows by VISIBLE_PAGE_SIZE only on an
+  // explicit "Show more" tap.
+  const [visibleCount, setVisibleCount] = useState(VISIBLE_PAGE_SIZE);
   const fetchedRef = useRef(false);
   const detailsFetchedRef = useRef<Set<string>>(new Set());
   const updateDestinationSuggestedPlaces = useTripsStore((s) => s.updateDestinationSuggestedPlaces);
@@ -438,11 +449,28 @@ function AIPanel({
     }
   }, [destination.name, destination.country, destination.id, destination.lat, destination.lng, tripId, preferredLanguage]);
 
-  // Backfill address/photo (from Google, via place_id) for catalog-sourced
-  // suggestions that came back without them — in batches of up to 12, as
-  // places.catalogDetails caps its input size.
+  const filtered = useMemo(() => {
+    return suggestions.filter((p) => {
+      const matchCat = activeCategory === 'all' || p.category === activeCategory;
+      const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+      return matchCat && matchSearch;
+    });
+  }, [suggestions, activeCategory, searchQuery]);
+
+  // Changing category/search starts a fresh "page" of results.
   useEffect(() => {
-    const needsDetails = suggestions.filter(
+    setVisibleCount(VISIBLE_PAGE_SIZE);
+  }, [activeCategory, searchQuery]);
+
+  const visiblePlaces = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+
+  // Backfill address/photo (from Google, via place_id) for catalog-sourced
+  // suggestions that came back without them — but ONLY for places currently
+  // rendered (visiblePlaces), in batches of up to 12 (places.catalogDetails'
+  // input cap). Scrolling past the first page never fetches more on its
+  // own — only an explicit "Show more" tap (which grows visibleCount) does.
+  useEffect(() => {
+    const needsDetails = visiblePlaces.filter(
       (p) => p.placeId && !detailsFetchedRef.current.has(p.placeId) && (!p.imageUrl || !p.address)
     );
     if (needsDetails.length === 0) return;
@@ -471,7 +499,7 @@ function AIPanel({
         console.error('[places.catalogDetails] batch fetch error:', e);
       }
     })();
-  }, [suggestions, preferredLanguage]);
+  }, [visiblePlaces, preferredLanguage]);
 
   // Auto-load on mount: a cached result is always shown (viewing isn't a
   // write action), regardless of role or subscription. Only triggering a
@@ -507,14 +535,6 @@ function AIPanel({
       </View>
     );
   }
-
-  const filtered = useMemo(() => {
-    return suggestions.filter((p) => {
-      const matchCat = activeCategory === 'all' || p.category === activeCategory;
-      const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.description || '').toLowerCase().includes(searchQuery.toLowerCase());
-      return matchCat && matchSearch;
-    });
-  }, [suggestions, activeCategory, searchQuery]);
 
   const isAdded = (place: Place) =>
     addedPlaces.some((p) => (place.placeId && p.placeId === place.placeId) || p.name === place.name);
@@ -568,7 +588,7 @@ function AIPanel({
 
   return (
     <View>
-      {filtered.map((place) => (
+      {visiblePlaces.map((place) => (
         <AvailPlaceRow
           key={place.id}
           place={place}
@@ -582,6 +602,14 @@ function AIPanel({
           canEdit={canEdit}
         />
       ))}
+      {filtered.length > visibleCount && (
+        <TouchableOpacity
+          onPress={() => setVisibleCount((c) => c + VISIBLE_PAGE_SIZE)}
+          style={styles.showMoreBtn}
+        >
+          <Text style={styles.showMoreBtnText}>{t.places.showMore}</Text>
+        </TouchableOpacity>
+      )}
       {selectedPlace && (
         <PlaceDetailModal
           place={selectedPlace}
@@ -1239,6 +1267,14 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     backgroundColor: withAlpha(colors.primary, 0.10),
     alignItems: 'center', justifyContent: 'center',
   },
+  showMoreBtn: {
+    alignSelf: 'center',
+    paddingVertical: 10, paddingHorizontal: 20,
+    borderRadius: 18,
+    backgroundColor: withAlpha(colors.primary, 0.10),
+    marginTop: 4,
+  },
+  showMoreBtnText: { color: colors.textAccent, fontSize: 13, fontWeight: '600' },
   destAiBlock: { marginBottom: 16 },
 
   // AI locked state (non-subscribers)
