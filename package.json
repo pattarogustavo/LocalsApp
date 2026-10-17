@@ -23,7 +23,8 @@
     "curate:verify": "tsx scripts/curate-destinations.ts verify",
     "curate:translate": "tsx scripts/curate-destinations.ts translate",
     "curate:export": "tsx scripts/curate-destinations.ts export",
-    "curate:add": "tsx scripts/curate-destinations.ts add"
+    "curate:add": "tsx scripts/curate-destinations.ts add",
+    "curate:import": "tsx scripts/curate-import.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

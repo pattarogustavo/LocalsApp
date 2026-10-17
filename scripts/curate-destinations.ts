@@ -2,9 +2,9 @@ import "./load-env.js";
 
 import fs from "node:fs";
 import path from "node:path";
-import readline from "node:readline/promises";
 
 import { parseArgs, SMOKE_DEFAULT_SLUG, type CurateOptions } from "./curate/cli-args";
+import { confirmDatabaseWrite } from "./curate/confirm";
 import { DESTINATIONS, countryNameFor, getDestinationsBySlug, getPilotDestinations, type DestinationSeed } from "./data/destinations";
 import {
   TIER_GOALS,
@@ -56,7 +56,6 @@ import { acquireLock } from "./curate/lock";
 import {
   getCurateDb,
   closeCurateDb,
-  maskDatabaseHost,
   assertCuratedTablesExist,
   runPreflightWriteCheck,
   upsertDestinationMeta,
@@ -81,19 +80,6 @@ function resolveSelection(opts: CurateOptions): DestinationSeed[] {
   if (opts.only) return getDestinationsBySlug(opts.only);
   if (opts.pilot) return getPilotDestinations();
   return DESTINATIONS.filter((d) => (d.status ?? "active") === "active");
-}
-
-async function confirmDatabaseWrite(opts: CurateOptions): Promise<void> {
-  if (opts.yes || opts.dryRun) return;
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL is required");
-  console.log(`\nThis will write to database host: ${maskDatabaseHost(connectionString)}`);
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await rl.question('Type "sim" to continue: ');
-  rl.close();
-  if (answer.trim().toLowerCase() !== "sim") {
-    throw new Error("Aborted: confirmation not given.");
-  }
 }
 
 // ─── batch execution (shared by generate and smoke) ────────────────────────

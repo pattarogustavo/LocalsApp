@@ -1,0 +1,46 @@
+{
+  "destination": {
+    "slug": "porto-pt",
+    "nameEn": "Porto",
+    "namePt": "Porto",
+    "country": "Portugal",
+    "countryCode": "PT",
+    "tier": "medium"
+  },
+  "places": [
+    {
+      "name": "Livraria Lello",
+      "neighborhood": "Baixa",
+      "category": "attraction",
+      "tags": ["culture", "art"],
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Uma das livrarias mais bonitas do mundo, com escadas neogóticas e vitrais coloridos.",
+        "en": "One of the world's most beautiful bookstores, with a neo-Gothic staircase and stained-glass skylight."
+      }
+    },
+    {
+      "name": "Mercado do Bolhão",
+      "neighborhood": "Baixa",
+      "tags": ["gastronomy", "shopping"],
+      "confidence": "medium",
+      "descriptions": {
+        "en": "A restored 1914 market hall with local produce, flowers and food stalls."
+      }
+    },
+    {
+      "name": "Cantinho do Avillez",
+      "neighborhood": "Baixa",
+      "category": "restaurant",
+      "tags": ["gastronomy"],
+      "priceTier": "moderate",
+      "meals": ["lunch", "dinner"],
+      "cuisine": "Portuguese",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Petiscos e pratos portugueses contemporâneos do chef Avillez, em ambiente informal.",
+        "en": "Contemporary Portuguese petiscos and dishes by chef Avillez, in a casual setting."
+      }
+    }
+  ]
+}
