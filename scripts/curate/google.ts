@@ -91,6 +91,8 @@ export async function findPlaceMatches(
   destinationName: string,
   center: { lat: number; lng: number },
   budget: GoogleCallBudget,
+  /** Google Places `language` param (e.g. "pt", "es") — omit for the default (effectively English) search. Used to retry a search in the destination's local language when the default-language result didn't match (see scripts/curate/match-google.ts resolvePlace). */
+  language?: string,
 ): Promise<GoogleMatch[]> {
   if (!GOOGLE_PLACES_KEY) throw new Error("GOOGLE_PLACES_API_KEY is not configured");
   budget.consume();
@@ -100,6 +102,7 @@ export async function findPlaceMatches(
   url.searchParams.set("inputtype", "textquery");
   url.searchParams.set("fields", "place_id,name,geometry,business_status,types");
   url.searchParams.set("locationbias", `point:${center.lat},${center.lng}`);
+  if (language) url.searchParams.set("language", language);
   url.searchParams.set("key", GOOGLE_PLACES_KEY);
   const data = await fetchGoogleJson(url.toString());
   const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
@@ -114,6 +117,50 @@ export async function findPlaceMatches(
       lng: loc.lng,
       businessStatus: candidate.business_status,
       types: Array.isArray(candidate.types) ? candidate.types : [],
+    });
+  }
+  return matches;
+}
+
+/**
+ * Text Search fallback for when findplacefromtext keeps returning an
+ * address/intersection-shaped result for a real place (plazas, alleys,
+ * monuments: "Puerta del Sol", "Arc de Triomphe", "Beco do Batman", ...).
+ * Biased toward the destination center via `location`/`radius`, optionally
+ * restricted to a Google place `type` derived from the place's category
+ * (see googleTypeForCategory) — never called on the first attempt, only as
+ * a retry from scripts/curate/match-google.ts resolvePlace.
+ */
+export async function findPlaceMatchesByTextSearch(
+  name: string,
+  destinationName: string,
+  center: { lat: number; lng: number },
+  budget: GoogleCallBudget,
+  type?: string,
+  language?: string,
+): Promise<GoogleMatch[]> {
+  if (!GOOGLE_PLACES_KEY) throw new Error("GOOGLE_PLACES_API_KEY is not configured");
+  budget.consume();
+  const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
+  url.searchParams.set("query", `${name}, ${destinationName}`);
+  url.searchParams.set("location", `${center.lat},${center.lng}`);
+  url.searchParams.set("radius", "20000");
+  if (type) url.searchParams.set("type", type);
+  if (language) url.searchParams.set("language", language);
+  url.searchParams.set("key", GOOGLE_PLACES_KEY);
+  const data = await fetchGoogleJson(url.toString());
+  const results = Array.isArray(data?.results) ? data.results : [];
+  const matches: GoogleMatch[] = [];
+  for (const result of results) {
+    const loc = result?.geometry?.location;
+    if (!result?.place_id || typeof loc?.lat !== "number" || typeof loc?.lng !== "number") continue;
+    matches.push({
+      placeId: result.place_id,
+      name: result.name,
+      lat: loc.lat,
+      lng: loc.lng,
+      businessStatus: result.business_status,
+      types: Array.isArray(result.types) ? result.types : [],
     });
   }
   return matches;

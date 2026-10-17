@@ -1,7 +1,7 @@
 import type { GeoPoint } from "./distance";
 import type { GoogleMatch } from "./google";
 import { namesReasonablyMatch } from "./normalize";
-import { pickVerifiedCandidate } from "./match-google";
+import { pickVerifiedCandidate, localLanguageForCountry } from "./match-google";
 import type { DiscardReasonCounts } from "./verify";
 import type { ValidatedPlace, InvalidPlaceExample } from "./validate-place";
 
@@ -27,21 +27,32 @@ export interface ManualMatchSummary {
  * exact same verification as the main generate flow (place_id/types,
  * distance to center, businessStatus, name) and always allowing a
  * neighborhood/sublocality result — manually-picked icons (Covent Garden,
- * Notting Hill, ...) are themselves often neighborhoods.
+ * Notting Hill, ...) are themselves often neighborhoods. When `countryCode`
+ * is given and the first (default-language) search finds no accepted
+ * match, retries the search once in the destination country's local
+ * language (e.g. "Torre de Belém" vs. Google's "Belém Tower") before giving
+ * up — see scripts/curate/match-google.ts for the shared language mapping.
  */
 export async function matchManualNames(
   names: string[],
-  findMatches: (name: string) => Promise<GoogleMatch[]>,
+  findMatches: (name: string, language?: string) => Promise<GoogleMatch[]>,
   center: GeoPoint,
   maxDistanceKm: number,
   discardCounts: DiscardReasonCounts,
+  countryCode?: string,
 ): Promise<ManualMatchSummary> {
   const accepted: ManualAddAcceptedMatch[] = [];
   const rejected: ManualAddRejection[] = [];
 
   for (const name of names) {
     const candidates = await findMatches(name);
-    const outcome = pickVerifiedCandidate(name, candidates, center, maxDistanceKm, true, discardCounts);
+    let outcome = pickVerifiedCandidate([name], candidates, center, maxDistanceKm, true, discardCounts);
+
+    if (!outcome.accepted && countryCode) {
+      const retryCandidates = await findMatches(name, localLanguageForCountry(countryCode));
+      outcome = pickVerifiedCandidate([name], retryCandidates, center, maxDistanceKm, true, discardCounts);
+    }
+
     if (outcome.accepted) {
       accepted.push({ name, googlePlaceId: outcome.googlePlaceId, googleName: outcome.googleName });
     } else {

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { extractJsonObject, parseImportFileContent, ImportParseError } from "../scripts/curate/import-json";
+import {
+  extractJsonObject,
+  parseImportFileContent,
+  resolveCityDestination,
+  ImportParseError,
+  type DestinationSeedForSlugMatch,
+} from "../scripts/curate/import-json";
 
 const SINGLE_CITY = `{
   "destination": { "slug": "porto-pt", "nameEn": "Porto", "namePt": "Porto", "country": "Portugal", "countryCode": "PT", "tier": "medium" },
@@ -76,5 +82,80 @@ describe("parseImportFileContent", () => {
 
   it("rejects a city block missing destination or places", () => {
     expect(() => parseImportFileContent(`{ "cities": [ { "places": [] } ] }`)).toThrow(ImportParseError);
+  });
+});
+
+const SEEDS: DestinationSeedForSlugMatch[] = [
+  { slug: "lisbon-pt", nameEn: "Lisbon", namePt: "Lisboa", countryCode: "PT", tier: "large" },
+  { slug: "porto-pt", nameEn: "Porto", namePt: "Porto", countryCode: "PT", tier: "medium" },
+];
+
+describe("resolveCityDestination", () => {
+  it("uses a given non-empty slug as-is", () => {
+    const result = resolveCityDestination({ slug: "lisbon-pt", nameEn: "Lisbon", namePt: "Lisboa", country: "Portugal", countryCode: "PT", tier: "large" }, SEEDS);
+    expect(result).toEqual({
+      ok: true,
+      destination: { slug: "lisbon-pt", nameEn: "Lisbon", namePt: "Lisboa", country: "Portugal", countryCode: "PT", tier: "large", slugInferred: false },
+    });
+  });
+
+  it("fails cleanly (not a crash) when slug is missing and there's nothing to infer it from", () => {
+    const result = resolveCityDestination({ country: "Nowhere" }, SEEDS);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/slug is missing/);
+  });
+
+  it("fails cleanly when slug is explicitly undefined (the real-world crash trigger)", () => {
+    const result = resolveCityDestination({ slug: undefined, nameEn: undefined }, SEEDS);
+    expect(result.ok).toBe(false);
+  });
+
+  it("infers the slug by matching nameEn + countryCode against known destinations", () => {
+    const result = resolveCityDestination({ nameEn: "Lisbon", country: "Portugal", countryCode: "PT", tier: "large" }, SEEDS);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.destination.slug).toBe("lisbon-pt");
+      expect(result.destination.slugInferred).toBe(true);
+    }
+  });
+
+  it("infers the slug by matching namePt, ignoring accents/case", () => {
+    const result = resolveCityDestination({ namePt: "LISBOA", countryCode: "pt" }, SEEDS);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.destination.slug).toBe("lisbon-pt");
+  });
+
+  it("infers the slug from the generic 'name' field", () => {
+    const result = resolveCityDestination({ name: "Porto", countryCode: "PT" }, SEEDS);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.destination.slug).toBe("porto-pt");
+  });
+
+  it("fails when name+country match no known destination", () => {
+    const result = resolveCityDestination({ nameEn: "Nowhereville", countryCode: "ZZ" }, SEEDS);
+    expect(result.ok).toBe(false);
+  });
+
+  it("fails when name alone (no countryCode) matches ambiguously is not the case here, but a name mismatch across countries must not false-match", () => {
+    const result = resolveCityDestination({ nameEn: "Lisbon", countryCode: "ZZ" }, SEEDS);
+    expect(result.ok).toBe(false);
+  });
+
+  it("falls back the tier to the matched seed's tier when the given tier is invalid", () => {
+    const result = resolveCityDestination({ slug: "lisbon-pt", tier: "gigantic" }, SEEDS);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.destination.tier).toBe("large");
+  });
+
+  it("falls back the tier to 'large' for a brand-new destination with an invalid tier", () => {
+    const result = resolveCityDestination({ slug: "new-city-xx", nameEn: "New City", country: "Nowhere", countryCode: "XX", tier: "bogus" }, SEEDS);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.destination.tier).toBe("large");
+  });
+
+  it("keeps a valid given tier for a brand-new destination", () => {
+    const result = resolveCityDestination({ slug: "new-city-xx", nameEn: "New City", country: "Nowhere", countryCode: "XX", tier: "small" }, SEEDS);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.destination.tier).toBe("small");
   });
 });

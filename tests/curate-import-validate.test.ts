@@ -96,6 +96,30 @@ describe("validateImportPlace", () => {
     expect(result.valid).toBe(false);
   });
 
+  it("accepts an altNames list and trims it", () => {
+    const result = validateImportPlace(raw({ altNames: [" Belem Tower ", "Belém Tower"] }));
+    expect(result.valid).toBe(true);
+    expect(result.place?.altNames).toEqual(["Belem Tower", "Belém Tower"]);
+  });
+
+  it("defaults altNames to an empty array when absent", () => {
+    const result = validateImportPlace(raw({ altNames: undefined }));
+    expect(result.valid).toBe(true);
+    expect(result.place?.altNames).toEqual([]);
+  });
+
+  it("drops non-string/empty entries from altNames instead of rejecting the place", () => {
+    const result = validateImportPlace(raw({ altNames: ["Real Name", "", 42, null] as unknown as string[] }));
+    expect(result.valid).toBe(true);
+    expect(result.place?.altNames).toEqual(["Real Name"]);
+  });
+
+  it("rejects a non-array altNames", () => {
+    const result = validateImportPlace(raw({ altNames: "Not An Array" as unknown as string[] }));
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("altNames"))).toBe(true);
+  });
+
   it("keeps priceTier/meals/cuisine when valid", () => {
     const result = validateImportPlace(
       raw({ category: "restaurant", priceTier: "moderate", meals: ["lunch", "dinner"], cuisine: "Portuguese" }),

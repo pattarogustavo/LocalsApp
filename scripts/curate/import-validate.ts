@@ -18,6 +18,8 @@ const DESCRIPTION_LANGS: DescriptionLang[] = ["pt", "en", "es", "fr", "de", "it"
 
 export interface ImportValidatedPlace {
   name: string;
+  /** Alternative names (e.g. the same place in another language) — any of them matching Google's result is enough; see pickVerifiedCandidate. */
+  altNames: string[];
   neighborhood?: string;
   /** undefined when the input gave no usable category — resolved later from Google's types. */
   category?: ImportCategory;
@@ -65,6 +67,15 @@ export function validateImportPlace(raw: ImportRawPlace): ImportValidationResult
   if (!isNonEmptyString(raw.name)) errors.push("name is missing or empty");
   if (raw.neighborhood != null && typeof raw.neighborhood !== "string") errors.push("neighborhood is not a string");
 
+  let altNames: string[] = [];
+  if (raw.altNames != null) {
+    if (!Array.isArray(raw.altNames)) {
+      errors.push("altNames is not an array");
+    } else {
+      altNames = raw.altNames.filter((n): n is string => typeof n === "string" && n.trim().length > 0).map((n) => n.trim());
+    }
+  }
+
   const normalized = normalizeRawPlace(raw as RawProposedPlace, { lenientCategory: true });
 
   let category: ImportCategory | undefined;
@@ -93,6 +104,7 @@ export function validateImportPlace(raw: ImportRawPlace): ImportValidationResult
     errors: [],
     place: {
       name: (raw.name as string).trim(),
+      altNames,
       neighborhood: typeof raw.neighborhood === "string" ? raw.neighborhood : undefined,
       category,
       tags,

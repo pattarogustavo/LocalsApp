@@ -7,16 +7,20 @@
  */
 
 export interface ImportDestinationBlock {
-  slug: string;
-  nameEn: string;
-  namePt: string;
-  country: string;
-  countryCode: string;
-  tier: string;
+  slug?: unknown;
+  nameEn?: unknown;
+  namePt?: unknown;
+  /** Generic alternative to nameEn/namePt, accepted only for slug inference below. */
+  name?: unknown;
+  country?: unknown;
+  countryCode?: unknown;
+  tier?: unknown;
 }
 
 export interface ImportRawPlace {
   name?: unknown;
+  /** Alternative names (e.g. the same place in another language) — any of them matching Google's result is enough to accept a candidate. */
+  altNames?: unknown;
   neighborhood?: unknown;
   category?: unknown;
   tags?: unknown;
@@ -154,4 +158,115 @@ export function parseImportFileContent(raw: string): ParsedImportFile {
     return { cities: [toCityBlock(data)] };
   }
   throw new ImportParseError('expected { destination, places } or { cities: [...] }');
+}
+
+// ─── destination slug resolution/validation ─────────────────────────────────
+
+export const VALID_DESTINATION_TIERS = ["mega", "large", "medium", "small"] as const;
+
+export interface DestinationSeedForSlugMatch {
+  slug: string;
+  nameEn: string;
+  namePt: string;
+  countryCode: string;
+  tier: string;
+}
+
+export interface ResolvedCityDestination {
+  slug: string;
+  nameEn: string;
+  namePt: string;
+  country: string;
+  countryCode: string;
+  tier: string;
+  /** True when the file gave no slug at all and it was inferred by matching name + countryCode against known destinations. */
+  slugInferred: boolean;
+}
+
+export type ResolveCityDestinationResult = { ok: true; destination: ResolvedCityDestination } | { ok: false; reason: string };
+
+function stripAccentsLower(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+/**
+ * Resolves (and validates) a city block's destination identity. A
+ * non-empty `slug` is used as given. A missing one is inferred by matching
+ * nameEn/namePt/name (accent- and case-insensitive) plus countryCode
+ * against `seeds` (normally destinations.ts) — but only when that narrows
+ * to exactly one destination; zero or several matches is reported as a
+ * failure instead of guessing. An invalid or missing `tier` falls back to
+ * the matched seed's tier (existing destination) or "large" (brand-new
+ * one) rather than failing the whole city over a cosmetic field.
+ */
+export function resolveCityDestination(raw: ImportDestinationBlock, seeds: DestinationSeedForSlugMatch[]): ResolveCityDestinationResult {
+  const nameEn = asString(raw.nameEn);
+  const namePt = asString(raw.namePt);
+  const name = asString(raw.name);
+  const country = asString(raw.country) ?? "";
+  const countryCode = asString(raw.countryCode)?.toUpperCase();
+  const rawTier = asString(raw.tier);
+  const givenSlug = asString(raw.slug);
+
+  if (givenSlug) {
+    const seed = seeds.find((s) => s.slug === givenSlug);
+    const tier = rawTier && (VALID_DESTINATION_TIERS as readonly string[]).includes(rawTier) ? rawTier : seed?.tier ?? "large";
+    return {
+      ok: true,
+      destination: {
+        slug: givenSlug,
+        nameEn: nameEn ?? seed?.nameEn ?? givenSlug,
+        namePt: namePt ?? seed?.namePt ?? givenSlug,
+        country,
+        countryCode: countryCode ?? seed?.countryCode ?? "",
+        tier,
+        slugInferred: false,
+      },
+    };
+  }
+
+  const candidateNames = [nameEn, namePt, name].filter((n): n is string => !!n).map(stripAccentsLower);
+  if (candidateNames.length === 0) {
+    return { ok: false, reason: "destination.slug is missing, and no nameEn/namePt/name was given to infer it from" };
+  }
+
+  const matches = seeds.filter((seed) => {
+    if (countryCode && seed.countryCode.toUpperCase() !== countryCode) return false;
+    const seedNames = [stripAccentsLower(seed.nameEn), stripAccentsLower(seed.namePt)];
+    return candidateNames.some((n) => seedNames.includes(n));
+  });
+
+  if (matches.length !== 1) {
+    const label = `nameEn=${nameEn ?? "?"}, namePt=${namePt ?? "?"}, countryCode=${countryCode ?? "?"}`;
+    return {
+      ok: false,
+      reason:
+        matches.length === 0
+          ? `destination.slug is missing and no known destination matched (${label})`
+          : `destination.slug is missing and ${matches.length} destinations matched ambiguously (${label}): ${matches.map((m) => m.slug).join(", ")}`,
+    };
+  }
+
+  const seed = matches[0];
+  const tier = rawTier && (VALID_DESTINATION_TIERS as readonly string[]).includes(rawTier) ? rawTier : seed.tier;
+  return {
+    ok: true,
+    destination: {
+      slug: seed.slug,
+      nameEn: nameEn ?? seed.nameEn,
+      namePt: namePt ?? seed.namePt,
+      country,
+      countryCode: seed.countryCode,
+      tier,
+      slugInferred: true,
+    },
+  };
 }

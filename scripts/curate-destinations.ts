@@ -99,7 +99,7 @@ async function verifyOnePlace(
   allowNeighborhood: boolean,
 ): Promise<{ place: VerifiedPlace; reason?: never; googleName?: never } | { place?: never; reason: string; googleName?: string }> {
   const candidates = await findPlaceMatches(place.name, place.neighborhood, destination.nameEn, center, budget);
-  const outcome = pickVerifiedCandidate(place.name, candidates, center, MAX_DISTANCE_FROM_CENTER_KM, allowNeighborhood, discardCounts);
+  const outcome = pickVerifiedCandidate([place.name], candidates, center, MAX_DISTANCE_FROM_CENTER_KM, allowNeighborhood, discardCounts);
   if (!outcome.accepted) return { reason: outcome.reason, googleName: outcome.googleName };
   return { place: { ...place, googlePlaceId: outcome.googlePlaceId } as VerifiedPlace };
 }
@@ -847,10 +847,11 @@ async function runAdd(opts: CurateOptions, selection: DestinationSeed[], logger:
     const discardCounts = newDiscardReasonCounts();
     const { accepted, rejected } = await matchManualNames(
       names,
-      (name) => findPlaceMatches(name, undefined, destination.nameEn, center, budget),
+      (name, language) => findPlaceMatches(name, undefined, destination.nameEn, center, budget, language),
       center,
       MAX_DISTANCE_FROM_CENTER_KM,
       discardCounts,
+      destination.countryCode,
     );
     const dedupedAccepted = dedupeByPlaceId(accepted);
 

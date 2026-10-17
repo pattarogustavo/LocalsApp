@@ -8,11 +8,12 @@
 import type { GeoPoint } from "./distance";
 import type { GoogleMatch } from "./google";
 import type { DiscardReasonCounts } from "./verify";
-import { pickVerifiedCandidate } from "./match-google";
+import { resolvePlace } from "./match-google";
 import { dedupeByPlaceId } from "./dedupe";
 import { validateImportPlace } from "./import-validate";
 import { inferCategoryFromGoogleTypes } from "./import-category";
-import type { ImportCityBlock } from "./import-json";
+import type { ResolvedCityDestination } from "./import-json";
+import type { ImportRawPlace } from "./import-json";
 import type { Descriptions } from "./descriptions";
 
 // ─── destination resolution ─────────────────────────────────────────────────
@@ -46,20 +47,22 @@ export interface DestinationResolution {
 }
 
 /**
- * Resolves a city block's destination by slug: an existing entry (in
- * destinations.ts or the database) wins outright and the block's own
- * destination fields are ignored; a brand-new slug keeps the block's own
- * fields as-is. Doesn't resolve a Google place_id for a new destination —
- * the caller does that once it has the final nameEn/country, via the same
- * center lookup it needs for place matching anyway.
+ * Resolves an already-slug-identified destination (see
+ * scripts/curate/import-json.ts resolveCityDestination, which runs first
+ * and handles a missing/ambiguous slug) against destinations.ts and the
+ * database: an existing entry wins outright and the given fields are
+ * ignored; a brand-new slug keeps them as-is. Doesn't resolve a Google
+ * place_id for a new destination — the caller does that once it has the
+ * final nameEn/country, via the same center lookup it needs for place
+ * matching anyway.
  */
 export async function resolveDestinationForCity(
-  block: ImportCityBlock,
+  destination: ResolvedCityDestination,
   findExistingSeed: (slug: string) => ExistingDestinationSeed | undefined,
   findExistingDbRow: (slug: string) => Promise<ExistingDestinationRow | undefined>,
   countryNameFor: (countryCode: string) => string,
 ): Promise<DestinationResolution> {
-  const slug = block.destination.slug;
+  const slug = destination.slug;
 
   const seed = findExistingSeed(slug);
   if (seed) {
@@ -90,11 +93,11 @@ export async function resolveDestinationForCity(
 
   return {
     slug,
-    nameEn: block.destination.nameEn,
-    namePt: block.destination.namePt,
-    country: block.destination.country,
-    countryCode: block.destination.countryCode,
-    tier: block.destination.tier,
+    nameEn: destination.nameEn,
+    namePt: destination.namePt,
+    country: destination.country,
+    countryCode: destination.countryCode,
+    tier: destination.tier,
     isNew: true,
   };
 }
@@ -119,7 +122,8 @@ export interface ImportPlaceResolved {
 export interface ImportPlaceRejection {
   name: string;
   reason: string;
-  googleName?: string;
+  /** Every distinct name Google returned across every search attempt (default language, local-language retry, type retry) — so a false mismatch can be diagnosed in both languages when Google answered twice. */
+  googleNames: string[];
 }
 
 export interface ImportInvalidInput {
@@ -131,28 +135,41 @@ export interface ImportCityPlanResult {
   resolved: ImportPlaceResolved[];
   rejected: ImportPlaceRejection[];
   invalidInput: ImportInvalidInput[];
+  /** How many of `resolved` only matched thanks to the local-language retry. */
+  languageRetryAccepted: number;
+  /** How many of `resolved` only matched thanks to the type-biased Text Search retry. */
+  typeRetryAccepted: number;
+}
+
+export interface PlanCityPlacesDeps {
+  places: ImportRawPlace[];
+  destinationName: string;
+  countryCode: string;
+  center: GeoPoint;
+  maxDistanceKm: number;
+  discardCounts: DiscardReasonCounts;
+  /** findplacefromtext-style search: given every candidate name (place name + altNames) and an optional language override. */
+  findByText: (names: string[], neighborhood: string | undefined, language: string | undefined) => Promise<GoogleMatch[]>;
+  /** Text-Search-style search biased toward the destination center, with an optional Google `type` restriction. */
+  findByTextSearch: (names: string[], type: string | undefined) => Promise<GoogleMatch[]>;
 }
 
 /**
- * Validates every place in a city block, matches it against Google (trying
- * each candidate in turn via the same pickVerifiedCandidate rules as
- * curate:add/curate:generate — see scripts/curate/match-google.ts), infers
- * a missing category from Google's types, and dedupes the result by
- * googlePlaceId. A place with no usable Google match or that fails
- * validation is reported separately instead of aborting the batch.
+ * Validates every place in a city block, matches it against Google via
+ * resolvePlace (first search, then a local-language retry, then — only for
+ * an address-shaped rejection — a type-biased Text Search retry), infers a
+ * missing category from the matched candidate's Google types, and dedupes
+ * the result by googlePlaceId. A place with no usable Google match or that
+ * fails validation is reported separately instead of aborting the batch.
  */
-export async function planCityPlaces(
-  block: ImportCityBlock,
-  findMatches: (name: string, neighborhood: string | undefined) => Promise<GoogleMatch[]>,
-  center: GeoPoint,
-  maxDistanceKm: number,
-  discardCounts: DiscardReasonCounts,
-): Promise<ImportCityPlanResult> {
+export async function planCityPlaces(deps: PlanCityPlacesDeps): Promise<ImportCityPlanResult> {
   const rejected: ImportPlaceRejection[] = [];
   const invalidInput: ImportInvalidInput[] = [];
   const resolved: ImportPlaceResolved[] = [];
+  let languageRetryAccepted = 0;
+  let typeRetryAccepted = 0;
 
-  for (const raw of block.places) {
+  for (const raw of deps.places) {
     const result = validateImportPlace(raw);
     if (!result.valid || !result.place) {
       const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : "(sem nome)";
@@ -161,24 +178,39 @@ export async function planCityPlaces(
     }
 
     const place = result.place;
-    const candidates = await findMatches(place.name, place.neighborhood);
-    // Always allow a neighborhood/sublocality match: an imported place can itself be one (a district, a market square, ...).
-    const outcome = pickVerifiedCandidate(place.name, candidates, center, maxDistanceKm, true, discardCounts);
-    if (!outcome.accepted) {
-      rejected.push({ name: place.name, reason: outcome.reason, googleName: outcome.googleName });
+    const names = [place.name, ...place.altNames];
+
+    const resolution = await resolvePlace({
+      names,
+      neighborhood: place.neighborhood,
+      category: place.category,
+      countryCode: deps.countryCode,
+      center: deps.center,
+      maxDistanceKm: deps.maxDistanceKm,
+      // Always allow a neighborhood/sublocality match: an imported place can itself be one (a district, a market square, ...).
+      allowNeighborhood: true,
+      discardCounts: deps.discardCounts,
+      findByText: (n, neighborhood, language) => deps.findByText(n, neighborhood, language),
+      findByTextSearch: (n, type) => deps.findByTextSearch(n, type),
+    });
+
+    if (!resolution.outcome.accepted) {
+      rejected.push({ name: place.name, reason: resolution.outcome.reason, googleNames: resolution.seenGoogleNames });
       continue;
     }
 
+    if (resolution.usedLanguageRetry) languageRetryAccepted++;
+    if (resolution.usedTypeRetry) typeRetryAccepted++;
+
     let category = place.category;
     if (!category) {
-      const matchedCandidate = candidates.find((c) => c.placeId === outcome.googlePlaceId);
-      category = (matchedCandidate ? inferCategoryFromGoogleTypes(matchedCandidate.types) : undefined) ?? "other";
+      category = (resolution.matchedCandidate ? inferCategoryFromGoogleTypes(resolution.matchedCandidate.types) : undefined) ?? "other";
     }
 
     resolved.push({
       requestedName: place.name,
-      googlePlaceId: outcome.googlePlaceId,
-      googleName: outcome.googleName,
+      googlePlaceId: resolution.outcome.googlePlaceId,
+      googleName: resolution.outcome.googleName,
       category,
       neighborhood: place.neighborhood,
       tags: place.tags,
@@ -190,5 +222,5 @@ export async function planCityPlaces(
     });
   }
 
-  return { resolved: dedupeByPlaceId(resolved), rejected, invalidInput };
+  return { resolved: dedupeByPlaceId(resolved), rejected, invalidInput, languageRetryAccepted, typeRetryAccepted };
 }
