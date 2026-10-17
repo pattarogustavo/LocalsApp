@@ -1,0 +1,744 @@
+{
+  "destination": {
+    "slug": "sao-paulo-br",
+    "nameEn": "São Paulo",
+    "namePt": "São Paulo",
+    "country": "Brazil",
+    "countryCode": "BR",
+    "tier": "large"
+  },
+  "places": [
+    {
+      "name": "Museu de Arte de São Paulo Assis Chateaubriand",
+      "neighborhood": "Bela Vista",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museu de Arte de São Paulo Assis Chateaubriand e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Bela Vista sem pressa.",
+        "en": "Visit Museu de Arte de São Paulo Assis Chateaubriand and discover its collections and exhibitions. Allow time to explore the surrounding Bela Vista area at an easy pace."
+      }
+    },
+    {
+      "name": "Parque Ibirapuera",
+      "neighborhood": "Vila Mariana",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Parque Ibirapuera e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Vila Mariana sem pressa.",
+        "en": "Visit Parque Ibirapuera and discover its landscapes and paths. Allow time to explore the surrounding Vila Mariana area at an easy pace."
+      }
+    },
+    {
+      "name": "Pinacoteca de São Paulo",
+      "neighborhood": "Luz",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Pinacoteca de São Paulo e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Luz sem pressa.",
+        "en": "Visit Pinacoteca de São Paulo and discover its collections and exhibitions. Allow time to explore the surrounding Luz area at an easy pace."
+      }
+    },
+    {
+      "name": "Mercado Municipal de São Paulo",
+      "neighborhood": "Centro",
+      "category": "market",
+      "tags": [
+        "gastronomy",
+        "shopping"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Mercado Municipal de São Paulo e descubra seus bancas e sabores locais. Reserve um tempo para explorar a região de Centro sem pressa.",
+        "en": "Visit Mercado Municipal de São Paulo and discover its stalls and local flavors. Allow time to explore the surrounding Centro area at an easy pace."
+      }
+    },
+    {
+      "name": "Museu do Futebol",
+      "neighborhood": "Pacaembu",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museu do Futebol e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Pacaembu sem pressa.",
+        "en": "Visit Museu do Futebol and discover its collections and exhibitions. Allow time to explore the surrounding Pacaembu area at an easy pace."
+      }
+    },
+    {
+      "name": "Liberdade",
+      "neighborhood": "Liberdade",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Liberdade e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de Liberdade sem pressa.",
+        "en": "Visit Liberdade and discover its architecture and local life. Allow time to explore the surrounding Liberdade area at an easy pace."
+      }
+    },
+    {
+      "name": "Beco do Batman",
+      "neighborhood": "Vila Madalena",
+      "category": "hidden_gem",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Beco do Batman e descubra seus detalhes pouco conhecidos. Reserve um tempo para explorar a região de Vila Madalena sem pressa.",
+        "en": "Visit Beco do Batman and discover its lesser-known details. Allow time to explore the surrounding Vila Madalena area at an easy pace."
+      }
+    },
+    {
+      "name": "Casa das Rosas",
+      "neighborhood": "Bela Vista",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Casa das Rosas e explore seu acervo cultural. Aproveite para caminhar pela região de Bela Vista.",
+        "en": "Visit Casa das Rosas and explore its cultural collections. Take time to walk around the Bela Vista neighborhood."
+      }
+    },
+    {
+      "name": "Museu da Língua Portuguesa",
+      "neighborhood": "Luz",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museu da Língua Portuguesa e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Luz sem pressa.",
+        "en": "Visit Museu da Língua Portuguesa and discover its collections and exhibitions. Allow time to explore the surrounding Luz area at an easy pace."
+      }
+    },
+    {
+      "name": "Instituto Tomie Ohtake",
+      "neighborhood": "Pinheiros",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Instituto Tomie Ohtake e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Pinheiros sem pressa.",
+        "en": "Visit Instituto Tomie Ohtake and discover its collections and exhibitions. Allow time to explore the surrounding Pinheiros area at an easy pace."
+      }
+    },
+    {
+      "name": "Parque Villa-Lobos",
+      "neighborhood": "Alto de Pinheiros",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Parque Villa-Lobos e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Alto de Pinheiros sem pressa.",
+        "en": "Visit Parque Villa-Lobos and discover its landscapes and paths. Allow time to explore the surrounding Alto de Pinheiros area at an easy pace."
+      }
+    },
+    {
+      "name": "Jardim Botânico de São Paulo",
+      "neighborhood": "Água Funda",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Jardim Botânico de São Paulo e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Água Funda sem pressa.",
+        "en": "Visit Jardim Botânico de São Paulo and discover its landscapes and paths. Allow time to explore the surrounding Água Funda area at an easy pace."
+      }
+    },
+    {
+      "name": "Catedral da Sé de São Paulo",
+      "neighborhood": "Sé",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Catedral da Sé de São Paulo e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Sé sem pressa.",
+        "en": "Visit Catedral da Sé de São Paulo and discover its architecture and history. Allow time to explore the surrounding Sé area at an easy pace."
+      }
+    },
+    {
+      "name": "Theatro Municipal de São Paulo",
+      "neighborhood": "República",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Theatro Municipal de São Paulo e descubra seus arquitetura e história. Reserve um tempo para explorar a região de República sem pressa.",
+        "en": "Visit Theatro Municipal de São Paulo and discover its architecture and history. Allow time to explore the surrounding República area at an easy pace."
+      }
+    },
+    {
+      "name": "Farol Santander",
+      "neighborhood": "Centro",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Farol Santander e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Centro sem pressa.",
+        "en": "Visit Farol Santander and discover its architecture and history. Allow time to explore the surrounding Centro area at an easy pace."
+      }
+    },
+    {
+      "name": "Japan House São Paulo",
+      "neighborhood": "Bela Vista",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Japan House São Paulo e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Bela Vista sem pressa.",
+        "en": "Visit Japan House São Paulo and discover its collections and exhibitions. Allow time to explore the surrounding Bela Vista area at an easy pace."
+      }
+    },
+    {
+      "name": "Museu Afro Brasil Emanoel Araujo",
+      "neighborhood": "Ibirapuera",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museu Afro Brasil Emanoel Araujo e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Ibirapuera sem pressa.",
+        "en": "Visit Museu Afro Brasil Emanoel Araujo and discover its collections and exhibitions. Allow time to explore the surrounding Ibirapuera area at an easy pace."
+      }
+    },
+    {
+      "name": "Parque da Independência",
+      "neighborhood": "Ipiranga",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Parque da Independência e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Ipiranga sem pressa.",
+        "en": "Visit Parque da Independência and discover its landscapes and paths. Allow time to explore the surrounding Ipiranga area at an easy pace."
+      }
+    },
+    {
+      "name": "A Casa do Porco",
+      "neighborhood": "República",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do A Casa do Porco, em República. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at A Casa do Porco in República. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Mocotó",
+      "neighborhood": "Vila Medeiros",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Mocotó, em Vila Medeiros. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Mocotó in Vila Medeiros. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Tordesilhas",
+      "neighborhood": "Jardins",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Tordesilhas, em Jardins. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Tordesilhas in Jardins. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "D.O.M.",
+      "neighborhood": "Jardins",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do D.O.M., em Jardins. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at D.O.M. in Jardins. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Maní",
+      "neighborhood": "Jardim Paulistano",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Maní, em Jardim Paulistano. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Maní in Jardim Paulistano. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Jiquitaia",
+      "neighborhood": "Consolação",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Jiquitaia, em Consolação. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Jiquitaia in Consolação. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Bar da Dona Onça",
+      "neighborhood": "República",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Bar da Dona Onça, em República. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Bar da Dona Onça in República. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Dalva e Dito",
+      "neighborhood": "Jardins",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Dalva e Dito, em Jardins. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Dalva e Dito in Jardins. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Consulado da Bahia",
+      "neighborhood": "Pinheiros",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Consulado da Bahia, em Pinheiros. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Consulado da Bahia in Pinheiros. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Balaio IMS",
+      "neighborhood": "Bela Vista",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Balaio IMS, em Bela Vista. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Balaio IMS in Bela Vista. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Jesuíno Brilhante",
+      "neighborhood": "Vila Buarque",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Jesuíno Brilhante, em Vila Buarque. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Jesuíno Brilhante in Vila Buarque. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Cepa",
+      "neighborhood": "Tatuapé",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Cepa, em Tatuapé. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Cepa in Tatuapé. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Figueira Rubaiyat",
+      "neighborhood": "Jardins",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Figueira Rubaiyat, em Jardins. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Figueira Rubaiyat in Jardins. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Rinconcito Peruano",
+      "neighborhood": "República",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha brasileira e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Rinconcito Peruano, em República. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Rinconcito Peruano in República. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Padaria Bella Paulista",
+      "neighborhood": "Bela Vista",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Padaria Bella Paulista para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Padaria Bella Paulista for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Confeitaria Dama",
+      "neighborhood": "Jardins",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Confeitaria Dama para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Confeitaria Dama for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Coffee Lab",
+      "neighborhood": "Vila Madalena",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Coffee Lab para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Coffee Lab for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Santo Grão Oscar Freire",
+      "neighborhood": "Jardins",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Santo Grão Oscar Freire para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Santo Grão Oscar Freire for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Pato Rei",
+      "neighborhood": "Pinheiros",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Pato Rei para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Pato Rei for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Futuro Refeitório",
+      "neighborhood": "Pinheiros",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Futuro Refeitório para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Futuro Refeitório for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Le Blé Casa de Pães",
+      "neighborhood": "Higienópolis",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Le Blé Casa de Pães para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Le Blé Casa de Pães for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Padaria Santa Tereza",
+      "neighborhood": "Sé",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Padaria Santa Tereza para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Padaria Santa Tereza for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    }
+  ]
+}

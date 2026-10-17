@@ -1,0 +1,744 @@
+{
+  "destination": {
+    "slug": "new-york-us",
+    "nameEn": "New York",
+    "namePt": "Nova York",
+    "country": "United States",
+    "countryCode": "US",
+    "tier": "mega"
+  },
+  "places": [
+    {
+      "name": "Statue of Liberty",
+      "neighborhood": "Liberty Island",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Statue of Liberty e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Liberty Island sem pressa.",
+        "en": "Visit Statue of Liberty and discover its architecture and history. Allow time to explore the surrounding Liberty Island area at an easy pace."
+      }
+    },
+    {
+      "name": "Central Park",
+      "neighborhood": "Manhattan",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Central Park e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Manhattan sem pressa.",
+        "en": "Visit Central Park and discover its landscapes and paths. Allow time to explore the surrounding Manhattan area at an easy pace."
+      }
+    },
+    {
+      "name": "The Metropolitan Museum of Art",
+      "neighborhood": "Upper East Side",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça The Metropolitan Museum of Art e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Upper East Side sem pressa.",
+        "en": "Visit The Metropolitan Museum of Art and discover its collections and exhibitions. Allow time to explore the surrounding Upper East Side area at an easy pace."
+      }
+    },
+    {
+      "name": "Empire State Building",
+      "neighborhood": "Midtown",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Empire State Building e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Midtown sem pressa.",
+        "en": "Visit Empire State Building and discover its architecture and history. Allow time to explore the surrounding Midtown area at an easy pace."
+      }
+    },
+    {
+      "name": "Top of the Rock",
+      "neighborhood": "Midtown",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Top of the Rock e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Midtown sem pressa.",
+        "en": "Visit Top of the Rock and discover its architecture and history. Allow time to explore the surrounding Midtown area at an easy pace."
+      }
+    },
+    {
+      "name": "Brooklyn Bridge",
+      "neighborhood": "Lower Manhattan",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Brooklyn Bridge e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Lower Manhattan sem pressa.",
+        "en": "Visit Brooklyn Bridge and discover its architecture and history. Allow time to explore the surrounding Lower Manhattan area at an easy pace."
+      }
+    },
+    {
+      "name": "The High Line",
+      "neighborhood": "Chelsea",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça The High Line e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Chelsea sem pressa.",
+        "en": "Visit The High Line and discover its landscapes and paths. Allow time to explore the surrounding Chelsea area at an easy pace."
+      }
+    },
+    {
+      "name": "Times Square",
+      "neighborhood": "Midtown",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Times Square e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Midtown sem pressa.",
+        "en": "Visit Times Square and discover its architecture and history. Allow time to explore the surrounding Midtown area at an easy pace."
+      }
+    },
+    {
+      "name": "9/11 Memorial & Museum",
+      "neighborhood": "Financial District",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça 9/11 Memorial & Museum e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Financial District sem pressa.",
+        "en": "Visit 9/11 Memorial & Museum and discover its collections and exhibitions. Allow time to explore the surrounding Financial District area at an easy pace."
+      }
+    },
+    {
+      "name": "Museum of Modern Art",
+      "neighborhood": "Midtown",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museum of Modern Art e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Midtown sem pressa.",
+        "en": "Visit Museum of Modern Art and discover its collections and exhibitions. Allow time to explore the surrounding Midtown area at an easy pace."
+      }
+    },
+    {
+      "name": "Grand Central Terminal",
+      "neighborhood": "Midtown",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Grand Central Terminal e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Midtown sem pressa.",
+        "en": "Visit Grand Central Terminal and discover its architecture and history. Allow time to explore the surrounding Midtown area at an easy pace."
+      }
+    },
+    {
+      "name": "Bryant Park",
+      "neighborhood": "Midtown",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Bryant Park e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Midtown sem pressa.",
+        "en": "Visit Bryant Park and discover its landscapes and paths. Allow time to explore the surrounding Midtown area at an easy pace."
+      }
+    },
+    {
+      "name": "DUMBO",
+      "neighborhood": "Brooklyn",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça DUMBO e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de Brooklyn sem pressa.",
+        "en": "Visit DUMBO and discover its architecture and local life. Allow time to explore the surrounding Brooklyn area at an easy pace."
+      }
+    },
+    {
+      "name": "Chelsea Market",
+      "neighborhood": "Chelsea",
+      "category": "market",
+      "tags": [
+        "gastronomy",
+        "shopping"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Chelsea Market e descubra seus bancas e sabores locais. Reserve um tempo para explorar a região de Chelsea sem pressa.",
+        "en": "Visit Chelsea Market and discover its stalls and local flavors. Allow time to explore the surrounding Chelsea area at an easy pace."
+      }
+    },
+    {
+      "name": "The Cloisters",
+      "neighborhood": "Washington Heights",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça The Cloisters e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Washington Heights sem pressa.",
+        "en": "Visit The Cloisters and discover its collections and exhibitions. Allow time to explore the surrounding Washington Heights area at an easy pace."
+      }
+    },
+    {
+      "name": "Washington Square Park",
+      "neighborhood": "Greenwich Village",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Washington Square Park e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Greenwich Village sem pressa.",
+        "en": "Visit Washington Square Park and discover its landscapes and paths. Allow time to explore the surrounding Greenwich Village area at an easy pace."
+      }
+    },
+    {
+      "name": "Whitney Museum of American Art",
+      "neighborhood": "Meatpacking District",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Whitney Museum of American Art e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Meatpacking District sem pressa.",
+        "en": "Visit Whitney Museum of American Art and discover its collections and exhibitions. Allow time to explore the surrounding Meatpacking District area at an easy pace."
+      }
+    },
+    {
+      "name": "Prospect Park",
+      "neighborhood": "Brooklyn",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Prospect Park e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Brooklyn sem pressa.",
+        "en": "Visit Prospect Park and discover its landscapes and paths. Allow time to explore the surrounding Brooklyn area at an easy pace."
+      }
+    },
+    {
+      "name": "Katz's Delicatessen",
+      "neighborhood": "Lower East Side",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Katz's Delicatessen, em Lower East Side. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Katz's Delicatessen in Lower East Side. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Russ & Daughters Cafe",
+      "neighborhood": "Lower East Side",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Russ & Daughters Cafe, em Lower East Side. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Russ & Daughters Cafe in Lower East Side. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Peter Luger Steak House",
+      "neighborhood": "Williamsburg",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Peter Luger Steak House, em Williamsburg. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Peter Luger Steak House in Williamsburg. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Keens Steakhouse",
+      "neighborhood": "Midtown",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Keens Steakhouse, em Midtown. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Keens Steakhouse in Midtown. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Gramercy Tavern",
+      "neighborhood": "Flatiron",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Gramercy Tavern, em Flatiron. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Gramercy Tavern in Flatiron. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Balthazar",
+      "neighborhood": "SoHo",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Balthazar, em SoHo. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Balthazar in SoHo. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "L'Industrie Pizzeria",
+      "neighborhood": "Williamsburg",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do L'Industrie Pizzeria, em Williamsburg. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at L'Industrie Pizzeria in Williamsburg. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Joe's Pizza",
+      "neighborhood": "Greenwich Village",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Joe's Pizza, em Greenwich Village. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Joe's Pizza in Greenwich Village. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Lucali",
+      "neighborhood": "Carroll Gardens",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Lucali, em Carroll Gardens. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Lucali in Carroll Gardens. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Via Carota",
+      "neighborhood": "West Village",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Via Carota, em West Village. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Via Carota in West Village. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Los Tacos No. 1 Chelsea Market",
+      "neighborhood": "Chelsea",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Los Tacos No. 1 Chelsea Market, em Chelsea. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Los Tacos No. 1 Chelsea Market in Chelsea. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "The Four Horsemen",
+      "neighborhood": "Williamsburg",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do The Four Horsemen, em Williamsburg. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at The Four Horsemen in Williamsburg. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Dhamaka",
+      "neighborhood": "Lower East Side",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Dhamaka, em Lower East Side. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Dhamaka in Lower East Side. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Minetta Tavern",
+      "neighborhood": "Greenwich Village",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha nova-iorquina e contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Minetta Tavern, em Greenwich Village. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Minetta Tavern in Greenwich Village. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Levain Bakery",
+      "neighborhood": "Upper West Side",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Levain Bakery para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Levain Bakery for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Dominique Ansel Bakery",
+      "neighborhood": "SoHo",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Dominique Ansel Bakery para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Dominique Ansel Bakery for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Breads Bakery",
+      "neighborhood": "Union Square",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Breads Bakery para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Breads Bakery for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Maman Soho",
+      "neighborhood": "SoHo",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Maman Soho para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Maman Soho for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Culture Espresso",
+      "neighborhood": "Midtown",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Culture Espresso para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Culture Espresso for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Devoción Williamsburg",
+      "neighborhood": "Williamsburg",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Devoción Williamsburg para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Devoción Williamsburg for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Daily Provisions Union Square",
+      "neighborhood": "Union Square",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Daily Provisions Union Square para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Daily Provisions Union Square for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Murray's Bagels",
+      "neighborhood": "Greenwich Village",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Murray's Bagels para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Murray's Bagels for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    }
+  ]
+}

@@ -1,0 +1,744 @@
+{
+  "destination": {
+    "slug": "rome-it",
+    "nameEn": "Rome",
+    "namePt": "Roma",
+    "country": "Italy",
+    "countryCode": "IT",
+    "tier": "mega"
+  },
+  "places": [
+    {
+      "name": "Colosseo",
+      "neighborhood": "Celio",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Colosseo e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Celio sem pressa.",
+        "en": "Visit Colosseo and discover its architecture and history. Allow time to explore the surrounding Celio area at an easy pace."
+      }
+    },
+    {
+      "name": "Foro Romano",
+      "neighborhood": "Campitelli",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Foro Romano e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Campitelli sem pressa.",
+        "en": "Visit Foro Romano and discover its architecture and history. Allow time to explore the surrounding Campitelli area at an easy pace."
+      }
+    },
+    {
+      "name": "Pantheon",
+      "neighborhood": "Pigna",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Pantheon e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Pigna sem pressa.",
+        "en": "Visit Pantheon and discover its architecture and history. Allow time to explore the surrounding Pigna area at an easy pace."
+      }
+    },
+    {
+      "name": "Fontana di Trevi",
+      "neighborhood": "Trevi",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Fontana di Trevi e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Trevi sem pressa.",
+        "en": "Visit Fontana di Trevi and discover its architecture and history. Allow time to explore the surrounding Trevi area at an easy pace."
+      }
+    },
+    {
+      "name": "Piazza Navona",
+      "neighborhood": "Parione",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Piazza Navona e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Parione sem pressa.",
+        "en": "Visit Piazza Navona and discover its architecture and history. Allow time to explore the surrounding Parione area at an easy pace."
+      }
+    },
+    {
+      "name": "Musei Vaticani",
+      "neighborhood": "Vaticano",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Musei Vaticani e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Vaticano sem pressa.",
+        "en": "Visit Musei Vaticani and discover its collections and exhibitions. Allow time to explore the surrounding Vaticano area at an easy pace."
+      }
+    },
+    {
+      "name": "Basilica di San Pietro",
+      "neighborhood": "Vaticano",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Basilica di San Pietro e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Vaticano sem pressa.",
+        "en": "Visit Basilica di San Pietro and discover its architecture and history. Allow time to explore the surrounding Vaticano area at an easy pace."
+      }
+    },
+    {
+      "name": "Castel Sant'Angelo",
+      "neighborhood": "Borgo",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Castel Sant'Angelo e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Borgo sem pressa.",
+        "en": "Visit Castel Sant'Angelo and discover its architecture and history. Allow time to explore the surrounding Borgo area at an easy pace."
+      }
+    },
+    {
+      "name": "Galleria Borghese",
+      "neighborhood": "Pinciano",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Galleria Borghese e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Pinciano sem pressa.",
+        "en": "Visit Galleria Borghese and discover its collections and exhibitions. Allow time to explore the surrounding Pinciano area at an easy pace."
+      }
+    },
+    {
+      "name": "Villa Borghese",
+      "neighborhood": "Pinciano",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Villa Borghese e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Pinciano sem pressa.",
+        "en": "Visit Villa Borghese and discover its landscapes and paths. Allow time to explore the surrounding Pinciano area at an easy pace."
+      }
+    },
+    {
+      "name": "Trastevere",
+      "neighborhood": "Trastevere",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Trastevere e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de Trastevere sem pressa.",
+        "en": "Visit Trastevere and discover its architecture and local life. Allow time to explore the surrounding Trastevere area at an easy pace."
+      }
+    },
+    {
+      "name": "Campo de' Fiori",
+      "neighborhood": "Parione",
+      "category": "market",
+      "tags": [
+        "gastronomy",
+        "shopping"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Campo de' Fiori e descubra seus bancas e sabores locais. Reserve um tempo para explorar a região de Parione sem pressa.",
+        "en": "Visit Campo de' Fiori and discover its stalls and local flavors. Allow time to explore the surrounding Parione area at an easy pace."
+      }
+    },
+    {
+      "name": "Mercato Testaccio",
+      "neighborhood": "Testaccio",
+      "category": "market",
+      "tags": [
+        "gastronomy",
+        "shopping"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Mercato Testaccio e descubra seus bancas e sabores locais. Reserve um tempo para explorar a região de Testaccio sem pressa.",
+        "en": "Visit Mercato Testaccio and discover its stalls and local flavors. Allow time to explore the surrounding Testaccio area at an easy pace."
+      }
+    },
+    {
+      "name": "Giardino degli Aranci",
+      "neighborhood": "Aventino",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Giardino degli Aranci e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Aventino sem pressa.",
+        "en": "Visit Giardino degli Aranci and discover its landscapes and paths. Allow time to explore the surrounding Aventino area at an easy pace."
+      }
+    },
+    {
+      "name": "Terme di Caracalla",
+      "neighborhood": "San Saba",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Terme di Caracalla e descubra seus arquitetura e história. Reserve um tempo para explorar a região de San Saba sem pressa.",
+        "en": "Visit Terme di Caracalla and discover its architecture and history. Allow time to explore the surrounding San Saba area at an easy pace."
+      }
+    },
+    {
+      "name": "Basilica di San Clemente al Laterano",
+      "neighborhood": "Monti",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Basilica di San Clemente al Laterano e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Monti sem pressa.",
+        "en": "Visit Basilica di San Clemente al Laterano and discover its architecture and history. Allow time to explore the surrounding Monti area at an easy pace."
+      }
+    },
+    {
+      "name": "Musei Capitolini",
+      "neighborhood": "Campitelli",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Musei Capitolini e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Campitelli sem pressa.",
+        "en": "Visit Musei Capitolini and discover its collections and exhibitions. Allow time to explore the surrounding Campitelli area at an easy pace."
+      }
+    },
+    {
+      "name": "Quartiere Coppedè",
+      "neighborhood": "Trieste",
+      "category": "hidden_gem",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Quartiere Coppedè e descubra seus detalhes pouco conhecidos. Reserve um tempo para explorar a região de Trieste sem pressa.",
+        "en": "Visit Quartiere Coppedè and discover its lesser-known details. Allow time to explore the surrounding Trieste area at an easy pace."
+      }
+    },
+    {
+      "name": "Armando al Pantheon",
+      "neighborhood": "Pigna",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Armando al Pantheon, em Pigna. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Armando al Pantheon in Pigna. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Da Enzo al 29",
+      "neighborhood": "Trastevere",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Da Enzo al 29, em Trastevere. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Da Enzo al 29 in Trastevere. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Flavio al Velavevodetto",
+      "neighborhood": "Testaccio",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Flavio al Velavevodetto, em Testaccio. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Flavio al Velavevodetto in Testaccio. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Felice a Testaccio",
+      "neighborhood": "Testaccio",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Felice a Testaccio, em Testaccio. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Felice a Testaccio in Testaccio. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Roscioli Salumeria con Cucina",
+      "neighborhood": "Regola",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Roscioli Salumeria con Cucina, em Regola. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Roscioli Salumeria con Cucina in Regola. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Trattoria Pennestri",
+      "neighborhood": "Ostiense",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Trattoria Pennestri, em Ostiense. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Trattoria Pennestri in Ostiense. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Piatto Romano",
+      "neighborhood": "Testaccio",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Piatto Romano, em Testaccio. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Piatto Romano in Testaccio. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Trattoria Trecca",
+      "neighborhood": "Ostiense",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Trattoria Trecca, em Ostiense. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Trattoria Trecca in Ostiense. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "La Matriciana",
+      "neighborhood": "Esquilino",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do La Matriciana, em Esquilino. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at La Matriciana in Esquilino. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Da Francesco",
+      "neighborhood": "Parione",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Da Francesco, em Parione. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Da Francesco in Parione. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "SantoPalato",
+      "neighborhood": "San Giovanni",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do SantoPalato, em San Giovanni. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at SantoPalato in San Giovanni. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Cesare al Casaletto",
+      "neighborhood": "Monteverde",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Cesare al Casaletto, em Monteverde. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Cesare al Casaletto in Monteverde. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Mordi e Vai",
+      "neighborhood": "Testaccio",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Mordi e Vai, em Testaccio. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Mordi e Vai in Testaccio. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Pizzeria da Remo",
+      "neighborhood": "Testaccio",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha romana e italiana",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Pizzeria da Remo, em Testaccio. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Pizzeria da Remo in Testaccio. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Sant'Eustachio Il Caffè",
+      "neighborhood": "Sant'Eustachio",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Sant'Eustachio Il Caffè para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Sant'Eustachio Il Caffè for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Tazza d'Oro",
+      "neighborhood": "Pigna",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Tazza d'Oro para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Tazza d'Oro for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Pasticceria Regoli",
+      "neighborhood": "Esquilino",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Pasticceria Regoli para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Pasticceria Regoli for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Pasticceria Barberini",
+      "neighborhood": "Testaccio",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Pasticceria Barberini para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Pasticceria Barberini for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Faro - Caffè Specialty",
+      "neighborhood": "Sallustiano",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Faro - Caffè Specialty para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Faro - Caffè Specialty for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Barnum Cafè",
+      "neighborhood": "Parione",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Barnum Cafè para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Barnum Cafè for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Le Levain Roma",
+      "neighborhood": "Trastevere",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Le Levain Roma para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Le Levain Roma for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Panificio Bonci",
+      "neighborhood": "Trionfale",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Panificio Bonci para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Panificio Bonci for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    }
+  ]
+}

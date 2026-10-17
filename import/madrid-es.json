@@ -1,0 +1,744 @@
+{
+  "destination": {
+    "slug": "madrid-es",
+    "nameEn": "Madrid",
+    "namePt": "Madri",
+    "country": "Spain",
+    "countryCode": "ES",
+    "tier": "large"
+  },
+  "places": [
+    {
+      "name": "Museo Nacional del Prado",
+      "neighborhood": "Jerónimos",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museo Nacional del Prado e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Jerónimos sem pressa.",
+        "en": "Visit Museo Nacional del Prado and discover its collections and exhibitions. Allow time to explore the surrounding Jerónimos area at an easy pace."
+      }
+    },
+    {
+      "name": "Palacio Real de Madrid",
+      "neighborhood": "Palacio",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Palacio Real de Madrid e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Palacio sem pressa.",
+        "en": "Visit Palacio Real de Madrid and discover its architecture and history. Allow time to explore the surrounding Palacio area at an easy pace."
+      }
+    },
+    {
+      "name": "Parque de El Retiro",
+      "neighborhood": "Retiro",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Parque de El Retiro e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Retiro sem pressa.",
+        "en": "Visit Parque de El Retiro and discover its landscapes and paths. Allow time to explore the surrounding Retiro area at an easy pace."
+      }
+    },
+    {
+      "name": "Plaza Mayor",
+      "neighborhood": "Sol",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Plaza Mayor e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Sol sem pressa.",
+        "en": "Visit Plaza Mayor and discover its architecture and history. Allow time to explore the surrounding Sol area at an easy pace."
+      }
+    },
+    {
+      "name": "Puerta del Sol",
+      "neighborhood": "Sol",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Puerta del Sol e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Sol sem pressa.",
+        "en": "Visit Puerta del Sol and discover its architecture and history. Allow time to explore the surrounding Sol area at an easy pace."
+      }
+    },
+    {
+      "name": "Museo Nacional Centro de Arte Reina Sofía",
+      "neighborhood": "Atocha",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museo Nacional Centro de Arte Reina Sofía e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Atocha sem pressa.",
+        "en": "Visit Museo Nacional Centro de Arte Reina Sofía and discover its collections and exhibitions. Allow time to explore the surrounding Atocha area at an easy pace."
+      }
+    },
+    {
+      "name": "Museo Nacional Thyssen-Bornemisza",
+      "neighborhood": "Cortes",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museo Nacional Thyssen-Bornemisza e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Cortes sem pressa.",
+        "en": "Visit Museo Nacional Thyssen-Bornemisza and discover its collections and exhibitions. Allow time to explore the surrounding Cortes area at an easy pace."
+      }
+    },
+    {
+      "name": "Templo de Debod",
+      "neighborhood": "Argüelles",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Templo de Debod e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Argüelles sem pressa.",
+        "en": "Visit Templo de Debod and discover its architecture and history. Allow time to explore the surrounding Argüelles area at an easy pace."
+      }
+    },
+    {
+      "name": "Palacio de Cristal",
+      "neighborhood": "Retiro",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Palacio de Cristal e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Retiro sem pressa.",
+        "en": "Visit Palacio de Cristal and discover its architecture and history. Allow time to explore the surrounding Retiro area at an easy pace."
+      }
+    },
+    {
+      "name": "Mercado de San Miguel",
+      "neighborhood": "Palacio",
+      "category": "market",
+      "tags": [
+        "gastronomy",
+        "shopping"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Mercado de San Miguel e descubra seus bancas e sabores locais. Reserve um tempo para explorar a região de Palacio sem pressa.",
+        "en": "Visit Mercado de San Miguel and discover its stalls and local flavors. Allow time to explore the surrounding Palacio area at an easy pace."
+      }
+    },
+    {
+      "name": "Mercado de San Antón",
+      "neighborhood": "Chueca",
+      "category": "market",
+      "tags": [
+        "gastronomy",
+        "shopping"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Mercado de San Antón e descubra seus bancas e sabores locais. Reserve um tempo para explorar a região de Chueca sem pressa.",
+        "en": "Visit Mercado de San Antón and discover its stalls and local flavors. Allow time to explore the surrounding Chueca area at an easy pace."
+      }
+    },
+    {
+      "name": "La Latina",
+      "neighborhood": "La Latina",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça La Latina e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de La Latina sem pressa.",
+        "en": "Visit La Latina and discover its architecture and local life. Allow time to explore the surrounding La Latina area at an easy pace."
+      }
+    },
+    {
+      "name": "Malasaña",
+      "neighborhood": "Malasaña",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Malasaña e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de Malasaña sem pressa.",
+        "en": "Visit Malasaña and discover its architecture and local life. Allow time to explore the surrounding Malasaña area at an easy pace."
+      }
+    },
+    {
+      "name": "Barrio de las Letras",
+      "neighborhood": "Cortes",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Barrio de las Letras e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de Cortes sem pressa.",
+        "en": "Visit Barrio de las Letras and discover its architecture and local life. Allow time to explore the surrounding Cortes area at an easy pace."
+      }
+    },
+    {
+      "name": "Real Jardín Botánico",
+      "neighborhood": "Jerónimos",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Real Jardín Botánico e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Jerónimos sem pressa.",
+        "en": "Visit Real Jardín Botánico and discover its landscapes and paths. Allow time to explore the surrounding Jerónimos area at an easy pace."
+      }
+    },
+    {
+      "name": "Museo de Historia de Madrid",
+      "neighborhood": "Malasaña",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museo de Historia de Madrid e explore seu acervo cultural. Aproveite para caminhar pela região de Malasaña.",
+        "en": "Visit Museo de Historia de Madrid and explore its cultural collections. Take time to walk around the Malasaña neighborhood."
+      }
+    },
+    {
+      "name": "Matadero Madrid",
+      "neighborhood": "Legazpi",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Matadero Madrid e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Legazpi sem pressa.",
+        "en": "Visit Matadero Madrid and discover its architecture and history. Allow time to explore the surrounding Legazpi area at an easy pace."
+      }
+    },
+    {
+      "name": "Parque de El Capricho",
+      "neighborhood": "Alameda de Osuna",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Parque de El Capricho e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Alameda de Osuna sem pressa.",
+        "en": "Visit Parque de El Capricho and discover its landscapes and paths. Allow time to explore the surrounding Alameda de Osuna area at an easy pace."
+      }
+    },
+    {
+      "name": "Sobrino de Botín",
+      "neighborhood": "Palacio",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Sobrino de Botín, em Palacio. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Sobrino de Botín in Palacio. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Casa Lucio",
+      "neighborhood": "La Latina",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Casa Lucio, em La Latina. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Casa Lucio in La Latina. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "La Bola",
+      "neighborhood": "Palacio",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do La Bola, em Palacio. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at La Bola in Palacio. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Casa Alberto",
+      "neighborhood": "Cortes",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Casa Alberto, em Cortes. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Casa Alberto in Cortes. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Bodega de la Ardosa",
+      "neighborhood": "Malasaña",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Bodega de la Ardosa, em Malasaña. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Bodega de la Ardosa in Malasaña. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Taberna La Daniela",
+      "neighborhood": "Salamanca",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Taberna La Daniela, em Salamanca. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Taberna La Daniela in Salamanca. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "El Landó",
+      "neighborhood": "Palacio",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do El Landó, em Palacio. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at El Landó in Palacio. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "La Ancha",
+      "neighborhood": "Chamartín",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do La Ancha, em Chamartín. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at La Ancha in Chamartín. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Restaurante La Montería",
+      "neighborhood": "Retiro",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Restaurante La Montería, em Retiro. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Restaurante La Montería in Retiro. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Casa Dani",
+      "neighborhood": "Salamanca",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Casa Dani, em Salamanca. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Casa Dani in Salamanca. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Taberna El Sur",
+      "neighborhood": "Lavapiés",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Taberna El Sur, em Lavapiés. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Taberna El Sur in Lavapiés. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "El Pimiento Verde",
+      "neighborhood": "Salamanca",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do El Pimiento Verde, em Salamanca. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at El Pimiento Verde in Salamanca. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Casa Revuelta",
+      "neighborhood": "Palacio",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Casa Revuelta, em Palacio. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Casa Revuelta in Palacio. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Restaurante Casa Pedro",
+      "neighborhood": "Fuencarral",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha madrilenha e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Restaurante Casa Pedro, em Fuencarral. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Restaurante Casa Pedro in Fuencarral. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "La Mallorquina",
+      "neighborhood": "Sol",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no La Mallorquina para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at La Mallorquina for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Chocolatería San Ginés",
+      "neighborhood": "Sol",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Chocolatería San Ginés para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Chocolatería San Ginés for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "La Duquesita",
+      "neighborhood": "Justicia",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no La Duquesita para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at La Duquesita for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Panadería Novo Mundo",
+      "neighborhood": "La Latina",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Panadería Novo Mundo para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Panadería Novo Mundo for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Misión Café",
+      "neighborhood": "Malasaña",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Misión Café para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Misión Café for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Hola Coffee Lagasca",
+      "neighborhood": "Salamanca",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Hola Coffee Lagasca para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Hola Coffee Lagasca for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Pan y Pepinillos Café",
+      "neighborhood": "Malasaña",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Pan y Pepinillos Café para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Pan y Pepinillos Café for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Obrar Madrid",
+      "neighborhood": "Chamberí",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Obrar Madrid para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Obrar Madrid for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    }
+  ]
+}

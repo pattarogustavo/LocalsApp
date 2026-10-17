@@ -1,0 +1,744 @@
+{
+  "destination": {
+    "slug": "lisbon-pt",
+    "nameEn": "Lisbon",
+    "namePt": "Lisboa",
+    "country": "Portugal",
+    "countryCode": "PT",
+    "tier": "large"
+  },
+  "places": [
+    {
+      "name": "Torre de Belém",
+      "neighborhood": "Belém",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Torre de Belém e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Belém sem pressa.",
+        "en": "Visit Torre de Belém and discover its architecture and history. Allow time to explore the surrounding Belém area at an easy pace."
+      }
+    },
+    {
+      "name": "Mosteiro dos Jerónimos",
+      "neighborhood": "Belém",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Mosteiro dos Jerónimos e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Belém sem pressa.",
+        "en": "Visit Mosteiro dos Jerónimos and discover its architecture and history. Allow time to explore the surrounding Belém area at an easy pace."
+      }
+    },
+    {
+      "name": "Castelo de São Jorge",
+      "neighborhood": "Castelo",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Castelo de São Jorge e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Castelo sem pressa.",
+        "en": "Visit Castelo de São Jorge and discover its architecture and history. Allow time to explore the surrounding Castelo area at an easy pace."
+      }
+    },
+    {
+      "name": "Praça do Comércio",
+      "neighborhood": "Baixa",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Praça do Comércio e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Baixa sem pressa.",
+        "en": "Visit Praça do Comércio and discover its architecture and history. Allow time to explore the surrounding Baixa area at an easy pace."
+      }
+    },
+    {
+      "name": "Alfama",
+      "neighborhood": "Alfama",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Alfama e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de Alfama sem pressa.",
+        "en": "Visit Alfama and discover its architecture and local life. Allow time to explore the surrounding Alfama area at an easy pace."
+      }
+    },
+    {
+      "name": "Miradouro da Senhora do Monte",
+      "neighborhood": "Graça",
+      "category": "hidden_gem",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Miradouro da Senhora do Monte e descubra seus detalhes pouco conhecidos. Reserve um tempo para explorar a região de Graça sem pressa.",
+        "en": "Visit Miradouro da Senhora do Monte and discover its lesser-known details. Allow time to explore the surrounding Graça area at an easy pace."
+      }
+    },
+    {
+      "name": "Miradouro de Santa Luzia",
+      "neighborhood": "Alfama",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Miradouro de Santa Luzia e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Alfama sem pressa.",
+        "en": "Visit Miradouro de Santa Luzia and discover its architecture and history. Allow time to explore the surrounding Alfama area at an easy pace."
+      }
+    },
+    {
+      "name": "Museu Nacional do Azulejo",
+      "neighborhood": "Penha de França",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museu Nacional do Azulejo e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Penha de França sem pressa.",
+        "en": "Visit Museu Nacional do Azulejo and discover its collections and exhibitions. Allow time to explore the surrounding Penha de França area at an easy pace."
+      }
+    },
+    {
+      "name": "Museu Calouste Gulbenkian",
+      "neighborhood": "Avenidas Novas",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museu Calouste Gulbenkian e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Avenidas Novas sem pressa.",
+        "en": "Visit Museu Calouste Gulbenkian and discover its collections and exhibitions. Allow time to explore the surrounding Avenidas Novas area at an easy pace."
+      }
+    },
+    {
+      "name": "MAAT",
+      "neighborhood": "Belém",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça MAAT e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Belém sem pressa.",
+        "en": "Visit MAAT and discover its collections and exhibitions. Allow time to explore the surrounding Belém area at an easy pace."
+      }
+    },
+    {
+      "name": "LX Factory",
+      "neighborhood": "Alcântara",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça LX Factory e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Alcântara sem pressa.",
+        "en": "Visit LX Factory and discover its architecture and history. Allow time to explore the surrounding Alcântara area at an easy pace."
+      }
+    },
+    {
+      "name": "Time Out Market Lisboa",
+      "neighborhood": "Cais do Sodré",
+      "category": "market",
+      "tags": [
+        "gastronomy",
+        "shopping"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Time Out Market Lisboa e descubra seus bancas e sabores locais. Reserve um tempo para explorar a região de Cais do Sodré sem pressa.",
+        "en": "Visit Time Out Market Lisboa and discover its stalls and local flavors. Allow time to explore the surrounding Cais do Sodré area at an easy pace."
+      }
+    },
+    {
+      "name": "Mercado de Campo de Ourique",
+      "neighborhood": "Campo de Ourique",
+      "category": "market",
+      "tags": [
+        "gastronomy",
+        "shopping"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Mercado de Campo de Ourique e descubra seus bancas e sabores locais. Reserve um tempo para explorar a região de Campo de Ourique sem pressa.",
+        "en": "Visit Mercado de Campo de Ourique and discover its stalls and local flavors. Allow time to explore the surrounding Campo de Ourique area at an easy pace."
+      }
+    },
+    {
+      "name": "Jardim da Estrela",
+      "neighborhood": "Estrela",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Jardim da Estrela e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Estrela sem pressa.",
+        "en": "Visit Jardim da Estrela and discover its landscapes and paths. Allow time to explore the surrounding Estrela area at an easy pace."
+      }
+    },
+    {
+      "name": "Parque Eduardo VII",
+      "neighborhood": "Avenidas Novas",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Parque Eduardo VII e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Avenidas Novas sem pressa.",
+        "en": "Visit Parque Eduardo VII and discover its landscapes and paths. Allow time to explore the surrounding Avenidas Novas area at an easy pace."
+      }
+    },
+    {
+      "name": "Chiado",
+      "neighborhood": "Chiado",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Chiado e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de Chiado sem pressa.",
+        "en": "Visit Chiado and discover its architecture and local life. Allow time to explore the surrounding Chiado area at an easy pace."
+      }
+    },
+    {
+      "name": "Bairro Alto",
+      "neighborhood": "Bairro Alto",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Bairro Alto e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de Bairro Alto sem pressa.",
+        "en": "Visit Bairro Alto and discover its architecture and local life. Allow time to explore the surrounding Bairro Alto area at an easy pace."
+      }
+    },
+    {
+      "name": "Panteão Nacional",
+      "neighborhood": "São Vicente",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Panteão Nacional e descubra seus arquitetura e história. Reserve um tempo para explorar a região de São Vicente sem pressa.",
+        "en": "Visit Panteão Nacional and discover its architecture and history. Allow time to explore the surrounding São Vicente area at an easy pace."
+      }
+    },
+    {
+      "name": "Cervejaria Ramiro",
+      "neighborhood": "Intendente",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Cervejaria Ramiro, em Intendente. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Cervejaria Ramiro in Intendente. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Solar dos Presuntos",
+      "neighborhood": "Avenida da Liberdade",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Solar dos Presuntos, em Avenida da Liberdade. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Solar dos Presuntos in Avenida da Liberdade. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Zé da Mouraria",
+      "neighborhood": "Mouraria",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Zé da Mouraria, em Mouraria. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Zé da Mouraria in Mouraria. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "O Frade",
+      "neighborhood": "Belém",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do O Frade, em Belém. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at O Frade in Belém. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Pigmeu",
+      "neighborhood": "Campo de Ourique",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Pigmeu, em Campo de Ourique. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Pigmeu in Campo de Ourique. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Prado",
+      "neighborhood": "Baixa",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Prado, em Baixa. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Prado in Baixa. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Taberna da Rua das Flores",
+      "neighborhood": "Chiado",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Taberna da Rua das Flores, em Chiado. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Taberna da Rua das Flores in Chiado. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "A Cevicheria",
+      "neighborhood": "Príncipe Real",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do A Cevicheria, em Príncipe Real. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at A Cevicheria in Príncipe Real. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "O Velho Eurico",
+      "neighborhood": "Mouraria",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do O Velho Eurico, em Mouraria. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at O Velho Eurico in Mouraria. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Cervejaria Trindade",
+      "neighborhood": "Chiado",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Cervejaria Trindade, em Chiado. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Cervejaria Trindade in Chiado. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Casa do Alentejo",
+      "neighborhood": "Baixa",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Casa do Alentejo, em Baixa. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Casa do Alentejo in Baixa. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "As Bifanas do Afonso",
+      "neighborhood": "Mouraria",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do As Bifanas do Afonso, em Mouraria. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at As Bifanas do Afonso in Mouraria. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Bairro do Avillez",
+      "neighborhood": "Chiado",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Bairro do Avillez, em Chiado. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Bairro do Avillez in Chiado. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Ofício - Tasco Atípico",
+      "neighborhood": "Chiado",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha portuguesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Ofício - Tasco Atípico, em Chiado. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Ofício - Tasco Atípico in Chiado. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Pastéis de Belém",
+      "neighborhood": "Belém",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Pastéis de Belém para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Pastéis de Belém for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Manteigaria - Fábrica de Pastéis de Nata",
+      "neighborhood": "Chiado",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Manteigaria - Fábrica de Pastéis de Nata para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Manteigaria - Fábrica de Pastéis de Nata for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Confeitaria Nacional",
+      "neighborhood": "Baixa",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Confeitaria Nacional para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Confeitaria Nacional for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "A Brasileira",
+      "neighborhood": "Chiado",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no A Brasileira para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at A Brasileira for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Fábrica Coffee Roasters",
+      "neighborhood": "Baixa",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Fábrica Coffee Roasters para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Fábrica Coffee Roasters for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Dear Breakfast Bica",
+      "neighborhood": "Bica",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Dear Breakfast Bica para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Dear Breakfast Bica for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Com Calma",
+      "neighborhood": "Graça",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Com Calma para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Com Calma for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Copenhagen Coffee Lab",
+      "neighborhood": "Príncipe Real",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Copenhagen Coffee Lab para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Copenhagen Coffee Lab for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    }
+  ]
+}

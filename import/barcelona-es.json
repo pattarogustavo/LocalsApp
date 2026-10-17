@@ -1,0 +1,744 @@
+{
+  "destination": {
+    "slug": "barcelona-es",
+    "nameEn": "Barcelona",
+    "namePt": "Barcelona",
+    "country": "Spain",
+    "countryCode": "ES",
+    "tier": "large"
+  },
+  "places": [
+    {
+      "name": "Basílica de la Sagrada Família",
+      "neighborhood": "Eixample",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Basílica de la Sagrada Família e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Eixample sem pressa.",
+        "en": "Visit Basílica de la Sagrada Família and discover its architecture and history. Allow time to explore the surrounding Eixample area at an easy pace."
+      }
+    },
+    {
+      "name": "Park Güell",
+      "neighborhood": "Gràcia",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Park Güell e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de Gràcia sem pressa.",
+        "en": "Visit Park Güell and discover its landscapes and paths. Allow time to explore the surrounding Gràcia area at an easy pace."
+      }
+    },
+    {
+      "name": "Casa Batlló",
+      "neighborhood": "Eixample",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Casa Batlló e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Eixample sem pressa.",
+        "en": "Visit Casa Batlló and discover its architecture and history. Allow time to explore the surrounding Eixample area at an easy pace."
+      }
+    },
+    {
+      "name": "La Pedrera - Casa Milà",
+      "neighborhood": "Eixample",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça La Pedrera - Casa Milà e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Eixample sem pressa.",
+        "en": "Visit La Pedrera - Casa Milà and discover its architecture and history. Allow time to explore the surrounding Eixample area at an easy pace."
+      }
+    },
+    {
+      "name": "Museu Picasso de Barcelona",
+      "neighborhood": "El Born",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museu Picasso de Barcelona e descubra seus acervo e exposições. Reserve um tempo para explorar a região de El Born sem pressa.",
+        "en": "Visit Museu Picasso de Barcelona and discover its collections and exhibitions. Allow time to explore the surrounding El Born area at an easy pace."
+      }
+    },
+    {
+      "name": "Palau de la Música Catalana",
+      "neighborhood": "Sant Pere",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Palau de la Música Catalana e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Sant Pere sem pressa.",
+        "en": "Visit Palau de la Música Catalana and discover its architecture and history. Allow time to explore the surrounding Sant Pere area at an easy pace."
+      }
+    },
+    {
+      "name": "Barri Gòtic",
+      "neighborhood": "Ciutat Vella",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Barri Gòtic e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de Ciutat Vella sem pressa.",
+        "en": "Visit Barri Gòtic and discover its architecture and local life. Allow time to explore the surrounding Ciutat Vella area at an easy pace."
+      }
+    },
+    {
+      "name": "Mercat de la Boqueria",
+      "neighborhood": "El Raval",
+      "category": "market",
+      "tags": [
+        "gastronomy",
+        "shopping"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Mercat de la Boqueria e descubra seus bancas e sabores locais. Reserve um tempo para explorar a região de El Raval sem pressa.",
+        "en": "Visit Mercat de la Boqueria and discover its stalls and local flavors. Allow time to explore the surrounding El Raval area at an easy pace."
+      }
+    },
+    {
+      "name": "Mercat de Santa Caterina",
+      "neighborhood": "El Born",
+      "category": "market",
+      "tags": [
+        "gastronomy",
+        "shopping"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Mercat de Santa Caterina e descubra seus bancas e sabores locais. Reserve um tempo para explorar a região de El Born sem pressa.",
+        "en": "Visit Mercat de Santa Caterina and discover its stalls and local flavors. Allow time to explore the surrounding El Born area at an easy pace."
+      }
+    },
+    {
+      "name": "Parc de la Ciutadella",
+      "neighborhood": "El Born",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Parc de la Ciutadella e descubra seus paisagens e caminhos. Reserve um tempo para explorar a região de El Born sem pressa.",
+        "en": "Visit Parc de la Ciutadella and discover its landscapes and paths. Allow time to explore the surrounding El Born area at an easy pace."
+      }
+    },
+    {
+      "name": "Platja de la Barceloneta",
+      "neighborhood": "Barceloneta",
+      "category": "beach",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Platja de la Barceloneta e descubra seus orla e paisagem. Reserve um tempo para explorar a região de Barceloneta sem pressa.",
+        "en": "Visit Platja de la Barceloneta and discover its shoreline and scenery. Allow time to explore the surrounding Barceloneta area at an easy pace."
+      }
+    },
+    {
+      "name": "Montjuïc",
+      "neighborhood": "Sants-Montjuïc",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Montjuïc e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de Sants-Montjuïc sem pressa.",
+        "en": "Visit Montjuïc and discover its architecture and local life. Allow time to explore the surrounding Sants-Montjuïc area at an easy pace."
+      }
+    },
+    {
+      "name": "Museu Nacional d'Art de Catalunya",
+      "neighborhood": "Montjuïc",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Museu Nacional d'Art de Catalunya e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Montjuïc sem pressa.",
+        "en": "Visit Museu Nacional d'Art de Catalunya and discover its collections and exhibitions. Allow time to explore the surrounding Montjuïc area at an easy pace."
+      }
+    },
+    {
+      "name": "Fundació Joan Miró",
+      "neighborhood": "Montjuïc",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Fundació Joan Miró e descubra seus acervo e exposições. Reserve um tempo para explorar a região de Montjuïc sem pressa.",
+        "en": "Visit Fundació Joan Miró and discover its collections and exhibitions. Allow time to explore the surrounding Montjuïc area at an easy pace."
+      }
+    },
+    {
+      "name": "Recinte Modernista de Sant Pau",
+      "neighborhood": "Guinardó",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Recinte Modernista de Sant Pau e descubra seus arquitetura e história. Reserve um tempo para explorar a região de Guinardó sem pressa.",
+        "en": "Visit Recinte Modernista de Sant Pau and discover its architecture and history. Allow time to explore the surrounding Guinardó area at an easy pace."
+      }
+    },
+    {
+      "name": "Basílica de Santa Maria del Mar",
+      "neighborhood": "El Born",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Basílica de Santa Maria del Mar e descubra seus arquitetura e história. Reserve um tempo para explorar a região de El Born sem pressa.",
+        "en": "Visit Basílica de Santa Maria del Mar and discover its architecture and history. Allow time to explore the surrounding El Born area at an easy pace."
+      }
+    },
+    {
+      "name": "Bunkers del Carmel",
+      "neighborhood": "El Carmel",
+      "category": "hidden_gem",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça Bunkers del Carmel e descubra seus detalhes pouco conhecidos. Reserve um tempo para explorar a região de El Carmel sem pressa.",
+        "en": "Visit Bunkers del Carmel and discover its lesser-known details. Allow time to explore the surrounding El Carmel area at an easy pace."
+      }
+    },
+    {
+      "name": "El Born",
+      "neighborhood": "Ciutat Vella",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Conheça El Born e descubra seus arquitetura e vida local. Reserve um tempo para explorar a região de Ciutat Vella sem pressa.",
+        "en": "Visit El Born and discover its architecture and local life. Allow time to explore the surrounding Ciutat Vella area at an easy pace."
+      }
+    },
+    {
+      "name": "Can Culleretes",
+      "neighborhood": "Barri Gòtic",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Can Culleretes, em Barri Gòtic. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Can Culleretes in Barri Gòtic. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "7 Portes",
+      "neighborhood": "Barceloneta",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do 7 Portes, em Barceloneta. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at 7 Portes in Barceloneta. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Cal Pep",
+      "neighborhood": "El Born",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Cal Pep, em El Born. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Cal Pep in El Born. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Bar Cañete",
+      "neighborhood": "El Raval",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Bar Cañete, em El Raval. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Bar Cañete in El Raval. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "La Cova Fumada",
+      "neighborhood": "Barceloneta",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do La Cova Fumada, em Barceloneta. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at La Cova Fumada in Barceloneta. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "El Xampanyet",
+      "neighborhood": "El Born",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do El Xampanyet, em El Born. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at El Xampanyet in El Born. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Bodega Biarritz 1881",
+      "neighborhood": "Barri Gòtic",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Bodega Biarritz 1881, em Barri Gòtic. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Bodega Biarritz 1881 in Barri Gòtic. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Quimet & Quimet",
+      "neighborhood": "Poble-sec",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Quimet & Quimet, em Poble-sec. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Quimet & Quimet in Poble-sec. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Casa Amàlia 1950",
+      "neighborhood": "Eixample",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Casa Amàlia 1950, em Eixample. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Casa Amàlia 1950 in Eixample. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "La Pubilla",
+      "neighborhood": "Gràcia",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do La Pubilla, em Gràcia. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at La Pubilla in Gràcia. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Bar del Pla",
+      "neighborhood": "El Born",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Bar del Pla, em El Born. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Bar del Pla in El Born. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Gresca",
+      "neighborhood": "Eixample",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Gresca, em Eixample. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Gresca in Eixample. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "La Plata",
+      "neighborhood": "Barri Gòtic",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do La Plata, em Barri Gòtic. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at La Plata in Barri Gòtic. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Fonda Pepa",
+      "neighborhood": "Gràcia",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha catalã e espanhola",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Experimente a proposta gastronômica do Fonda Pepa, em Gràcia. Consulte o cardápio atual e reserve antes de ir.",
+        "en": "Explore the dining experience at Fonda Pepa in Gràcia. Check the current menu and book ahead."
+      }
+    },
+    {
+      "name": "Granja Viader",
+      "neighborhood": "El Raval",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Granja Viader para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Granja Viader for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Granja Dulcinea",
+      "neighborhood": "Barri Gòtic",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Granja Dulcinea para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Granja Dulcinea for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Pastisseria Escribà",
+      "neighborhood": "El Raval",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Pastisseria Escribà para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Pastisseria Escribà for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Hofmann Pastisseria",
+      "neighborhood": "El Born",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Hofmann Pastisseria para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Hofmann Pastisseria for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Baluard Barceloneta",
+      "neighborhood": "Barceloneta",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Baluard Barceloneta para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Baluard Barceloneta for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Forn Mistral",
+      "neighborhood": "Sant Antoni",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Forn Mistral para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Forn Mistral for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Nomad Coffee Lab",
+      "neighborhood": "El Born",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Nomad Coffee Lab para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Nomad Coffee Lab for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    },
+    {
+      "name": "Satan's Coffee Corner",
+      "neighborhood": "Barri Gòtic",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "relaxation"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Cafés, pães e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Faça uma pausa no Satan's Coffee Corner para conhecer sua seleção de cafés e produtos de padaria. Confira as especialidades disponíveis no balcão.",
+        "en": "Stop at Satan's Coffee Corner for coffee and baked treats. Check the counter for the day’s specialties."
+      }
+    }
+  ]
+}

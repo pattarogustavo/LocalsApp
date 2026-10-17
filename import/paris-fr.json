@@ -1,0 +1,734 @@
+{
+  "destination": {
+    "slug": "paris-fr",
+    "nameEn": "Paris",
+    "namePt": "Paris",
+    "country": "France",
+    "countryCode": "FR",
+    "tier": "mega"
+  },
+  "places": [
+    {
+      "name": "Bouillon Chartier Grands Boulevards",
+      "neighborhood": "Grands Boulevards",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy",
+        "culture"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha tradicional francesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Este restaurante histórico é conhecido pelo salão Belle Époque e pelos clássicos franceses. Admire a decoração e prepare-se para possíveis filas nos períodos concorridos.",
+        "en": "This historic restaurant is known for its Belle Époque dining room and French classics. Admire the decor and expect possible queues at busy times."
+      }
+    },
+    {
+      "name": "Bouillon Pigalle",
+      "neighborhood": "Pigalle",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha tradicional francesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Um restaurante movimentado que serve clássicos franceses em ambiente informal. Vá com flexibilidade, pois pode haver fila nos horários de maior procura.",
+        "en": "A lively restaurant serving French classics in an informal setting. Be flexible, as queues can form at peak dining times."
+      }
+    },
+    {
+      "name": "Bouillon République",
+      "neighborhood": "Place de la République",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha tradicional francesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Um endereço informal para pratos clássicos franceses em um salão amplo e movimentado. Chegue fora dos picos de refeição se preferir evitar espera.",
+        "en": "An informal spot for French classics in a large, lively dining room. Arrive outside peak meal times if you'd prefer to avoid a wait."
+      }
+    },
+    {
+      "name": "Chez Janou",
+      "neighborhood": "Le Marais",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha provençal francesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Este restaurante animado traz sabores provençais perto da Place des Vosges. É uma boa opção para uma refeição longa com amigos; reservar pode ajudar nos períodos concorridos.",
+        "en": "This lively restaurant serves Provençal flavors near Place des Vosges. It's a good choice for a leisurely meal with friends; booking can help at busy times."
+      }
+    },
+    {
+      "name": "Clamato",
+      "neighborhood": "11º arrondissement",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Frutos do mar e cozinha francesa contemporânea",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Restaurante informal especializado em frutos do mar e pratos criativos sazonais. O menu muda, por isso consulte as opções disponíveis antes de escolher.",
+        "en": "An informal restaurant specializing in seafood and creative seasonal dishes. The menu changes, so check available options before deciding."
+      }
+    },
+    {
+      "name": "Le Baratin",
+      "neighborhood": "Belleville",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Bistrô francês sazonal",
+      "confidence": "medium",
+      "descriptions": {
+        "pt": "Um bistrô de bairro apreciado pela cozinha francesa sazonal e atmosfera sem formalidades. Pergunte pelas especialidades do dia, que acompanham os produtos disponíveis.",
+        "en": "A neighborhood bistro appreciated for seasonal French cooking and an unpretentious atmosphere. Ask about the day's specialties, which follow available produce."
+      }
+    },
+    {
+      "name": "Chez L'Ami Jean",
+      "neighborhood": "7º arrondissement",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Cozinha basca e francesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Restaurante conhecido pela cozinha francesa generosa com influências bascas e ambiente animado. Reserve com antecedência e venha com apetite para uma refeição substancial.",
+        "en": "A restaurant known for hearty French cooking with Basque influences and a lively atmosphere. Book ahead and arrive hungry for a substantial meal."
+      }
+    },
+    {
+      "name": "Breizh Café Le Marais",
+      "neighborhood": "Le Marais",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Crêpes e galettes bretãs",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Especializado em galettes salgadas de trigo-sarraceno e crêpes inspiradas na Bretanha. É uma boa parada para uma refeição casual durante um passeio pelo Marais.",
+        "en": "Specializing in savory buckwheat galettes and crêpes inspired by Brittany. It's a good stop for a casual meal while exploring the Marais."
+      }
+    },
+    {
+      "name": "L'Avant Comptoir du Marché",
+      "neighborhood": "Saint-Germain-des-Prés",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy",
+        "nightlife"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner",
+        "snack"
+      ],
+      "cuisine": "Petiscos franceses",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Um balcão descontraído para petiscos franceses e pequenas porções, ideal para provar vários sabores. O espaço costuma ser animado, então venha com flexibilidade.",
+        "en": "A relaxed counter for French small plates and snacks, ideal for sampling several flavors. It can be lively, so come with a flexible plan."
+      }
+    },
+    {
+      "name": "Le Comptoir du Relais",
+      "neighborhood": "Saint-Germain-des-Prés",
+      "category": "restaurant",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "lunch",
+        "dinner"
+      ],
+      "cuisine": "Bistrô francês",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Um bistrô parisiense conhecido por pratos franceses sazonais e ambiente acolhedor. Consulte o menu atual e planeje a visita com antecedência nos horários disputados.",
+        "en": "A Parisian bistro known for seasonal French dishes and a welcoming atmosphere. Check the current menu and plan ahead for popular dining times."
+      }
+    },
+    {
+      "name": "Café de Flore",
+      "neighborhood": "Saint-Germain-des-Prés",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "culture"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Café parisiense tradicional e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Um café histórico ligado à vida literária e artística parisiense. Sente-se na área externa para observar o movimento do bairro.",
+        "en": "A historic café associated with Parisian literary and artistic life. Sit outside to watch the neighborhood go by."
+      }
+    },
+    {
+      "name": "Les Deux Magots",
+      "neighborhood": "Saint-Germain-des-Prés",
+      "category": "cafe",
+      "tags": [
+        "gastronomy",
+        "culture"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Café francês e confeitaria",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Este café histórico é conhecido por sua ligação com escritores e intelectuais. Aproveite a visita para explorar a igreja e as ruas próximas.",
+        "en": "This historic café is known for its association with writers and intellectuals. Combine the visit with the nearby church and surrounding streets."
+      }
+    },
+    {
+      "name": "Du Pain et des Idées",
+      "neighborhood": "10º arrondissement",
+      "category": "cafe",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Padaria artesanal francesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Esta padaria artesanal é conhecida pelos pães tradicionais e pela viennoiserie. Chegue cedo para encontrar uma seleção maior de produtos recém-assados.",
+        "en": "This artisan bakery is known for traditional breads and viennoiseries. Arrive early for a wider selection of freshly baked goods."
+      }
+    },
+    {
+      "name": "La Maison d'Isabelle",
+      "neighborhood": "Quartier Latin",
+      "category": "cafe",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "budget",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Padaria e viennoiserie francesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Uma padaria conhecida por croissants e produtos clássicos de confeitaria francesa. Chegue cedo para encontrar uma seleção fresca e depois caminhe pela margem do Sena.",
+        "en": "A bakery known for croissants and classic French pastries. Arrive early for fresh selections, then enjoy a walk along the Seine."
+      }
+    },
+    {
+      "name": "Stohrer",
+      "neighborhood": "Montorgueil",
+      "category": "cafe",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "moderate",
+      "meals": [
+        "breakfast",
+        "snack"
+      ],
+      "cuisine": "Confeitaria francesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Uma confeitaria histórica que oferece doces franceses tradicionais em uma rua gastronômica movimentada. Experimente uma especialidade da casa e explore as lojas próximas.",
+        "en": "A historic pastry shop serving traditional French sweets on a lively food street. Try a house specialty and explore nearby food shops."
+      }
+    },
+    {
+      "name": "Pierre Hermé Paris",
+      "neighborhood": "Saint-Germain-des-Prés",
+      "category": "cafe",
+      "tags": [
+        "gastronomy"
+      ],
+      "priceTier": "luxury",
+      "meals": [
+        "snack"
+      ],
+      "cuisine": "Macarons e confeitaria francesa",
+      "confidence": "high",
+      "descriptions": {
+        "pt": "A confeitaria é conhecida por macarons e sobremesas de combinações criativas. Escolha alguns sabores para comparar e confira a loja mais conveniente para seu roteiro.",
+        "en": "This pastry house is known for macarons and desserts with creative flavor combinations. Choose a few flavors to compare and check which branch best fits your route."
+      }
+    },
+    {
+      "name": "Tour Eiffel",
+      "neighborhood": "7º arrondissement",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "O símbolo de Paris oferece vistas panorâmicas da cidade. Fotografe-o a partir do Champ de Mars ou do Trocadéro.",
+        "en": "Paris's iconic landmark offers panoramic city views. Photograph it from Champ de Mars or Trocadéro."
+      }
+    },
+    {
+      "name": "Musée du Louvre",
+      "neighborhood": "1º arrondissement",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Explore um dos maiores museus do mundo e escolha algumas galerias prioritárias antes de entrar. A coleção é enorme e merece planejamento.",
+        "en": "Explore one of the world's largest museums and choose priority galleries before entering. The collection is vast and rewards planning."
+      }
+    },
+    {
+      "name": "Cathédrale Notre-Dame de Paris",
+      "neighborhood": "Île de la Cité",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Admire a arquitetura gótica e os detalhes da fachada desta catedral histórica. Confira as condições de acesso antes da visita.",
+        "en": "Admire the Gothic architecture and façade details of this historic cathedral. Check visitor access conditions before going."
+      }
+    },
+    {
+      "name": "Arc de Triomphe",
+      "neighborhood": "8º arrondissement",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "O monumento homenageia a história francesa e oferece vistas dos Champs-Élysées. Do terraço, observe o traçado radial das avenidas.",
+        "en": "This monument commemorates French history and overlooks the Champs-Élysées. From the terrace, observe Paris's radial avenues."
+      }
+    },
+    {
+      "name": "Basilique du Sacré-Cœur de Montmartre",
+      "neighborhood": "Montmartre",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "A basílica de cúpulas brancas domina a colina e oferece vistas amplas de Paris. Explore as ruas laterais para encontrar cantos mais tranquilos.",
+        "en": "This white-domed basilica crowns the hill and offers sweeping views of Paris. Explore side streets for quieter corners."
+      }
+    },
+    {
+      "name": "Musée d'Orsay",
+      "neighborhood": "7º arrondissement",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Instalado em uma antiga estação, reúne obras impressionistas de Monet e Van Gogh. Não perca o grande relógio do edifício.",
+        "en": "Housed in a former railway station, it features Impressionist works by Monet and Van Gogh. Don't miss the building's giant clock."
+      }
+    },
+    {
+      "name": "Sainte-Chapelle",
+      "neighborhood": "Île de la Cité",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "A capela gótica é famosa por seus enormes vitrais coloridos. A luz natural realça especialmente os detalhes.",
+        "en": "This Gothic chapel is famous for its enormous stained-glass windows. Natural light brings out their details."
+      }
+    },
+    {
+      "name": "Palais Garnier",
+      "neighborhood": "9º arrondissement",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "A histórica ópera impressiona pela escadaria monumental e pelos salões ornamentados. Verifique o acesso, pois ensaios podem limitar as visitas.",
+        "en": "This historic opera house impresses with its grand staircase and ornate salons. Check access, as rehearsals may limit visits."
+      }
+    },
+    {
+      "name": "Panthéon",
+      "neighborhood": "Quartier Latin",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "O monumento neoclássico abriga túmulos de figuras importantes da história francesa, incluindo Marie Curie. Combine a visita com um passeio pelo Quartier Latin.",
+        "en": "This Neoclassical monument houses major figures in French history, including Marie Curie. Combine it with a walk through the Latin Quarter."
+      }
+    },
+    {
+      "name": "Musée Rodin",
+      "neighborhood": "7º arrondissement",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art",
+        "nature"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Veja esculturas de Auguste Rodin em uma mansão elegante e jardins tranquilos. Reserve tempo para apreciar as obras ao ar livre.",
+        "en": "See Auguste Rodin's sculptures in an elegant mansion and peaceful gardens. Allow time to enjoy the outdoor works."
+      }
+    },
+    {
+      "name": "Musée de l'Orangerie",
+      "neighborhood": "Jardin des Tuileries",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Contemple os grandes painéis das Ninféias de Monet em salas concebidas para apreciar a pintura com calma. Combine com um passeio pelas Tuileries.",
+        "en": "See Monet's monumental Water Lilies panels in galleries designed for quiet contemplation. Combine the visit with a walk through the Tuileries."
+      }
+    },
+    {
+      "name": "Musée Picasso",
+      "neighborhood": "Le Marais",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "A coleção dedicada a Pablo Picasso ocupa um elegante hôtel particulier histórico. Observe tanto as obras quanto a arquitetura do edifício.",
+        "en": "The collection devoted to Pablo Picasso occupies an elegant historic mansion. Appreciate both the artworks and the building's architecture."
+      }
+    },
+    {
+      "name": "Musée Carnavalet",
+      "neighborhood": "Le Marais",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Descubra a história de Paris por meio de pinturas, objetos e interiores de época. É uma boa escolha para entender a cidade além dos monumentos famosos.",
+        "en": "Discover Paris's history through paintings, objects, and period interiors. It's a great way to understand the city beyond famous monuments."
+      }
+    },
+    {
+      "name": "Musée du Quai Branly - Jacques Chirac",
+      "neighborhood": "7º arrondissement",
+      "category": "museum",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Explore artes e culturas da África, Ásia, Oceania e Américas em um museu contemporâneo. O jardim junto ao edifício também merece uma pausa.",
+        "en": "Explore arts and cultures from Africa, Asia, Oceania, and the Americas in a contemporary museum. The garden beside the building is also worth a pause."
+      }
+    },
+    {
+      "name": "Hôtel des Invalides",
+      "neighborhood": "7º arrondissement",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "O complexo histórico abriga museus militares e o túmulo de Napoleão sob uma cúpula dourada. Confira quais áreas estão abertas no dia.",
+        "en": "This historic complex houses military museums and Napoleon's tomb beneath a gilded dome. Check which areas are open on the day."
+      }
+    },
+    {
+      "name": "Pont Alexandre III",
+      "neighborhood": "7º arrondissement",
+      "category": "attraction",
+      "tags": [
+        "culture",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "A ponte ornamentada é conhecida pelas esculturas douradas e vistas do Sena. É especialmente fotogênica ao caminhar entre os Invalides e os Champs-Élysées.",
+        "en": "This ornate bridge is known for gilded sculptures and views of the Seine. It's especially photogenic between Les Invalides and the Champs-Élysées."
+      }
+    },
+    {
+      "name": "Jardin du Luxembourg",
+      "neighborhood": "6º arrondissement",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Um jardim elegante com fontes, estátuas e cadeiras verdes ao redor do lago central. É ideal para descansar entre passeios pelo Quartier Latin e Saint-Germain.",
+        "en": "An elegant garden with fountains, statues, and green chairs around a central pond. It's ideal for a break between the Latin Quarter and Saint-Germain."
+      }
+    },
+    {
+      "name": "Jardin des Tuileries",
+      "neighborhood": "1º arrondissement",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Este jardim histórico liga o Louvre à Place de la Concorde e reúne esculturas e caminhos simétricos. Caminhe pelo eixo central para apreciar a perspectiva urbana.",
+        "en": "This historic garden connects the Louvre to Place de la Concorde, with sculptures and symmetrical paths. Walk along the central axis to enjoy the city views."
+      }
+    },
+    {
+      "name": "Parc des Buttes-Chaumont",
+      "neighborhood": "19º arrondissement",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Colinas, grutas, pontes e um templo sobre um rochedo tornam este parque singular. Explore os caminhos inclinados e os mirantes.",
+        "en": "Hills, caves, bridges, and a temple perched on a rocky outcrop make this park distinctive. Explore the sloping paths and viewpoints."
+      }
+    },
+    {
+      "name": "Cimetière du Père-Lachaise",
+      "neighborhood": "20º arrondissement",
+      "category": "other",
+      "tags": [
+        "culture",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Este cemitério histórico combina túmulos artísticos, caminhos arborizados e sepulturas célebres. Use um mapa para localizar alguns túmulos e explorar os caminhos tranquilos.",
+        "en": "This historic cemetery combines artistic tombs, tree-lined paths, and famous graves. Use a map to find notable tombs and explore its quieter paths."
+      }
+    },
+    {
+      "name": "Parc Monceau",
+      "neighborhood": "8º arrondissement",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Um parque elegante com caminhos sinuosos, árvores maduras e elementos arquitetônicos decorativos. É ideal para uma pausa tranquila longe das rotas mais movimentadas.",
+        "en": "An elegant park with winding paths, mature trees, and decorative architectural features. It's ideal for a peaceful break away from busy routes."
+      }
+    },
+    {
+      "name": "Jardin des Plantes",
+      "neighborhood": "5º arrondissement",
+      "category": "park",
+      "tags": [
+        "nature",
+        "relaxation"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "Este jardim botânico histórico reúne canteiros, estufas e coleções de plantas. Verifique separadamente o acesso às estufas e às atrações associadas.",
+        "en": "This historic botanical garden features flowerbeds, greenhouses, and plant collections. Check access to the greenhouses and associated attractions separately."
+      }
+    },
+    {
+      "name": "Le Marais",
+      "neighborhood": "3º e 4º arrondissements",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "shopping",
+        "gastronomy",
+        "art"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "O bairro mistura mansões antigas, boutiques independentes, galerias e uma cena gastronômica vibrante. Explore as ruas menores para descobrir pátios e lojas originais.",
+        "en": "This neighborhood blends old mansions, independent boutiques, galleries, and a lively food scene. Explore smaller streets to discover courtyards and distinctive shops."
+      }
+    },
+    {
+      "name": "Montmartre",
+      "neighborhood": "Montmartre",
+      "category": "neighborhood",
+      "tags": [
+        "culture",
+        "art",
+        "gastronomy"
+      ],
+      "priceTier": null,
+      "meals": null,
+      "cuisine": null,
+      "confidence": "high",
+      "descriptions": {
+        "pt": "O antigo bairro boêmio conserva ruelas inclinadas, escadarias e fachadas tradicionais. Afaste-se da praça principal para encontrar cantos mais calmos.",
+        "en": "This former bohemian district preserves sloping lanes, staircases, and traditional façades. Venture away from the main square to find quieter corners."
+      }
+    }
+  ]
+}
