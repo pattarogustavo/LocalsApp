@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import {
@@ -176,4 +176,32 @@ export async function markPlaceLastCheck(db: CurateDb, placeId: number, lastChec
 
 export async function updatePlaceDescriptions(db: CurateDb, placeId: number, descriptions: CuratedPlace["descriptions"]): Promise<void> {
   await db.update(curatedPlaces).set({ descriptions, updatedAt: new Date() }).where(eq(curatedPlaces.id, placeId));
+}
+
+const REDESCRIBE_STATUSES: CuratedPlace["status"][] = ["approved", "pending"];
+
+/**
+ * curate:redescribe's candidate query: rows whose status is approved or
+ * pending, scoped by destination slugs, by explicit ids, or (with `all`)
+ * unscoped — slugs and ids combine (a union) when both are given, so
+ * --only + --ids can pull in a forced row from outside the requested
+ * destinations. The generic-template match itself is applied afterwards in
+ * JS (see scripts/curate/redescribe-select.ts), not in this query.
+ */
+export async function getCandidatePlacesForRedescribe(db: CurateDb, filter: { all?: boolean; slugs?: string[]; ids?: number[] }): Promise<CuratedPlace[]> {
+  const statusFilter = inArray(curatedPlaces.status, REDESCRIBE_STATUSES);
+  if (filter.all) return db.select().from(curatedPlaces).where(statusFilter);
+
+  const scopeClauses = [];
+  if (filter.slugs?.length) scopeClauses.push(inArray(curatedPlaces.destinationSlug, filter.slugs));
+  if (filter.ids?.length) scopeClauses.push(inArray(curatedPlaces.id, filter.ids));
+  if (scopeClauses.length === 0) return [];
+
+  const scope = scopeClauses.length === 1 ? scopeClauses[0] : or(...scopeClauses);
+  return db.select().from(curatedPlaces).where(and(scope, statusFilter));
+}
+
+export async function getDestinationsByIds(db: CurateDb, ids: number[]): Promise<CuratedDestination[]> {
+  if (ids.length === 0) return [];
+  return db.select().from(curatedDestinations).where(inArray(curatedDestinations.id, ids));
 }

@@ -109,6 +109,40 @@ export function buildManualStructurePrompt(destinationName: string, country: str
   ].join("\n");
 }
 
+export interface RedescribeItem {
+  id: string;
+  name: string;
+  neighborhood?: string;
+  category: string;
+  cuisine?: string;
+}
+
+/**
+ * curate:redescribe's rewrite prompt: a single call (no web search) for up
+ * to 12 places of the same city, each already identified (name, neighborhood,
+ * category, cuisine) — only the description is being replaced, never the
+ * place's identity. Explicitly bans the generic template phrases this
+ * command exists to get rid of, and forbids exact prices/hours/menu items
+ * since those go stale fast and were never verified here.
+ */
+export function buildRedescribePrompt(destinationName: string, country: string, items: RedescribeItem[]): string {
+  const list = items
+    .map((i) => `- id=${i.id} | ${i.name}${i.neighborhood ? ` (${i.neighborhood})` : ""} | categoria: ${i.category}${i.cuisine ? ` | culinária: ${i.cuisine}` : ""}`)
+    .join("\n");
+  return [
+    `Você é um curador local especializado em ${destinationName}, ${country}.`,
+    "Para cada lugar abaixo, escreva uma descrição ORIGINAL de 1 a 2 frases em português e a mesma em inglês: o que torna o lugar especial, mais UMA dica prática específica (melhor horário para ir, o que pedir ou não perder, se é preciso reservar com antecedência, etc.).",
+    'Nunca use fórmulas genéricas como "reserve um tempo", "descubra", "sem pressa", "vale a pena conhecer" — cada descrição deve ser específica para este lugar, nunca intercambiável com outro da lista.',
+    "Não copie texto de sites, não informe preços ou horários exatos, e não afirme fatos que mudam rápido (um prato específico do menu, um evento datado).",
+    "Se você não conhecer bem o lugar o suficiente para dizer algo específico e verdadeiro, escreva uma descrição curta e neutra, sem inventar detalhes, e marque lowKnowledge=true; só marque lowKnowledge=false quando tiver confiança no que escreveu.",
+    "Nunca repita a mesma frase inicial entre dois lugares desta lista — varie a abertura de cada descrição.",
+    "Responda seguindo exatamente o schema fornecido, um item por id, mantendo o id exatamente como foi passado.",
+    "",
+    "--- LUGARES ---",
+    list,
+  ].join("\n");
+}
+
 export interface TranslateBatchItem {
   id: string | number;
   en: string;

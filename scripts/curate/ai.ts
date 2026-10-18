@@ -4,8 +4,10 @@ import {
   buildStructurePrompt,
   buildManualStructurePrompt,
   buildTranslatePrompt,
+  buildRedescribePrompt,
   type ResearchPromptParams,
   type TranslateBatchItem,
+  type RedescribeItem,
 } from "./prompts";
 import { withRetry, isRetryableAnthropicError, getAnthropicRetryAfterMs, isWebSearchUnsupportedError } from "./retry";
 import { validateProposedPlaces, type RawProposedPlace, type ValidatedPlace, type InvalidPlaceExample, type NormalizeOptions } from "./validate-place";
@@ -255,6 +257,71 @@ export interface TranslatedBatchItem {
 export interface TranslateBatchResult {
   translations: TranslatedBatchItem[];
   truncated: boolean;
+}
+
+const REDESCRIBE_SCHEMA = {
+  name: "redescribed_places",
+  schema: {
+    type: "object",
+    properties: {
+      places: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            pt: { type: "string" },
+            en: { type: "string" },
+            lowKnowledge: { type: "boolean" },
+          },
+          required: ["id", "pt", "en", "lowKnowledge"],
+        },
+      },
+    },
+    required: ["places"],
+  },
+} as const;
+
+export interface RedescribedBatchItem {
+  id: string;
+  pt: string;
+  en: string;
+  lowKnowledge: boolean;
+}
+
+export interface RedescribeBatchResult {
+  items: RedescribedBatchItem[];
+  truncated: boolean;
+}
+
+/**
+ * curate:redescribe's rewrite call: a single, schema-validated call per
+ * batch of up to 12 places from the same city, using RESEARCH_MODEL but
+ * WITHOUT web search — these are original, from-knowledge rewrites, never
+ * sourced from a live lookup (see buildRedescribePrompt).
+ */
+export async function redescribeBatch(destinationName: string, country: string, items: RedescribeItem[], stats: AiCallStats): Promise<RedescribeBatchResult> {
+  if (items.length === 0) return { items: [], truncated: false };
+  const result = await withRetry(
+    () =>
+      invokeLLM({
+        model: RESEARCH_MODEL,
+        outputSchema: REDESCRIBE_SCHEMA,
+        maxTokens: 4096,
+        messages: [{ role: "user", content: buildRedescribePrompt(destinationName, country, items) }],
+      }),
+    CALL_RETRY_OPTIONS,
+  );
+  trackUsage(stats, RESEARCH_MODEL, result.usage);
+  const content = result.choices[0]?.message.content;
+  const truncated = isTruncated(result);
+  if (typeof content !== "string" || !content) return { items: [], truncated };
+  try {
+    const parsed = JSON.parse(content) as { places?: RedescribedBatchItem[] };
+    return { items: parsed.places ?? [], truncated };
+  } catch {
+    return { items: [], truncated: true };
+  }
 }
 
 /** Batched es/fr/de/it translation for up to MAX_PLACES_PER_BATCH places, from their English description. */
