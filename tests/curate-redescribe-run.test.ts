@@ -96,6 +96,69 @@ describe("assembleCompleteDescriptions", () => {
   });
 });
 
+describe("redescribeChunk tolerates a malformed rewrite return", () => {
+  it("treats a non-array (object) return as 'no items returned', never throwing", async () => {
+    const candidates = [candidate(1)];
+    const rewrite = vi.fn().mockResolvedValue({ "1": goodRewrite(1) }); // malformed: object, not array
+    const { accepted, stillInvalid } = await redescribeChunk(candidates, rewrite as any);
+    expect(accepted.size).toBe(0);
+    expect(stillInvalid).toHaveLength(1);
+    expect(stillInvalid[0].errors[0]).toMatch(/no item/);
+  });
+
+  it("treats a thrown exception from rewrite as 'no items returned' for that attempt, never propagating", async () => {
+    const candidates = [candidate(1)];
+    const rewrite = vi.fn().mockRejectedValue(new Error("network exploded"));
+    const { accepted, stillInvalid } = await redescribeChunk(candidates, rewrite);
+    expect(accepted.size).toBe(0);
+    expect(stillInvalid).toHaveLength(1);
+    expect(rewrite).toHaveBeenCalledTimes(2); // first attempt + the one retry, both swallowed
+  });
+
+  it("filters out garbage array entries (null, a string) instead of crashing on them", async () => {
+    const candidates = [candidate(1), candidate(2)];
+    const rewrite = vi.fn().mockResolvedValue([null, "garbage", goodRewrite(2)]);
+    const { accepted, stillInvalid } = await redescribeChunk(candidates, rewrite as any);
+    expect(accepted.get(2)).toBeDefined();
+    expect(stillInvalid.map((s) => s.id)).toContain(1);
+  });
+});
+
+describe("redescribeCity isolates a bad batch from the rest of the city", () => {
+  it("keeps processing later chunks when an earlier chunk's rewrite throws", async () => {
+    const candidates = Array.from({ length: REDESCRIBE_CHUNK_SIZE + 1 }, (_, i) => candidate(i + 1));
+    const rewrite = vi.fn(async (items: { id: string }[]) => {
+      if (items.some((i) => i.id === "1")) throw new Error("boom");
+      return items.map((i) => goodRewrite(Number(i.id)));
+    });
+    const translate = vi.fn(async (items: { id: string }[]) => items.map((i) => ({ id: i.id, es: "es", fr: "fr", de: "de", it: "it" })));
+    const write = vi.fn(async () => {});
+
+    const report = await redescribeCity(candidates, { rewrite, translate, write });
+
+    // The first chunk (containing id=1) failed entirely (every rewrite/retry
+    // attempt rejected), but the exception never escapes redescribeChunk —
+    // it's swallowed per-attempt (see attemptRewrite) — so the second
+    // chunk's single place still got rewritten and written.
+    expect(report.rewritten).toBe(1);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(report.stillInvalid.some((s) => s.id === 1)).toBe(true);
+  });
+
+  it("keeps processing when the translate call for one chunk throws", async () => {
+    const candidates = [candidate(1), candidate(2)];
+    const rewrite = vi.fn(async () => [goodRewrite(1), goodRewrite(2)]);
+    const translate = vi.fn().mockRejectedValue(new Error("translate down"));
+    const write = vi.fn(async () => {});
+
+    const report = await redescribeCity(candidates, { rewrite, translate, write, translateChunkSize: 15 });
+
+    expect(write).not.toHaveBeenCalled();
+    expect(report.stillInvalid).toHaveLength(2);
+    expect(report.stillInvalid.every((s) => s.errors[0].includes("translation did not complete"))).toBe(true);
+  });
+});
+
 describe("redescribeCity", () => {
   it("chunks candidates in groups of up to REDESCRIBE_CHUNK_SIZE", async () => {
     const candidates = Array.from({ length: REDESCRIBE_CHUNK_SIZE + 3 }, (_, i) => candidate(i + 1));

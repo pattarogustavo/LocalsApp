@@ -8,14 +8,12 @@ import {
   AiCallBudgetExceededError,
   type RedescribeCandidate,
   type RedescribeCityReport,
-  type RewrittenItem,
 } from "./curate/redescribe-run";
-import { redescribeBatch, translateBatch, newAiCallStats, type AiCallStats } from "./curate/ai";
-import type { RedescribeItem } from "./curate/prompts";
+import { newAiCallStats, type AiCallStats } from "./curate/ai";
+import { checkpointedRewrite, checkpointedTranslate, type BatchIssue } from "./curate/redescribe-checkpoint";
 import { runIsolated } from "./curate/city-isolation";
 import { confirmDatabaseWrite } from "./curate/confirm";
 import { estimateTotalCostUsd, formatModelCostUsd } from "./data/model-prices";
-import { saveCheckpoint, loadCheckpoint } from "./curate/checkpoint";
 import {
   getCurateDb,
   closeCurateDb,
@@ -44,34 +42,10 @@ function toCandidate(row: CuratedPlace): RedescribeCandidate {
   };
 }
 
-/** A checkpointed rewrite call: the batch (keyed by its sorted candidate ids) is skipped and reused on resume instead of calling the model again. */
-function checkpointedRewrite(slug: string, destinationName: string, country: string, stats: AiCallStats, budget: AiCallBudget) {
-  return async (items: RedescribeItem[]): Promise<RewrittenItem[]> => {
-    const key = `redescribe-${items.map((i) => i.id).sort((a, b) => Number(a) - Number(b)).join("_")}`;
-    const cached = loadCheckpoint<RewrittenItem[]>(ROOT_DIR, slug, key);
-    if (cached) return cached;
-    budget.consume(1);
-    const result = await redescribeBatch(destinationName, country, items, stats);
-    saveCheckpoint(ROOT_DIR, slug, key, result.items);
-    return result.items;
-  };
-}
-
-function checkpointedTranslate(slug: string, destinationName: string, stats: AiCallStats, budget: AiCallBudget) {
-  return async (items: { id: string; en: string }[]) => {
-    const key = `redescribe-translate-${items.map((i) => i.id).sort((a, b) => Number(a) - Number(b)).join("_")}`;
-    const cached = loadCheckpoint<{ id: string; es?: string; fr?: string; de?: string; it?: string }[]>(ROOT_DIR, slug, key);
-    if (cached) return cached;
-    budget.consume(1);
-    const result = await translateBatch(destinationName, items, stats);
-    saveCheckpoint(ROOT_DIR, slug, key, result.translations);
-    return result.translations;
-  };
-}
-
 interface CityRunResult extends RedescribeCityReport {
   slug: string;
   error?: string;
+  batchIssues: BatchIssue[];
 }
 
 async function runCity(
@@ -82,6 +56,7 @@ async function runCity(
   stats: AiCallStats,
   budget: AiCallBudget,
 ): Promise<CityRunResult> {
+  const batchIssues: BatchIssue[] = [];
   return runIsolated(
     ROOT_DIR,
     slug,
@@ -91,12 +66,12 @@ async function runCity(
       const country = destinationRow?.country ?? "";
 
       const report = await redescribeCity(candidates, {
-        rewrite: checkpointedRewrite(slug, destinationName, country, stats, budget),
-        translate: checkpointedTranslate(slug, destinationName, stats, budget),
+        rewrite: checkpointedRewrite(ROOT_DIR, slug, destinationName, country, stats, budget, batchIssues),
+        translate: checkpointedTranslate(ROOT_DIR, slug, destinationName, stats, budget, batchIssues),
         write: dryRun || !db ? async () => {} : (id, descriptions) => updatePlaceDescriptions(db, id, descriptions),
       });
 
-      return { ...report, slug };
+      return { ...report, slug, batchIssues };
     },
     (err) => ({
       slug,
@@ -105,6 +80,7 @@ async function runCity(
       stillInvalid: [],
       lowKnowledge: [],
       samples: [],
+      batchIssues,
       error: err.message,
     }),
   );
@@ -124,6 +100,9 @@ function printCityReport(report: CityRunResult): void {
     console.log(`    inválido "${i.name}" (id=${i.id}): ${i.errors.join("; ")}`);
   }
   if (report.stillInvalid.length > 20) console.log(`    ...e mais ${report.stillInvalid.length - 20}`);
+  for (const issue of report.batchIssues) {
+    console.log(`  lote problemático (${issue.kind}, ids=${issue.ids.join(",")}): formato recebido="${issue.shape}"${issue.sample ? ` amostra="${issue.sample}"` : ""}`);
+  }
   for (const sample of report.samples) {
     console.log(`  exemplo "${sample.name}" (id=${sample.id}):`);
     console.log(`    antes pt: ${sample.before.pt ?? "(vazio)"}`);
@@ -139,6 +118,8 @@ function printTotals(reports: CityRunResult[], stats: AiCallStats): void {
   console.log(`cidades ok=${ok.length} falharam=${reports.length - ok.length}`);
   console.log(`selecionados=${ok.reduce((n, r) => n + r.selected, 0)} reescritos=${ok.reduce((n, r) => n + r.rewritten, 0)}`);
   console.log(`ainda inválidos=${ok.reduce((n, r) => n + r.stillInvalid.length, 0)} lowKnowledge=${ok.reduce((n, r) => n + r.lowKnowledge.length, 0)}`);
+  const totalBatchIssues = reports.reduce((n, r) => n + r.batchIssues.length, 0);
+  if (totalBatchIssues > 0) console.log(`lotes com resposta malformada: ${totalBatchIssues}`);
   if (stats.calls > 0) {
     console.log(`chamadas de IA: ${stats.calls} | custo estimado: ${formatModelCostUsd(estimateTotalCostUsd(stats.byModel))}`);
   }

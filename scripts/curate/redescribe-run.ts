@@ -62,12 +62,32 @@ function toRewriteInput(candidates: RedescribeCandidate[]) {
   }));
 }
 
-/** One rewrite call over `candidates`, validated individually then checked for cross-item opening-sentence repetition. Never retries — see redescribeChunk for the one-retry policy. */
+/**
+ * Treats `rewrite`'s return value as untrustworthy, regardless of what its
+ * declared type promises: a checkpoint loaded from disk, or a malformed
+ * model response that slipped past ai.ts's own normalization, can still
+ * hand back a string, an object, or an array of garbage. Never throws —
+ * anything that isn't a usable array of objects with a string `id` becomes
+ * [], which the caller turns into a per-candidate "no item returned"
+ * invalidity instead of crashing the whole batch.
+ */
+function coerceRewriteOutputs(result: unknown): RewrittenItem[] {
+  if (!Array.isArray(result)) return [];
+  return result.filter((o): o is RewrittenItem => !!o && typeof o === "object" && typeof (o as { id?: unknown }).id === "string");
+}
+
+/** One rewrite call over `candidates`, validated individually then checked for cross-item opening-sentence repetition. Never retries — see redescribeChunk for the one-retry policy. Never throws: a rejected call or a malformed response is treated as "no items returned" for this attempt. */
 async function attemptRewrite(
   candidates: RedescribeCandidate[],
   rewrite: RewriteCallFn,
 ): Promise<{ accepted: Map<number, AcceptedRewrite>; invalid: Map<number, string[]> }> {
-  const outputs = await rewrite(toRewriteInput(candidates));
+  let outputs: RewrittenItem[];
+  try {
+    outputs = coerceRewriteOutputs(await rewrite(toRewriteInput(candidates)));
+  } catch (err) {
+    outputs = [];
+    void err; // surfaced per-candidate below as a uniform "no item returned", not re-thrown — see the module doc.
+  }
   const outputById = new Map(outputs.map((o) => [o.id, o]));
 
   const invalid = new Map<number, string[]>();
@@ -190,9 +210,18 @@ export async function redescribeCity(candidates: RedescribeCandidate[], deps: Re
   const stillInvalid: InvalidRedescribed[] = [];
 
   for (const chunk of chunkItems(candidates, chunkSize)) {
-    const { accepted, stillInvalid: invalid } = await redescribeChunk(chunk, deps.rewrite);
-    for (const [id, r] of accepted) acceptedAll.set(id, r);
-    stillInvalid.push(...invalid);
+    try {
+      const { accepted, stillInvalid: invalid } = await redescribeChunk(chunk, deps.rewrite);
+      for (const [id, r] of accepted) acceptedAll.set(id, r);
+      stillInvalid.push(...invalid);
+    } catch (err) {
+      // A whole-batch failure (an exception escaping redescribeChunk itself,
+      // not just a bad model response — that's already handled inside
+      // attemptRewrite) must never take down the rest of the city: only this
+      // chunk's places are reported invalid, the next chunk still runs.
+      const message = err instanceof Error ? err.message : String(err);
+      for (const c of chunk) stillInvalid.push({ id: c.id, name: c.aiName, errors: [`batch failed: ${message}`] });
+    }
   }
 
   const lowKnowledge = [...acceptedAll.values()]
@@ -206,7 +235,15 @@ export async function redescribeCity(candidates: RedescribeCandidate[], deps: Re
 
   let rewritten = 0;
   for (const chunk of chunkItems([...acceptedAll.values()], translateChunkSize)) {
-    const translated = await deps.translate(chunk.map((r) => ({ id: String(r.id), en: r.en })));
+    let translated: { id: string; es?: string; fr?: string; de?: string; it?: string }[];
+    try {
+      const result = await deps.translate(chunk.map((r) => ({ id: String(r.id), en: r.en })));
+      translated = Array.isArray(result)
+        ? result.filter((t): t is { id: string; es?: string; fr?: string; de?: string; it?: string } => !!t && typeof t === "object" && typeof (t as { id?: unknown }).id === "string")
+        : [];
+    } catch {
+      translated = [];
+    }
     const translatedById = new Map(translated.map((t) => [t.id, t]));
     for (const r of chunk) {
       const full = assembleCompleteDescriptions(r.pt, r.en, translatedById.get(String(r.id)));

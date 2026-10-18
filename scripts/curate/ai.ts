@@ -11,6 +11,14 @@ import {
 } from "./prompts";
 import { withRetry, isRetryableAnthropicError, getAnthropicRetryAfterMs, isWebSearchUnsupportedError } from "./retry";
 import { validateProposedPlaces, type RawProposedPlace, type ValidatedPlace, type InvalidPlaceExample, type NormalizeOptions } from "./validate-place";
+import { normalizeBatchArray, type BatchNormalizeResult } from "./normalize-batch";
+
+/** Diagnostic surfaced on a StructureBatchResult/RedescribeBatchResult/TranslateBatchResult when the model's response needed coercion (or was unusable) to become a batch array — see normalizeBatchArray. Absent when the response was already a clean array. */
+export type BatchMalformed = Pick<BatchNormalizeResult<unknown>, "shape" | "sample">;
+
+function malformedOf<T>(normalized: BatchNormalizeResult<T>): BatchMalformed | undefined {
+  return normalized.shape ? { shape: normalized.shape, sample: normalized.sample } : undefined;
+}
 
 export const RESEARCH_MODEL = process.env.CURATE_RESEARCH_MODEL || "claude-sonnet-5";
 export const STRUCTURE_MODEL = process.env.CURATE_STRUCTURE_MODEL || "claude-haiku-4-5-20251001";
@@ -169,6 +177,7 @@ export interface StructureBatchResult {
   invalidReasonCounts: Record<string, number>;
   invalidExamples: InvalidPlaceExample[];
   truncated: boolean;
+  malformed?: BatchMalformed;
 }
 
 /** Shared by structureBatch and structureManualPlaces: one structuring call (no web search) for a given prompt, parsed and individually validated. */
@@ -190,15 +199,16 @@ async function runStructureCall(prompt: string, stats: AiCallStats, validateOpti
   const truncated = isTruncated(result);
   if (typeof content !== "string" || !content) return { places: [], invalidCount: 0, invalidReasonCounts: {}, invalidExamples: [], truncated };
 
-  let raw: RawProposedPlace[];
+  let parsedContent: unknown;
   try {
-    raw = (JSON.parse(content) as { places?: RawProposedPlace[] }).places ?? [];
+    parsedContent = JSON.parse(content);
   } catch {
-    return { places: [], invalidCount: 0, invalidReasonCounts: {}, invalidExamples: [], truncated: true };
+    return { places: [], invalidCount: 0, invalidReasonCounts: {}, invalidExamples: [], truncated: true, malformed: { shape: "string", sample: content.slice(0, 300) } };
   }
 
-  const { valid, invalidCount, invalidReasonCounts, invalidExamples } = validateProposedPlaces(raw, validateOptions);
-  return { places: valid, invalidCount, invalidReasonCounts, invalidExamples, truncated };
+  const normalized = normalizeBatchArray<RawProposedPlace>(parsedContent, "places");
+  const { valid, invalidCount, invalidReasonCounts, invalidExamples } = validateProposedPlaces(normalized.items, validateOptions);
+  return { places: valid, invalidCount, invalidReasonCounts, invalidExamples, truncated, malformed: malformedOf(normalized) };
 }
 
 /** Step 2: converts step-1 free text into a structured, schema-validated, individually-validated list. Never combined with web search in the same call. */
@@ -257,6 +267,7 @@ export interface TranslatedBatchItem {
 export interface TranslateBatchResult {
   translations: TranslatedBatchItem[];
   truncated: boolean;
+  malformed?: BatchMalformed;
 }
 
 const REDESCRIBE_SCHEMA = {
@@ -292,6 +303,7 @@ export interface RedescribedBatchItem {
 export interface RedescribeBatchResult {
   items: RedescribedBatchItem[];
   truncated: boolean;
+  malformed?: BatchMalformed;
 }
 
 /**
@@ -316,12 +328,14 @@ export async function redescribeBatch(destinationName: string, country: string, 
   const content = result.choices[0]?.message.content;
   const truncated = isTruncated(result);
   if (typeof content !== "string" || !content) return { items: [], truncated };
+  let parsedContent: unknown;
   try {
-    const parsed = JSON.parse(content) as { places?: RedescribedBatchItem[] };
-    return { items: parsed.places ?? [], truncated };
+    parsedContent = JSON.parse(content);
   } catch {
-    return { items: [], truncated: true };
+    return { items: [], truncated: true, malformed: { shape: "string", sample: content.slice(0, 300) } };
   }
+  const normalized = normalizeBatchArray<RedescribedBatchItem>(parsedContent, "places");
+  return { items: normalized.items, truncated, malformed: malformedOf(normalized) };
 }
 
 /** Batched es/fr/de/it translation for up to MAX_PLACES_PER_BATCH places, from their English description. */
@@ -341,10 +355,12 @@ export async function translateBatch(destinationName: string, items: TranslateBa
   const content = result.choices[0]?.message.content;
   const truncated = isTruncated(result);
   if (typeof content !== "string" || !content) return { translations: [], truncated };
+  let parsedContent: unknown;
   try {
-    const parsed = JSON.parse(content) as { translations?: TranslatedBatchItem[] };
-    return { translations: parsed.translations ?? [], truncated };
+    parsedContent = JSON.parse(content);
   } catch {
-    return { translations: [], truncated: true };
+    return { translations: [], truncated: true, malformed: { shape: "string", sample: content.slice(0, 300) } };
   }
+  const normalized = normalizeBatchArray<TranslatedBatchItem>(parsedContent, "translations");
+  return { translations: normalized.items, truncated, malformed: malformedOf(normalized) };
 }
