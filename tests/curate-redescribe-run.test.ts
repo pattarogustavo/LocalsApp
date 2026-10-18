@@ -4,10 +4,12 @@ import {
   redescribeChunk,
   redescribeCity,
   assembleCompleteDescriptions,
+  classifyInvalidReason,
   REDESCRIBE_CHUNK_SIZE,
   type RedescribeCandidate,
   type RewrittenItem,
 } from "../scripts/curate/redescribe-run";
+import { MAX_DESCRIPTION_LENGTH, LONG_DESCRIPTION_THRESHOLD } from "../scripts/curate/redescribe-validate";
 
 function candidate(id: number, name = `Place ${id}`): RedescribeCandidate {
   return {
@@ -214,6 +216,98 @@ describe("redescribeCity", () => {
 
     expect(rewrite).not.toHaveBeenCalled();
     expect(write).not.toHaveBeenCalled();
-    expect(report).toEqual({ selected: 0, rewritten: 0, stillInvalid: [], lowKnowledge: [], samples: [] });
+    expect(report).toEqual({ selected: 0, rewritten: 0, stillInvalid: [], lowKnowledge: [], samples: [], longCount: 0 });
+  });
+});
+
+describe("classifyInvalidReason", () => {
+  it("classifies each known error pattern", () => {
+    expect(classifyInvalidReason(["model returned no item for this id"])).toBe("missing");
+    expect(classifyInvalidReason(["pt length 441 is outside [60, 420]"])).toBe("length");
+    expect(classifyInvalidReason(["en still matches the generic template"])).toBe("generic");
+    expect(classifyInvalidReason(["repeats another place's opening sentence in this batch"])).toBe("repetition");
+    expect(classifyInvalidReason(["translation did not complete all four languages"])).toBe("translation");
+    expect(classifyInvalidReason(["batch failed: boom"])).toBe("batch_failure");
+    expect(classifyInvalidReason(["something else entirely"])).toBe("other");
+  });
+});
+
+describe("the 420-char length ceiling and the 320-char 'long' threshold", () => {
+  function sentenceOfLength(id: number, length: number): string {
+    const base = `Frase única número ${id} sobre este restaurante encantador `;
+    return (base + "x".repeat(Math.max(0, length - base.length))).slice(0, length);
+  }
+
+  it("accepts a description up to MAX_DESCRIPTION_LENGTH and counts it as 'long' once past LONG_DESCRIPTION_THRESHOLD", async () => {
+    const candidates = [candidate(1)];
+    const longPt = sentenceOfLength(1, MAX_DESCRIPTION_LENGTH);
+    const longEn = sentenceOfLength(1, LONG_DESCRIPTION_THRESHOLD + 10);
+    const rewrite = vi.fn(async () => [{ id: "1", pt: longPt, en: longEn, lowKnowledge: false }]);
+    const translate = vi.fn(async () => [{ id: "1", es: "es", fr: "fr", de: "de", it: "it" }]);
+    const write = vi.fn(async () => {});
+
+    const report = await redescribeCity(candidates, { rewrite, translate, write });
+
+    expect(report.rewritten).toBe(1);
+    expect(report.longCount).toBe(1);
+    expect(report.stillInvalid).toEqual([]);
+  });
+
+  it("rejects a description past MAX_DESCRIPTION_LENGTH when no shorten dependency is given", async () => {
+    const candidates = [candidate(1)];
+    const tooLongPt = sentenceOfLength(1, MAX_DESCRIPTION_LENGTH + 20);
+    const rewrite = vi.fn(async () => [{ id: "1", pt: tooLongPt, en: goodRewrite(1).en, lowKnowledge: false }]);
+    const translate = vi.fn(async () => []);
+    const write = vi.fn(async () => {});
+
+    const report = await redescribeCity(candidates, { rewrite, translate, write });
+
+    expect(write).not.toHaveBeenCalled();
+    expect(report.stillInvalid).toHaveLength(1);
+    expect(report.stillInvalid[0].category).toBe("length");
+  });
+
+  it("salvages an over-limit description via the shorten dependency instead of discarding it", async () => {
+    const candidates = [candidate(1)];
+    const tooLongPt = sentenceOfLength(1, MAX_DESCRIPTION_LENGTH + 20);
+    const shortenedPt = sentenceOfLength(1, 200);
+    const rewrite = vi.fn(async () => [{ id: "1", pt: tooLongPt, en: goodRewrite(1).en, lowKnowledge: false }]);
+    const shorten = vi.fn(async (text: string, lang: "pt" | "en") => (lang === "pt" ? shortenedPt : text));
+    const translate = vi.fn(async () => [{ id: "1", es: "es", fr: "fr", de: "de", it: "it" }]);
+    const write = vi.fn(async () => {});
+
+    const report = await redescribeCity(candidates, { rewrite, translate, shorten, write });
+
+    expect(shorten).toHaveBeenCalledWith(tooLongPt, "pt");
+    expect(write).toHaveBeenCalledWith(1, expect.objectContaining({ pt: shortenedPt }));
+    expect(report.rewritten).toBe(1);
+    expect(report.stillInvalid).toEqual([]);
+  });
+
+  it("keeps the item invalid when the shorten dependency fails to bring it within bounds", async () => {
+    const candidates = [candidate(1)];
+    const tooLongPt = sentenceOfLength(1, MAX_DESCRIPTION_LENGTH + 20);
+    const rewrite = vi.fn(async () => [{ id: "1", pt: tooLongPt, en: goodRewrite(1).en, lowKnowledge: false }]);
+    const shorten = vi.fn(async () => null); // the shortening call itself failed
+    const translate = vi.fn(async () => []);
+    const write = vi.fn(async () => {});
+
+    const report = await redescribeCity(candidates, { rewrite, translate, shorten, write });
+
+    expect(write).not.toHaveBeenCalled();
+    expect(report.stillInvalid).toHaveLength(1);
+    expect(report.stillInvalid[0].errors.some((e) => e.includes("shortening retry"))).toBe(true);
+  });
+
+  it("defaults to a no-op shorten (item stays invalid) when the dependency is omitted", async () => {
+    const candidates = [candidate(1)];
+    const tooLongPt = sentenceOfLength(1, MAX_DESCRIPTION_LENGTH + 20);
+    const rewrite = vi.fn(async () => [{ id: "1", pt: tooLongPt, en: goodRewrite(1).en, lowKnowledge: false }]);
+    const translate = vi.fn(async () => []);
+    const write = vi.fn(async () => {});
+
+    const report = await redescribeCity(candidates, { rewrite, translate, write });
+
+    expect(report.stillInvalid).toHaveLength(1);
   });
 });

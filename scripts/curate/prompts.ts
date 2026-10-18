@@ -118,12 +118,14 @@ export interface RedescribeItem {
 }
 
 /**
- * curate:redescribe's rewrite prompt: a single call (no web search) for up
- * to 12 places of the same city, each already identified (name, neighborhood,
+ * curate:redescribe's rewrite prompt: a single call (no web search, no
+ * forced output schema — see buildRedescribeFormatInstructions) for up to
+ * 12 places of the same city, each already identified (name, neighborhood,
  * category, cuisine) — only the description is being replaced, never the
  * place's identity. Explicitly bans the generic template phrases this
- * command exists to get rid of, and forbids exact prices/hours/menu items
- * since those go stale fast and were never verified here.
+ * command exists to get rid of, forbids exact prices/hours/menu items since
+ * those go stale fast and were never verified here, and bans comparative or
+ * self-contradictory claims (e.g. "better than X because it's not X").
  */
 export function buildRedescribePrompt(destinationName: string, country: string, items: RedescribeItem[]): string {
   const list = items
@@ -131,15 +133,48 @@ export function buildRedescribePrompt(destinationName: string, country: string, 
     .join("\n");
   return [
     `Você é um curador local especializado em ${destinationName}, ${country}.`,
-    "Para cada lugar abaixo, escreva uma descrição ORIGINAL de 1 a 2 frases em português e a mesma em inglês: o que torna o lugar especial, mais UMA dica prática específica (melhor horário para ir, o que pedir ou não perder, se é preciso reservar com antecedência, etc.).",
+    "Para cada lugar abaixo, escreva uma descrição ORIGINAL de até ~300 caracteres, em 1 a 2 frases, em português e a mesma em inglês: o que torna o lugar especial, mais UMA dica prática específica (melhor horário para ir, o que pedir ou não perder, se é preciso reservar com antecedência, etc.).",
     'Nunca use fórmulas genéricas como "reserve um tempo", "descubra", "sem pressa", "vale a pena conhecer" — cada descrição deve ser específica para este lugar, nunca intercambiável com outro da lista.',
+    "Descreva o lugar pelo que ele É, nunca por comparação com outro lugar — nenhuma afirmação comparativa (\"melhor que X\", \"ao contrário de Y\") e nenhuma frase que se contradiga (ex.: dizer que um lugar compensa por NÃO ser outra coisa, e no mesmo fôlego dizer que ele SE TORNA essa outra coisa).",
+    "No inglês, traduza o SENTIDO do português sem trocar os fatos citados (nomes de obras, artistas, períodos, etc.) por outros — nunca generalize um fato específico (ex.: se o português diz \"de Rodin a Tarsila\", o inglês deve dizer o mesmo, nunca algo genérico como \"Rodin-style sculpture\").",
     "Não copie texto de sites, não informe preços ou horários exatos, e não afirme fatos que mudam rápido (um prato específico do menu, um evento datado).",
     "Se você não conhecer bem o lugar o suficiente para dizer algo específico e verdadeiro, escreva uma descrição curta e neutra, sem inventar detalhes, e marque lowKnowledge=true; só marque lowKnowledge=false quando tiver confiança no que escreveu.",
     "Nunca repita a mesma frase inicial entre dois lugares desta lista — varie a abertura de cada descrição.",
-    "Responda seguindo exatamente o schema fornecido, um item por id, mantendo o id exatamente como foi passado.",
+    "",
+    buildRedescribeFormatInstructions(),
     "",
     "--- LUGARES ---",
     list,
+  ].join("\n");
+}
+
+/**
+ * The exact JSON Lines output contract for buildRedescribePrompt: one
+ * complete, valid JSON object per line, nothing else. Chosen over a forced
+ * output schema because the schema path was observed double-encoding long
+ * free text (e.g. `{"places": "{\"places\":[...]}"}`) — plain JSON Lines
+ * gives the model less structure to get wrong, and a bad line here only
+ * costs that one id (see scripts/curate/jsonl.ts), not the whole batch.
+ */
+export function buildRedescribeFormatInstructions(): string {
+  return [
+    "FORMATO DA RESPOSTA — siga exatamente, é parseado por máquina:",
+    '- Responda em JSON Lines: UMA linha por lugar, cada linha um objeto JSON completo e válido: {"id":"123","pt":"...","en":"...","lowKnowledge":false}',
+    "- Nenhum markdown, nenhuma lista com marcadores, nenhum texto antes ou depois das linhas, nenhuma linha vazia entre elas.",
+    "- Nunca quebre uma linha no meio de um objeto — cada objeto cabe inteiro em uma única linha.",
+    "- Dentro de pt/en, nunca use aspas duplas — use aspas simples se precisar citar algo.",
+    "- Mantenha o id exatamente como foi passado, uma linha por id, na mesma ordem da lista.",
+  ].join("\n");
+}
+
+/** curate:redescribe's shortening retry: asked only for a single overlong pt/en text that otherwise passed validation, never for the whole batch again. Plain text response (no JSON), trimmed as-is. */
+export function buildShortenPrompt(text: string, lang: "pt" | "en"): string {
+  const languageName = lang === "pt" ? "português" : "inglês";
+  return [
+    `O texto abaixo (em ${languageName}) está longo demais. Reescreva-o em no máximo 280 caracteres, mantendo o idioma, o sentido e os fatos específicos citados — apenas mais direto e conciso.`,
+    "Responda APENAS com o texto reescrito, sem aspas, sem explicações, sem markdown.",
+    "",
+    text,
   ].join("\n");
 }
 

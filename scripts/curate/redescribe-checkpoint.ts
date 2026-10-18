@@ -11,7 +11,9 @@
  * list, so a malformed or empty response is never cached.
  */
 
-import { redescribeBatch, translateBatch, type AiCallStats } from "./ai";
+import { createHash } from "node:crypto";
+
+import { redescribeBatch, translateBatch, shortenRedescribedText, type AiCallStats } from "./ai";
 import { normalizeBatchArray } from "./normalize-batch";
 import { saveCheckpoint, loadCheckpoint } from "./checkpoint";
 import { AiCallBudget, type RewrittenItem } from "./redescribe-run";
@@ -78,5 +80,20 @@ export function checkpointedTranslate(rootDir: string, slug: string, destination
     }
     if (result.translations.length > 0) saveCheckpoint(rootDir, slug, key, result.translations);
     return result.translations;
+  };
+}
+
+/** A checkpointed shortening call: keyed by a hash of the text + language (the shorten call has no place id of its own), reused across resumed runs to avoid re-paying for the same shortening. */
+export function checkpointedShorten(rootDir: string, slug: string, stats: AiCallStats, budget: AiCallBudget) {
+  return async (text: string, lang: "pt" | "en"): Promise<string | null> => {
+    const hash = createHash("md5").update(text).digest("hex").slice(0, 16);
+    const key = `redescribe-shorten-${lang}-${hash}`;
+    const cached = loadCheckpoint<string>(rootDir, slug, key);
+    if (typeof cached === "string" && cached.trim()) return cached;
+
+    budget.consume(1);
+    const result = await shortenRedescribedText(text, lang, stats);
+    if (result) saveCheckpoint(rootDir, slug, key, result);
+    return result;
   };
 }

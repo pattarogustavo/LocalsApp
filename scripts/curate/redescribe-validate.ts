@@ -9,11 +9,22 @@
 import { isGenericPt, isGenericEn } from "./generic-description";
 
 export const MIN_DESCRIPTION_LENGTH = 60;
-export const MAX_DESCRIPTION_LENGTH = 320;
+/** Hard ceiling: the app's detail view shows the full text, so up to ~420 chars is acceptable even if the prompt asks for ~300. */
+export const MAX_DESCRIPTION_LENGTH = 420;
+/** Soft ceiling, reporting-only: an accepted description past this length is counted as "long" in the city report, but never rejected for it alone. */
+export const LONG_DESCRIPTION_THRESHOLD = 320;
 
 export interface RedescribeValidationResult {
   valid: boolean;
   errors: string[];
+}
+
+export function isTooLong(text: string, max: number = MAX_DESCRIPTION_LENGTH): boolean {
+  return text.trim().length > max;
+}
+
+export function isLongDescription(text: string, threshold: number = LONG_DESCRIPTION_THRESHOLD): boolean {
+  return text.trim().length > threshold;
 }
 
 /** Validates one rewritten pt/en pair in isolation (length, non-empty, no longer generic). Doesn't check cross-item repetition — see findBatchRepetitionIds. */

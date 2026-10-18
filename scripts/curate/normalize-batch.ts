@@ -36,19 +36,26 @@ function sampleOf(raw: unknown): string {
   return (text ?? "").slice(0, 300);
 }
 
+/** How many times to alternate string-parse/key-unwrap before giving up — covers a response double-encoded as `{"places": "{\"places\":[...]}"}`, not unbounded recursion. */
+const MAX_UNWRAP_DEPTH = 4;
+
 export function normalizeBatchArray<T = Record<string, unknown>>(raw: unknown, arrayKey: string): BatchNormalizeResult<T> {
   let value: unknown = raw;
 
-  if (typeof value === "string") {
-    try {
-      value = JSON.parse(value);
-    } catch {
-      return { items: [], shape: "string", sample: sampleOf(raw) };
+  for (let depth = 0; depth < MAX_UNWRAP_DEPTH; depth++) {
+    if (typeof value === "string") {
+      try {
+        value = JSON.parse(value);
+        continue;
+      } catch {
+        return { items: [], shape: "string", sample: sampleOf(raw) };
+      }
     }
-  }
-
-  if (value && typeof value === "object" && !Array.isArray(value) && arrayKey in (value as Record<string, unknown>)) {
-    value = (value as Record<string, unknown>)[arrayKey];
+    if (value && typeof value === "object" && !Array.isArray(value) && arrayKey in (value as Record<string, unknown>)) {
+      value = (value as Record<string, unknown>)[arrayKey];
+      continue;
+    }
+    break;
   }
 
   if (Array.isArray(value)) {

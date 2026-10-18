@@ -10,7 +10,7 @@ import {
   type RedescribeCityReport,
 } from "./curate/redescribe-run";
 import { newAiCallStats, type AiCallStats } from "./curate/ai";
-import { checkpointedRewrite, checkpointedTranslate, type BatchIssue } from "./curate/redescribe-checkpoint";
+import { checkpointedRewrite, checkpointedTranslate, checkpointedShorten, type BatchIssue } from "./curate/redescribe-checkpoint";
 import { runIsolated } from "./curate/city-isolation";
 import { confirmDatabaseWrite } from "./curate/confirm";
 import { estimateTotalCostUsd, formatModelCostUsd } from "./data/model-prices";
@@ -28,8 +28,22 @@ import type { Descriptions } from "./curate/descriptions";
 
 const ROOT_DIR = process.cwd();
 
-/** Default cap on rewrite+translate AI calls across the whole run. */
+/** Default cap on rewrite+translate+shorten AI calls across the whole run. */
 const DEFAULT_MAX_AI_CALLS = 500;
+
+function mergeAiCallStats(target: AiCallStats, source: AiCallStats): void {
+  target.calls += source.calls;
+  target.promptTokens += source.promptTokens;
+  target.completionTokens += source.completionTokens;
+  target.webSearchRequests += source.webSearchRequests;
+  for (const [model, usage] of Object.entries(source.byModel)) {
+    const existing = target.byModel[model] ?? { calls: 0, promptTokens: 0, completionTokens: 0 };
+    existing.calls += usage.calls;
+    existing.promptTokens += usage.promptTokens;
+    existing.completionTokens += usage.completionTokens;
+    target.byModel[model] = existing;
+  }
+}
 
 function toCandidate(row: CuratedPlace): RedescribeCandidate {
   return {
@@ -46,6 +60,7 @@ interface CityRunResult extends RedescribeCityReport {
   slug: string;
   error?: string;
   batchIssues: BatchIssue[];
+  stats: AiCallStats;
 }
 
 async function runCity(
@@ -53,10 +68,10 @@ async function runCity(
   slug: string,
   candidates: RedescribeCandidate[],
   dryRun: boolean,
-  stats: AiCallStats,
   budget: AiCallBudget,
 ): Promise<CityRunResult> {
   const batchIssues: BatchIssue[] = [];
+  const stats = newAiCallStats();
   return runIsolated(
     ROOT_DIR,
     slug,
@@ -68,10 +83,11 @@ async function runCity(
       const report = await redescribeCity(candidates, {
         rewrite: checkpointedRewrite(ROOT_DIR, slug, destinationName, country, stats, budget, batchIssues),
         translate: checkpointedTranslate(ROOT_DIR, slug, destinationName, stats, budget, batchIssues),
+        shorten: checkpointedShorten(ROOT_DIR, slug, stats, budget),
         write: dryRun || !db ? async () => {} : (id, descriptions) => updatePlaceDescriptions(db, id, descriptions),
       });
 
-      return { ...report, slug, batchIssues };
+      return { ...report, slug, batchIssues, stats };
     },
     (err) => ({
       slug,
@@ -80,10 +96,19 @@ async function runCity(
       stillInvalid: [],
       lowKnowledge: [],
       samples: [],
+      longCount: 0,
       batchIssues,
+      stats,
       error: err.message,
     }),
   );
+}
+
+function groupByCategory(stillInvalid: RedescribeCityReport["stillInvalid"]): string {
+  const counts = new Map<string, number>();
+  for (const i of stillInvalid) counts.set(i.category, (counts.get(i.category) ?? 0) + 1);
+  if (counts.size === 0) return "(nenhum)";
+  return [...counts.entries()].map(([category, n]) => `${category}=${n}`).join(", ");
 }
 
 function printCityReport(report: CityRunResult): void {
@@ -92,12 +117,13 @@ function printCityReport(report: CityRunResult): void {
     console.log(`  falhou: ${report.error}`);
     return;
   }
-  console.log(`  selecionados=${report.selected} reescritos=${report.rewritten} ainda inválidos=${report.stillInvalid.length} lowKnowledge=${report.lowKnowledge.length}`);
+  console.log(`  selecionados=${report.selected} reescritos=${report.rewritten} ainda inválidos=${report.stillInvalid.length} lowKnowledge=${report.lowKnowledge.length} longas=${report.longCount}`);
+  console.log(`  inválidos por motivo: ${groupByCategory(report.stillInvalid)}`);
   if (report.lowKnowledge.length > 0) {
     console.log(`  lowKnowledge: ${report.lowKnowledge.map((p) => p.name).join(", ")}`);
   }
   for (const i of report.stillInvalid.slice(0, 20)) {
-    console.log(`    inválido "${i.name}" (id=${i.id}): ${i.errors.join("; ")}`);
+    console.log(`    inválido [${i.category}] "${i.name}" (id=${i.id}): ${i.errors.join("; ")}`);
   }
   if (report.stillInvalid.length > 20) console.log(`    ...e mais ${report.stillInvalid.length - 20}`);
   for (const issue of report.batchIssues) {
@@ -110,6 +136,9 @@ function printCityReport(report: CityRunResult): void {
     console.log(`    antes en: ${sample.before.en ?? "(vazio)"}`);
     console.log(`    depois en: ${sample.after.en}`);
   }
+  if (report.stats.calls > 0) {
+    console.log(`  chamadas de IA: ${report.stats.calls} | custo estimado: ${formatModelCostUsd(estimateTotalCostUsd(report.stats.byModel))}`);
+  }
 }
 
 function printTotals(reports: CityRunResult[], stats: AiCallStats): void {
@@ -117,7 +146,8 @@ function printTotals(reports: CityRunResult[], stats: AiCallStats): void {
   console.log("\n=== Total ===");
   console.log(`cidades ok=${ok.length} falharam=${reports.length - ok.length}`);
   console.log(`selecionados=${ok.reduce((n, r) => n + r.selected, 0)} reescritos=${ok.reduce((n, r) => n + r.rewritten, 0)}`);
-  console.log(`ainda inválidos=${ok.reduce((n, r) => n + r.stillInvalid.length, 0)} lowKnowledge=${ok.reduce((n, r) => n + r.lowKnowledge.length, 0)}`);
+  console.log(`ainda inválidos=${ok.reduce((n, r) => n + r.stillInvalid.length, 0)} lowKnowledge=${ok.reduce((n, r) => n + r.lowKnowledge.length, 0)} longas=${ok.reduce((n, r) => n + r.longCount, 0)}`);
+  console.log(`inválidos por motivo (total): ${groupByCategory(ok.flatMap((r) => r.stillInvalid))}`);
   const totalBatchIssues = reports.reduce((n, r) => n + r.batchIssues.length, 0);
   if (totalBatchIssues > 0) console.log(`lotes com resposta malformada: ${totalBatchIssues}`);
   if (stats.calls > 0) {
@@ -156,7 +186,8 @@ async function main() {
   try {
     for (const [slug, candidates] of bySlug) {
       try {
-        const report = await runCity(db, slug, candidates, opts.dryRun, stats, budget);
+        const report = await runCity(db, slug, candidates, opts.dryRun, budget);
+        mergeAiCallStats(stats, report.stats);
         reports.push(report);
         printCityReport(report);
       } catch (err) {

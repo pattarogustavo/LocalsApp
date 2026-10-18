@@ -5,12 +5,14 @@ import path from "node:path";
 
 const redescribeBatchMock = vi.fn();
 const translateBatchMock = vi.fn();
+const shortenRedescribedTextMock = vi.fn();
 vi.mock("../scripts/curate/ai", () => ({
   redescribeBatch: (...args: unknown[]) => redescribeBatchMock(...args),
   translateBatch: (...args: unknown[]) => translateBatchMock(...args),
+  shortenRedescribedText: (...args: unknown[]) => shortenRedescribedTextMock(...args),
 }));
 
-import { checkpointedRewrite, checkpointedTranslate } from "../scripts/curate/redescribe-checkpoint";
+import { checkpointedRewrite, checkpointedTranslate, checkpointedShorten } from "../scripts/curate/redescribe-checkpoint";
 import { AiCallBudget } from "../scripts/curate/redescribe-run";
 import { checkpointPath } from "../scripts/curate/checkpoint";
 
@@ -20,6 +22,7 @@ beforeEach(() => {
   rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "curate-redescribe-checkpoint-"));
   redescribeBatchMock.mockReset();
   translateBatchMock.mockReset();
+  shortenRedescribedTextMock.mockReset();
 });
 
 afterEach(() => {
@@ -101,6 +104,66 @@ describe("checkpointedRewrite", () => {
     expect(result).toEqual([]);
     expect(fs.existsSync(checkpointPath(rootDir, "lisbon-pt", "redescribe-1"))).toBe(false);
     expect(issues).toEqual([{ kind: "rewrite", ids: ["1"], shape: "object", sample: "{}" }]);
+  });
+
+  it("caches a partial batch result (some ids missing), and a resumed run with the same id set reuses it without re-calling the model", async () => {
+    const twoItems = [{ id: "1", name: "Place 1", category: "restaurant" }, { id: "2", name: "Place 2", category: "restaurant" }];
+    // Only id "1" came back from the model — a partial result, still cached.
+    redescribeBatchMock.mockResolvedValue({ items: [{ id: "1", pt: "p", en: "e", lowKnowledge: false }], truncated: false });
+    const budget = new AiCallBudget(10);
+    const stats = { calls: 0, promptTokens: 0, completionTokens: 0, webSearchRequests: 0, byModel: {} };
+    const rewrite1 = checkpointedRewrite(rootDir, "lisbon-pt", "Lisbon", "Portugal", stats, budget, []);
+    const result1 = await rewrite1(twoItems);
+    expect(result1).toEqual([{ id: "1", pt: "p", en: "e", lowKnowledge: false }]);
+
+    redescribeBatchMock.mockClear();
+    const rewrite2 = checkpointedRewrite(rootDir, "lisbon-pt", "Lisbon", "Portugal", stats, budget, []);
+    const result2 = await rewrite2(twoItems);
+
+    expect(result2).toEqual([{ id: "1", pt: "p", en: "e", lowKnowledge: false }]);
+    expect(redescribeBatchMock).not.toHaveBeenCalled(); // id "1" never re-paid for
+  });
+});
+
+describe("checkpointedShorten", () => {
+  it("calls the model and saves a checkpoint keyed by text+lang on a cold run", async () => {
+    shortenRedescribedTextMock.mockResolvedValue("shortened text");
+    const budget = new AiCallBudget(10);
+    const shorten = checkpointedShorten(rootDir, "lisbon-pt", { calls: 0, promptTokens: 0, completionTokens: 0, webSearchRequests: 0, byModel: {} }, budget);
+
+    const result = await shorten("a long text that needs shortening", "en");
+
+    expect(result).toBe("shortened text");
+    expect(shortenRedescribedTextMock).toHaveBeenCalledTimes(1);
+    expect(budget.count).toBe(1);
+  });
+
+  it("reuses the cached shortened text on resume without calling the model again", async () => {
+    shortenRedescribedTextMock.mockResolvedValue("shortened text");
+    const budget = new AiCallBudget(10);
+    const stats = { calls: 0, promptTokens: 0, completionTokens: 0, webSearchRequests: 0, byModel: {} };
+    const shorten1 = checkpointedShorten(rootDir, "lisbon-pt", stats, budget);
+    await shorten1("a long text that needs shortening", "en");
+
+    shortenRedescribedTextMock.mockClear();
+    const shorten2 = checkpointedShorten(rootDir, "lisbon-pt", stats, budget);
+    const result = await shorten2("a long text that needs shortening", "en");
+
+    expect(result).toBe("shortened text");
+    expect(shortenRedescribedTextMock).not.toHaveBeenCalled();
+  });
+
+  it("never caches a failed (null) shortening attempt", async () => {
+    shortenRedescribedTextMock.mockResolvedValue(null);
+    const budget = new AiCallBudget(10);
+    const stats = { calls: 0, promptTokens: 0, completionTokens: 0, webSearchRequests: 0, byModel: {} };
+    const shorten1 = checkpointedShorten(rootDir, "lisbon-pt", stats, budget);
+    await shorten1("some text", "pt");
+
+    const shorten2 = checkpointedShorten(rootDir, "lisbon-pt", stats, budget);
+    await shorten2("some text", "pt");
+
+    expect(shortenRedescribedTextMock).toHaveBeenCalledTimes(2); // never cached, retried both times
   });
 });
 

@@ -5,6 +5,7 @@ import {
   buildManualStructurePrompt,
   buildTranslatePrompt,
   buildRedescribePrompt,
+  buildShortenPrompt,
   type ResearchPromptParams,
   type TranslateBatchItem,
   type RedescribeItem,
@@ -12,6 +13,7 @@ import {
 import { withRetry, isRetryableAnthropicError, getAnthropicRetryAfterMs, isWebSearchUnsupportedError } from "./retry";
 import { validateProposedPlaces, type RawProposedPlace, type ValidatedPlace, type InvalidPlaceExample, type NormalizeOptions } from "./validate-place";
 import { normalizeBatchArray, type BatchNormalizeResult } from "./normalize-batch";
+import { parseJsonLines } from "./jsonl";
 
 /** Diagnostic surfaced on a StructureBatchResult/RedescribeBatchResult/TranslateBatchResult when the model's response needed coercion (or was unusable) to become a batch array — see normalizeBatchArray. Absent when the response was already a clean array. */
 export type BatchMalformed = Pick<BatchNormalizeResult<unknown>, "shape" | "sample">;
@@ -270,29 +272,6 @@ export interface TranslateBatchResult {
   malformed?: BatchMalformed;
 }
 
-const REDESCRIBE_SCHEMA = {
-  name: "redescribed_places",
-  schema: {
-    type: "object",
-    properties: {
-      places: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            id: { type: "string" },
-            pt: { type: "string" },
-            en: { type: "string" },
-            lowKnowledge: { type: "boolean" },
-          },
-          required: ["id", "pt", "en", "lowKnowledge"],
-        },
-      },
-    },
-    required: ["places"],
-  },
-} as const;
-
 export interface RedescribedBatchItem {
   id: string;
   pt: string;
@@ -307,10 +286,16 @@ export interface RedescribeBatchResult {
 }
 
 /**
- * curate:redescribe's rewrite call: a single, schema-validated call per
- * batch of up to 12 places from the same city, using RESEARCH_MODEL but
- * WITHOUT web search — these are original, from-knowledge rewrites, never
- * sourced from a live lookup (see buildRedescribePrompt).
+ * curate:redescribe's rewrite call: a single call per batch of up to 12
+ * places from the same city, using RESEARCH_MODEL but WITHOUT web search —
+ * these are original, from-knowledge rewrites, never sourced from a live
+ * lookup (see buildRedescribePrompt) — and WITHOUT a forced output schema:
+ * the schema path was observed double-encoding long free text (the whole
+ * `places` array coming back as a JSON-stringified string inside the JSON
+ * object). Plain JSON Lines gives the model less structure to mangle, and
+ * parseJsonLines tolerates one bad line without losing the rest of the
+ * batch. If the model ignores the JSON Lines instruction and answers with a
+ * single JSON blob instead, normalizeBatchArray recovers what it can.
  */
 export async function redescribeBatch(destinationName: string, country: string, items: RedescribeItem[], stats: AiCallStats): Promise<RedescribeBatchResult> {
   if (items.length === 0) return { items: [], truncated: false };
@@ -318,8 +303,7 @@ export async function redescribeBatch(destinationName: string, country: string, 
     () =>
       invokeLLM({
         model: RESEARCH_MODEL,
-        outputSchema: REDESCRIBE_SCHEMA,
-        maxTokens: 4096,
+        maxTokens: 6144,
         messages: [{ role: "user", content: buildRedescribePrompt(destinationName, country, items) }],
       }),
     CALL_RETRY_OPTIONS,
@@ -328,14 +312,46 @@ export async function redescribeBatch(destinationName: string, country: string, 
   const content = result.choices[0]?.message.content;
   const truncated = isTruncated(result);
   if (typeof content !== "string" || !content) return { items: [], truncated };
-  let parsedContent: unknown;
-  try {
-    parsedContent = JSON.parse(content);
-  } catch {
-    return { items: [], truncated: true, malformed: { shape: "string", sample: content.slice(0, 300) } };
+
+  const { items: lineItems, malformedLines } = parseJsonLines<RedescribedBatchItem>(content);
+  if (lineItems.length > 0) {
+    const malformed: BatchMalformed | undefined =
+      malformedLines.length > 0 ? { shape: "jsonl-partial", sample: malformedLines[0].line } : undefined;
+    return { items: lineItems, truncated, malformed };
   }
-  const normalized = normalizeBatchArray<RedescribedBatchItem>(parsedContent, "places");
+
+  // The model ignored the JSON Lines instruction entirely — fall back to
+  // tolerating whatever single-blob shape it answered with instead.
+  const normalized = normalizeBatchArray<RedescribedBatchItem>(content, "places");
   return { items: normalized.items, truncated, malformed: malformedOf(normalized) };
+}
+
+/**
+ * curate:redescribe's shortening retry: asked only when an otherwise-valid
+ * rewrite came back over MAX_DESCRIPTION_LENGTH — a single plain-text call
+ * (no schema) for the ONE overlong text, never the whole batch again.
+ * Returns null (never throws) if the call fails or comes back empty, so the
+ * caller can leave the place invalid instead of writing a bad shortening.
+ */
+export async function shortenRedescribedText(text: string, lang: "pt" | "en", stats: AiCallStats): Promise<string | null> {
+  try {
+    const result = await withRetry(
+      () =>
+        invokeLLM({
+          model: RESEARCH_MODEL,
+          maxTokens: 512,
+          messages: [{ role: "user", content: buildShortenPrompt(text, lang) }],
+        }),
+      CALL_RETRY_OPTIONS,
+    );
+    trackUsage(stats, RESEARCH_MODEL, result.usage);
+    const content = result.choices[0]?.message.content;
+    if (typeof content !== "string") return null;
+    const trimmed = content.trim().replace(/^["']|["']$/g, "");
+    return trimmed || null;
+  } catch {
+    return null;
+  }
 }
 
 /** Batched es/fr/de/it translation for up to MAX_PLACES_PER_BATCH places, from their English description. */
