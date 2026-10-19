@@ -533,6 +533,170 @@ describe("classifyStopType / ensureStopDescriptionAndType", () => {
   });
 });
 
+// ─── Final mandatory opening-hours enforcement (regression: Barcelona/La Colmena) ─
+
+const FULL_WEEK_SUNDAY_9_TO_21 = [
+  "Monday: 9:00 AM – 6:00 PM",
+  "Tuesday: 9:00 AM – 6:00 PM",
+  "Wednesday: 9:00 AM – 6:00 PM",
+  "Thursday: 9:00 AM – 6:00 PM",
+  "Friday: 9:00 AM – 6:00 PM",
+  "Saturday: 9:00 AM – 6:00 PM",
+  "Sunday: 9:00 AM – 9:00 PM",
+].join("\n");
+
+describe("enforceOpeningHours (final mandatory check, runs after every time-shifting step)", () => {
+  it("[fixture 5] maps a YYYY-MM-DD local date to the correct weekday regardless of process TZ (2026-10-18 is a Sunday)", () => {
+    expect(dateToGoogleWeekdayIndex("2026-10-18")).toBe(6); // Monday-first index: Sunday = 6
+    expect(dateToGoogleWeekdayIndex("2026-10-17")).toBe(5); // Saturday
+  });
+
+  it("[fixture 9 — exact Barcelona/La Colmena regression] rejects/reschedules a stop scheduled after its own self-reported closing time, even with no backend-verified hours on file", async () => {
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", stops: [
+        { id: "1", time: "22:00", googlePlaceId: "colmena-1", placeName: "La Colmena", placeCategory: "restaurant",
+          description: "Doces tradicionais catalães.", hours: "Domingo: 09:00–21:00" },
+      ] },
+    ];
+    // Deliberately NOT in hoursByPlaceId — this candidate wasn't in the
+    // bounded top-N backfill, same as the reported production case; only
+    // its own self-reported `hours` field (what the user actually saw) is
+    // available.
+    const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, bedtime: "23:59", isFirstDay: () => false, isLastDay: () => false, requireLunch: false, requireDinner: false,
+    });
+    const stop = fixed[0].stops.find((s: any) => s.placeName === "La Colmena");
+    expect(stop).toBeTruthy();
+    expect(stop.time).not.toBe("22:00"); // never left as a confirmed visit past its own stated close
+    expect(stop.time).toBe("09:00"); // deterministic reschedule into the stated 09:00–21:00 window
+    expect(warnings.some((w: string) => w.includes("Rescheduled") && w.includes("its own displayed opening hours"))).toBe(true);
+  });
+
+  it("[fixture 1] rejects/reschedules a visit starting at or after a verified (backend) Sunday 21:00 close", async () => {
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", stops: [
+        { id: "1", time: "22:00", googlePlaceId: "p1", placeName: "Some Bakery", placeCategory: "restaurant", description: "x" },
+      ] },
+    ];
+    const hoursByPlaceId = new Map([["p1", FULL_WEEK_SUNDAY_9_TO_21]]);
+    const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, bedtime: "23:59", hoursByPlaceId, isFirstDay: () => false, isLastDay: () => false, requireLunch: false, requireDinner: false,
+    });
+    const stop = fixed[0].stops.find((s: any) => s.placeName === "Some Bakery");
+    expect(stop).toBeTruthy();
+    expect(stop.time).not.toBe("22:00");
+    expect(warnings.some((w: string) => w.includes("Rescheduled") && w.includes("verified Google Places hours"))).toBe(true);
+  });
+
+  it("[fixture 2] catches a visit that starts before closing but whose duration would extend past it (not just a start-time check)", async () => {
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", stops: [
+        // 20:30 start is itself before 21:00 close, but +75min typical restaurant duration ends at 21:45 — must still be flagged.
+        { id: "1", time: "20:30", googlePlaceId: "p1", placeName: "Some Bakery", placeCategory: "restaurant", description: "x" },
+      ] },
+    ];
+    const hoursByPlaceId = new Map([["p1", FULL_WEEK_SUNDAY_9_TO_21]]);
+    const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, hoursByPlaceId, isFirstDay: () => false, isLastDay: () => false, requireLunch: false, requireDinner: false,
+    });
+    const stop = fixed[0].stops.find((s: any) => s.placeName === "Some Bakery");
+    expect(stop.time).not.toBe("20:30"); // caught even though the START time alone looked fine
+    expect(warnings.some((w: string) => w.includes("Bakery"))).toBe(true);
+  });
+
+  it("[fixture 3] handles multiple opening intervals in a day (lunch/dinner split)", async () => {
+    const hoursByPlaceId = new Map([["p1",
+      ["Monday: 9:00 AM – 1:00 PM", "Tuesday: 9:00 AM – 1:00 PM", "Wednesday: 9:00 AM – 1:00 PM", "Thursday: 9:00 AM – 1:00 PM",
+       "Friday: 9:00 AM – 1:00 PM", "Saturday: 9:00 AM – 1:00 PM", "Sunday: 9:00 AM – 1:00 PM, 5:00 PM – 9:00 PM"].join("\n"),
+    ]]);
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", stops: [
+        // 3pm falls in the closed gap between the two intervals.
+        { id: "1", time: "15:00", googlePlaceId: "p1", placeName: "Split Hours Cafe", placeCategory: "cafe", description: "x" },
+      ] },
+    ];
+    const { days: fixed } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, hoursByPlaceId, isFirstDay: () => false, isLastDay: () => false, requireLunch: false, requireDinner: false,
+    });
+    const stop = fixed[0].stops.find((s: any) => s.placeName === "Split Hours Cafe");
+    expect(stop).toBeTruthy();
+    const t = timeToMinutes(stop.time)!;
+    const inMorning = t >= 9 * 60 && t <= 13 * 60;
+    const inEvening = t >= 17 * 60 && t <= 21 * 60;
+    expect(inMorning || inEvening).toBe(true); // moved into ONE of the two valid windows, not left in the gap
+  });
+
+  it("[fixture 4] removes a stop closed on the requested weekday when no reschedule/move is possible (single-day trip)", async () => {
+    const hoursByPlaceId = new Map([["p1",
+      ["Monday: 9:00 AM – 6:00 PM", "Tuesday: 9:00 AM – 6:00 PM", "Wednesday: 9:00 AM – 6:00 PM", "Thursday: 9:00 AM – 6:00 PM",
+       "Friday: 9:00 AM – 6:00 PM", "Saturday: 9:00 AM – 6:00 PM", "Sunday: Closed"].join("\n"),
+    ]]);
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", stops: [
+        { id: "1", time: "11:00", googlePlaceId: "p1", placeName: "Sunday-Closed Shop", placeCategory: "attraction", description: "x" },
+      ] },
+    ];
+    const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, hoursByPlaceId, isFirstDay: () => false, isLastDay: () => false, requireLunch: false, requireDinner: false,
+    });
+    expect(fixed[0].stops.find((s: any) => s.placeName === "Sunday-Closed Shop")).toBeUndefined();
+    expect(warnings.some((w: string) => w.includes("CONFLICT") && w.includes("Sunday-Closed Shop"))).toBe(true);
+  });
+
+  it("[fixture 6] correctly fits a visit inside an overnight interval that crosses midnight", async () => {
+    const hoursByPlaceId = new Map([["p1",
+      ["Monday: 9:00 AM – 6:00 PM", "Tuesday: 9:00 AM – 6:00 PM", "Wednesday: 9:00 AM – 6:00 PM", "Thursday: 9:00 AM – 6:00 PM",
+       "Friday: 9:00 AM – 6:00 PM", "Saturday: 10:00 PM – 2:00 AM", "Sunday: 9:00 AM – 6:00 PM"].join("\n"),
+    ]]);
+    const days = [
+      { date: "2026-10-17", destination: "Barcelona", stops: [ // Saturday
+        { id: "1", time: "22:30", googlePlaceId: "p1", placeName: "Late Night Bar", placeCategory: "other", description: "x" },
+      ] },
+    ];
+    const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, bedtime: "23:59", hoursByPlaceId, isFirstDay: () => false, isLastDay: () => false, requireLunch: false, requireDinner: false,
+    });
+    const stop = fixed[0].stops.find((s: any) => s.placeName === "Late Night Bar");
+    expect(stop).toBeTruthy();
+    expect(stop.time).toBe("22:30"); // fits the overnight 22:00–02:00 window — left untouched
+    expect(warnings.some((w: string) => w.includes("Late Night Bar"))).toBe(false);
+  });
+
+  it("[fixture 7] never blocks or removes a stop when opening-hours data is genuinely unavailable", async () => {
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", stops: [
+        { id: "1", time: "14:00", googlePlaceId: "unknown-1", placeName: "No Data Place", placeCategory: "attraction", description: "x" },
+      ] },
+    ];
+    const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, isFirstDay: () => false, isLastDay: () => false, requireLunch: false, requireDinner: false,
+    });
+    const stop = fixed[0].stops.find((s: any) => s.placeName === "No Data Place");
+    expect(stop).toBeTruthy();
+    expect(stop.time).toBe("14:00"); // never touched — unknown hours are never treated as "closed" or "open"
+    expect(warnings.some((w: string) => w.includes("No Data Place"))).toBe(false);
+  });
+
+  it("[fixture 8] catches a conflict introduced by an EARLIER step (arrival-buffer shift) — the actual root cause of the reported bug", async () => {
+    // Originally-proposed time (20:15) is well within the 09:00–21:00 window —
+    // an opening-hours check running BEFORE the arrival-buffer shift (the old,
+    // buggy ordering) would have passed it. The arrival buffer then pushes the
+    // whole day's first stop to 21:30 (arrival 20:00 + 90min buffer), which is
+    // now past the 21:00 close — only a check that runs LAST can catch this.
+    const hoursByPlaceId = new Map([["p1", FULL_WEEK_SUNDAY_9_TO_21]]);
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", stops: [
+        { id: "1", time: "20:15", googlePlaceId: "p1", placeName: "Arrival-Day Spot", placeCategory: "restaurant", description: "x" },
+      ] },
+    ];
+    const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, hoursByPlaceId, arrivalTime: "20:00", isFirstDay: () => true, isLastDay: () => false, requireLunch: false, requireDinner: false,
+    });
+    expect(fixed[0].stops.find((s: any) => s.placeName === "Arrival-Day Spot")).toBeUndefined();
+    expect(warnings.some((w: string) => w.includes("CONFLICT") && w.includes("Arrival-Day Spot"))).toBe(true);
+  });
+});
+
 // ─── Deterministic daily summary (backend-only field) ──────────────────────
 
 describe("buildDailySummary", () => {

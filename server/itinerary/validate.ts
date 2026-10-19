@@ -102,6 +102,81 @@ export function dateToGoogleWeekdayIndex(dateStr: string | undefined): number | 
   return (jsDay + 6) % 7;
 }
 
+// ─── Multi-interval, weekday-name-aware opening-hours parsing ──────────────
+// Supersedes parseWeekdayHours (kept above, unchanged, for existing callers)
+// for the FINAL enforcement pass: handles (a) a full 7-line Google
+// weekday_text block, Monday-first, same as before, AND (b) a short,
+// single/partial-weekday snippet as self-reported by the LLM on the stop
+// itself (e.g. "Domingo: 09:00–21:00") — which parseWeekdayHours can't
+// attribute to a weekday at all outside the positional 7-line case. Also
+// supports multiple intervals per day (lunch/dinner split) and overnight
+// closes (close time earlier than open time ⇒ past midnight).
+
+const WEEKDAY_NAME_PATTERNS: Record<number, RegExp> = {
+  0: /\b(monday|segunda(?:-feira)?|lunes|lundi|montag|lunedi|lunedì)\b/i,
+  1: /\b(tuesday|ter[cç]a(?:-feira)?|martes|mardi|dienstag|martedi|martedì)\b/i,
+  2: /\b(wednesday|quarta(?:-feira)?|mi[eé]rcoles|mercredi|mittwoch|mercoledi|mercoledì)\b/i,
+  3: /\b(thursday|quinta(?:-feira)?|jueves|jeudi|donnerstag|giovedi|giovedì)\b/i,
+  4: /\b(friday|sexta(?:-feira)?|viernes|vendredi|freitag|venerdi|venerdì)\b/i,
+  5: /\b(saturday|s[aá]bado|s[aá]bado|samedi|samstag|sabato)\b/i,
+  6: /\b(sunday|domingo|dimanche|sonntag|domenica)\b/i,
+};
+
+export type DayHoursResult =
+  | { status: "closed" }
+  | { status: "open"; intervals: { open: number; close: number }[] }
+  | { status: "unknown" };
+
+function extractTimeIntervals(line: string): { open: number; close: number }[] {
+  const tokens = [...line.matchAll(/(\d{1,2})[:h](\d{2})\s*(am|pm)?/gi)];
+  const intervals: { open: number; close: number }[] = [];
+  for (let i = 0; i + 1 < tokens.length; i += 2) {
+    const open = to24h(parseInt(tokens[i][1], 10), parseInt(tokens[i][2], 10), tokens[i][3]);
+    const closeRaw = to24h(parseInt(tokens[i + 1][1], 10), parseInt(tokens[i + 1][2], 10), tokens[i + 1][3]);
+    // Overnight interval (e.g. 22:00–02:00): close is numerically earlier
+    // than open ⇒ it falls after midnight, represented as close+1440 so a
+    // same-day visit window comparison still works with plain arithmetic.
+    const close = closeRaw <= open ? closeRaw + 1440 : closeRaw;
+    intervals.push({ open, close });
+  }
+  return intervals;
+}
+
+/**
+ * Resolves what a (possibly multi-weekday, possibly single-snippet) hours
+ * text says about ONE specific weekday. Never guesses: a line that exists
+ * but can't be parsed, or no matching weekday at all, resolves to
+ * `{status: "unknown"}` — exactly the "don't pretend it was verified"
+ * requirement — never silently treated as open.
+ */
+export function parseOpeningHoursForWeekday(text: string | undefined, weekdayIdx: number | null): DayHoursResult {
+  if (!text || weekdayIdx == null) return { status: "unknown" };
+  const lines = text.split(/\n|;(?!\d)/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return { status: "unknown" };
+
+  // Classic Google weekday_text block: exactly 7 lines, Monday-first — use
+  // position when no line carries an explicit weekday name of its own.
+  const positional = lines.length === 7;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const namedIdx = Object.entries(WEEKDAY_NAME_PATTERNS).find(([, pattern]) => pattern.test(line))?.[0];
+    const idx = namedIdx != null ? parseInt(namedIdx, 10) : positional ? i : null;
+    if (idx !== weekdayIdx) continue;
+    if (CLOSED_WORDS.test(line)) return { status: "closed" };
+    const intervals = extractTimeIntervals(line);
+    if (intervals.length === 0) return { status: "unknown" }; // a line exists but isn't parsable — never guess
+    return { status: "open", intervals };
+  }
+  return { status: "unknown" }; // no line could be attributed to this weekday at all
+}
+
+/** True iff [start, start+durationMin] fits ENTIRELY within at least one of the given intervals (never just checking the start time). */
+function visitFitsIntervals(start: number, durationMin: number, intervals: { open: number; close: number }[]): boolean {
+  const end = start + durationMin;
+  return intervals.some((iv) => start >= iv.open && end <= iv.close);
+}
+
 // ─── Validation context / types ─────────────────────────────────────────────
 
 export interface MustVisitPlace {
@@ -496,6 +571,149 @@ function matchesAvoid(stop: any, avoidText: string | undefined): boolean {
   return terms.some((term) => name.includes(term));
 }
 
+// ─── Final opening-hours enforcement (runs AFTER every time-shifting step) ──
+
+/** Resolves a stop's opening-hours status for a given weekday, preferring the backend-verified source (ctx.hoursByPlaceId, real Google Places data) over the stop's own self-reported `hours` text — but still enforcing against the self-reported text when that's all that's available, since it's exactly what's already shown to the traveler and an internal contradiction against it is a real bug regardless of source. */
+function resolveStopHoursForWeekday(
+  stop: any,
+  weekdayIdx: number | null,
+  hoursByPlaceId: Map<string, string>,
+): { result: DayHoursResult; source: "verified" | "self-reported" } {
+  const authoritative = stop.googlePlaceId ? hoursByPlaceId.get(stop.googlePlaceId) : undefined;
+  if (authoritative) return { result: parseOpeningHoursForWeekday(authoritative, weekdayIdx), source: "verified" };
+  return { result: parseOpeningHoursForWeekday(stop.hours, weekdayIdx), source: "self-reported" };
+}
+
+/** Finds a start time, within [dayWake, dayBed] and clear of every other stop that day, where [start, start+durationMin] fits one of the given open intervals. Mirrors the gap-scan already used for must-visit insertion above. */
+function findFeasibleStartInDay(
+  day: any,
+  excludeStop: any,
+  durationMin: number,
+  intervals: { open: number; close: number }[],
+  dayWake: number,
+  dayBed: number,
+): number | null {
+  const others = day.stops.filter((s: any) => s !== excludeStop);
+  const times = [dayWake, ...others.map((s: any) => timeToMinutes(s.time) ?? dayWake), dayBed].sort((a, b) => a - b);
+  for (let i = 0; i < times.length - 1; i++) {
+    const gapStart = times[i];
+    const gapEnd = times[i + 1];
+    for (const iv of intervals) {
+      const candidateStart = Math.max(gapStart, iv.open);
+      const candidateEnd = candidateStart + durationMin;
+      if (candidateStart >= gapStart && candidateEnd <= gapEnd && candidateEnd <= iv.close) {
+        return candidateStart;
+      }
+    }
+  }
+  return null;
+}
+
+/** Attempts to relocate a stop that can't fit its day to another day of the SAME destination — same opening-hours + gap-fit logic, just against a different day's date/weekday and schedule. Mutates `days` in place on success. */
+function tryMoveToAnotherDay(
+  days: any[],
+  fromDayIdx: number,
+  stop: any,
+  durationMin: number,
+  ctx: ValidateContext,
+  warnings: string[],
+): boolean {
+  for (let j = 0; j < days.length; j++) {
+    if (j === fromDayIdx) continue;
+    const day2 = days[j];
+    if (day2.destination !== days[fromDayIdx].destination) continue;
+    const weekdayIdx2 = dateToGoogleWeekdayIndex(day2.date);
+    const { result: result2 } = resolveStopHoursForWeekday(stop, weekdayIdx2, ctx.hoursByPlaceId);
+    if (result2.status !== "open") continue;
+
+    const dayWake2 = ctx.isFirstDay(j) ? (timeToMinutes(ctx.arrivalTime) ?? 0) + ARRIVAL_BUFFER_MIN : timeToMinutes(ctx.wakeUpTime) ?? 480;
+    const dayBed2 = ctx.isLastDay(j) ? (timeToMinutes(ctx.departureTime) ?? 1080) - DEPARTURE_BUFFER_MIN : timeToMinutes(ctx.bedtime) ?? 1380;
+    const feasibleStart = findFeasibleStartInDay(day2, stop, durationMin, result2.intervals, dayWake2, dayBed2);
+    if (feasibleStart == null) continue;
+
+    stop.time = minutesToTime(feasibleStart);
+    day2.stops.push(stop);
+    day2.stops.sort((a: any, b: any) => (timeToMinutes(a.time) ?? 0) - (timeToMinutes(b.time) ?? 0));
+    warnings.push(`Moved "${stop.placeName}" from day ${fromDayIdx + 1} to day ${j + 1} at ${stop.time} — conflicted with its opening hours on the original day`);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * The mandatory, final opening-hours check (spec: "the engine must never
+ * present a visit as valid when its own reliable opening-hours data shows
+ * the venue is closed during the planned visit"). Runs LAST among every
+ * time-affecting step, so it always validates the truly final schedule —
+ * never a time that a later step might still shift out of a previously-valid
+ * window (the exact root cause of the reported Barcelona/La Colmena bug: the
+ * old hard filter ran early, before arrival-buffer/duration-realism/travel-
+ * time/time-of-day-hint adjustments could push a stop's time later).
+ *
+ * Checks the FULL visit window (start through start+duration), not just the
+ * start time, against every known interval that day (multiple
+ * lunch/dinner-split intervals, and overnight closes, both supported — see
+ * parseOpeningHoursForWeekday/extractTimeIntervals). A conflict is resolved
+ * in order: (1) reschedule within the same day, (2) move to another day of
+ * the same destination, (3) remove from the confirmed schedule and report a
+ * `CONFLICT:` warning (picked up by the existing bounded one-shot repair in
+ * repair.ts, same convention as must-visit conflicts above). Never silently
+ * drops a stop without a warning, and never invents hours: a stop whose
+ * hours are genuinely unknown (no backend data AND no parsable self-reported
+ * text) is left untouched, exactly like the pre-existing "unknown" handling.
+ */
+function enforceOpeningHours(days: any[], ctx: ValidateContext, warnings: string[]): void {
+  days.forEach((day, dIdx) => {
+    const weekdayIdx = dateToGoogleWeekdayIndex(day.date);
+    const toRemove: any[] = [];
+
+    for (const stop of day.stops) {
+      const { result, source } = resolveStopHoursForWeekday(stop, weekdayIdx, ctx.hoursByPlaceId);
+      if (result.status === "unknown") continue; // genuinely can't verify — never block on it, never pretend verified
+
+      const start = timeToMinutes(stop.time);
+      if (start == null) continue; // malformed time is a different, already-reported problem
+
+      const duration = estimateDurationRange(stop.placeCategory, undefined, { pace: ctx.pace }).typicalMinutes;
+      const fits = result.status === "open" && visitFitsIntervals(start, duration, result.intervals);
+      if (fits) continue;
+
+      const sourceLabel = source === "verified" ? "verified Google Places hours" : "its own displayed opening hours";
+
+      // 1) Same-day reschedule.
+      if (result.status === "open") {
+        const dayWake = ctx.isFirstDay(dIdx) ? (timeToMinutes(ctx.arrivalTime) ?? 0) + ARRIVAL_BUFFER_MIN : timeToMinutes(ctx.wakeUpTime) ?? 480;
+        const dayBed = ctx.isLastDay(dIdx) ? (timeToMinutes(ctx.departureTime) ?? 1080) - DEPARTURE_BUFFER_MIN : timeToMinutes(ctx.bedtime) ?? 1380;
+        const feasibleStart = findFeasibleStartInDay(day, stop, duration, result.intervals, dayWake, dayBed);
+        if (feasibleStart != null) {
+          const originalTime = stop.time;
+          stop.time = minutesToTime(feasibleStart);
+          warnings.push(`Rescheduled "${stop.placeName}" on day ${dIdx + 1} from ${originalTime} to ${stop.time} — the original time conflicted with ${sourceLabel}`);
+          continue;
+        }
+      }
+
+      // 2) Move to another day of the same destination.
+      if (tryMoveToAnotherDay(days, dIdx, stop, duration, ctx, warnings)) {
+        toRemove.push(stop);
+        continue;
+      }
+
+      // 3) Can't fit anywhere — remove from the confirmed schedule, never
+      // present it as a valid visit, and surface it as an unresolved
+      // conflict (same `CONFLICT:` convention the bounded repair step and
+      // must-visit insertion already use).
+      toRemove.push(stop);
+      const reason = result.status === "closed" ? `closed that day per ${sourceLabel}` : `outside ${sourceLabel}`;
+      warnings.push(`CONFLICT: could not fit "${stop.placeName}" on day ${dIdx + 1} — ${reason}, and no feasible time/day was found`);
+    }
+
+    if (toRemove.length > 0) {
+      day.stops = day.stops.filter((s: any) => !toRemove.includes(s));
+    }
+  });
+}
+
 /**
  * Runs the full validate → correct pass over the LLM's parsed `days` output.
  * Mutates a deep-cloned copy; the original parsed object is left untouched.
@@ -542,29 +760,14 @@ export async function validateAndCorrectItinerary(
     });
   }
 
-  // ── 4) Opening-hours hard constraint (best-effort; skip if unparsable) ────
-  for (const day of days) {
-    const weekdayIdx = dateToGoogleWeekdayIndex(day.date);
-    day.stops = day.stops.filter((stop: any) => {
-      const hoursText = stop.googlePlaceId ? ctx.hoursByPlaceId.get(stop.googlePlaceId) : undefined;
-      if (!hoursText || weekdayIdx == null) return true;
-      const perWeekday = parseWeekdayHours(hoursText);
-      const today = perWeekday[weekdayIdx];
-      if (today === undefined) return true; // unparsable — don't block on it
-      if (today === null) {
-        warnings.push(`Removed "${stop.placeName}" — closed on this weekday`);
-        return false;
-      }
-      const t = timeToMinutes(stop.time);
-      if (t == null) return true;
-      // Allow entry up to close time (last admission isn't separately known).
-      if (t < today.open || t > today.close) {
-        warnings.push(`Removed "${stop.placeName}" — scheduled outside known opening hours`);
-        return false;
-      }
-      return true;
-    });
-  }
+  // NOTE: the hard opening-hours constraint used to run here, BEFORE any of
+  // the time-shifting steps below (arrival/departure buffers, duration-
+  // realism correction, travel-time insertion, time-of-day hint adjustment).
+  // That ordering was itself the root cause of a real production bug (a
+  // Barcelona stop scheduled at 22:00 against a Sunday 09:00–21:00 close,
+  // surfaced by a later cascade of same-day shifts after this check had
+  // already passed) — see enforceOpeningHours below, now run LAST, after
+  // every step that can move a stop's time.
 
   // ── 5) Must-visit hard inclusion ───────────────────────────────────────────
   const allStopKeys = () => {
@@ -792,6 +995,13 @@ export async function validateAndCorrectItinerary(
       }
     });
   });
+
+  // ── 10b) Mandatory final opening-hours check (see enforceOpeningHours above).
+  // Runs after every step that can move a stop's time (arrival/departure
+  // buffers, duration-realism correction, real travel-time insertion,
+  // time-of-day hint adjustment) — never before them, which was the root
+  // cause of the Barcelona/La Colmena bug this guards against.
+  enforceOpeningHours(days, ctx, warnings);
 
   // ── 11) Explicit clock-time mentions in descriptions must match the final
   // schedule (the Chinatown-bug pattern — see reconcileExplicitDescriptionTimes
