@@ -436,8 +436,13 @@ async function nearbySearchCandidates(lat: number, lng: number, type: string, ra
  * permanently/temporarily closed places. Shared by every AI flow that needs
  * a grounded pool of real places instead of letting the model invent its own.
  */
-async function fetchRealPlaceCandidates(lat: number, lng: number, radius = 5000, limit = 60, language?: string): Promise<NearbyCandidate[]> {
-  const NEARBY_TYPES = ['tourist_attraction', 'restaurant', 'cafe', 'museum'];
+async function fetchRealPlaceCandidates(lat: number, lng: number, radius = 8000, limit = 90, language?: string): Promise<NearbyCandidate[]> {
+  // Includes 'bar' (the closest Google Places type to "traditional pub" /
+  // local drinking-and-eating culture — no dedicated "pub" type exists) and
+  // 'park' (previously entirely absent from real candidate discovery, despite
+  // scoring.ts's STYLE_TYPE_MAP already expecting it for natureza/relaxamento
+  // interest matching). Deliberately generic/reusable — not city-specific.
+  const NEARBY_TYPES = ['tourist_attraction', 'restaurant', 'cafe', 'museum', 'bar', 'park'];
   const nearbyResults = await Promise.all(
     NEARBY_TYPES.map((type) => nearbySearchCandidates(lat, lng, type, radius, language))
   );
@@ -1966,7 +1971,10 @@ Importante:
 - Inclua ${paceStops} paradas de atrações/passeios por dia (café da manhã, almoço e jantar contam à parte, não fazem parte desse número). Distribua bem os horários ao longo do dia.
 - TODO dia (exceto talvez o dia de chegada, se chegar muito tarde) deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00, sem exceção${(preferences?.includeLunch === false || preferences?.includeDinner === false || preferences?.mealPreferences?.lunch === 'none' || preferences?.mealPreferences?.dinner === 'none') ? ", salvo as refeições desmarcadas acima" : ""}.
 - Sempre inclua lat/lng reais para cada parada (coordenadas geográficas precisas).
-- Para cada parada, escreva uma descrição de 1-2 frases com uma orientação específica e útil sobre o que fazer ou ver ali — não uma frase genérica que serviria pra qualquer lugar do mesmo tipo. Se o lugar tiver uma obra, prato, vista ou horário especialmente recomendado, mencione isso especificamente.
+- Para cada parada, escreva uma descrição de 1-2 frases com uma orientação específica e útil sobre o que fazer ou ver ali — não uma frase genérica que serviria pra qualquer lugar do mesmo tipo. Se o lugar tiver uma obra, prato, vista ou horário especialmente recomendado, mencione isso especificamente. NUNCA deixe a descrição vazia, mesmo para a primeira parada do dia.
+- NUNCA escreva um horário específico (ex: "das 20:55 às 21:40") na descrição que seja diferente do campo "time" dessa parada — se quiser mencionar um período do dia na descrição, ele PRECISA ser exatamente consistente com o horário agendado, porque o campo "time" é a única fonte de verdade sobre quando a parada acontece.
+- Se a primeira ou última parada do dia for apenas um ponto de referência logístico (estação, aeroporto, ou a própria hospedagem do viajante) e não um lugar para efetivamente visitar/conhecer, deixe isso claro na descrição (ex: "ponto de partida para o passeio de hoje") em vez de escrever como se fosse uma recomendação de passeio.
+- Restaurantes: não escolha só pelo número de avaliações. Quando o destino tiver uma culinária ou cultura gastronômica/de bebidas local característica (ex: pubs tradicionais no Reino Unido, trattorias na Itália, bares de tapas na Espanha), inclua pelo menos uma experiência desse tipo quando for coerente com as preferências do viajante — não repita o mesmo tipo de cozinha em todas as refeições do roteiro só porque é popular.
 - O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
 - Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista.' : ''}${extraCandidates.length > 0 ? '\n- Use SOMENTE lugares da(s) lista(s) acima (obrigatórios e/ou candidatos reais). NÃO invente nenhum lugar de memória.' : ''}
 - Antes de finalizar o horário de cada parada, releia a descrição que você mesmo escreveu para esse lugar — se ela menciona um período do dia específico (manhã, tarde, entardecer, pôr do sol, noite, etc.), o horário agendado da parada PRECISA bater com essa recomendação. Se não bater, ajuste o horário pra refletir o que você mesmo recomendou, não o contrário.`;
@@ -2058,6 +2066,8 @@ Importante:
             fillerRestaurants,
             pace: preferences?.pace,
             fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
+            accommodation,
+            language: input.language,
           });
           return { result: correctedDays, warnings };
         };
@@ -2261,7 +2271,10 @@ Importante:
 - Inclua ${paceStops} paradas de atrações/passeios por dia (café da manhã, almoço e jantar contam à parte, não fazem parte desse número).
 - TODO dia (exceto talvez o dia de chegada, se chegar muito tarde) deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00, sem exceção${(profile.mealPreferences?.lunch === 'none' || profile.mealPreferences?.dinner === 'none') ? ", salvo as refeições desmarcadas acima" : ""}.
 - Inclua lat/lng reais para cada lugar.
-- Para cada parada, escreva uma descrição de 1-2 frases com uma orientação específica e útil sobre o que fazer ou ver ali — não uma frase genérica que serviria pra qualquer lugar do mesmo tipo. Se o lugar tiver uma obra, prato, vista ou horário especialmente recomendado, mencione isso especificamente.
+- Para cada parada, escreva uma descrição de 1-2 frases com uma orientação específica e útil sobre o que fazer ou ver ali — não uma frase genérica que serviria pra qualquer lugar do mesmo tipo. Se o lugar tiver uma obra, prato, vista ou horário especialmente recomendado, mencione isso especificamente. NUNCA deixe a descrição vazia, mesmo para a primeira parada do dia.
+- NUNCA escreva um horário específico (ex: "das 20:55 às 21:40") na descrição que seja diferente do campo "time" dessa parada — se quiser mencionar um período do dia na descrição, ele PRECISA ser exatamente consistente com o horário agendado, porque o campo "time" é a única fonte de verdade sobre quando a parada acontece.
+- Se a primeira ou última parada do dia for apenas um ponto de referência logístico (estação, aeroporto, ou a própria hospedagem do viajante) e não um lugar para efetivamente visitar/conhecer, deixe isso claro na descrição (ex: "ponto de partida para o passeio de hoje") em vez de escrever como se fosse uma recomendação de passeio.
+- Restaurantes: não escolha só pelo número de avaliações. Quando o destino tiver uma culinária ou cultura gastronômica/de bebidas local característica (ex: pubs tradicionais no Reino Unido, trattorias na Itália, bares de tapas na Espanha), inclua pelo menos uma experiência desse tipo quando for coerente com as preferências do viajante — não repita o mesmo tipo de cozinha em todas as refeições do roteiro só porque é popular.
 - O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
 - Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.
 - Distribua bem os horários ao longo do dia.
@@ -2367,6 +2380,8 @@ Importante:
             fillerRestaurants,
             pace: profile.pace,
             fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
+            accommodation,
+            language: input.language,
           });
           return { result: correctedDays, warnings };
         };

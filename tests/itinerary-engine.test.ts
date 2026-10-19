@@ -8,8 +8,11 @@ import {
   minutesBetween,
   parseWeekdayHours,
   dateToGoogleWeekdayIndex,
+  classifyStopType,
+  buildDailySummary,
 } from "../server/itinerary/validate";
 import { withOneRepairAttempt, extractRepairableConflicts, buildRepairPromptBlock } from "../server/itinerary/repair";
+import { diversifyRestaurantLikeOrder } from "../server/itinerary/scoring";
 
 // ─── Scoring / ranking ───────────────────────────────────────────────────────
 
@@ -396,5 +399,196 @@ describe("withOneRepairAttempt", () => {
     expect(outcome.result).toBe("days-v1");
     expect(outcome.repairAttempted).toBe(true);
     expect(outcome.repairUsed).toBe(false);
+  });
+});
+
+// ─── Chinatown-style description/schedule contradiction (regression) ───────
+
+describe("validateAndCorrectItinerary — description vs. schedule reconciliation", () => {
+  it("rewrites an explicit contradictory clock-time range in the description to match the validated schedule (the reported Chinatown bug)", async () => {
+    const days = [
+      { date: "2026-09-14", destination: "London", stops: [
+        { id: "1", time: "21:30", googlePlaceId: "ct1", placeName: "Chinatown", placeCategory: "neighborhood",
+          description: "Passeio noturno por Chinatown — melhor das 19:30 às 20:15, quando as luzes dos letreiros ficam mais bonitas." },
+      ] },
+    ];
+    const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
+      ...baseCtx,
+      bedtime: "23:59",
+      isFirstDay: () => false,
+      isLastDay: () => false,
+      requireLunch: false,
+      requireDinner: false,
+    });
+    const stop = fixed[0].stops[0];
+    expect(stop.time).toBe("21:30"); // schedule is authoritative — never silently moved for this
+    expect(stop.description).toContain("21:30");
+    expect(stop.description).not.toContain("19:30");
+    expect(warnings.some((w: string) => w.includes("Rewrote a contradictory explicit time"))).toBe(true);
+  });
+
+  it("correctly reconciles a description's explicit time range across a midnight boundary (never corrupts the digits)", async () => {
+    const days = [
+      { date: "2026-09-14", destination: "London", stops: [
+        { id: "1", time: "00:20", googlePlaceId: "bar1", placeName: "Late Bar", placeCategory: "other",
+          description: "Aberto até tarde — ótimo das 22:00 às 23:00." },
+      ] },
+    ];
+    const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
+      ...baseCtx,
+      wakeUpTime: "00:00",
+      bedtime: "23:59",
+      isFirstDay: () => false,
+      isLastDay: () => false,
+      requireLunch: false,
+      requireDinner: false,
+    });
+    const stop = fixed[0].stops[0];
+    expect(stop.time).toBe("00:20"); // schedule untouched
+    expect(stop.description).toContain("00:20");
+    expect(stop.description).toContain("01:20"); // 60min implied duration carried across midnight correctly
+    expect(stop.description).not.toContain("22:00");
+    expect(warnings.some((w: string) => w.includes("Rewrote a contradictory explicit time"))).toBe(true);
+  });
+
+  it("leaves a description's time mention alone when it's close enough to the scheduled time (not the bug this guards against)", async () => {
+    const days = [
+      { date: "2026-09-14", destination: "London", stops: [
+        { id: "1", time: "20:10", googlePlaceId: "r1", placeName: "Dinner Spot", placeCategory: "restaurant",
+          description: "Jantar tranquilo, ótimo das 19:50 às 21:00." },
+      ] },
+    ];
+    const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
+      ...baseCtx,
+      isFirstDay: () => false,
+      isLastDay: () => false,
+      requireLunch: false,
+      requireDinner: false,
+    });
+    expect(fixed[0].stops[0].description).toContain("19:50");
+    expect(warnings.some((w: string) => w.includes("Rewrote a contradictory explicit time"))).toBe(false);
+  });
+
+  it("never crashes on a malformed/unparsable time value in a stop", async () => {
+    const days = [
+      { date: "2026-09-14", destination: "London", stops: [
+        { id: "1", time: "not-a-time", googlePlaceId: "x1", placeName: "Mystery Stop", placeCategory: "attraction", description: "" },
+      ] },
+    ];
+    await expect(
+      validateAndCorrectItinerary(days, { ...baseCtx, isFirstDay: () => false, isLastDay: () => false, requireLunch: false, requireDinner: false }),
+    ).resolves.toBeTruthy();
+  });
+});
+
+// ─── Stop classification + guaranteed non-empty descriptions ───────────────
+
+describe("classifyStopType / ensureStopDescriptionAndType", () => {
+  it("classifies a station-named stop as logistics, never as an unexplained recommendation", () => {
+    expect(classifyStopType({ placeName: "Earls Court Station", placeCategory: "attraction" }, undefined)).toBe("logistics");
+  });
+
+  it("classifies the traveler's own accommodation by placeId match", () => {
+    const type = classifyStopType(
+      { placeName: "Some Hotel", placeCategory: "other", googlePlaceId: "hotel-123" },
+      { placeId: "hotel-123" },
+    );
+    expect(type).toBe("accommodation");
+  });
+
+  it("fills in a non-empty description for a logistics stop left blank by the LLM", async () => {
+    const days = [
+      { date: "2026-09-14", destination: "London", stops: [
+        { id: "1", time: "16:00", googlePlaceId: "s1", placeName: "Earls Court Station", placeCategory: "attraction", description: "" },
+      ] },
+    ];
+    const { days: fixed } = await validateAndCorrectItinerary(days, {
+      ...baseCtx,
+      isFirstDay: () => false,
+      isLastDay: () => false,
+      requireLunch: false,
+      requireDinner: false,
+    });
+    const stop = fixed[0].stops[0];
+    expect(stop.stopType).toBe("logistics");
+    expect(stop.description).toBeTruthy();
+    expect(stop.description.length).toBeGreaterThan(0);
+  });
+
+  it("never leaves an ordinary attraction stop with an empty description", async () => {
+    const days = [
+      { date: "2026-09-14", destination: "Rome", stops: [
+        { id: "1", time: "10:00", googlePlaceId: "a1", placeName: "Colosseum", placeCategory: "attraction", description: undefined },
+      ] },
+    ];
+    const { days: fixed } = await validateAndCorrectItinerary(days, {
+      ...baseCtx,
+      isFirstDay: () => false,
+      isLastDay: () => false,
+      requireLunch: false,
+      requireDinner: false,
+    });
+    expect(fixed[0].stops[0].description).toBeTruthy();
+    expect(fixed[0].stops[0].stopType).toBe("attraction");
+  });
+});
+
+// ─── Deterministic daily summary (backend-only field) ──────────────────────
+
+describe("buildDailySummary", () => {
+  it("never invents a place — only mentions stops actually present in the validated day", () => {
+    const day = {
+      stops: [
+        { placeName: "Tower of London", placeCategory: "attraction", stopType: "attraction" },
+        { placeName: "A Local Pub", placeCategory: "restaurant", stopType: "restaurant" },
+      ],
+    };
+    const summary = buildDailySummary(day, "moderado", "en");
+    expect(summary).toContain("Tower of London");
+    expect(summary).not.toContain("London Eye"); // not in this day's stops — must not appear
+  });
+
+  it("excludes logistics/accommodation stops from the summary's highlights", () => {
+    const day = {
+      stops: [
+        { placeName: "Earls Court Station", placeCategory: "attraction", stopType: "logistics" },
+        { placeName: "British Museum", placeCategory: "museum", stopType: "attraction" },
+      ],
+    };
+    const summary = buildDailySummary(day, "moderado", "en");
+    expect(summary).toContain("British Museum");
+    expect(summary).not.toContain("Earls Court Station");
+  });
+
+  it("returns an empty string for a day with only logistics stops (never a generic repeated filler)", () => {
+    const day = { stops: [{ placeName: "Airport", placeCategory: "attraction", stopType: "logistics" }] };
+    expect(buildDailySummary(day, "moderado", "en")).toBe("");
+  });
+});
+
+// ─── Restaurant/cuisine diversity in ranking ────────────────────────────────
+
+describe("diversifyRestaurantLikeOrder", () => {
+  it("spreads out a dominant cuisine cluster instead of letting it occupy every top slot", () => {
+    const ranked: (ScorableCandidate & { category?: string; cuisine?: string })[] = [
+      { name: "Thai A", placeId: "t1", userRatingsTotal: 9000, types: ["restaurant"], category: "restaurant", cuisine: "thai" },
+      { name: "Thai B", placeId: "t2", userRatingsTotal: 8000, types: ["restaurant"], category: "restaurant", cuisine: "thai" },
+      { name: "Thai C", placeId: "t3", userRatingsTotal: 7000, types: ["restaurant"], category: "restaurant", cuisine: "thai" },
+      { name: "Traditional Pub", placeId: "p1", userRatingsTotal: 500, types: ["bar"], category: "restaurant", cuisine: "british_pub" },
+    ];
+    const diversified = diversifyRestaurantLikeOrder(ranked);
+    const pubIndex = diversified.findIndex((c) => c.placeId === "p1");
+    expect(pubIndex).toBeLessThan(3); // no longer stuck behind every single Thai option
+  });
+
+  it("leaves non-restaurant candidates in their original rank position untouched", () => {
+    const ranked: (ScorableCandidate & { category?: string })[] = [
+      { name: "Museum", placeId: "m1", userRatingsTotal: 100, types: ["museum"], category: "attraction" },
+      { name: "Thai A", placeId: "t1", userRatingsTotal: 9000, types: ["restaurant"], category: "restaurant" },
+      { name: "Thai B", placeId: "t2", userRatingsTotal: 8000, types: ["restaurant"], category: "restaurant" },
+      { name: "Pub", placeId: "p1", userRatingsTotal: 500, types: ["bar"], category: "restaurant" },
+    ];
+    const diversified = diversifyRestaurantLikeOrder(ranked);
+    expect(diversified[0].placeId).toBe("m1"); // untouched — not a restaurant-like slot
   });
 });

@@ -232,6 +232,13 @@ export interface ItineraryStop {
   googlePlaceId?: string; // Google's real place_id, as returned by the AI itinerary generation endpoints
   placeName: string;
   placeCategory: PlaceCategory;
+  // Additive, backward-compatible: absent on older saved itineraries (no
+  // migration needed — treat missing as "attraction", the pre-existing
+  // default rendering). Distinguishes a real recommendation from a stop
+  // that's only a logistical reference (a station/airport) or the
+  // traveler's own accommodation, so the UI can one day render those
+  // differently instead of showing an unexplained "recommendation" icon.
+  stopType?: 'attraction' | 'restaurant' | 'accommodation' | 'logistics';
   description?: string;
   imageUrl?: string;
   address?: string;
@@ -252,6 +259,12 @@ export interface DayItinerary {
   dayNumber: number;     // 1-based day number in trip
   stops: ItineraryStop[];
   tip?: string;           // AI tip for the day
+  // Additive, backward-compatible: a short deterministic summary of the
+  // day's real (non-logistics) stops, composed only from the validated
+  // itinerary — never a fresh AI guess. Not yet rendered by the app UI
+  // (reserved for a future release that shows it below the weather block);
+  // absent on older saved itineraries, which should just render as before.
+  summary?: string;
   estimatedCost?: number; // estimated daily cost in local currency
   estimatedCostCurrency?: string;
   // Legacy fields (kept for backward compat)

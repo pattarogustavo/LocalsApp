@@ -30,7 +30,7 @@ import {
   pickCuratedDescription,
 } from "../catalog";
 import { fetchCuratedPlaceDetails } from "../google-places";
-import { rankCandidates, filterExcludedCandidates, type ScorableCandidate } from "./scoring";
+import { rankCandidates, filterExcludedCandidates, diversifyRestaurantLikeOrder, type ScorableCandidate } from "./scoring";
 
 export interface GoogleSourcedCandidateInput {
   name: string;
@@ -234,8 +234,14 @@ export async function prepareCandidatePool(
   });
 
   const totalBeforeCap = ranked.length;
+  // Spreads restaurant-like candidates across cuisine/type "buckets" (round-
+  // robin) BEFORE the safety cap is applied, so a highly-reviewed single
+  // cuisine cluster (e.g. many similarly-ranked Thai/Indian places) can't
+  // crowd every other local-food option out of the capped pool the model
+  // actually sees — same reorder-only invariant as rankCandidates itself.
+  const diversified = diversifyRestaurantLikeOrder(ranked.map((r) => r.candidate));
   const safetyCap = opts.safetyCap ?? 180;
-  const capped = ranked.slice(0, safetyCap).map((r) => r.candidate);
+  const capped = diversified.slice(0, safetyCap);
 
   await backfillCatalogGoogleData(capped, opts.catalogBackfillLimit ?? 60, opts.language);
 

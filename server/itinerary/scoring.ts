@@ -173,6 +173,63 @@ const AVOID_KEYWORD_TO_TYPES: Record<string, string[]> = {
   museu: ['museum'], museum: ['museum'],
 };
 
+const RESTAURANT_LIKE_TYPES = new Set(['restaurant', 'cafe', 'bakery', 'food', 'meal_takeaway', 'meal_delivery', 'bar']);
+
+function isRestaurantLikeCandidate<T extends ScorableCandidate & { category?: string; cuisine?: string }>(c: T): boolean {
+  const category = (c.category || '').toLowerCase();
+  return category === 'restaurant' || category === 'cafe' || c.types.some((t) => RESTAURANT_LIKE_TYPES.has(t));
+}
+
+/** Best available "what kind of food/drink is this" signal — catalog `cuisine` metadata when present (most reliable), otherwise the most specific Google `types` entry available. Never invented; just a grouping key for the diversity pass below. */
+function cuisineSignature<T extends ScorableCandidate & { category?: string; cuisine?: string }>(c: T): string {
+  if (c.cuisine) return c.cuisine.toLowerCase();
+  const specific = c.types.find((t) => t !== 'restaurant' && t !== 'food' && t !== 'point_of_interest' && t !== 'establishment' && RESTAURANT_LIKE_TYPES.has(t));
+  return specific || 'restaurant';
+}
+
+/**
+ * Reorders ONLY the restaurant-like candidates (attractions/museums/etc. keep
+ * their rank position untouched) by round-robin across cuisine/type buckets —
+ * so a single highly-reviewed cluster (e.g. many similarly-ranked Thai or
+ * Indian places) can't monopolize the top of the list and crowd out other
+ * local food options (traditional pubs, other cuisines) purely by volume.
+ * Reorder-only, same invariant as rankCandidates: never drops a candidate,
+ * never changes how many restaurant slots exist, only which order they
+ * appear in within those slots.
+ */
+export function diversifyRestaurantLikeOrder<T extends ScorableCandidate & { category?: string; cuisine?: string }>(ranked: T[]): T[] {
+  const restaurantSlots: number[] = [];
+  const restaurants: T[] = [];
+  ranked.forEach((c, i) => {
+    if (isRestaurantLikeCandidate(c)) {
+      restaurantSlots.push(i);
+      restaurants.push(c);
+    }
+  });
+  if (restaurants.length <= 2) return ranked;
+
+  const buckets = new Map<string, T[]>();
+  for (const r of restaurants) {
+    const sig = cuisineSignature(r);
+    if (!buckets.has(sig)) buckets.set(sig, []);
+    buckets.get(sig)!.push(r); // already rank-ordered, so bucket order is preserved
+  }
+  const bucketArrays = Array.from(buckets.values());
+
+  const diversified: T[] = [];
+  for (let round = 0; diversified.length < restaurants.length; round++) {
+    for (const bucket of bucketArrays) {
+      if (round < bucket.length) diversified.push(bucket[round]);
+    }
+  }
+
+  const result = ranked.slice();
+  restaurantSlots.forEach((slotIdx, i) => {
+    result[slotIdx] = diversified[i];
+  });
+  return result;
+}
+
 export function filterExcludedCandidates<T extends ScorableCandidate>(
   candidates: T[],
   avoidText: string | undefined,
