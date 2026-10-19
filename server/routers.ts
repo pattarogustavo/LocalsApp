@@ -16,6 +16,7 @@ import { withOneRepairAttempt } from "./itinerary/repair";
 import { buildTravelFetcher } from "./itinerary/routes";
 import { clusterByDay, buildClusteringPromptBlock } from "./itinerary/clustering";
 import { fetchForecastSummary, computeApproxSunTimes } from "./itinerary/weather";
+import { addDaysToDateString, normalizeToDateOnlyString } from "./itinerary/dates";
 import { sanitizeTripPatch, getSharedTripSaveError, MAX_PATCH_JSON_LENGTH } from "./sharing/trip-merge";
 import { sendPush, buildTripInviteMessage } from "./push";
 import {
@@ -804,12 +805,6 @@ function buildClusteringBlockForDestinations(
     dayOffset += d.days;
   }
   return blocks.join("\n");
-}
-
-function addDaysToDateString(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 /**
@@ -1835,7 +1830,8 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
       )
       .mutation(async ({ ctx, input }) => {
         await requireActiveSubscription(ctx.user.id);
-        const { startDate, totalDays, destinations, selectedPlaces, preferences, cityTransportMode, accommodation } = input;
+        const { totalDays, destinations, selectedPlaces, preferences, cityTransportMode, accommodation } = input;
+        const startDate = normalizeToDateOnlyString(input.startDate);
         const generationStartedAt = Date.now();
         const telemetry = { llmCalls: 0, promptTokens: 0, completionTokens: 0 };
 
@@ -2141,7 +2137,8 @@ Importante:
       )
       .mutation(async ({ ctx, input }) => {
         await requireActiveSubscription(ctx.user.id);
-        const { startDate, totalDays, destinations, cityTransportMode, selectedPlaces, profile, accommodation } = input;
+        const { totalDays, destinations, cityTransportMode, selectedPlaces, profile, accommodation } = input;
+        const startDate = normalizeToDateOnlyString(input.startDate);
         const generationStartedAt = Date.now();
         const telemetry = { llmCalls: 0, promptTokens: 0, completionTokens: 0 };
 
