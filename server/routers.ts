@@ -27,14 +27,14 @@ import {
   AI_DESTINATION_INFO_CACHE_TTL_MS,
 } from "./cache";
 
-import { GOOGLE_PLACES_KEY, mapToGoogleLanguage, pickBestGooglePhoto, resolveGooglePhotoUrl, fetchCuratedPlaceDetails } from "./google-places";
+import { GOOGLE_PLACES_KEY, mapToGoogleLanguage, pickBestGooglePhoto, resolveGooglePhotoUrl, fetchCuratedPlaceDetails, resolveLocalLanguageForCountry } from "./google-places";
+import { fetchUnsplashPhoto } from "./unsplash";
 import * as catalog from "./catalog";
 
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
 const AERODATABOX_HOST = 'aerodatabox.p.rapidapi.com';
 const GOOGLE_DIRECTIONS_KEY = process.env.GOOGLE_DIRECTIONS_API_KEY || "";
 const OPENWEATHER_KEY = process.env.OPENWEATHERMAP_API_KEY || "";
-const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY || "";
 /** Kill switch for shared-trip editing (sharing.saveSharedTrip). Enabled unless explicitly set to "false". */
 const SHARED_EDITING_ENABLED = process.env.SHARED_EDITING_ENABLED !== "false";
 /** Kill switch for the web-search tool in the ai.suggestPlaces fallback flow. Disabled unless explicitly set to "true" (cost control). */
@@ -638,58 +638,6 @@ export function buildDeterministicFallbackPlaces(
     category,
     description: genericCategoryDescription(category, language),
   }));
-}
-
-// Terms expected in the caption of a photo that actually depicts a place/city,
-// used to filter out unrelated results (e.g. animals, objects) that happen to
-// rank well for a loosely-matched destination name.
-const UNSPLASH_PLACE_RELEVANCE_TERMS = [
-  "city", "cityscape", "skyline", "building", "buildings", "architecture",
-  "street", "town", "aerial", "downtown", "plaza", "square", "church",
-  "cathedral", "bridge", "landmark", "urban", "view", "sunset", "sunrise",
-];
-
-/**
- * Fetch a photo from Unsplash's search API for a destination.
- * Requests the top 4 results (already ranked by Unsplash's relevance),
- * filters out any whose caption has no place-related term (to avoid
- * off-topic matches like animals or objects), and picks one at random
- * among the survivors for some visual variety across repeated lookups.
- */
-async function fetchUnsplashPhoto(
-  destinationName: string,
-  country: string | undefined,
-  debugSteps: string[],
-): Promise<string | undefined> {
-  if (!UNSPLASH_ACCESS_KEY || !destinationName) return undefined;
-  try {
-    const url = new URL("https://api.unsplash.com/search/photos");
-    url.searchParams.set("query", `${destinationName} ${country || ''} city`.trim());
-    url.searchParams.set("per_page", "4");
-    url.searchParams.set("orientation", "landscape");
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` },
-    });
-    const data = (await res.json()) as any;
-    const results: any[] = data?.results || [];
-    if (results.length === 0) return undefined;
-
-    const relevant = results.filter((r) => {
-      const caption = (r?.alt_description || r?.description || "").toLowerCase();
-      const isRelevant = UNSPLASH_PLACE_RELEVANCE_TERMS.some((term) => caption.includes(term));
-      if (!isRelevant) {
-        debugSteps.push(`unsplash: discarded result "${caption || '(no caption)'}" (failed relevance filter)`);
-      }
-      return isRelevant;
-    });
-    if (relevant.length === 0) return undefined;
-
-    const pick = relevant[Math.floor(Math.random() * relevant.length)];
-    return pick?.urls?.regular;
-  } catch (unsplashErr) {
-    console.error(`[places.details] Unsplash photo search failed for "${destinationName}":`, unsplashErr);
-    return undefined;
-  }
 }
 
 // ─── Google Directions helper ─────────────────────────────────────────────────
@@ -1579,15 +1527,58 @@ Responda APENAS com JSON válido neste formato exato:
         const result = data.result;
         const lat = result?.geometry?.location?.lat;
         const lng = result?.geometry?.location?.lng;
+        // Display name/country — localized to the app's OWN current UI
+        // language (input.language). This is what Destination.name/.country
+        // should show across the app: previously computed here but never
+        // returned, so the UI stayed stuck with whatever raw Autocomplete
+        // prediction text the user originally typed (in whichever language
+        // they searched), even though this authoritative, reconciled value
+        // was sitting right here. Fixes "London" vs "Londres" showing
+        // inconsistently depending on search language.
         const placeName = result?.name || "";
-        const countryComp = result?.address_components?.find((c: any) => c.types.includes("country"));
-        const countryName = countryComp?.long_name || "";
+        const countryComponent = result?.address_components?.find((c: any) => c.types.includes("country"));
+        const country = countryComponent?.long_name || "";
+        // `short_name` for a `country` component is always the ISO 3166-1
+        // alpha-2 code, regardless of the requested `language` — safe to use
+        // as a language-invariant lookup key.
+        const countryCode = countryComponent?.short_name;
+
+        // Local-language name/country — ALWAYS the destination's own local
+        // language (e.g. "München"/"Deutschland" for Munich), independent of
+        // the app's UI language — used ONLY for the Unsplash cover-image
+        // query (FASE 3), never for display. This is the fix for the cover
+        // image changing depending on which language the user searched in:
+        // the old code fed the UI-language `placeName` straight into
+        // Unsplash, so the same city searched in English vs. Portuguese
+        // produced two different query strings.
+        const localLanguage = resolveLocalLanguageForCountry(countryCode);
+        let localPlaceName = placeName;
+        let localCountryName = country;
+        if (mapToGoogleLanguage(input.language) !== mapToGoogleLanguage(localLanguage)) {
+          try {
+            const localUrl = new URL("https://maps.googleapis.com/maps/api/place/details/json");
+            localUrl.searchParams.set("place_id", input.placeId);
+            localUrl.searchParams.set("fields", "name,address_components");
+            localUrl.searchParams.set("language", mapToGoogleLanguage(localLanguage));
+            localUrl.searchParams.set("key", GOOGLE_PLACES_KEY);
+            const localRes = await fetch(localUrl.toString());
+            const localData = (await localRes.json()) as any;
+            if (localData.status === "OK") {
+              const localResult = localData.result;
+              localPlaceName = localResult?.name || placeName;
+              const localCountryComp = localResult?.address_components?.find((c: any) => c.types.includes("country"));
+              localCountryName = localCountryComp?.long_name || country;
+            }
+          } catch (err) {
+            console.error(`[places.details] local-language lookup failed for place_id=${input.placeId}, falling back to display-language name for the Unsplash query:`, err);
+          }
+        }
 
         const debugSteps: string[] = [];
         let imageUrl: string | undefined;
 
-        // 1. Unsplash first, using the destination name.
-        imageUrl = await fetchUnsplashPhoto(placeName, countryName, debugSteps);
+        // 1. Unsplash first, using the destination's LOCAL-language name — never the UI-display name.
+        imageUrl = await fetchUnsplashPhoto(localPlaceName, localCountryName, debugSteps);
         debugSteps.push(imageUrl ? "unsplash: found" : "unsplash: no results");
 
         // 2. Curated Google Places photo for the specific place_id, only if Unsplash has nothing.
@@ -1605,18 +1596,13 @@ Responda APENAS com JSON válido neste formato exato:
         }
 
         if (!imageUrl) {
-          console.warn(`[places.details] no photo found for "${placeName}" (${countryName}), place_id=${input.placeId}`, debugSteps);
+          console.warn(`[places.details] no photo found for "${localPlaceName}" (${localCountryName}), place_id=${input.placeId}`, debugSteps);
         } else {
-          console.log(`[places.details] photo resolution steps for "${placeName}":`, debugSteps);
+          console.log(`[places.details] photo resolution steps for "${localPlaceName}":`, debugSteps);
         }
 
-        // Extract country from address_components
-        const countryComponent = result?.address_components?.find((c: any) =>
-          c.types.includes("country")
-        );
-        const country = countryComponent?.long_name || "";
         const address = result?.formatted_address || "";
-        return { lat, lng, imageUrl, country, address };
+        return { lat, lng, imageUrl, name: placeName, country, address };
       }),
 
     /**

@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
 
+import { resolveLocalLanguageForCountry } from "../server/google-places";
+
+describe("resolveLocalLanguageForCountry (destination-name/Unsplash-query language fix, FASE 1/3)", () => {
+  it("resolves well-known countries to their dominant local language", () => {
+    expect(resolveLocalLanguageForCountry("GB")).toBe("en");
+    expect(resolveLocalLanguageForCountry("DE")).toBe("de");
+    expect(resolveLocalLanguageForCountry("IT")).toBe("it");
+    expect(resolveLocalLanguageForCountry("FR")).toBe("fr");
+    expect(resolveLocalLanguageForCountry("PT")).toBe("pt");
+    expect(resolveLocalLanguageForCountry("BR")).toBe("pt");
+  });
+
+  it("is case-insensitive on the ISO code", () => {
+    expect(resolveLocalLanguageForCountry("gb")).toBe("en");
+  });
+
+  it("falls back to English for an unmapped or missing country code — never throws, never guesses a made-up language", () => {
+    expect(resolveLocalLanguageForCountry("XX")).toBe("en");
+    expect(resolveLocalLanguageForCountry(undefined)).toBe("en");
+  });
+});
+
 describe("Google Places API Key", () => {
   it("should be set in environment", () => {
     const key = process.env.GOOGLE_PLACES_API_KEY;

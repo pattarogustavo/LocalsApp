@@ -25,6 +25,53 @@ export function mapToGoogleLanguage(lang?: string): string {
 }
 
 /**
+ * ISO 3166-1 alpha-2 country code → that country's dominant Google language
+ * code — used ONLY to resolve a destination's OWN local-language name (e.g.
+ * "München"/"Deutschland" for Munich, regardless of which language the app's
+ * UI is currently in), never for display text shown to the user. The
+ * `country` field's `short_name` from Google Place Details' address
+ * components is language-invariant (always the ISO code, no matter what
+ * `language` param the request used), so this map can be looked up from a
+ * single Place Details call. Deliberately a bounded, best-effort list (not
+ * exhaustive ISO 3166) — an unmapped country falls back to English, same as
+ * Google's own Places API default.
+ */
+const COUNTRY_CODE_TO_LOCAL_LANGUAGE: Record<string, string> = {
+  GB: "en", US: "en", AU: "en", CA: "en", IE: "en", NZ: "en", ZA: "en", IN: "en", SG: "en",
+  PT: "pt", BR: "pt",
+  ES: "es", MX: "es", AR: "es", CO: "es", CL: "es", PE: "es",
+  FR: "fr", BE: "fr", MC: "fr",
+  DE: "de", AT: "de", CH: "de", // Switzerland is multilingual (de/fr/it/rm) — "de" is the best single-value approximation (largest population share); a French- or Italian-speaking Swiss city's local name may not match this pick
+
+  IT: "it",
+  NL: "nl",
+  GR: "el",
+  TR: "tr",
+  RU: "ru",
+  JP: "ja",
+  KR: "ko",
+  CN: "zh-CN", TW: "zh-TW", HK: "zh-TW",
+  TH: "th",
+  VN: "vi",
+  ID: "id",
+  PL: "pl",
+  SE: "sv",
+  NO: "no",
+  DK: "da",
+  FI: "fi",
+  CZ: "cs",
+  HU: "hu",
+  RO: "ro",
+  MA: "ar", AE: "ar", SA: "ar", EG: "ar",
+  IL: "he",
+};
+
+export function resolveLocalLanguageForCountry(countryCode: string | undefined): string {
+  const code = countryCode?.toUpperCase();
+  return (code && COUNTRY_CODE_TO_LOCAL_LANGUAGE[code]) || "en";
+}
+
+/**
  * Pick the best photo from a Google Places `photos` array.
  * User-submitted photos vary wildly in subject and orientation, so we prefer
  * strictly landscape shots (width > height) — more likely to be a view of the place
