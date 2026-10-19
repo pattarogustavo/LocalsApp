@@ -21,9 +21,9 @@ describe("curate model configuration", () => {
     for (const key of ENV_KEYS) delete process.env[key];
     vi.resetModules();
     const ai = await import("../scripts/curate/ai");
-    expect(ai.RESEARCH_MODEL).toBe("claude-sonnet-5");
-    expect(ai.STRUCTURE_MODEL).toBe("claude-haiku-4-5-20251001");
-    expect(ai.TRANSLATE_MODEL).toBe("claude-haiku-4-5-20251001");
+    expect(ai.RESEARCH_MODEL).toBe("gpt-6.1-sol");
+    expect(ai.STRUCTURE_MODEL).toBe("gpt-5-mini");
+    expect(ai.TRANSLATE_MODEL).toBe("gpt-5-mini");
   });
 
   it("honors CURATE_RESEARCH_MODEL / CURATE_STRUCTURE_MODEL / CURATE_TRANSLATE_MODEL overrides", async () => {

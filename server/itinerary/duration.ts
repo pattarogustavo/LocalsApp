@@ -10,7 +10,19 @@
  * These are guidelines, not hallucinated facts about a specific place — no
  * external duration data source exists in this codebase, so conservative,
  * widely-applicable ranges are used instead of inventing place-specific figures.
+ *
+ * Personalization (spec "Stage 5"): `estimateDurationRange`'s third,
+ * optional parameter applies deterministic multipliers on top of the base
+ * category range — traveler pace, a declared interest matching the place's
+ * type, and curated-catalog editorial affinity. The ABSOLUTE MINIMUM is
+ * never touched by any multiplier (same rule that already existed for
+ * "intenso" pace: never compress below the documented realistic minimum) —
+ * only `typicalMinutes`/`maxMinutes` can be extended. Omitting the third
+ * argument entirely reproduces the exact pre-personalization behavior, so
+ * every existing caller (validate.ts, tests) keeps working unchanged.
  */
+
+import { STYLE_TYPE_MAP, type TravelStyleKey } from "./scoring";
 
 export interface DurationRange {
   minMinutes: number;
@@ -77,16 +89,52 @@ const DURATION_BY_APP_CATEGORY: Record<string, DurationRange> = {
 const QUICK_MEAL_RANGE = range(20, 30, 45);
 const RESTAURANT_MEAL_RANGE = range(45, 75, 120);
 
+export interface DurationPersonalizationOptions {
+  /** The traveler's declared interests (scoring.ts TravelStyleKey values) — a match against the place's Google `types` extends typical/max duration, since a declared-interest visit is more likely to run long, never short. */
+  travelStyles?: string[];
+  /** 0-100 curated-catalog editorial-affinity signal (see candidates.ts) — a strong editorial pick gets a small extra allowance, reflecting it's a curated highlight, not a generic filler stop. */
+  editorialPriority?: number;
+  /** Traveler pace. "relaxado" extends typical/max duration (more time per stop, since there are fewer stops/day); "intenso"/"moderado" apply no multiplier — pace must NEVER compress a duration below its documented minimum. */
+  pace?: 'relaxado' | 'moderado' | 'intenso';
+}
+
+function interestMatchesType(travelStyles: string[] | undefined, googleTypes: string[] | undefined): boolean {
+  if (!travelStyles || travelStyles.length === 0 || !googleTypes || googleTypes.length === 0) return false;
+  return travelStyles.some((style) => {
+    const relevant = STYLE_TYPE_MAP[style as TravelStyleKey];
+    return relevant ? googleTypes.some((t) => relevant.includes(t)) : false;
+  });
+}
+
 export function estimateDurationRange(
   placeCategory: string | undefined,
   googleTypes?: string[],
+  personalization?: DurationPersonalizationOptions,
 ): DurationRange {
-  if (googleTypes && googleTypes.length > 0) {
-    for (const t of googleTypes) {
-      if (DURATION_BY_GOOGLE_TYPE[t]) return DURATION_BY_GOOGLE_TYPE[t];
+  const base = ((): DurationRange => {
+    if (googleTypes && googleTypes.length > 0) {
+      for (const t of googleTypes) {
+        if (DURATION_BY_GOOGLE_TYPE[t]) return DURATION_BY_GOOGLE_TYPE[t];
+      }
     }
-  }
-  return DURATION_BY_APP_CATEGORY[placeCategory || 'other'] || DURATION_BY_APP_CATEGORY.other;
+    return DURATION_BY_APP_CATEGORY[placeCategory || 'other'] || DURATION_BY_APP_CATEGORY.other;
+  })();
+
+  if (!personalization) return base;
+
+  const interestMultiplier = interestMatchesType(personalization.travelStyles, googleTypes) ? 1.3 : 1.0;
+  const editorialScore = personalization.editorialPriority ?? 0;
+  const editorialMultiplier = editorialScore >= 80 ? 1.15 : editorialScore >= 50 ? 1.05 : 1.0;
+  const paceMultiplier = personalization.pace === 'relaxado' ? 1.15 : 1.0;
+
+  const multiplier = interestMultiplier * editorialMultiplier * paceMultiplier;
+  if (multiplier === 1) return base;
+
+  return {
+    minMinutes: base.minMinutes, // absolute floor — never adjusted, by design
+    typicalMinutes: Math.round(base.typicalMinutes * multiplier),
+    maxMinutes: Math.round(base.maxMinutes * multiplier),
+  };
 }
 
 /** Duration range for a meal stop, given the user's chosen meal mode. */
@@ -100,8 +148,8 @@ export function estimateMealDurationRange(mode?: 'quick' | 'restaurant' | 'none'
  * cheap, deterministic guidance so the LLM doesn't need to guess or the app
  * doesn't need a second LLM pass just to fix timing.
  */
-export function buildDurationGuidancePromptBlock(): string {
-  return [
+export function buildDurationGuidancePromptBlock(pace?: 'relaxado' | 'moderado' | 'intenso'): string {
+  const lines = [
     'Durações realistas por tipo de parada (NÃO comprima abaixo do mínimo, mesmo em ritmo intenso):',
     '- Museu: 90-180 min (padrão ~2h; museus excepcionalmente grandes, como o Louvre, podem passar disso)',
     '- Galeria de arte: 60-150 min',
@@ -113,5 +161,11 @@ export function buildDurationGuidancePromptBlock(): string {
     '- Café: 20-60 min',
     '- Zoológico / aquário / parque de diversões: 120-240 min',
     '- Bar / vida noturna: 60-180 min',
-  ].join('\n');
+  ];
+  if (pace === 'relaxado') {
+    lines.push('- Ritmo relaxado: já que há menos paradas por dia, é esperado e desejável usar o lado superior dessas faixas (ou até ~15% mais) em lugares de maior interesse do viajante — não precisa preencher o tempo livre com mais paradas.');
+  } else if (pace === 'intenso') {
+    lines.push('- Ritmo intenso: mais paradas por dia é o objetivo, mas NUNCA abaixo do mínimo de cada faixa — prefira cortar uma parada de menor prioridade a comprimir todas abaixo do realista.');
+  }
+  return lines.join('\n');
 }

@@ -641,8 +641,8 @@ async function runCheck(logger: CurateLogger): Promise<void> {
   let allOk = true;
 
   allOk =
-    (await checkItem(logger, "variáveis de ambiente (DATABASE_URL, GOOGLE_PLACES_API_KEY, ANTHROPIC_API_KEY)", async () => {
-      const missing = ["DATABASE_URL", "GOOGLE_PLACES_API_KEY", "ANTHROPIC_API_KEY"].filter((k) => !process.env[k]);
+    (await checkItem(logger, "variáveis de ambiente (DATABASE_URL, GOOGLE_PLACES_API_KEY, OPENAI_API_KEY)", async () => {
+      const missing = ["DATABASE_URL", "GOOGLE_PLACES_API_KEY", "OPENAI_API_KEY"].filter((k) => !process.env[k]);
       if (missing.length) throw new Error(`faltando: ${missing.join(", ")}`);
     })) && allOk;
 
@@ -674,13 +674,13 @@ async function runCheck(logger: CurateLogger): Promise<void> {
   ];
   for (const { label, model } of modelsToTest) {
     allOk =
-      (await checkItem(logger, `chamada mínima à Anthropic (modelo de ${label}: ${model})`, async () => {
+      (await checkItem(logger, `chamada mínima à OpenAI (modelo de ${label}: ${model})`, async () => {
         await invokeLLM({ model, maxTokens: 20, messages: [{ role: "user", content: "Responda apenas: ok" }] });
       })) && allOk;
   }
 
   allOk =
-    (await checkItem(logger, `chamada mínima à Anthropic COM busca web habilitada (modelo de pesquisa: ${RESEARCH_MODEL})`, async () => {
+    (await checkItem(logger, `chamada mínima à OpenAI COM busca web habilitada (modelo de pesquisa: ${RESEARCH_MODEL})`, async () => {
       await invokeLLM({
         model: RESEARCH_MODEL,
         maxTokens: 200,

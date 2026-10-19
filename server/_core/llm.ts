@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { ENV } from "./env";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
@@ -65,9 +65,18 @@ export type InvokeParams = {
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
   enableWebSearch?: boolean;
-  /** Overrides the web_search tool's max_uses (default 4) when enableWebSearch is set. */
+  /**
+   * Overrides the web_search tool's max_uses (default 4) when enableWebSearch
+   * is set. NOTE (OpenAI migration): OpenAI's Responses API `web_search`
+   * tool does not expose a documented per-call max-uses parameter the way
+   * Anthropic's did, so this is currently a no-op against the OpenAI
+   * provider — kept in the type only so existing callers (e.g.
+   * scripts/curate/ai.ts) keep compiling/working without passing an unknown
+   * field through. Only the model's own judgment and maxTokens bound actual
+   * search volume. Revisit if OpenAI adds an equivalent control.
+   */
   webSearchMaxUses?: number;
-  /** Overrides ENV.anthropicModel for this call (e.g. a cheaper model for simple, non-creative tasks like translation). */
+  /** Overrides ENV.openaiModel for this call (e.g. a cheaper model for simple, non-creative tasks like translation). */
   model?: string;
   /** Per-request timeout in milliseconds, overriding the SDK default — useful for long web-search-enabled calls. */
   timeoutMs?: number;
@@ -217,102 +226,112 @@ const normalizeResponseFormat = ({
   };
 };
 
-// ─── Anthropic conversion helpers ──────────────────────────────────────────
+// ─── OpenAI (Responses API) conversion helpers ─────────────────────────────
+//
+// invokeLLM's wire shape (messages w/ role system/user/assistant/tool, tools
+// as {type:"function",function:{name,parameters}}, outputSchema →
+// json_schema) was always intentionally OpenAI-flavored — this file used to
+// translate that shape INTO Anthropic's API; it now talks to OpenAI's
+// Responses API directly, chosen over Chat Completions because (a) OpenAI's
+// own web-search tool guidance (as of 2026) points new work at Responses —
+// the Chat Completions *-search-preview models are deprecated — and (b)
+// Responses is where `text.format: {type:"json_schema", strict:true}`
+// Structured Outputs is documented as the primary path. See the migration
+// report for sources.
 
 const dataUrlPattern = /^data:([^;]+);base64,(.+)$/;
 
-const toAnthropicContentBlock = (
+type ResponsesInputContent =
+  | { type: "input_text"; text: string }
+  | { type: "input_image"; image_url: string; detail?: "auto" | "low" | "high" }
+  | { type: "input_file"; file_url?: string; file_data?: string; filename?: string }
+  | { type: "output_text"; text: string };
+
+const toOpenAIContentPart = (
   part: TextContent | ImageContent | FileContent,
-): Anthropic.ContentBlockParam => {
+  forRole: "assistant" | "other",
+): ResponsesInputContent => {
   if (part.type === "text") {
-    return { type: "text", text: part.text };
+    return forRole === "assistant" ? { type: "output_text", text: part.text } : { type: "input_text", text: part.text };
   }
 
   if (part.type === "image_url") {
-    const url = part.image_url.url;
-    const match = url.match(dataUrlPattern);
-    if (match) {
-      return {
-        type: "image",
-        source: { type: "base64", media_type: match[1] as Anthropic.Base64ImageSource["media_type"], data: match[2] },
-      };
-    }
-    return { type: "image", source: { type: "url", url } };
+    return { type: "input_image", image_url: part.image_url.url, detail: part.image_url.detail };
   }
 
-  // file_url: only PDFs map to a native Anthropic block; other media (audio/video)
-  // isn't supported as document input, so it's passed through as a text pointer.
+  // file_url: only PDFs map to a native Responses API input_file block;
+  // other media (audio/video) isn't supported as structured document input
+  // here, so it's passed through as a text pointer (same fallback the prior
+  // Anthropic-backed implementation used).
   if (part.file_url.mime_type === "application/pdf") {
     const url = part.file_url.url;
     const match = url.match(dataUrlPattern);
     if (match) {
-      return {
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: match[2] },
-      };
+      return { type: "input_file", file_data: match[2], filename: "document.pdf" };
     }
-    return { type: "document", source: { type: "url", url } };
+    return { type: "input_file", file_url: url };
   }
 
-  return { type: "text", text: `[attachment: ${part.file_url.url}]` };
+  return { type: "input_text", text: `[attachment: ${part.file_url.url}]` };
 };
 
-const toAnthropicMessages = (
-  messages: Message[],
-): { system: string | undefined; messages: Anthropic.MessageParam[] } => {
-  const systemParts: string[] = [];
-  const result: Anthropic.MessageParam[] = [];
+type ResponsesInputItem =
+  | { role: "system" | "developer" | "user" | "assistant"; content: ResponsesInputContent[] }
+  | { type: "function_call_output"; call_id: string; output: string };
+
+/**
+ * Maps our provider-agnostic Message[] to Responses API `input` items.
+ * `system` → `developer` (OpenAI's current recommended role name for
+ * top-of-conversation instructions; `system` is still accepted by the API
+ * but `developer` is what current docs model new examples around).
+ * `tool`/`function` role messages (tool results) become a dedicated
+ * `function_call_output` item keyed by `tool_call_id`, matching how the
+ * Responses API represents function results (no "tool" role on messages).
+ */
+const toOpenAIInput = (messages: Message[]): ResponsesInputItem[] => {
+  const result: ResponsesInputItem[] = [];
 
   for (const message of messages) {
-    if (message.role === "system") {
-      const text = ensureArray(message.content)
-        .map((part) => (typeof part === "string" ? part : part.type === "text" ? part.text : ""))
-        .filter(Boolean)
-        .join("\n");
-      if (text) systemParts.push(text);
-      continue;
-    }
-
     if (message.role === "tool" || message.role === "function") {
       const text = ensureArray(message.content)
         .map((part) => (typeof part === "string" ? part : JSON.stringify(part)))
         .join("\n");
-      result.push({
-        role: "user",
-        content: [{ type: "tool_result", tool_use_id: message.tool_call_id ?? "", content: text }],
-      });
+      result.push({ type: "function_call_output", call_id: message.tool_call_id ?? "", output: text });
       continue;
     }
 
-    const role = message.role === "assistant" ? "assistant" : "user";
+    const role: "system" | "developer" | "user" | "assistant" =
+      message.role === "system" ? "developer" : message.role === "assistant" ? "assistant" : "user";
     const parts = ensureArray(message.content).map(normalizeContentPart);
-
-    if (parts.length === 1 && parts[0].type === "text") {
-      result.push({ role, content: parts[0].text });
-    } else {
-      result.push({ role, content: parts.map(toAnthropicContentBlock) });
-    }
+    result.push({
+      role,
+      content: parts.map((p) => toOpenAIContentPart(p, role === "assistant" ? "assistant" : "other")),
+    });
   }
 
-  return { system: systemParts.length ? systemParts.join("\n\n") : undefined, messages: result };
+  return result;
 };
 
-const toAnthropicTools = (tools: Tool[] | undefined): Anthropic.Tool[] | undefined => {
+const toOpenAITools = (tools: Tool[] | undefined): Array<Record<string, unknown>> | undefined => {
   if (!tools || tools.length === 0) return undefined;
   return tools.map((tool) => ({
+    type: "function" as const,
     name: tool.function.name,
     description: tool.function.description,
-    input_schema: (tool.function.parameters as Anthropic.Tool.InputSchema) ?? { type: "object" },
+    parameters: tool.function.parameters ?? { type: "object", properties: {} },
+    // Non-strict function tools (free-form tool-calling) — strict schema
+    // enforcement is handled separately via `text.format` for the
+    // structured-output use case this codebase actually relies on.
+    strict: false,
   }));
 };
 
-const toAnthropicToolChoice = (
+const toOpenAIToolChoice = (
   choice: "none" | "auto" | ToolChoiceExplicit | undefined,
-): Anthropic.ToolChoice | undefined => {
+): "none" | "auto" | { type: "function"; name: string } | undefined => {
   if (!choice) return undefined;
-  if (choice === "auto") return { type: "auto" };
-  if (choice === "none") return { type: "none" };
-  return { type: "tool", name: choice.function.name };
+  if (choice === "auto" || choice === "none") return choice;
+  return { type: "function", name: choice.function.name };
 };
 
 const stripJsonCodeFences = (text: string): string => {
@@ -321,102 +340,34 @@ const stripJsonCodeFences = (text: string): string => {
   return match ? match[1] : trimmed;
 };
 
-const mapStopReason = (reason: Anthropic.Message["stop_reason"]): string | null => {
-  switch (reason) {
-    case "end_turn":
-    case "stop_sequence":
-      return "stop";
-    case "max_tokens":
-      return "length";
-    case "tool_use":
-      return "tool_calls";
-    default:
-      return reason;
+let openaiClient: OpenAI | null = null;
+
+const getClient = (): OpenAI => {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: ENV.openaiApiKey });
   }
-};
-
-const toInvokeResult = (
-  response: Anthropic.Message,
-  opts: { jsonSchemaToolName?: string; stripJsonFences?: boolean },
-): InvokeResult => {
-  const toolUseBlocks = response.content.filter(
-    (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
-  );
-
-  // When web search is used, the model interleaves tool blocks with text —
-  // any text *before* the last tool-related block is intermediate reasoning
-  // tied to a search round, not the final answer. Text blocks *after* it are
-  // the real answer, and the API can split that answer across several
-  // consecutive text blocks (not just one), so those must be concatenated
-  // rather than only keeping the very last one.
-  const lastToolBlockIndex = response.content.reduce(
-    (acc, block, i) => (block.type !== "text" ? i : acc),
-    -1,
-  );
-  const finalTextBlocks = response.content
-    .slice(lastToolBlockIndex + 1)
-    .filter((block): block is Anthropic.TextBlock => block.type === "text");
-
-  let content = finalTextBlocks.map((block) => block.text).join("");
-  let toolCalls: ToolCall[] | undefined;
-
-  if (opts.jsonSchemaToolName) {
-    const match = toolUseBlocks.find((block) => block.name === opts.jsonSchemaToolName);
-    if (match) {
-      content = JSON.stringify(match.input);
-    }
-  } else {
-    if (opts.stripJsonFences) {
-      content = stripJsonCodeFences(content);
-    }
-    if (toolUseBlocks.length > 0) {
-      toolCalls = toolUseBlocks.map((block) => ({
-        id: block.id,
-        type: "function" as const,
-        function: { name: block.name, arguments: JSON.stringify(block.input) },
-      }));
-    }
-  }
-
-  return {
-    id: response.id,
-    created: Math.floor(Date.now() / 1000),
-    model: response.model,
-    choices: [
-      {
-        index: 0,
-        message: {
-          role: "assistant",
-          content,
-          ...(toolCalls ? { tool_calls: toolCalls } : {}),
-        },
-        finish_reason: mapStopReason(response.stop_reason),
-      },
-    ],
-    usage: {
-      prompt_tokens: response.usage.input_tokens,
-      completion_tokens: response.usage.output_tokens,
-      total_tokens: response.usage.input_tokens + response.usage.output_tokens,
-      ...(response.usage.server_tool_use?.web_search_requests != null
-        ? { web_search_requests: response.usage.server_tool_use.web_search_requests }
-        : {}),
-    },
-  };
-};
-
-let anthropicClient: Anthropic | null = null;
-
-const getClient = (): Anthropic => {
-  if (!anthropicClient) {
-    anthropicClient = new Anthropic({ apiKey: ENV.anthropicApiKey });
-  }
-  return anthropicClient;
+  return openaiClient;
 };
 
 const assertApiKey = () => {
-  if (!ENV.anthropicApiKey) {
-    throw new Error("ANTHROPIC_API_KEY is not configured");
+  if (!ENV.openaiApiKey) {
+    throw new Error(
+      "OPENAI_API_KEY is not configured. Set it in the server environment (Codespaces secret or a local .env the server process reads) before calling the itinerary/AI endpoints — there is no automatic fallback to another provider.",
+    );
   }
+};
+
+/** Maps a Responses API `response.status` (+ incomplete_details) to the Chat-Completions-style finish_reason this abstraction exposes. */
+const mapFinishReason = (
+  status: string,
+  incompleteReason: string | null | undefined,
+  hasToolCalls: boolean,
+): string => {
+  if (status === "incomplete") {
+    return incompleteReason === "max_output_tokens" ? "length" : "stop";
+  }
+  if (hasToolCalls) return "tool_calls";
+  return "stop";
 };
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
@@ -436,7 +387,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     enableWebSearch,
   } = params;
 
-  const { system, messages: anthropicMessages } = toAnthropicMessages(messages);
+  const input = toOpenAIInput(messages);
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
     response_format,
@@ -444,51 +395,108 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     output_schema,
   });
 
-  let anthropicTools: Anthropic.ToolUnion[] | undefined = toAnthropicTools(tools);
-  let anthropicToolChoice = toAnthropicToolChoice(normalizeToolChoice(toolChoice || tool_choice, tools));
-  let systemPrompt = system;
-  let jsonSchemaToolName: string | undefined;
+  let openaiTools = toOpenAITools(tools);
+  let openaiToolChoice = toOpenAIToolChoice(normalizeToolChoice(toolChoice || tool_choice, tools));
+  let textFormat: Record<string, unknown> | undefined;
 
   if (normalizedResponseFormat?.type === "json_object") {
-    systemPrompt = [systemPrompt, "Respond with valid JSON only — no prose, no markdown code fences."]
-      .filter(Boolean)
-      .join("\n\n");
+    textFormat = { type: "json_object" };
   } else if (normalizedResponseFormat?.type === "json_schema") {
-    jsonSchemaToolName = normalizedResponseFormat.json_schema.name;
-    anthropicTools = [
-      {
-        name: jsonSchemaToolName,
-        description: "Return the response matching the required schema.",
-        input_schema: normalizedResponseFormat.json_schema.schema as Anthropic.Tool.InputSchema,
-      },
-    ];
-    anthropicToolChoice = { type: "tool", name: jsonSchemaToolName };
+    textFormat = {
+      type: "json_schema",
+      name: normalizedResponseFormat.json_schema.name,
+      schema: normalizedResponseFormat.json_schema.schema,
+      strict: normalizedResponseFormat.json_schema.strict ?? false,
+    };
   }
 
   if (enableWebSearch) {
-    anthropicTools = [
-      ...(anthropicTools ?? []),
-      { type: "web_search_20250305", name: "web_search", max_uses: params.webSearchMaxUses ?? 4 },
-    ];
+    openaiTools = [...(openaiTools ?? []), { type: "web_search" }];
     // The model must decide on its own whether/when to search, so it can't
-    // be locked into a forced tool_choice (e.g. the json_schema output tool).
-    anthropicToolChoice = { type: "auto" };
+    // be locked into a forced tool_choice (e.g. a specific function tool).
+    openaiToolChoice = "auto";
   }
 
-  const response = await getClient().messages.create(
-    {
-      model: params.model ?? ENV.anthropicModel,
-      max_tokens: maxTokens ?? max_tokens ?? 8192,
-      system: systemPrompt,
-      messages: anthropicMessages,
-      tools: anthropicTools,
-      tool_choice: anthropicToolChoice,
-    },
-    params.timeoutMs ? { timeout: params.timeoutMs } : undefined,
-  );
+  const client = getClient();
+  const requestBody: Record<string, unknown> = {
+    model: params.model ?? ENV.openaiModel,
+    input,
+    max_output_tokens: maxTokens ?? max_tokens ?? 8192,
+  };
+  if (openaiTools) requestBody.tools = openaiTools;
+  if (openaiToolChoice) requestBody.tool_choice = openaiToolChoice;
+  if (textFormat) requestBody.text = { format: textFormat };
 
-  return toInvokeResult(response, {
-    jsonSchemaToolName,
-    stripJsonFences: normalizedResponseFormat?.type === "json_object",
-  });
+  let response: any;
+  try {
+    response = await client.responses.create(
+      requestBody as any,
+      params.timeoutMs ? { timeout: params.timeoutMs } : undefined,
+    );
+  } catch (err) {
+    // Surface a clear, actionable error for the two most common misconfig
+    // cases rather than letting a generic SDK error bubble up unexplained.
+    const status = (err as { status?: number })?.status;
+    if (status === 401) {
+      throw new Error("OpenAI API request failed: invalid or unauthorized OPENAI_API_KEY.");
+    }
+    if (status === 429) {
+      throw new Error("OpenAI API rate limit or quota exceeded.");
+    }
+    throw err;
+  }
+
+  if (response.status === "failed" || response.status === "cancelled") {
+    const reason = response.error?.message || response.incomplete_details?.reason || response.status;
+    throw new Error(`OpenAI response did not complete: ${reason}`);
+  }
+
+  const outputItems: any[] = Array.isArray(response.output) ? response.output : [];
+
+  // `output_text` is a first-class field on the Response object (the SDK's
+  // own recommended way to read the final text, rather than assuming the
+  // first output item is the answer) — this is also exactly what ends up
+  // holding the JSON string when Structured Outputs (`text.format`) is used.
+  let content: string = typeof response.output_text === "string" ? response.output_text : "";
+
+  const functionCalls = outputItems.filter((item) => item.type === "function_call");
+  const toolCalls: ToolCall[] | undefined =
+    functionCalls.length > 0
+      ? functionCalls.map((fc) => ({
+          id: fc.call_id ?? fc.id ?? "",
+          type: "function" as const,
+          function: { name: fc.name, arguments: fc.arguments ?? "{}" },
+        }))
+      : undefined;
+
+  if (normalizedResponseFormat?.type === "json_object") {
+    content = stripJsonCodeFences(content);
+  }
+
+  const webSearchRequests = outputItems.filter((item) => item.type === "web_search_call").length;
+
+  return {
+    id: response.id,
+    created: typeof response.created_at === "number" ? response.created_at : Math.floor(Date.now() / 1000),
+    model: response.model ?? requestBody.model as string,
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content,
+          ...(toolCalls ? { tool_calls: toolCalls } : {}),
+        },
+        finish_reason: mapFinishReason(response.status, response.incomplete_details?.reason, !!toolCalls),
+      },
+    ],
+    usage: response.usage
+      ? {
+          prompt_tokens: response.usage.input_tokens ?? 0,
+          completion_tokens: response.usage.output_tokens ?? 0,
+          total_tokens: response.usage.total_tokens ?? 0,
+          ...(webSearchRequests > 0 ? { web_search_requests: webSearchRequests } : {}),
+        }
+      : undefined,
+  };
 }

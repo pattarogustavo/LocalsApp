@@ -1,43 +1,61 @@
 /**
  * JSON schema for the itinerary-generation LLM call, passed as `outputSchema`
- * to invokeLLM (server/_core/llm.ts) so Anthropic tool-forces valid JSON
- * matching this shape, instead of trusting a "respond with JSON" text
- * instruction (the previous approach, `response_format: json_object`, which
- * has no structural guarantee).
+ * to invokeLLM (server/_core/llm.ts) so the model's output is constrained to
+ * this shape via Structured Outputs, instead of trusting a "respond with
+ * JSON" text instruction (which has no structural guarantee).
  *
  * This intentionally mirrors only the fields the two itinerary prompts
  * already ask for in text today (see server/routers.ts) — it does not add or
  * rename anything the existing UI (types/voyage.ts DayItinerary/ItineraryStop)
  * doesn't already expect, so the output contract is unchanged.
+ *
+ * Strict-mode shape (OpenAI Structured Outputs, `strict: true`): every
+ * property must appear in `required` and every object needs
+ * `additionalProperties: false` — optionality is expressed as a nullable
+ * union (`type: [..., "null"]`) rather than omission from `required`. See
+ * the migration report for the source. Callers that still want a *softer*
+ * best-effort shape (no strict enforcement) can pass `strict: false` on the
+ * outer `{ name, schema, strict }` wrapper given to invokeLLM — this
+ * function always emits the strict-compatible shape either way, since a
+ * stricter schema is also valid input for non-strict mode.
  */
+
+const nullable = (schema: Record<string, unknown>): Record<string, unknown> => {
+  const type = schema.type;
+  return { ...schema, type: Array.isArray(type) ? type : [type, "null"] };
+};
 
 const stopSchema = {
   type: "object",
   properties: {
     time: { type: "string", description: "HH:MM" },
-    googlePlaceId: { type: "string" },
+    googlePlaceId: nullable({ type: "string" }),
     placeName: { type: "string" },
     placeCategory: { type: "string", enum: ["attraction", "restaurant", "cafe", "museum", "hidden_gem", "other", "park", "beach", "market", "neighborhood"] },
-    description: { type: "string" },
-    hours: { type: "string" },
-    address: { type: "string" },
-    lat: { type: "number" },
-    lng: { type: "number" },
-    travelTimeToNext: { type: "string" },
-    travelModeToNext: { type: "string", enum: ["walking", "driving", "transit", "bicycling"] },
+    description: nullable({ type: "string" }),
+    hours: nullable({ type: "string" }),
+    address: nullable({ type: "string" }),
+    lat: nullable({ type: "number" }),
+    lng: nullable({ type: "number" }),
+    travelTimeToNext: nullable({ type: "string" }),
+    travelModeToNext: nullable({ type: "string", enum: ["walking", "driving", "transit", "bicycling", null] }),
   },
-  required: ["time", "placeName", "placeCategory"],
+  required: [
+    "time", "googlePlaceId", "placeName", "placeCategory", "description",
+    "hours", "address", "lat", "lng", "travelTimeToNext", "travelModeToNext",
+  ],
+  additionalProperties: false,
 } as const;
 
 export function buildItineraryDaysSchema(opts: { dayTipField: "tip" | "tips" }): Record<string, unknown> {
   const dayProperties: Record<string, unknown> = {
     date: { type: "string", description: "YYYY-MM-DD" },
     destination: { type: "string" },
-    title: { type: "string" },
-    estimatedCost: { type: "number" },
+    title: nullable({ type: "string" }),
+    estimatedCost: nullable({ type: "number" }),
     stops: { type: "array", items: stopSchema },
   };
-  dayProperties[opts.dayTipField] = { type: "string" };
+  dayProperties[opts.dayTipField] = nullable({ type: "string" });
 
   return {
     type: "object",
@@ -47,10 +65,12 @@ export function buildItineraryDaysSchema(opts: { dayTipField: "tip" | "tips" }):
         items: {
           type: "object",
           properties: dayProperties,
-          required: ["date", "destination", "stops"],
+          required: ["date", "destination", "title", "estimatedCost", "stops", opts.dayTipField],
+          additionalProperties: false,
         },
       },
     },
     required: ["days"],
+    additionalProperties: false,
   };
 }

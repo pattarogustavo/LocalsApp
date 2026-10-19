@@ -8,10 +8,14 @@ import * as db from "./db";
 import crypto from "crypto";
 import { storagePut } from "./storage";
 import { getSupabaseAdmin } from "./_core/supabaseAdmin";
-import { filterExcludedCandidates } from "./itinerary/scoring";
+import { prepareCandidatePool } from "./itinerary/candidates";
 import { buildDurationGuidancePromptBlock } from "./itinerary/duration";
 import { validateAndCorrectItinerary, type MustVisitPlace, type FillerRestaurantCandidate } from "./itinerary/validate";
 import { buildItineraryDaysSchema } from "./itinerary/schema";
+import { withOneRepairAttempt } from "./itinerary/repair";
+import { buildTravelFetcher } from "./itinerary/routes";
+import { clusterByDay, buildClusteringPromptBlock } from "./itinerary/clustering";
+import { fetchForecastSummary, computeApproxSunTimes } from "./itinerary/weather";
 import { sanitizeTripPatch, getSharedTripSaveError, MAX_PATCH_JSON_LENGTH } from "./sharing/trip-merge";
 import { sendPush, buildTripInviteMessage } from "./push";
 import {
@@ -167,7 +171,7 @@ export async function processRevenueCatWebhook(
 /**
  * Guards AI-powered procedures (itinerary generation, place suggestions,
  * destination info) behind an active subscription, checked fresh against the
- * DB (which auto-expires stale statuses) so no Anthropic call is ever made
+ * DB (which auto-expires stale statuses) so no OpenAI call is ever made
  * on behalf of a non-subscriber.
  */
 async function requireActiveSubscription(userId: number): Promise<void> {
@@ -183,7 +187,7 @@ async function requireActiveSubscription(userId: number): Promise<void> {
 // ─── Trip content translation helpers ──────────────────────────────────────────
 
 /** Cheap, fast model for simple fidelity translation — not creative generation. */
-const TRANSLATION_MODEL = "claude-haiku-4-5-20251001";
+const TRANSLATION_MODEL = "gpt-5-mini";
 
 /** Runs `fn` over `items` with at most `limit` in flight at once, preserving result order. */
 async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
@@ -719,30 +723,18 @@ function cityTransportModeToDirectionsMode(mode?: string): TravelMode {
   return 'driving';
 }
 
-/**
- * Builds the `fetchTravel` callback the itinerary validator uses to replace
- * LLM-guessed travel times with real Google Directions data — reusing the
- * exact same `fetchDirections` the app's "Atualizar rotas" button already
- * calls, just run server-side before the itinerary is ever returned.
- * Short hops are re-checked against walking, mirroring the prompt's existing
- * "prefer walking under ~1km/15min" instruction, but code-enforced.
- */
-function buildTravelFetcher(cityTransportMode: string | undefined, language: string | undefined) {
-  const mode = cityTransportModeToDirectionsMode(cityTransportMode);
-  return async (oLat: number, oLng: number, dLat: number, dLng: number) => {
-    const origin = `${oLat},${oLng}`;
-    const destination = `${dLat},${dLng}`;
-    const primary = await fetchDirections(origin, destination, mode, language);
-    if (!primary) return null;
-    if (mode !== 'walking' && primary.distanceMeters > 0 && primary.distanceMeters < 1200) {
-      const walking = await fetchDirections(origin, destination, 'walking', language);
-      if (walking && walking.durationSeconds <= 15 * 60) {
-        return { durationText: walking.durationText, durationMinutes: Math.round(walking.durationSeconds / 60), mode: 'walking' as const, mapsUrl: walking.mapsUrl };
-      }
-    }
-    return { durationText: primary.durationText, durationMinutes: Math.round(primary.durationSeconds / 60), mode: mode as 'driving' | 'transit', mapsUrl: primary.mapsUrl };
-  };
-}
+// NOTE: itinerary generation's travel-time fetcher (previously defined here
+// as `buildTravelFetcher`, backed by this same legacy Directions API) has
+// been migrated to the Google Routes API — see
+// server/itinerary/routes.ts's `buildTravelFetcher` export, imported below.
+// `fetchDirections`/`cityTransportModeToDirectionsMode` above are KEPT here
+// because the separate `directions.route`/`directions.batchRoute` tRPC
+// procedures (below) and the general-purpose "Atualizar rotas" / transport
+// screens (components/trip/itinerary-block.tsx, components/trip/transport-block.tsx)
+// still call them directly — a repo-wide search found those real,
+// independent call sites, so this isn't dead code and migrating THEM to
+// Routes API is out of scope for this itinerary-engine pass (see the
+// migration report for why).
 
 /**
  * Resolves a free-text "must-see" hint (e.g. "Louvre Museum") to a real
@@ -776,6 +768,97 @@ async function resolveMustSeePlace(
     lng: details.lng,
     hours: details.hours,
   };
+}
+
+/**
+ * Runs deterministic geographic clustering (server/itinerary/clustering.ts)
+ * independently per destination (so a multi-destination trip never mixes
+ * zones across cities), offsetting each destination's cluster day-index by
+ * the trip's running day count so "Dia N" in the resulting prompt block
+ * matches the global day numbering the rest of the prompt uses. Only
+ * candidates with real lat/lng participate — everything else (including
+ * selected/must-visit places, which are handled by their own hard-inclusion
+ * logic in validate.ts) is left for the model to place using the rest of
+ * the prompt's rules.
+ */
+function buildClusteringBlockForDestinations(
+  destinations: { name: string; country?: string; days: number; lat?: number; lng?: number }[],
+  candidates: { placeId: string; name: string; destinationName: string; lat?: number; lng?: number }[],
+  accommodation: { name?: string; address?: string; lat?: number; lng?: number } | undefined,
+): string {
+  let dayOffset = 0;
+  const blocks: string[] = [];
+  for (const d of destinations) {
+    const destCandidates = candidates
+      .filter((c) => c.destinationName === d.name && c.lat != null && c.lng != null)
+      .map((c) => ({ id: c.placeId, name: c.name, lat: c.lat as number, lng: c.lng as number }));
+    const anchor =
+      accommodation?.lat != null && accommodation?.lng != null
+        ? { lat: accommodation.lat, lng: accommodation.lng }
+        : d.lat != null && d.lng != null
+          ? { lat: d.lat, lng: d.lng }
+          : undefined;
+    const { clusters } = clusterByDay(destCandidates, Math.max(1, d.days), { anchor });
+    const block = buildClusteringPromptBlock(clusters, dayOffset);
+    if (block) blocks.push(block);
+    dayOffset += d.days;
+  }
+  return blocks.join("\n");
+}
+
+function addDaysToDateString(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Builds the weather/daylight prompt block (spec "Stage 7") per destination,
+ * reusing the existing OpenWeatherMap integration (server/itinerary/weather.ts)
+ * — real forecast data when the trip date falls within the ~5-day window,
+ * explicit "out of range" framing otherwise (never an invented forecast).
+ * Sunrise/sunset come from a deterministic solar-position formula, not a
+ * new paid API. Requires a usable anchor point (accommodation, or the
+ * destination's own lat/lng) — silently contributes nothing for a
+ * destination with neither, same graceful-degradation pattern as the
+ * clustering block above.
+ */
+async function buildWeatherBlockForDestinations(
+  startDate: string,
+  destinations: { name: string; days: number; lat?: number; lng?: number }[],
+  accommodation: { lat?: number; lng?: number } | undefined,
+): Promise<string> {
+  let dayOffset = 0;
+  const sections: string[] = [];
+  for (const d of destinations) {
+    const anchor: { lat: number; lng: number } | undefined =
+      accommodation?.lat != null && accommodation?.lng != null
+        ? { lat: accommodation.lat, lng: accommodation.lng }
+        : d.lat != null && d.lng != null
+          ? { lat: d.lat, lng: d.lng }
+          : undefined;
+
+    if (anchor) {
+      const dates = Array.from({ length: Math.max(1, d.days) }, (_, i) => addDaysToDateString(startDate, dayOffset + i));
+      const forecastByDate = await fetchForecastSummary(anchor.lat, anchor.lng, dates);
+      const lines = dates.map((date) => {
+        const sun = computeApproxSunTimes(anchor.lat, anchor.lng, date);
+        const forecast = forecastByDate.get(date);
+        const weatherText = forecast
+          ? `previsão real — ${forecast.tempMinC}°C a ${forecast.tempMaxC}°C, "${forecast.description}", chance de chuva ${Math.round(forecast.rainProbability * 100)}%`
+          : `fora do alcance da previsão (só cobre ~5 dias à frente) — NÃO afirme números específicos de temperatura/chuva para esta data`;
+        const sunsetNote = sun.polarExtreme
+          ? "latitude/data com luz do dia atípica (verão/inverno polar) — pôr do sol não é um horário único confiável"
+          : `pôr do sol ~${sun.sunsetLocal} (hora local aproximada, calculada pela posição solar)`;
+        return `- ${date} (${d.name}): ${weatherText}. ${sunsetNote}.`;
+      });
+      sections.push(lines.join("\n"));
+    }
+    dayOffset += d.days;
+  }
+
+  if (sections.length === 0) return "";
+  return `\nClima e luz do dia (use dados reais quando houver; para datas fora do alcance da previsão NÃO invente números — pode mencionar o clima típico da estação de forma genérica, deixando claro que é uma expectativa e não uma garantia; use isso para favorecer atividades internas em dias de chuva prevista e para alinhar passeios que dependam de luz natural, como pôr do sol, ao horário real calculado — mas NUNCA ignore uma prioridade explícita do viajante só por causa do clima):\n${sections.join("\n")}`;
 }
 
 /** Builds the "hotel as route anchor" prompt block — only added when accommodation data is provided. */
@@ -817,7 +900,7 @@ function buildMealPreferencesBlock(
 const WEB_SEARCH_INSTRUCTION = `Você pode pesquisar na web (sites de viagem, guias locais, imprensa, redes sociais, fóruns) pra confirmar ou descobrir quais dos candidatos reais listados são de fato os mais recomendados por moradores e conhecedores do destino — combine isso com seu próprio conhecimento e com os dados de avaliação disponíveis. Use a busca quando agregar valor real à escolha, não é obrigatório pesquisar pra cada lugar individualmente. Sua resposta final deve ser SOMENTE o JSON pedido, sem nenhum texto antes ou depois, mesmo que você tenha pesquisado antes de responder.`;
 
 /** Cheap, fast model for auxiliary passes that aren't the creative itinerary assembly itself. */
-const WEB_SEARCH_PRESCREEN_MODEL = "claude-haiku-4-5-20251001";
+const WEB_SEARCH_PRESCREEN_MODEL = "gpt-5-mini";
 
 /**
  * Separate, schema-free web-search pass run BEFORE the main itinerary
@@ -1753,6 +1836,8 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
       .mutation(async ({ ctx, input }) => {
         await requireActiveSubscription(ctx.user.id);
         const { startDate, totalDays, destinations, selectedPlaces, preferences, cityTransportMode, accommodation } = input;
+        const generationStartedAt = Date.now();
+        const telemetry = { llmCalls: 0, promptTokens: 0, completionTokens: 0 };
 
         const destSummary = destinations
           .map((d) => `${d.name} (${d.country || ""}) — ${d.days} dias`)
@@ -1764,35 +1849,43 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
           : "\nUse sua expertise para sugerir os melhores lugares para visitar.";
 
         // Ground any place the AI adds beyond the (optional) obligatory list in
-        // real, currently-open places from Google Places — same principle as
-        // ai.suggestPlaces — instead of letting it invent places from memory.
+        // real, currently-open places from Google Places PLUS our own curated
+        // catalog (server/itinerary/candidates.ts) — previously the catalog
+        // only fed ai.suggestPlaces, never actual itinerary generation (see
+        // docs/itinerary-audit.md section 1) — instead of letting the model
+        // invent places from memory. Hard exclusion (avoid list) and ranking
+        // (interest/editorial/quality/popularity, never a hard filter) both
+        // happen inside prepareCandidatePool.
         const selectedNamesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
-        const rawExtraCandidates = (await fetchRealCandidatesForDestinations(destinations, input.language))
-          .filter((c) => !selectedNamesLower.has(c.name.toLowerCase()));
-
-        // Hard exclusion filter FIRST — a candidate the user asked to avoid
-        // must never reach the LLM, no matter how popular/well-rated it is.
-        const { kept: nonExcludedCandidates, excludedCount } = filterExcludedCandidates(rawExtraCandidates, preferences?.avoidPlaces);
+        const rawGoogleCandidates = await fetchRealCandidatesForDestinations(destinations, input.language);
+        const { candidates: extraCandidates, excludedCount, catalogCount, totalBeforeCap } = await prepareCandidatePool(
+          rawGoogleCandidates,
+          destinations,
+          {
+            travelStyles: preferences?.travelStyle,
+            attractionsBudget: preferences?.attractionsBudget,
+            restaurantsBudget: preferences?.restaurantsBudget,
+            avoidText: preferences?.avoidPlaces,
+            language: input.language,
+            excludeNamesLower: selectedNamesLower,
+          },
+        );
         if (excludedCount > 0) {
           console.log(`[ai.generateItinerary] filtered out ${excludedCount} candidate(s) matching the user's avoid list`);
         }
-
-        // Safety cap only — NOT a quality/interest pre-selection. The AI must
-        // see the full real candidate pool (minus the user's explicit
-        // exclusions above) and decide itself from the prompt's preferences.
-        // This just bounds prompt size/cost for exceptionally large cities,
-        // keeping Google's own return order (fetchRealPlaceCandidates already
-        // sorts by review count before this), never a scored ranking.
-        const CANDIDATE_SAFETY_CAP = 180;
-        const extraCandidates = nonExcludedCandidates.slice(0, CANDIDATE_SAFETY_CAP);
+        console.log(`[ai.generateItinerary] candidate pool: ${extraCandidates.length} (of ${totalBeforeCap} ranked before cap), ${catalogCount} from curated catalog`);
 
         // Real opening hours, fetched only for the shortlist actually offered
-        // to the model (keeps the extra Place Details calls bounded).
+        // to the model (keeps the extra Place Details calls bounded). Catalog
+        // candidates' hours/lat/lng were already best-effort backfilled
+        // inside prepareCandidatePool — this additionally covers Google-only
+        // candidates, which never needed that backfill for lat/lng (Nearby
+        // Search already returns it) but still need opening hours.
         await fetchOpeningHoursForTopCandidates(extraCandidates, 40, input.language);
         const hoursByPlaceId = new Map(extraCandidates.filter((c) => c.hoursText).map((c) => [c.placeId, c.hoursText!]));
 
         const realCandidatesSummary = extraCandidates.length > 0
-          ? `\nLugares reais e verificados no Google Places disponíveis${hasSelectedPlaces ? ' para completar o roteiro além dos obrigatórios acima' : ''} (use o nome EXATAMENTE como aparece na lista; NÃO invente nenhum lugar fora desta lista${hasSelectedPlaces ? ' nem da lista de obrigatórios' : ''}):\n${extraCandidates.map((c) => `[${c.placeId}] ${c.name} (${c.destinationName})${c.rating ? `, rating ${c.rating}` : ''}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}`).join("\n")}`
+          ? `\nLugares reais e verificados disponíveis${hasSelectedPlaces ? ' para completar o roteiro além dos obrigatórios acima' : ''} (use o nome EXATAMENTE como aparece na lista; NÃO invente nenhum lugar fora desta lista${hasSelectedPlaces ? ' nem da lista de obrigatórios' : ''}):\n${extraCandidates.map((c) => `[${c.placeId}] ${c.name} (${c.destinationName})${c.rating ? `, rating ${c.rating}` : ''}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}${c.source === 'catalog' ? ` [recomendação editorial local${c.curatedDescription ? `: ${c.curatedDescription}` : ''}]` : ''}`).join("\n")}`
           : '';
 
         // Separate, schema-free web-search pass — see preScreenRecommendedCandidates
@@ -1805,6 +1898,14 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
         // Promote a resolvable free-text "must-see" hint to a HARD constraint.
         const destCenter = destinations.find((d) => d.lat != null && d.lng != null);
         const resolvedMustSee = await resolveMustSeePlace(preferences?.mustSee, destCenter?.lat, destCenter?.lng, input.language);
+
+        // Deterministic geographic clustering (server/itinerary/clustering.ts,
+        // spec "Stage 4") — a suggested day→zone split per destination, fed
+        // to the model as extra planning context instead of an unordered
+        // candidate list. Advisory only: never removes a candidate, and the
+        // model/validator can still override it for a hard constraint.
+        const clusteringBlock = buildClusteringBlockForDestinations(destinations, extraCandidates, accommodation);
+        const weatherBlock = await buildWeatherBlockForDestinations(startDate, destinations, accommodation);
 
         const paceStops = preferences?.pace === 'relaxado' ? 3 : preferences?.pace === 'intenso' ? 6 : 4;
 
@@ -1833,7 +1934,7 @@ ${HARD_SOFT_FRAMING_BLOCK}
 
 Data de início: ${startDate}
 Destinos: ${destSummary}
-${placesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}${preScreenBlock}
+${placesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}${preScreenBlock}${clusteringBlock}${weatherBlock}
 ${hotelBlock}
 
 Preferências:
@@ -1854,7 +1955,7 @@ Regras de horário:
 - Nos demais dias, a primeira parada deve começar depois do horário de acordar (${wakeUpTime}), com 30 a 60 minutos para o café da manhã.
 - A última parada de cada dia deve terminar antes do horário de dormir (${bedtime}), com folga de pelo menos 1h.
 
-${buildDurationGuidancePromptBlock()}
+${buildDurationGuidancePromptBlock(preferences?.pace)}
 
 Retorne um JSON com o array "days". Cada dia deve ter:
 - date: data no formato YYYY-MM-DD
@@ -1874,59 +1975,8 @@ Importante:
 - Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista.' : ''}${extraCandidates.length > 0 ? '\n- Use SOMENTE lugares da(s) lista(s) acima (obrigatórios e/ou candidatos reais). NÃO invente nenhum lugar de memória.' : ''}
 - Antes de finalizar o horário de cada parada, releia a descrição que você mesmo escreveu para esse lugar — se ela menciona um período do dia específico (manhã, tarde, entardecer, pôr do sol, noite, etc.), o horário agendado da parada PRECISA bater com essa recomendação. Se não bater, ajuste o horário pra refletir o que você mesmo recomendou, não o contrário.`;
 
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: "Você é um guia de viagens especialista. Crie roteiros detalhados, práticos e culturalmente ricos. Responda sempre em JSON válido." },
-            { role: "user", content: prompt },
-          ],
-          outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tips" }) },
-          max_tokens: 16000,
-        });
-
-        const content = response.choices[0].message.content as string;
-        let parsed: any;
-        try {
-          parsed = JSON.parse(content);
-        } catch (err) {
-          console.error("[ai.generateItinerary] Failed to parse LLM response as JSON. Raw content (first 500 chars):", content.slice(0, 500));
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Não foi possível gerar o roteiro: a resposta da IA veio incompleta ou inválida. Tente novamente.",
-            cause: err,
-          });
-        }
-
-        const rawDays: any[] = parsed.days || [];
         const candidatesByPlaceId = new Map(extraCandidates.map((c) => [c.placeId, c]));
-
-        // Hallucination guard (previously only applied in generateFromScratch):
-        // drop any AI-added stop whose googlePlaceId isn't a real candidate and
-        // whose name doesn't match a user-selected or must-visit place.
         const mustSeeNamesLower = new Set([resolvedMustSee?.name.toLowerCase()].filter(Boolean) as string[]);
-        let droppedHallucinatedStops = 0;
-        for (const day of rawDays) {
-          day.stops = (day.stops || []).filter((stop: any) => {
-            if (!stop.placeName) return false;
-            if (extraCandidates.length === 0) return true; // no grounding pool available — nothing to check against
-            const isKnownCandidate = stop.googlePlaceId && candidatesByPlaceId.has(stop.googlePlaceId);
-            const isSelected = selectedNamesLower.has((stop.placeName || '').toLowerCase());
-            const isMustSee = mustSeeNamesLower.has((stop.placeName || '').toLowerCase());
-            if (!isKnownCandidate && !isSelected && !isMustSee) {
-              droppedHallucinatedStops++;
-              return false;
-            }
-            if (isKnownCandidate) {
-              const c = candidatesByPlaceId.get(stop.googlePlaceId)!;
-              stop.lat = c.lat ?? stop.lat;
-              stop.lng = c.lng ?? stop.lng;
-            }
-            return true;
-          });
-        }
-        if (droppedHallucinatedStops > 0) {
-          console.warn(`[ai.generateItinerary] dropped ${droppedHallucinatedStops} stop(s) that referenced places outside the real candidates / selected-places lists`);
-        }
-
         const mustVisit: MustVisitPlace[] = [
           ...(selectedPlaces || []).map((p) => ({ name: p.name, category: p.category, address: p.address, lat: p.lat, lng: p.lng, hours: p.hours })),
           ...(resolvedMustSee ? [resolvedMustSee] : []),
@@ -1936,22 +1986,92 @@ Importante:
           .slice(0, 15)
           .map((c) => ({ googlePlaceId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
 
-        const { days: correctedDays } = await validateAndCorrectItinerary(rawDays, {
-          wakeUpTime, bedtime, arrivalTime, departureTime,
-          isFirstDay: (i) => i === 0,
-          isLastDay: (i) => i === totalDays - 1,
-          avoidText: preferences?.avoidPlaces,
-          mustVisit,
-          requireLunch: preferences?.includeLunch !== false,
-          requireDinner: preferences?.includeDinner !== false,
-          lunchMode: preferences?.mealPreferences?.lunch,
-          dinnerMode: preferences?.mealPreferences?.dinner,
-          hoursByPlaceId,
-          fillerRestaurants,
-          fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
-        });
+        // Generate → hallucination-guard → deterministic validate, wrapped in
+        // a bounded single-repair loop (server/itinerary/repair.ts): if
+        // validation surfaces an unresolved hard conflict (e.g. a must-visit
+        // place that didn't fit), make ONE more targeted call describing
+        // exactly what to fix, then keep whichever attempt is strictly
+        // better. Never more than one extra call, never silently hidden from
+        // the response (see the `warnings` field returned below).
+        const generateAndValidate = async (repairBlock: string | undefined) => {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: "Você é um guia de viagens especialista. Crie roteiros detalhados, práticos e culturalmente ricos. Responda sempre em JSON válido." },
+              { role: "user", content: repairBlock ? `${prompt}${repairBlock}` : prompt },
+            ],
+            outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tips" }), strict: true },
+            max_tokens: 16000,
+          });
+          telemetry.llmCalls++;
+          telemetry.promptTokens += response.usage?.prompt_tokens ?? 0;
+          telemetry.completionTokens += response.usage?.completion_tokens ?? 0;
 
-        return { days: correctedDays };
+          const content = response.choices[0].message.content as string;
+          let parsed: any;
+          try {
+            parsed = JSON.parse(content);
+          } catch (err) {
+            console.error("[ai.generateItinerary] Failed to parse LLM response as JSON. Raw content (first 500 chars):", content.slice(0, 500));
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Não foi possível gerar o roteiro: a resposta da IA veio incompleta ou inválida. Tente novamente.",
+              cause: err,
+            });
+          }
+
+          const rawDays: any[] = parsed.days || [];
+
+          // Hallucination guard (previously only applied in generateFromScratch):
+          // drop any AI-added stop whose googlePlaceId isn't a real candidate and
+          // whose name doesn't match a user-selected or must-visit place.
+          let droppedHallucinatedStops = 0;
+          for (const day of rawDays) {
+            day.stops = (day.stops || []).filter((stop: any) => {
+              if (!stop.placeName) return false;
+              if (extraCandidates.length === 0) return true; // no grounding pool available — nothing to check against
+              const isKnownCandidate = stop.googlePlaceId && candidatesByPlaceId.has(stop.googlePlaceId);
+              const isSelected = selectedNamesLower.has((stop.placeName || '').toLowerCase());
+              const isMustSee = mustSeeNamesLower.has((stop.placeName || '').toLowerCase());
+              if (!isKnownCandidate && !isSelected && !isMustSee) {
+                droppedHallucinatedStops++;
+                return false;
+              }
+              if (isKnownCandidate) {
+                const c = candidatesByPlaceId.get(stop.googlePlaceId)!;
+                stop.lat = c.lat ?? stop.lat;
+                stop.lng = c.lng ?? stop.lng;
+              }
+              return true;
+            });
+          }
+          if (droppedHallucinatedStops > 0) {
+            console.warn(`[ai.generateItinerary] dropped ${droppedHallucinatedStops} stop(s) that referenced places outside the real candidates / selected-places lists`);
+          }
+
+          const { days: correctedDays, warnings } = await validateAndCorrectItinerary(rawDays, {
+            wakeUpTime, bedtime, arrivalTime, departureTime,
+            isFirstDay: (i) => i === 0,
+            isLastDay: (i) => i === totalDays - 1,
+            avoidText: preferences?.avoidPlaces,
+            mustVisit,
+            requireLunch: preferences?.includeLunch !== false,
+            requireDinner: preferences?.includeDinner !== false,
+            lunchMode: preferences?.mealPreferences?.lunch,
+            dinnerMode: preferences?.mealPreferences?.dinner,
+            hoursByPlaceId,
+            fillerRestaurants,
+            pace: preferences?.pace,
+            fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
+          });
+          return { result: correctedDays, warnings };
+        };
+
+        const outcome = await withOneRepairAttempt(generateAndValidate);
+        console.log(
+          `[ai.generateItinerary] telemetry: totalMs=${Date.now() - generationStartedAt} llmCalls=${telemetry.llmCalls} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} candidatePool=${extraCandidates.length}(catalog=${catalogCount},rankedBeforeCap=${totalBeforeCap},excludedByAvoid=${excludedCount}) repairAttempted=${outcome.repairAttempted} repairUsed=${outcome.repairUsed} unresolvedWarnings=${outcome.warnings.length}`,
+        );
+
+        return { days: outcome.result, warnings: outcome.warnings.length > 0 ? outcome.warnings : undefined };
       }),
 
     /**
@@ -2022,6 +2142,8 @@ Importante:
       .mutation(async ({ ctx, input }) => {
         await requireActiveSubscription(ctx.user.id);
         const { startDate, totalDays, destinations, cityTransportMode, selectedPlaces, profile, accommodation } = input;
+        const generationStartedAt = Date.now();
+        const telemetry = { llmCalls: 0, promptTokens: 0, completionTokens: 0 };
 
         const destSummary = destinations
           .map((d) => `${d.name} (${d.country || ""}) — ${d.days} dias`)
@@ -2033,30 +2155,36 @@ Importante:
           : "";
 
         // Ground the whole itinerary in real, currently-open places from Google
-        // Places — same principle as ai.suggestPlaces — instead of letting the
-        // model invent places from memory.
+        // Places PLUS our own curated catalog (server/itinerary/candidates.ts)
+        // — same principle as ai.suggestPlaces, now extended to real
+        // itinerary generation too — instead of letting the model invent
+        // places from memory. Hard exclusion (avoid list) and ranking
+        // (interest/editorial/quality/popularity, never a hard filter) both
+        // happen inside prepareCandidatePool.
         const rawRealCandidates = await fetchRealCandidatesForDestinations(destinations, input.language);
-
-        // Hard exclusion filter FIRST — never let an avoided category reach ranking/the LLM.
-        const { kept: nonExcludedRealCandidates, excludedCount: excludedRealCount } = filterExcludedCandidates(rawRealCandidates, profile.avoidPlaces);
+        const selectedPlacesNamesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
+        const { candidates: realCandidates, excludedCount: excludedRealCount, catalogCount, totalBeforeCap } = await prepareCandidatePool(
+          rawRealCandidates,
+          destinations,
+          {
+            travelStyles: profile.travelStyle,
+            attractionsBudget: profile.attractionsBudget || profile.budget,
+            restaurantsBudget: profile.restaurantsBudget || profile.budget,
+            avoidText: profile.avoidPlaces,
+            language: input.language,
+            excludeNamesLower: selectedPlacesNamesLower,
+          },
+        );
         if (excludedRealCount > 0) {
           console.log(`[ai.generateFromScratch] filtered out ${excludedRealCount} candidate(s) matching the user's avoid list`);
         }
-
-        // Safety cap only — NOT a quality/interest pre-selection. The AI must
-        // see the full real candidate pool (minus the user's explicit
-        // exclusions above) and decide itself from the prompt's preferences.
-        // This just bounds prompt size/cost for exceptionally large cities,
-        // keeping Google's own return order (fetchRealPlaceCandidates already
-        // sorts by review count before this), never a scored ranking.
-        const CANDIDATE_SAFETY_CAP = 180;
-        const realCandidates = nonExcludedRealCandidates.slice(0, CANDIDATE_SAFETY_CAP);
+        console.log(`[ai.generateFromScratch] candidate pool: ${realCandidates.length} (of ${totalBeforeCap} ranked before cap), ${catalogCount} from curated catalog`);
 
         await fetchOpeningHoursForTopCandidates(realCandidates, 40, input.language);
         const candidatesByPlaceId = new Map(realCandidates.map((c) => [c.placeId, c]));
         const hoursByPlaceId = new Map(realCandidates.filter((c) => c.hoursText).map((c) => [c.placeId, c.hoursText!]));
         const realCandidatesSummary = realCandidates.length > 0
-          ? `\nLugares reais e verificados no Google Places disponíveis para montar o roteiro:\n${realCandidates.map((c) => `[${c.placeId}] ${c.name} — destino: ${c.destinationName}, tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}`).join("\n")}`
+          ? `\nLugares reais e verificados disponíveis para montar o roteiro (a lista já está ordenada por relevância/afinidade para o perfil do viajante):\n${realCandidates.map((c) => `[${c.placeId}] ${c.name} — destino: ${c.destinationName}, tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}${c.source === 'catalog' ? ` [recomendação editorial local${c.curatedDescription ? `: ${c.curatedDescription}` : ''}]` : ''}`).join("\n")}`
           : "";
 
         // Separate, schema-free web-search pass — see preScreenRecommendedCandidates
@@ -2068,6 +2196,11 @@ Importante:
 
         const destCenter = destinations.find((d) => d.lat != null && d.lng != null);
         const resolvedMustSee = await resolveMustSeePlace(profile.mustSee, destCenter?.lat, destCenter?.lng, input.language);
+
+        // Deterministic geographic clustering — see the identical use in
+        // ai.generateItinerary above for the full rationale.
+        const clusteringBlock = buildClusteringBlockForDestinations(destinations, realCandidates, accommodation);
+        const weatherBlock = await buildWeatherBlockForDestinations(startDate, destinations, accommodation);
 
         const paceStops = profile.pace === 'relaxado' ? 3 : profile.pace === 'intenso' ? 6 : 4;
 
@@ -2094,7 +2227,7 @@ ${HARD_SOFT_FRAMING_BLOCK}
 
 Data de início: ${startDate}
 Destinos: ${destSummary}
-${selectedPlacesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}${preScreenBlock}
+${selectedPlacesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}${preScreenBlock}${clusteringBlock}${weatherBlock}
 ${hotelBlock}
 
 Perfil do viajante:
@@ -2122,7 +2255,7 @@ Regras de horário:
 - Nos demais dias, a primeira parada deve começar depois do horário de acordar (${wakeUpTime}), com 30 a 60 minutos para o café da manhã.
 - A última parada de cada dia deve terminar antes do horário de dormir (${bedtime}), com folga de pelo menos 1h.
 
-${buildDurationGuidancePromptBlock()}
+${buildDurationGuidancePromptBlock(profile.pace)}
 
 Retorne um JSON com "days": array dia-a-dia, cada dia com:
    { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, stops: [{ id (uuid), time (HH:MM), googlePlaceId${realCandidates.length > 0 ? ' (exatamente o placeId entre colchetes do candidato real escolhido, ou vazio se a parada for um dos lugares já selecionados pelo usuário)' : ''}, placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
@@ -2138,74 +2271,14 @@ Importante:
 - Respeite o orçamento (atrações e restaurantes separadamente) e o ritmo do viajante.${realCandidates.length > 0 ? '\n- NÃO invente nenhum lugar fora da lista de candidatos reais e da lista de lugares já selecionados pelo usuário.' : ''}
 - Antes de finalizar o horário de cada parada, releia a descrição que você mesmo escreveu para esse lugar — se ela menciona um período do dia específico (manhã, tarde, entardecer, pôr do sol, noite, etc.), o horário agendado da parada PRECISA bater com essa recomendação. Se não bater, ajuste o horário pra refletir o que você mesmo recomendou, não o contrário.`;
 
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: "Você é um guia de viagens especialista. Crie roteiros personalizados, detalhados e culturalmente ricos. Responda sempre em JSON válido." },
-            { role: "user", content: prompt },
-          ],
-          outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tip" }) },
-          max_tokens: 16000,
-        });
-
-        const content = response.choices[0].message.content as string;
-        let parsed: any;
-        try {
-          parsed = JSON.parse(content);
-        } catch (err) {
-          console.error("[ai.generateFromScratch] Failed to parse LLM response as JSON. Raw content (first 500 chars):", content.slice(0, 500));
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Não foi possível gerar o roteiro: a resposta da IA veio incompleta ou inválida. Tente novamente.",
-            cause: err,
-          });
-        }
-
-        const days: any[] = parsed.days || [];
-
-        // Rebuild suggestedPlaces from the stops actually used in the itinerary,
-        // discarding whatever "suggestedPlaces" the AI may still have volunteered
-        // (which can include places that never made it into any day). Also
-        // backfills a googlePlaceId on any stop that's missing one, so every
-        // stop links to a real suggestedPlaces entry.
-        //
-        // Guard against hallucination — same principle as ai.suggestPlaces: when
-        // real candidates were available, a stop only survives if its
-        // googlePlaceId matches one of them or its name matches a place the
-        // user selected; anything else means the AI ignored the "don't
-        // invent" instruction, so the stop is dropped rather than trusting an
-        // unverifiable place.
+        // Deterministic validate → correct pass checks: opening hours,
+        // must-visit inclusion, exclusions, required meals,
+        // arrival/departure/wake/bed bounds, duplicate/overlap cleanup, and
+        // real travel times. Wrapped in a bounded single-repair loop
+        // (server/itinerary/repair.ts): a hard unresolved conflict (e.g. a
+        // must-visit place that didn't fit) triggers exactly ONE more
+        // targeted LLM call before the result is finalized.
         const selectedPlacesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
-        let droppedHallucinatedStops = 0;
-        const patchedDays = days.map((day: any) => {
-          const stops = (day.stops || []).map((stop: any) => {
-            if (!stop.placeName) return null;
-
-            const candidate = stop.googlePlaceId ? candidatesByPlaceId.get(stop.googlePlaceId) : undefined;
-            const isSelectedPlace = selectedPlacesLower.has(stop.placeName.toLowerCase());
-            if (realCandidates.length > 0 && !candidate && !isSelectedPlace) {
-              droppedHallucinatedStops++;
-              return null;
-            }
-
-            const resolvedGooglePlaceId = candidate?.placeId || stop.googlePlaceId || undefined;
-            return {
-              ...stop,
-              googlePlaceId: resolvedGooglePlaceId,
-              placeName: candidate?.name || stop.placeName,
-              lat: candidate?.lat ?? stop.lat,
-              lng: candidate?.lng ?? stop.lng,
-            };
-          }).filter(Boolean);
-          return { ...day, stops };
-        });
-
-        if (droppedHallucinatedStops > 0) {
-          console.warn(`[ai.generateFromScratch] dropped ${droppedHallucinatedStops} stop(s) that referenced places outside the real candidates / selected-places lists`);
-        }
-
-        // Deterministic validate → correct pass: opening hours, must-visit
-        // inclusion, exclusions, required meals, arrival/departure/wake/bed
-        // bounds, duplicate/overlap cleanup, and real Directions travel times.
         const mustVisit: MustVisitPlace[] = [
           ...(selectedPlaces || []).map((p) => ({ name: p.name, category: p.category, address: p.address, lat: p.lat, lng: p.lng, hours: p.hours })),
           ...(resolvedMustSee ? [resolvedMustSee] : []),
@@ -2215,20 +2288,97 @@ Importante:
           .slice(0, 15)
           .map((c) => ({ googlePlaceId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
 
-        const { days: correctedDays } = await validateAndCorrectItinerary(patchedDays, {
-          wakeUpTime, bedtime, arrivalTime, departureTime,
-          isFirstDay: (i) => i === 0,
-          isLastDay: (i) => i === totalDays - 1,
-          avoidText: profile.avoidPlaces,
-          mustVisit,
-          requireLunch: profile.mealPreferences?.lunch !== 'none',
-          requireDinner: profile.mealPreferences?.dinner !== 'none',
-          lunchMode: profile.mealPreferences?.lunch,
-          dinnerMode: profile.mealPreferences?.dinner,
-          hoursByPlaceId,
-          fillerRestaurants,
-          fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
-        });
+        const generateAndValidate = async (repairBlock: string | undefined) => {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: "Você é um guia de viagens especialista. Crie roteiros personalizados, detalhados e culturalmente ricos. Responda sempre em JSON válido." },
+              { role: "user", content: repairBlock ? `${prompt}${repairBlock}` : prompt },
+            ],
+            outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tip" }), strict: true },
+            max_tokens: 16000,
+          });
+          telemetry.llmCalls++;
+          telemetry.promptTokens += response.usage?.prompt_tokens ?? 0;
+          telemetry.completionTokens += response.usage?.completion_tokens ?? 0;
+
+          const content = response.choices[0].message.content as string;
+          let parsed: any;
+          try {
+            parsed = JSON.parse(content);
+          } catch (err) {
+            console.error("[ai.generateFromScratch] Failed to parse LLM response as JSON. Raw content (first 500 chars):", content.slice(0, 500));
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Não foi possível gerar o roteiro: a resposta da IA veio incompleta ou inválida. Tente novamente.",
+              cause: err,
+            });
+          }
+
+          const days: any[] = parsed.days || [];
+
+          // Rebuild suggestedPlaces from the stops actually used in the itinerary,
+          // discarding whatever "suggestedPlaces" the AI may still have volunteered
+          // (which can include places that never made it into any day). Also
+          // backfills a googlePlaceId on any stop that's missing one, so every
+          // stop links to a real suggestedPlaces entry.
+          //
+          // Guard against hallucination — same principle as ai.suggestPlaces: when
+          // real candidates were available, a stop only survives if its
+          // googlePlaceId matches one of them or its name matches a place the
+          // user selected; anything else means the AI ignored the "don't
+          // invent" instruction, so the stop is dropped rather than trusting an
+          // unverifiable place.
+          let droppedHallucinatedStops = 0;
+          const patchedDays = days.map((day: any) => {
+            const stops = (day.stops || []).map((stop: any) => {
+              if (!stop.placeName) return null;
+
+              const candidate = stop.googlePlaceId ? candidatesByPlaceId.get(stop.googlePlaceId) : undefined;
+              const isSelectedPlace = selectedPlacesLower.has(stop.placeName.toLowerCase());
+              if (realCandidates.length > 0 && !candidate && !isSelectedPlace) {
+                droppedHallucinatedStops++;
+                return null;
+              }
+
+              const resolvedGooglePlaceId = candidate?.placeId || stop.googlePlaceId || undefined;
+              return {
+                ...stop,
+                googlePlaceId: resolvedGooglePlaceId,
+                placeName: candidate?.name || stop.placeName,
+                lat: candidate?.lat ?? stop.lat,
+                lng: candidate?.lng ?? stop.lng,
+              };
+            }).filter(Boolean);
+            return { ...day, stops };
+          });
+
+          if (droppedHallucinatedStops > 0) {
+            console.warn(`[ai.generateFromScratch] dropped ${droppedHallucinatedStops} stop(s) that referenced places outside the real candidates / selected-places lists`);
+          }
+
+          const { days: correctedDays, warnings } = await validateAndCorrectItinerary(patchedDays, {
+            wakeUpTime, bedtime, arrivalTime, departureTime,
+            isFirstDay: (i) => i === 0,
+            isLastDay: (i) => i === totalDays - 1,
+            avoidText: profile.avoidPlaces,
+            mustVisit,
+            requireLunch: profile.mealPreferences?.lunch !== 'none',
+            requireDinner: profile.mealPreferences?.dinner !== 'none',
+            lunchMode: profile.mealPreferences?.lunch,
+            dinnerMode: profile.mealPreferences?.dinner,
+            hoursByPlaceId,
+            fillerRestaurants,
+            pace: profile.pace,
+            fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
+          });
+          return { result: correctedDays, warnings };
+        };
+
+        const outcome = await withOneRepairAttempt(generateAndValidate);
+        console.log(
+          `[ai.generateFromScratch] telemetry: totalMs=${Date.now() - generationStartedAt} llmCalls=${telemetry.llmCalls} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} candidatePool=${realCandidates.length}(catalog=${catalogCount},rankedBeforeCap=${totalBeforeCap},excludedByAvoid=${excludedRealCount}) repairAttempted=${outcome.repairAttempted} repairUsed=${outcome.repairUsed} unresolvedWarnings=${outcome.warnings.length}`,
+        );
+        const correctedDays = outcome.result;
 
         // Build placesByKey exclusively from correctedDays — the itinerary
         // AFTER validation/correction — so suggestedPlaces reflects exactly
@@ -2277,7 +2427,7 @@ Importante:
           })
         );
 
-        return { days: correctedDays, suggestedPlaces };
+        return { days: correctedDays, suggestedPlaces, warnings: outcome.warnings.length > 0 ? outcome.warnings : undefined };
       }),
 
     /**

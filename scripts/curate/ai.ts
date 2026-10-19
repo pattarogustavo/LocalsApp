@@ -10,7 +10,7 @@ import {
   type TranslateBatchItem,
   type RedescribeItem,
 } from "./prompts";
-import { withRetry, isRetryableAnthropicError, getAnthropicRetryAfterMs, isWebSearchUnsupportedError } from "./retry";
+import { withRetry, isRetryableOpenAIError, getOpenAIRetryAfterMs, isWebSearchUnsupportedError } from "./retry";
 import { validateProposedPlaces, type RawProposedPlace, type ValidatedPlace, type InvalidPlaceExample, type NormalizeOptions } from "./validate-place";
 import { normalizeBatchArray, type BatchNormalizeResult } from "./normalize-batch";
 import { parseJsonLines } from "./jsonl";
@@ -22,9 +22,13 @@ function malformedOf<T>(normalized: BatchNormalizeResult<T>): BatchMalformed | u
   return normalized.shape ? { shape: normalized.shape, sample: normalized.sample } : undefined;
 }
 
-export const RESEARCH_MODEL = process.env.CURATE_RESEARCH_MODEL || "claude-sonnet-5";
-export const STRUCTURE_MODEL = process.env.CURATE_STRUCTURE_MODEL || "claude-haiku-4-5-20251001";
-export const TRANSLATE_MODEL = process.env.CURATE_TRANSLATE_MODEL || "claude-haiku-4-5-20251001";
+// Model IDs updated for the OpenAI migration (invokeLLM, server/_core/llm.ts,
+// is a single shared abstraction — retargeting it to OpenAI for the
+// itinerary engine necessarily retargets these curation-script callers too,
+// since they go through the exact same function; see the migration report).
+export const RESEARCH_MODEL = process.env.CURATE_RESEARCH_MODEL || "gpt-6.1-sol";
+export const STRUCTURE_MODEL = process.env.CURATE_STRUCTURE_MODEL || "gpt-5-mini";
+export const TRANSLATE_MODEL = process.env.CURATE_TRANSLATE_MODEL || "gpt-5-mini";
 
 /** Max web_search tool uses per research call. Configurable since some destinations need more digging than others. */
 export const WEB_SEARCH_MAX_USES = (() => {
@@ -41,8 +45,8 @@ export const STRUCTURE_TIMEOUT_MS = 2 * 60 * 1000;
 const CALL_RETRY_OPTIONS = {
   maxAttempts: 4,
   baseDelayMs: 1000,
-  isRetryable: isRetryableAnthropicError,
-  getRetryAfterMs: getAnthropicRetryAfterMs,
+  isRetryable: isRetryableOpenAIError,
+  getRetryAfterMs: getOpenAIRetryAfterMs,
 };
 
 export type ProposedPlace = ValidatedPlace;

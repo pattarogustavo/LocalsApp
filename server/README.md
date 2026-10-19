@@ -11,7 +11,7 @@ This guide covers server-side features including authentication, database, tRPC 
 | Data stays on device only | No | No | Use `AsyncStorage` |
 | Data syncs across devices | Yes | Yes | Database + tRPC |
 | User accounts / login | Yes | Yes | Supabase Auth |
-| AI-powered features | Yes | **Optional** | Anthropic (`invokeLLM`) |
+| AI-powered features | Yes | **Optional** | OpenAI (`invokeLLM`) |
 | User uploads files | Yes | **Optional** | Supabase Storage |
 | Server-side validation | Yes | **Optional** | tRPC procedures |
 
@@ -281,7 +281,7 @@ function ItemList() {
 
 ## LLM Integration
 
-`invokeLLM` (`server/_core/llm.ts`) calls the Anthropic API directly via `@anthropic-ai/sdk`. Requires `ANTHROPIC_API_KEY`; the model defaults to `ANTHROPIC_MODEL` (falls back to `claude-sonnet-5`).
+`invokeLLM` (`server/_core/llm.ts`) calls the OpenAI API directly via the `openai` SDK, against the Responses API. Requires `OPENAI_API_KEY`; the model defaults to `OPENAI_MODEL` (falls back to `gpt-6.1-sol`).
 
 ```ts
 import { invokeLLM } from "./server/_core/llm";
@@ -297,13 +297,13 @@ const text = response.choices[0].message.content;
 ```
 
 The function signature is unchanged from before the migration (same `Message`/`Tool`/`ResponseFormat` shapes), so existing callers keep working. Under the hood:
-- `system` messages become Anthropic's top-level `system` param.
-- `response_format: { type: "json_object" }` is emulated with an appended system instruction plus fence-stripping on the response — Claude has no native "JSON mode".
-- `response_format: { type: "json_schema", json_schema }` is emulated via a single forced tool call matching the schema; the tool's input is returned as the JSON string in `content`.
-- `tools`/`tool_choice` map to Anthropic's native tool-use format.
+- `system` messages become `developer`-role items (OpenAI's current recommended role name for top-of-conversation instructions in the Responses API).
+- `response_format: { type: "json_object" }` maps to the Responses API's `text.format: { type: "json_object" }`, with fence-stripping on the response as a safety net.
+- `response_format: { type: "json_schema", json_schema }` maps directly to `text.format: { type: "json_schema", ... }` (Structured Outputs) — no tool-call emulation needed, OpenAI supports this natively.
+- `tools`/`tool_choice` map to the Responses API's native function-calling format.
 
 Tips
-- Always call from server-side code (tRPC procedures) — never expose `ANTHROPIC_API_KEY` to the client.
+- Always call from server-side code (tRPC procedures) — never expose `OPENAI_API_KEY` to the client.
 - LLM responses often contain markdown. Use `<Streamdown>{content}</Streamdown>` (from `streamdown`) to render it.
 - For image inputs, local `file://`/blob URLs don't work — upload to storage first and pass the resulting URL.
 
@@ -335,7 +335,7 @@ const structured = await invokeLLM({
 const data = JSON.parse(structured.choices[0].message.content as string);
 ```
 
-**Note:** `json_schema` works best for flat structures — Anthropic's forced-tool-call emulation can be picky about deeply nested arrays/objects. For those, prefer `json_object` and describe the exact JSON shape in the system prompt (this is what `server/routers.ts`'s itinerary/places AI endpoints already do).
+**Note:** some callers still prefer `json_object` and describe the exact JSON shape in the system prompt instead of `json_schema` (this is what `server/routers.ts`'s itinerary/places AI endpoints already do) — a holdover from before the OpenAI migration, not a current technical limitation of `json_schema`/Structured Outputs.
 
 ---
 
@@ -369,8 +369,8 @@ Tips
 | `SUPABASE_JWT_SECRET` | Supabase project JWT secret — backend verifies user sessions with this |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key — server-only, bypasses RLS, used for Storage |
 | `SUPABASE_STORAGE_BUCKET` | Name of the private Supabase Storage bucket |
-| `ANTHROPIC_API_KEY` | Anthropic API key |
-| `ANTHROPIC_MODEL` | Optional; defaults to `claude-sonnet-5` |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `OPENAI_MODEL` | Optional; defaults to `gpt-6.1-sol` |
 | `EXPO_PUBLIC_API_BASE_URL` | API server URL (derived automatically if unset) |
 
 See `.env.example` for the full list including third-party integrations (Google Places/Directions, AeroDataBox, AviationStack, OpenWeatherMap, RevenueCat).
@@ -476,7 +476,7 @@ const { data, fetchNextPage, hasNextPage } = trpc.items.list.useInfiniteQuery(
 |-------|----------|
 | "Database not available" | Check `DATABASE_URL` is set |
 | Auth requests return 401 | Verify `SUPABASE_JWT_SECRET` matches the Supabase project's JWT secret |
-| `invokeLLM` throws "ANTHROPIC_API_KEY is not configured" | Set `ANTHROPIC_API_KEY` in `.env` |
+| `invokeLLM` throws "OPENAI_API_KEY is not configured" | Set `OPENAI_API_KEY` in `.env` |
 | Storage uploads fail | Verify `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_STORAGE_BUCKET` are set and the bucket exists |
 | tRPC type errors | Run `pnpm check` to verify types |
 | Mutations fail silently | Check browser console for errors |

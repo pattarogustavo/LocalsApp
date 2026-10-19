@@ -16,6 +16,15 @@ describe("estimateModelCostUsd", () => {
     const result = estimateModelCostUsd("some-unknown-model", 1000, 1000);
     expect(result.usd).toBeNull();
   });
+
+  it("recognizes the actual OpenAI models the app calls today (gpt-6.1-sol, gpt-5-mini) instead of returning n/d", () => {
+    expect(estimateModelCostUsd("gpt-6.1-sol", 1_000_000, 1_000_000)).toEqual({
+      usd: MODEL_PRICES_USD_PER_MILLION["gpt-6.1-sol"].input + MODEL_PRICES_USD_PER_MILLION["gpt-6.1-sol"].output,
+    });
+    expect(estimateModelCostUsd("gpt-5-mini", 1_000_000, 1_000_000)).toEqual({
+      usd: MODEL_PRICES_USD_PER_MILLION["gpt-5-mini"].input + MODEL_PRICES_USD_PER_MILLION["gpt-5-mini"].output,
+    });
+  });
 });
 
 describe("formatModelCostUsd", () => {

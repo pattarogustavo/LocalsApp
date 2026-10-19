@@ -135,6 +135,8 @@ export interface ValidateContext {
   requireDinner: boolean;
   lunchMode?: "quick" | "restaurant" | "none";
   dinnerMode?: "quick" | "restaurant" | "none";
+  /** Traveler pace — fed into estimateDurationRange's personalization (duration.ts) so a "relaxado" trip's fit/realism checks use correspondingly longer expected durations, instead of the flat generic table. */
+  pace?: "relaxado" | "moderado" | "intenso";
   /** Opening hours text (weekday_text), keyed by googlePlaceId, for real AI-picked candidates. */
   hoursByPlaceId: Map<string, string>;
   /** Small pool of real, unused restaurant candidates to insert if a required meal is missing. */
@@ -352,7 +354,7 @@ export async function validateAndCorrectItinerary(
 
     // Not present — insert into the day with the most free time, at the
     // largest available gap, respecting wake-up/bedtime bounds.
-    const durationRange = estimateDurationRange(must.category, undefined);
+    const durationRange = estimateDurationRange(must.category, undefined, { pace: ctx.pace });
     let bestDay = -1, bestGapStart = -1, bestGapSize = -1;
     days.forEach((day, dIdx) => {
       const dayWake = ctx.isFirstDay(dIdx) ? (timeToMinutes(ctx.arrivalTime) ?? 0) + ARRIVAL_BUFFER_MIN : (timeToMinutes(ctx.wakeUpTime) ?? 480);
@@ -450,7 +452,7 @@ export async function validateAndCorrectItinerary(
     while (day.stops.length > 0) {
       const last = day.stops[day.stops.length - 1];
       const lastStart = timeToMinutes(last.time) ?? 0;
-      const dur = estimateDurationRange(last.placeCategory).typicalMinutes;
+      const dur = estimateDurationRange(last.placeCategory, undefined, { pace: ctx.pace }).typicalMinutes;
       if (lastStart + dur > maxEnd) {
         warnings.push(`Removed "${last.placeName}" from day ${dIdx + 1} — did not fit before departure/bedtime`);
         day.stops.pop();
@@ -472,7 +474,7 @@ export async function validateAndCorrectItinerary(
       if (gap == null) continue;
       const travel = parseTravelMinutes(cur.travelTimeToNext);
       const implied = gap - travel;
-      const range = estimateDurationRange(cur.placeCategory);
+      const range = estimateDurationRange(cur.placeCategory, undefined, { pace: ctx.pace });
       if (implied < range.minMinutes * 0.5) {
         const deficit = Math.round(range.minMinutes * 0.75) - implied;
         for (let j = i + 1; j < day.stops.length; j++) {
@@ -526,7 +528,7 @@ export async function validateAndCorrectItinerary(
       const next = day.stops[sIdx + 1];
       const prevEnd = prev
         ? (timeToMinutes(prev.time) ?? hint.min) +
-          estimateDurationRange(prev.placeCategory).typicalMinutes +
+          estimateDurationRange(prev.placeCategory, undefined, { pace: ctx.pace }).typicalMinutes +
           parseTravelMinutes(prev.travelTimeToNext)
         : hint.min;
       const nextStart = next ? timeToMinutes(next.time) ?? hint.max : hint.max;

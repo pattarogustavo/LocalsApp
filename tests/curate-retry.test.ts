@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   withRetry,
-  isRetryableAnthropicError,
-  getAnthropicRetryAfterMs,
+  isRetryableOpenAIError,
+  getOpenAIRetryAfterMs,
   isRetryableGoogleError,
   GoogleApiStatusError,
 } from "../scripts/curate/retry";
@@ -68,30 +68,30 @@ describe("withRetry", () => {
   });
 });
 
-describe("isRetryableAnthropicError", () => {
+describe("isRetryableOpenAIError", () => {
   it("retries on 429/5xx/529 status codes", () => {
     for (const status of [429, 500, 502, 503, 504, 529]) {
-      expect(isRetryableAnthropicError({ status })).toBe(true);
+      expect(isRetryableOpenAIError({ status })).toBe(true);
     }
   });
 
   it("retries on an overloaded_error type even without a status", () => {
-    expect(isRetryableAnthropicError({ error: { type: "overloaded_error" } })).toBe(true);
+    expect(isRetryableOpenAIError({ error: { type: "overloaded_error" } })).toBe(true);
   });
 
   it("doesn't retry a 400 or 401", () => {
-    expect(isRetryableAnthropicError({ status: 400 })).toBe(false);
-    expect(isRetryableAnthropicError({ status: 401 })).toBe(false);
+    expect(isRetryableOpenAIError({ status: 400 })).toBe(false);
+    expect(isRetryableOpenAIError({ status: 401 })).toBe(false);
   });
 });
 
-describe("getAnthropicRetryAfterMs", () => {
+describe("getOpenAIRetryAfterMs", () => {
   it("converts a retry-after header (seconds) to milliseconds", () => {
-    expect(getAnthropicRetryAfterMs({ headers: { "retry-after": "3" } })).toBe(3000);
+    expect(getOpenAIRetryAfterMs({ headers: { "retry-after": "3" } })).toBe(3000);
   });
 
   it("returns undefined when absent", () => {
-    expect(getAnthropicRetryAfterMs({})).toBeUndefined();
+    expect(getOpenAIRetryAfterMs({})).toBeUndefined();
   });
 });
 

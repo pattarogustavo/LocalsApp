@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { rankCandidates, filterExcludedCandidates, type ScorableCandidate } from "../server/itinerary/scoring";
 import { estimateDurationRange } from "../server/itinerary/duration";
 import {
@@ -9,6 +9,7 @@ import {
   parseWeekdayHours,
   dateToGoogleWeekdayIndex,
 } from "../server/itinerary/validate";
+import { withOneRepairAttempt, extractRepairableConflicts, buildRepairPromptBlock } from "../server/itinerary/repair";
 
 // ─── Scoring / ranking ───────────────────────────────────────────────────────
 
@@ -239,5 +240,161 @@ describe("validateAndCorrectItinerary", () => {
     const { days: fixed } = await validateAndCorrectItinerary(days, { ...baseCtx, isFirstDay: () => false, isLastDay: () => false });
     const categories = fixed[0].stops.map((s: any) => s.placeCategory);
     expect(categories.filter((c: string) => c === "restaurant")).toHaveLength(2);
+  });
+});
+
+// ─── Editorial-affinity ranking (curated catalog → scoring.ts) ─────────────
+
+describe("rankCandidates — editorialPriority (curated-catalog affinity)", () => {
+  it("ranks a curated-catalog pick above an equally-relevant, equally-rated non-curated candidate", () => {
+    const candidates: ScorableCandidate[] = [
+      { name: "Catalog Pick", placeId: "cat", rating: 4.3, userRatingsTotal: 40, types: ["museum"], editorialPriority: 100 },
+      { name: "Generic Museum", placeId: "gen", rating: 4.3, userRatingsTotal: 40, types: ["museum"] },
+    ];
+    const ranked = rankCandidates(candidates, { travelStyles: ["cultura"] });
+    expect(ranked[0].candidate.placeId).toBe("cat");
+  });
+
+  it("never lets editorial affinity override a poor interest match — interest is still primary", () => {
+    const candidates: ScorableCandidate[] = [
+      { name: "Curated Amusement Park", placeId: "amuse", rating: 4.8, userRatingsTotal: 200000, types: ["amusement_park"], editorialPriority: 100 },
+      { name: "Small Local Gallery", placeId: "gal", rating: 4.0, userRatingsTotal: 30, types: ["art_gallery"] },
+    ];
+    const ranked = rankCandidates(candidates, { travelStyles: ["cultura"] });
+    expect(ranked[0].candidate.placeId).toBe("gal");
+  });
+
+  it("treats an absent editorialPriority as 0 — identical behavior to before the field existed", () => {
+    const withField: ScorableCandidate[] = [{ name: "A", placeId: "a", rating: 4, userRatingsTotal: 10, types: ["museum"], editorialPriority: 0 }];
+    const withoutField: ScorableCandidate[] = [{ name: "A", placeId: "a", rating: 4, userRatingsTotal: 10, types: ["museum"] }];
+    expect(rankCandidates(withField, { travelStyles: ["cultura"] })[0].editorialScore).toBe(
+      rankCandidates(withoutField, { travelStyles: ["cultura"] })[0].editorialScore,
+    );
+  });
+});
+
+// ─── Personalized duration (duration.ts) ────────────────────────────────────
+
+describe("estimateDurationRange — personalization (Stage 5)", () => {
+  it("is unchanged when no personalization is given (backward compatible)", () => {
+    const withoutOpts = estimateDurationRange("museum", ["museum"]);
+    const withEmptyOpts = estimateDurationRange("museum", ["museum"], undefined);
+    expect(withEmptyOpts).toEqual(withoutOpts);
+  });
+
+  it("extends typical/max duration when the place matches a declared travel-style interest, but never lowers the minimum", () => {
+    const base = estimateDurationRange("museum", ["museum"]);
+    const personalized = estimateDurationRange("museum", ["museum"], { travelStyles: ["cultura"] });
+    expect(personalized.minMinutes).toBe(base.minMinutes);
+    expect(personalized.typicalMinutes).toBeGreaterThan(base.typicalMinutes);
+    expect(personalized.maxMinutes).toBeGreaterThan(base.maxMinutes);
+  });
+
+  it("does not extend duration for an interest that doesn't match the place's type", () => {
+    const base = estimateDurationRange("museum", ["museum"]);
+    const personalized = estimateDurationRange("museum", ["museum"], { travelStyles: ["praia"] });
+    expect(personalized).toEqual(base);
+  });
+
+  it("extends typical/max for 'relaxado' pace, and never compresses below the minimum for 'intenso'", () => {
+    const base = estimateDurationRange("restaurant", ["restaurant"]);
+    const relaxed = estimateDurationRange("restaurant", ["restaurant"], { pace: "relaxado" });
+    const intense = estimateDurationRange("restaurant", ["restaurant"], { pace: "intenso" });
+    expect(relaxed.typicalMinutes).toBeGreaterThan(base.typicalMinutes);
+    expect(intense.minMinutes).toBe(base.minMinutes);
+    expect(intense.typicalMinutes).toBe(base.typicalMinutes); // "intenso" applies no multiplier — never compresses
+  });
+
+  it("gives a high-confidence editorial pick a small extra allowance", () => {
+    const base = estimateDurationRange("restaurant", ["restaurant"]);
+    const highConfidence = estimateDurationRange("restaurant", ["restaurant"], { editorialPriority: 100 });
+    const lowConfidence = estimateDurationRange("restaurant", ["restaurant"], { editorialPriority: 10 });
+    expect(highConfidence.typicalMinutes).toBeGreaterThan(base.typicalMinutes);
+    expect(lowConfidence).toEqual(base);
+  });
+
+  it("combines multipliers (interest + pace) multiplicatively, still never breaching the absolute minimum", () => {
+    const combined = estimateDurationRange("museum", ["museum"], { travelStyles: ["cultura"], pace: "relaxado" });
+    const interestOnly = estimateDurationRange("museum", ["museum"], { travelStyles: ["cultura"] });
+    expect(combined.typicalMinutes).toBeGreaterThan(interestOnly.typicalMinutes);
+    expect(combined.minMinutes).toBe(estimateDurationRange("museum", ["museum"]).minMinutes);
+  });
+});
+
+// ─── Bounded one-shot repair loop (repair.ts, spec "Stage 10") ─────────────
+
+describe("extractRepairableConflicts / buildRepairPromptBlock", () => {
+  it("only flags CONFLICT-prefixed and specific unresolved-meal warnings as repairable", () => {
+    const warnings = [
+      "Removed duplicate stop \"X\"",
+      "Shifted day 1 stops later by 30min",
+      "CONFLICT: could not fit must-visit place \"Louvre\" into any day within available time",
+      "Missing lunch on day 2 — no fallback restaurant candidate available",
+    ];
+    expect(extractRepairableConflicts(warnings)).toEqual([
+      "CONFLICT: could not fit must-visit place \"Louvre\" into any day within available time",
+      "Missing lunch on day 2 — no fallback restaurant candidate available",
+    ]);
+  });
+
+  it("builds a prompt block that lists every conflict verbatim", () => {
+    const block = buildRepairPromptBlock(["CONFLICT: A", "CONFLICT: B"]);
+    expect(block).toContain("CONFLICT: A");
+    expect(block).toContain("CONFLICT: B");
+  });
+});
+
+describe("withOneRepairAttempt", () => {
+  it("does not call generate a second time when there are no repairable conflicts", async () => {
+    const generate = vi.fn().mockResolvedValue({ result: "days-v1", warnings: ["Removed duplicate stop \"X\""] });
+    const outcome = await withOneRepairAttempt(generate);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(outcome).toEqual({ result: "days-v1", warnings: ["Removed duplicate stop \"X\""], repairAttempted: false, repairUsed: false });
+  });
+
+  it("calls generate exactly ONE more time (never more) when a conflict is present, and uses the repaired result if it strictly improves", async () => {
+    const generate = vi
+      .fn()
+      .mockResolvedValueOnce({ result: "days-v1", warnings: ["CONFLICT: could not fit X"] })
+      .mockResolvedValueOnce({ result: "days-v2", warnings: [] });
+    const outcome = await withOneRepairAttempt(generate);
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[0][0]).toBeUndefined(); // first call: no repair block
+    expect(generate.mock.calls[1][0]).toContain("CONFLICT: could not fit X"); // second call: told exactly what to fix
+    expect(outcome).toEqual({ result: "days-v2", warnings: [], repairAttempted: true, repairUsed: true });
+  });
+
+  it("keeps the ORIGINAL result when the repair attempt does not strictly reduce the conflict count (never regresses silently)", async () => {
+    const generate = vi
+      .fn()
+      .mockResolvedValueOnce({ result: "days-v1", warnings: ["CONFLICT: A"] })
+      .mockResolvedValueOnce({ result: "days-v2", warnings: ["CONFLICT: A", "CONFLICT: B"] }); // worse, not better
+    const outcome = await withOneRepairAttempt(generate);
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(outcome.result).toBe("days-v1");
+    expect(outcome.repairUsed).toBe(false);
+  });
+
+  it("never calls generate a third time even if the repaired result still has conflicts", async () => {
+    const generate = vi
+      .fn()
+      .mockResolvedValueOnce({ result: "days-v1", warnings: ["CONFLICT: A", "CONFLICT: B"] })
+      .mockResolvedValueOnce({ result: "days-v2", warnings: ["CONFLICT: A"] }); // improved but not perfect
+    const outcome = await withOneRepairAttempt(generate);
+    expect(generate).toHaveBeenCalledTimes(2); // bounded — no third attempt even though a conflict remains
+    expect(outcome.result).toBe("days-v2");
+    expect(outcome.repairUsed).toBe(true);
+    expect(outcome.warnings).toEqual(["CONFLICT: A"]); // unresolved conflict still surfaced, not hidden
+  });
+
+  it("falls back to the original result if the repair call itself throws", async () => {
+    const generate = vi
+      .fn()
+      .mockResolvedValueOnce({ result: "days-v1", warnings: ["CONFLICT: A"] })
+      .mockRejectedValueOnce(new Error("provider timeout"));
+    const outcome = await withOneRepairAttempt(generate);
+    expect(outcome.result).toBe("days-v1");
+    expect(outcome.repairAttempted).toBe(true);
+    expect(outcome.repairUsed).toBe(false);
   });
 });

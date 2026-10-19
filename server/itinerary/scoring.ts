@@ -19,6 +19,14 @@ export interface ScorableCandidate {
   userRatingsTotal: number;
   types: string[];
   priceLevel?: number;
+  /**
+   * 0-100 editorial-affinity signal (e.g. a curated-catalog match, scaled
+   * from curator confidence). Optional — absent/undefined candidates (the
+   * default for anything not catalog-sourced) score 0 on this dimension and
+   * are ranked purely by interest/quality/popularity exactly as before this
+   * field existed. Never a hard filter, same as every other score here.
+   */
+  editorialPriority?: number;
 }
 
 export type TravelStyleKey =
@@ -30,7 +38,7 @@ export type TravelStyleKey =
 // traps (aquarium, zoo, amusement_park, casino) from every style except the
 // ones they actually belong to (natureza/aventura, vida_noturna) — this is
 // the concrete fix for "aquarium beats art museum for an Art+Gastronomy user".
-const STYLE_TYPE_MAP: Record<TravelStyleKey, string[]> = {
+export const STYLE_TYPE_MAP: Record<TravelStyleKey, string[]> = {
   cultura: ['museum', 'art_gallery', 'church', 'hindu_temple', 'mosque', 'synagogue',
     'place_of_worship', 'city_hall', 'library', 'historical_landmark', 'landmark', 'university'],
   historia: ['museum', 'historical_landmark', 'landmark', 'church', 'place_of_worship', 'city_hall'],
@@ -54,8 +62,9 @@ const GENERIC_LOW_PRIORITY_TYPES = new Set(['aquarium', 'zoo', 'amusement_park',
 export interface RankedCandidate<T extends ScorableCandidate> {
   candidate: T;
   interestScore: number;   // 0-100, primary sort key
-  qualityScore: number;    // 0-100, secondary sort key (rating)
-  popularityScore: number; // 0-100, tertiary sort key / tie-breaker only
+  editorialScore: number;  // 0-100, secondary sort key (curated-catalog affinity)
+  qualityScore: number;    // 0-100, tertiary sort key (rating)
+  popularityScore: number; // 0-100, final tie-breaker only
   budgetMismatch: boolean; // soft signal, not a hard filter
 }
 
@@ -107,19 +116,24 @@ export function scoreCandidate<T extends ScorableCandidate>(
 
   const qualityScore = candidate.rating ? (candidate.rating / 5) * 100 : 40; // unrated: mild neutral score
   const popularityScore = Math.min(100, Math.log10(candidate.userRatingsTotal + 1) * 25);
+  const editorialScore = Math.max(0, Math.min(100, candidate.editorialPriority ?? 0));
 
   const budget = isRestaurantLike ? opts.restaurantsBudget : opts.attractionsBudget;
   const [lo, hi] = budgetToPriceLevelRange(budget);
   const budgetMismatch = candidate.priceLevel != null && (candidate.priceLevel < lo || candidate.priceLevel > hi);
 
-  return { candidate, interestScore, qualityScore, popularityScore, budgetMismatch };
+  return { candidate, interestScore, editorialScore, qualityScore, popularityScore, budgetMismatch };
 }
 
 /**
  * Ranks candidates by the required priority tuple: interest match first,
- * quality second, popularity only as a final tie-breaker. A budget mismatch
- * is a soft demotion (moves a candidate down within its interest tier), never
- * a hard exclusion — budget is a Level-2 preference, not a Level-1 constraint.
+ * editorial affinity (curated catalog) second, quality third, popularity
+ * only as a final tie-breaker. A budget mismatch is a soft demotion (moves a
+ * candidate down within its interest tier), never a hard exclusion — budget
+ * is a Level-2 preference, not a Level-1 constraint. A candidate that also
+ * exists in the curated catalog gains PRIORITY OF POSITION this way, never
+ * exclusivity — it still has to clear the same interest-match bar as any
+ * other candidate before editorial affinity can move it up within that tier.
  */
 export function rankCandidates<T extends ScorableCandidate>(
   candidates: T[],
@@ -130,6 +144,7 @@ export function rankCandidates<T extends ScorableCandidate>(
     .sort((a, b) => {
       if (a.budgetMismatch !== b.budgetMismatch) return a.budgetMismatch ? 1 : -1;
       if (b.interestScore !== a.interestScore) return b.interestScore - a.interestScore;
+      if (b.editorialScore !== a.editorialScore) return b.editorialScore - a.editorialScore;
       if (b.qualityScore !== a.qualityScore) return b.qualityScore - a.qualityScore;
       return b.popularityScore - a.popularityScore;
     });

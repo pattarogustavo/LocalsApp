@@ -42,18 +42,18 @@ export async function withRetry<T>(fn: () => Promise<T>, opts: RetryOptions): Pr
   }
 }
 
-const RETRYABLE_ANTHROPIC_STATUSES = new Set([429, 500, 502, 503, 504, 529]);
+const RETRYABLE_OPENAI_STATUSES = new Set([429, 500, 502, 503, 504, 529]);
 
-/** Matches Anthropic SDK APIError shapes (rate limit, server errors, overloaded) worth retrying. */
-export function isRetryableAnthropicError(err: unknown): boolean {
+/** Matches OpenAI SDK APIError shapes (rate limit, server errors, overloaded) worth retrying. */
+export function isRetryableOpenAIError(err: unknown): boolean {
   const status = (err as { status?: number })?.status;
-  if (typeof status === "number" && RETRYABLE_ANTHROPIC_STATUSES.has(status)) return true;
+  if (typeof status === "number" && RETRYABLE_OPENAI_STATUSES.has(status)) return true;
   const errorType = (err as { error?: { type?: string } })?.error?.type;
   return errorType === "overloaded_error" || errorType === "rate_limit_error" || errorType === "api_error";
 }
 
-/** Reads a Retry-After header (seconds) off an Anthropic SDK error, if present. */
-export function getAnthropicRetryAfterMs(err: unknown): number | undefined {
+/** Reads a Retry-After header (seconds) off an OpenAI SDK error, if present. */
+export function getOpenAIRetryAfterMs(err: unknown): number | undefined {
   const headers = (err as { headers?: Record<string, string> })?.headers;
   const raw = headers?.["retry-after"];
   if (!raw) return undefined;
@@ -73,7 +73,7 @@ export function isRetryableGoogleError(err: unknown): boolean {
   return typeof status === "string" && RETRYABLE_GOOGLE_STATUSES.has(status);
 }
 
-/** Matches an Anthropic 400 complaining that the model doesn't support the web_search tool — never retryable, never worth silently falling back on. */
+/** Matches an OpenAI 400 complaining that the model doesn't support the web_search tool — never retryable, never worth silently falling back on. */
 export function isWebSearchUnsupportedError(err: unknown): boolean {
   const status = (err as { status?: number })?.status;
   if (status !== 400) return false;
