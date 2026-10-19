@@ -442,7 +442,12 @@ async function fetchRealPlaceCandidates(lat: number, lng: number, radius = 8000,
   // 'park' (previously entirely absent from real candidate discovery, despite
   // scoring.ts's STYLE_TYPE_MAP already expecting it for natureza/relaxamento
   // interest matching). Deliberately generic/reusable — not city-specific.
-  const NEARBY_TYPES = ['tourist_attraction', 'restaurant', 'cafe', 'museum', 'bar', 'park'];
+  // 'art_gallery' and 'shopping_mall' close a confirmed gap: scoring.ts's
+  // STYLE_TYPE_MAP expects these types for the "Arte" and "Compras" travel
+  // styles, but they were never fetched here — so no amount of interest-based
+  // ranking could ever surface a shopping or art-gallery candidate, since
+  // they never existed in the candidate pool to begin with.
+  const NEARBY_TYPES = ['tourist_attraction', 'restaurant', 'cafe', 'museum', 'bar', 'park', 'art_gallery', 'shopping_mall'];
   const nearbyResults = await Promise.all(
     NEARBY_TYPES.map((type) => nearbySearchCandidates(lat, lng, type, radius, language))
   );
@@ -1963,7 +1968,8 @@ Retorne um JSON com o array "days". Cada dia deve ter:
 - destination: nome do destino
 - title: título do dia (ex: "Chegada em Paris — Torre Eiffel e Champs-Élysées")
 - tips: dica do dia em 1 frase
-- estimatedCost: custo estimado do dia em USD (número)
+- estimatedCost: custo estimado do dia (número), SEMPRE na moeda local do destino (nunca converta para dólar) — ex: para Paris use EUR, para Londres use GBP, para Tóquio use JPY. É uma estimativa aproximada, não um preço verificado — não finja mais precisão do que você realmente tem.
+- estimatedCostCurrency: o código ISO 4217 de 3 letras da moeda usada acima (ex: "EUR", "GBP", "JPY", "USD" apenas se o destino realmente usar dólar americano)
 - stops: array de paradas do dia, cada parada com:
   { time (HH:MM), googlePlaceId (se a parada vier da lista de candidatos reais, o placeId entre colchetes; vazio caso contrário), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other), description, hours (horário de funcionamento), address (endereço completo), lat (latitude numérica), lng (longitude numérica), travelTimeToNext (ex: "15 min a pé"), travelModeToNext (walking|driving|transit|bicycling) }
 
@@ -2243,7 +2249,7 @@ Perfil do viajante:
 - Orçamento para restaurantes: ${restaurantsBudget}
 - Ritmo: ${profile.pace} (${paceStops} paradas de ATRAÇÕES/PASSEIOS por dia — café da manhã, almoço e jantar são ADICIONAIS a esse número, não descontados dele; ex: ritmo moderado = ${paceStops} atrações/passeios por dia, MAIS café da manhã, almoço e jantar quando aplicável)
 - Tipo de viagem: ${profile.travelProfile}
-${profile.interests ? `- Interesses específicos: ${profile.interests}` : ""}
+${profile.interests ? `- Interesses específicos do viajante: ${profile.interests}. Trate isso como um sinal FORTE de seleção, não um detalhe decorativo — priorize candidatos reais da lista acima que combinem com esses interesses em vez de simplesmente mencioná-los na descrição de lugares genéricos. Exemplos do nível de especificidade útil: "arquitetura gótica", "mercados de rua e feiras locais", "spots de fotografia ao pôr do sol", "cervejarias artesanais", "lojas de discos de vinil", "museus de ciência para crianças". Se nenhum candidato real combinar bem, é preferível manter a seleção pela qualidade geral a forçar um lugar irrelevante só para citar o interesse.` : ""}
 - Horário de acordar: ${wakeUpTime}
 - Horário de dormir: ${bedtime}
 - Horário de chegada (dia 1): ${arrivalTime}
@@ -2265,9 +2271,10 @@ Regras de horário:
 ${buildDurationGuidancePromptBlock(profile.pace)}
 
 Retorne um JSON com "days": array dia-a-dia, cada dia com:
-   { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, stops: [{ id (uuid), time (HH:MM), googlePlaceId${realCandidates.length > 0 ? ' (exatamente o placeId entre colchetes do candidato real escolhido, ou vazio se a parada for um dos lugares já selecionados pelo usuário)' : ''}, placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
+   { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, estimatedCostCurrency, stops: [{ id (uuid), time (HH:MM), googlePlaceId${realCandidates.length > 0 ? ' (exatamente o placeId entre colchetes do candidato real escolhido, ou vazio se a parada for um dos lugares já selecionados pelo usuário)' : ''}, placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
 
 Importante:
+- estimatedCost é uma estimativa aproximada SEMPRE na moeda local do destino (nunca em dólar, a menos que o destino realmente use USD) — preencha estimatedCostCurrency com o código ISO 4217 de 3 letras correspondente (ex: "EUR" para Paris, "GBP" para Londres). Não apresente isso como um preço verificado.
 - Inclua ${paceStops} paradas de atrações/passeios por dia (café da manhã, almoço e jantar contam à parte, não fazem parte desse número).
 - TODO dia (exceto talvez o dia de chegada, se chegar muito tarde) deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00, sem exceção${(profile.mealPreferences?.lunch === 'none' || profile.mealPreferences?.dinner === 'none') ? ", salvo as refeições desmarcadas acima" : ""}.
 - Inclua lat/lng reais para cada lugar.

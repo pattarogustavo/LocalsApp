@@ -53,6 +53,36 @@ describe("rankCandidates", () => {
     expect(ranked[0].candidate.placeId).toBe("cheap");
     expect(ranked.map((r) => r.candidate.placeId)).toContain("lux"); // demoted, not dropped
   });
+
+  it("[regression — FASE 1] 'arte' is a real, scorable travel style, not silently dropped (it used to not exist in STYLE_TYPE_MAP at all, so `s in STYLE_TYPE_MAP` filtered it out and selecting ONLY 'arte' behaved identically to selecting nothing)", () => {
+    const candidates: ScorableCandidate[] = [
+      { name: "Art Gallery", placeId: "ag1", rating: 4.3, userRatingsTotal: 400, types: ["art_gallery"] },
+      { name: "Generic Shop", placeId: "shop1", rating: 4.3, userRatingsTotal: 400, types: ["store"] },
+    ];
+    const ranked = rankCandidates(candidates, { travelStyles: ["arte"] });
+    expect(ranked[0].candidate.placeId).toBe("ag1");
+    expect(ranked[0].interestScore).toBeGreaterThan(ranked[1].interestScore); // a real interest-score gap, not both landing on the neutral 50 baseline
+  });
+
+  it("[regression — FASE 6: Compras vs Cultura+Arte produce genuinely different rankings, same candidate pool] 'Compras' alone ranks a shopping mall above a museum; Cultura+Arte ranks the museum above the mall", () => {
+    const candidates: ScorableCandidate[] = [
+      { name: "City Mall", placeId: "mall1", rating: 4.2, userRatingsTotal: 2000, types: ["shopping_mall"] },
+      { name: "National Museum", placeId: "mus1", rating: 4.2, userRatingsTotal: 2000, types: ["museum"] },
+    ];
+    const shoppingTrip = rankCandidates(candidates, { travelStyles: ["compras"] });
+    const cultureArtTrip = rankCandidates(candidates, { travelStyles: ["cultura", "arte"] });
+    expect(shoppingTrip[0].candidate.placeId).toBe("mall1");
+    expect(cultureArtTrip[0].candidate.placeId).toBe("mus1");
+  });
+
+  it("combining a secondary style with a primary one never lets the secondary eliminate the primary's top pick (multi-style selection respects the combination)", () => {
+    const candidates: ScorableCandidate[] = [
+      { name: "Art Museum", placeId: "art1", rating: 4.5, userRatingsTotal: 1000, types: ["museum", "art_gallery"] }, // matches both styles
+      { name: "Random Shop", placeId: "shop1", rating: 4.5, userRatingsTotal: 1000, types: ["store"] }, // matches neither
+    ];
+    const ranked = rankCandidates(candidates, { travelStyles: ["cultura", "compras"] });
+    expect(ranked[0].candidate.placeId).toBe("art1"); // matches one of the two selected styles — still beats a candidate matching neither
+  });
 });
 
 describe("filterExcludedCandidates", () => {
@@ -299,13 +329,23 @@ describe("estimateDurationRange — personalization (Stage 5)", () => {
     expect(personalized).toEqual(base);
   });
 
-  it("extends typical/max for 'relaxado' pace, and never compresses below the minimum for 'intenso'", () => {
+  it("extends typical/max for 'relaxado' pace, tightens it for 'intenso', and never compresses below the minimum either way", () => {
     const base = estimateDurationRange("restaurant", ["restaurant"]);
     const relaxed = estimateDurationRange("restaurant", ["restaurant"], { pace: "relaxado" });
     const intense = estimateDurationRange("restaurant", ["restaurant"], { pace: "intenso" });
     expect(relaxed.typicalMinutes).toBeGreaterThan(base.typicalMinutes);
-    expect(intense.minMinutes).toBe(base.minMinutes);
-    expect(intense.typicalMinutes).toBe(base.typicalMinutes); // "intenso" applies no multiplier — never compresses
+    expect(intense.typicalMinutes).toBeLessThan(base.typicalMinutes); // real, measurable difference from "moderado" — fits more into the same day
+    expect(intense.minMinutes).toBe(base.minMinutes); // the absolute floor is still never touched
+    expect(intense.typicalMinutes).toBeGreaterThanOrEqual(intense.minMinutes);
+  });
+
+  it("never lets 'intenso' compress a short-minimum category below its own floor even with a large pool of multipliers stacked", () => {
+    // museum: min 90 — close to its own typical (120), so a naive 0.85x
+    // compound multiplier (pace × interest × editorial) could in principle
+    // dip under 90 if it weren't clamped.
+    const intense = estimateDurationRange("museum", ["museum"], { pace: "intenso", travelStyles: [], editorialPriority: 0 });
+    expect(intense.typicalMinutes).toBeGreaterThanOrEqual(intense.minMinutes);
+    expect(intense.maxMinutes).toBeGreaterThanOrEqual(intense.minMinutes);
   });
 
   it("gives a high-confidence editorial pick a small extra allowance", () => {

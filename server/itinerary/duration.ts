@@ -125,15 +125,23 @@ export function estimateDurationRange(
   const interestMultiplier = interestMatchesType(personalization.travelStyles, googleTypes) ? 1.3 : 1.0;
   const editorialScore = personalization.editorialPriority ?? 0;
   const editorialMultiplier = editorialScore >= 80 ? 1.15 : editorialScore >= 50 ? 1.05 : 1.0;
-  const paceMultiplier = personalization.pace === 'relaxado' ? 1.15 : 1.0;
+  // "intenso" previously applied NO multiplier at all — identical output to
+  // "moderado" everywhere in the codebase, meaning selecting "Intenso" pace
+  // had zero measurable deterministic effect (only the free-text prompt
+  // mentioned more stops/day, which the model may or may not honor). A
+  // tighter, more efficient typical/max duration is a real, bounded way to
+  // fit more into the same day without ever compressing below the
+  // documented realistic minimum (minMinutes is never touched, same
+  // guarantee "relaxado" already had).
+  const paceMultiplier = personalization.pace === 'relaxado' ? 1.15 : personalization.pace === 'intenso' ? 0.85 : 1.0;
 
   const multiplier = interestMultiplier * editorialMultiplier * paceMultiplier;
   if (multiplier === 1) return base;
 
   return {
     minMinutes: base.minMinutes, // absolute floor — never adjusted, by design
-    typicalMinutes: Math.round(base.typicalMinutes * multiplier),
-    maxMinutes: Math.round(base.maxMinutes * multiplier),
+    typicalMinutes: Math.max(base.minMinutes, Math.round(base.typicalMinutes * multiplier)),
+    maxMinutes: Math.max(base.minMinutes, Math.round(base.maxMinutes * multiplier)),
   };
 }
 

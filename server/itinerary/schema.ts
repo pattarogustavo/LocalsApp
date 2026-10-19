@@ -53,6 +53,13 @@ export function buildItineraryDaysSchema(opts: { dayTipField: "tip" | "tips" }):
     destination: { type: "string" },
     title: nullable({ type: "string" }),
     estimatedCost: nullable({ type: "number" }),
+    // Additive — lets the model state WHICH currency estimatedCost is
+    // actually in (its own local-currency estimate, per the updated prompt
+    // instruction below) instead of the prior hardcoded-USD assumption,
+    // which silently mismatched types/voyage.ts's own documented contract
+    // ("estimatedCost: ... in local currency" + a separate
+    // estimatedCostCurrency field that the old schema never populated).
+    estimatedCostCurrency: nullable({ type: "string" }),
     stops: { type: "array", items: stopSchema },
   };
   dayProperties[opts.dayTipField] = nullable({ type: "string" });
@@ -65,7 +72,7 @@ export function buildItineraryDaysSchema(opts: { dayTipField: "tip" | "tips" }):
         items: {
           type: "object",
           properties: dayProperties,
-          required: ["date", "destination", "title", "estimatedCost", "stops", opts.dayTipField],
+          required: ["date", "destination", "title", "estimatedCost", "estimatedCostCurrency", "stops", opts.dayTipField],
           additionalProperties: false,
         },
       },

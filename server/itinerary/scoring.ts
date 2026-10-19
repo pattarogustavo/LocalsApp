@@ -31,7 +31,7 @@ export interface ScorableCandidate {
 
 export type TravelStyleKey =
   | 'cultura' | 'gastronomia' | 'natureza' | 'aventura' | 'relaxamento'
-  | 'compras' | 'historia' | 'praia' | 'montanha' | 'cidade' | 'vida_noturna';
+  | 'compras' | 'historia' | 'praia' | 'montanha' | 'cidade' | 'vida_noturna' | 'arte';
 
 // Maps the app's structured travel-style options to the Google Places `types`
 // that genuinely serve that interest. Deliberately excludes generic tourist
@@ -51,6 +51,13 @@ export const STYLE_TYPE_MAP: Record<TravelStyleKey, string[]> = {
   compras: ['shopping_mall', 'department_store', 'clothing_store', 'book_store', 'jewelry_store', 'store', 'market'],
   cidade: ['tourist_attraction', 'point_of_interest', 'landmark', 'shopping_mall'],
   vida_noturna: ['night_club', 'bar', 'casino'],
+  // Was missing entirely until this fix — the app's "Arte" chip
+  // (components/trip/itinerary-block.tsx) sends the literal id "arte", which
+  // isn't a valid TravelStyleKey without this entry: `s in STYLE_TYPE_MAP`
+  // (scoreCandidate below) silently filtered it out of every ranking pass,
+  // so selecting ONLY "Arte" was functionally identical to selecting
+  // nothing (falls back to the neutral interestScore=50 baseline).
+  arte: ['art_gallery', 'museum'],
 };
 
 // Types that are only "generic tourist attractions" — they should not rank
