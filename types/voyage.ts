@@ -314,6 +314,32 @@ export interface Trip {
   // differently (cloudTrips.patch vs sharing.saveSharedTrip).
   shareId?: number;
   shareRole?: 'editor' | 'viewer';
+  // In-progress "IA do zero" profile questionnaire (components/trip/itinerary-block.tsx).
+  // Additive/backward-compatible: absent on older saved trips and on any trip
+  // where the form hasn't been touched yet. Autosaved on every field change so
+  // the in-progress answers survive navigating away (e.g. to the Lugares tab
+  // to pick must-visit places) and back — the questionnaire used to live only
+  // in local component state, which React unmounts/resets on tab switches.
+  // Cleared once an itinerary is successfully generated from it.
+  draftItineraryProfile?: DraftItineraryProfile | null;
+}
+
+export interface DraftItineraryProfile {
+  travelStyles: string[];
+  attractionsBudget: 'econômico' | 'moderado' | 'luxo';
+  restaurantsBudget: 'econômico' | 'moderado' | 'luxo';
+  travelProfile: 'casal' | 'família' | 'solo' | 'amigos' | 'negócios';
+  interests: string;
+  wakeUpTime: string;
+  bedtime: string;
+  arrivalTime: string;
+  departureTime: string;
+  tripPurpose: string;
+  considerSelectedPlaces: boolean;
+  hotelName: string;
+  hotelAddress: string;
+  hotelPlaceId: string;
+  skipAccommodation: boolean;
 }
 
 // ─── Subscription / Plan ──────────────────────────────────────────────────────

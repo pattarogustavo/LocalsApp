@@ -97,11 +97,18 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
       );
       const json = await res.json();
       const details = json?.result?.data?.json;
-      if (details?.imageUrl || details?.lat) {
+      if (details?.imageUrl || details?.lat || details?.name) {
+        // `details.name`/`details.country` are Google Place Details' own
+        // localized name for the CURRENT app language — the authoritative
+        // reconciled value, as opposed to `prediction.name` above, which is
+        // just whatever raw Autocomplete prediction text matched what the
+        // user actually typed (not guaranteed to be in the app's language).
+        // Backfilling it here is what makes "London" and "Londres" (same
+        // real city, same placeId) converge to the same displayed name.
         setDestinations((prev) =>
           prev.map((d) =>
             d.id === tempId
-              ? { ...d, lat: details.lat, lng: details.lng, imageUrl: details.imageUrl, country: details.country || d.country }
+              ? { ...d, lat: details.lat, lng: details.lng, imageUrl: details.imageUrl, name: details.name || d.name, country: details.country || d.country }
               : d
           )
         );

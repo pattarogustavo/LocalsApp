@@ -891,18 +891,30 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
       const { trips } = useTripsStore.getState();
       const trip = trips.find((t) => t.id === tripId);
       if (!trip) return;
+      // destinations' lat/lng, cityTransportMode and accommodation are
+      // already loaded on `trip` (set elsewhere in the app — destination
+      // search, the Acomodação tab) — this screen has no questionnaire of
+      // its own, but it must still forward data the user already provided
+      // instead of silently dropping it (it previously did: no lat/lng, no
+      // cityTransportMode, no accommodation were ever sent here, even though
+      // generateFromScratch's equivalent call already sends all three).
+      const primaryAccommodation = trip.accommodations?.[0];
       const result = await generateItinerary.mutateAsync({
         tripId,
         startDate: trip.startDate,
         totalDays: trip.totalDays,
-        destinations: trip.destinations.map((d) => ({ name: d.name, country: d.country, days: d.days })),
+        destinations: trip.destinations.map((d) => ({ name: d.name, country: d.country, days: d.days, lat: d.lat, lng: d.lng })),
         selectedPlaces: places.map((p) => ({
           name: p.name,
           category: p.category,
           destinationName: trip.destinations.find((d) => d.id === p.destinationId)?.name || '',
           hours: p.hours,
           address: p.address,
+          lat: p.lat,
+          lng: p.lng,
         })),
+        cityTransportMode: trip.cityTransportMode,
+        accommodation: primaryAccommodation ? { name: primaryAccommodation.name, address: primaryAccommodation.address } : undefined,
         preferences: { pace: 'moderado', includeBreakfast: true, includeLunch: true, includeDinner: true },
       });
       if (result?.days && result.days.length > 0) {

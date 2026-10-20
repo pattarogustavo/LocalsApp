@@ -12,6 +12,18 @@ describe("sanitizeTripPatch", () => {
     expect(sanitizeTripPatch(patch)).toEqual(patch);
   });
 
+  it("keeps draftItineraryProfile — the in-progress profile questionnaire must survive a cloud sync round-trip, not just AsyncStorage (regression: it used to be silently wiped the next time any OTHER whitelisted section synced, since an unlisted key is dropped from what the server echoes back)", () => {
+    const draft = { travelStyles: ["cultura", "arte"], attractionsBudget: "luxo" as const };
+    const sanitized = sanitizeTripPatch({ places: [], draftItineraryProfile: draft });
+    expect(sanitized.draftItineraryProfile).toEqual(draft);
+  });
+
+  it("round-trips a null draftItineraryProfile (clearing it after a successful generation) through merge", () => {
+    const current = { draftItineraryProfile: { travelStyles: ["compras"] }, places: [] };
+    const merged = mergeTripSections(current, { draftItineraryProfile: null });
+    expect(merged.draftItineraryProfile).toBeNull();
+  });
+
   it("drops travelers — only the owner manages the traveler list", () => {
     const sanitized = sanitizeTripPatch({ places: [], travelers: [{ id: "tr1" }] });
     expect(sanitized).toEqual({ places: [] });

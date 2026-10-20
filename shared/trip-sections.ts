@@ -30,6 +30,7 @@ export const PATCHABLE_TRIP_SECTION_KEYS = [
   'aiGeneratedItinerary',
   'cityTransportMode',
   'photos',
+  'draftItineraryProfile',
 ] as const;
 
 export type PatchableTripSectionKey = (typeof PATCHABLE_TRIP_SECTION_KEYS)[number];

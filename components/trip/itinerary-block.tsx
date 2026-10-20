@@ -1159,24 +1159,73 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
   const [dayPickIndex, setDayPickIndex] = useState(0);
   // Unscheduled panel: collapsed by default when there are many places
   const [unscheduledExpanded, setUnscheduledExpanded] = useState(false);
-  // Profile state
-  const [profileTravelStyles, setProfileTravelStyles] = useState<string[]>([]);
-  const [profileAttractionsBudget, setProfileAttractionsBudget] = useState<'econômico' | 'moderado' | 'luxo'>('moderado');
-  const [profileRestaurantsBudget, setProfileRestaurantsBudget] = useState<'econômico' | 'moderado' | 'luxo'>('moderado');
-  const [profileTravelProfile, setProfileTravelProfile] = useState<'casal' | 'família' | 'solo' | 'amigos' | 'negócios'>('casal');
-  const [profileInterests, setProfileInterests] = useState('');
-  const [profileWakeUp, setProfileWakeUp] = useState('08:00');
-  const [profileBedtime, setProfileBedtime] = useState('23:00');
-  const [profileArrivalTime, setProfileArrivalTime] = useState('15:00');
-  const [profileDepartureTime, setProfileDepartureTime] = useState('15:00');
-  const [profileTripPurpose, setProfileTripPurpose] = useState('');
-  const [profileConsiderSelectedPlaces, setProfileConsiderSelectedPlaces] = useState(true);
+  // Profile state — initialized from trip.draftItineraryProfile when present
+  // (see the autosave effect below) so in-progress answers survive the user
+  // navigating away to the Lugares tab and back: that navigation unmounts
+  // this component (app/trip/[id].tsx renders tabs via `{activeTab === 'x' && <...>}`,
+  // not a persistent tab navigator), which previously reset every field below
+  // to its bare default since they were local-only useState.
+  const draft = trip.draftItineraryProfile;
+  const [profileTravelStyles, setProfileTravelStyles] = useState<string[]>(draft?.travelStyles ?? []);
+  const [profileAttractionsBudget, setProfileAttractionsBudget] = useState<'econômico' | 'moderado' | 'luxo'>(draft?.attractionsBudget ?? 'moderado');
+  const [profileRestaurantsBudget, setProfileRestaurantsBudget] = useState<'econômico' | 'moderado' | 'luxo'>(draft?.restaurantsBudget ?? 'moderado');
+  const [profileTravelProfile, setProfileTravelProfile] = useState<'casal' | 'família' | 'solo' | 'amigos' | 'negócios'>(draft?.travelProfile ?? 'casal');
+  const [profileInterests, setProfileInterests] = useState(draft?.interests ?? '');
+  const [profileWakeUp, setProfileWakeUp] = useState(draft?.wakeUpTime ?? '08:00');
+  const [profileBedtime, setProfileBedtime] = useState(draft?.bedtime ?? '23:00');
+  const [profileArrivalTime, setProfileArrivalTime] = useState(draft?.arrivalTime ?? '15:00');
+  const [profileDepartureTime, setProfileDepartureTime] = useState(draft?.departureTime ?? '15:00');
+  const [profileTripPurpose, setProfileTripPurpose] = useState(draft?.tripPurpose ?? '');
+  const [profileConsiderSelectedPlaces, setProfileConsiderSelectedPlaces] = useState(draft?.considerSelectedPlaces ?? true);
   // Accommodation step: only shown when the trip has none saved yet.
-  const [profileHotelPlace, setProfileHotelPlace] = useState<PlaceResult | null>(null);
-  const [profileHotelName, setProfileHotelName] = useState('');
-  const [profileHotelAddress, setProfileHotelAddress] = useState('');
-  const [profileHotelPlaceId, setProfileHotelPlaceId] = useState('');
-  const [profileSkipAccommodation, setProfileSkipAccommodation] = useState(false);
+  const [profileHotelPlace, setProfileHotelPlace] = useState<PlaceResult | null>(
+    draft?.hotelPlaceId ? { placeId: draft.hotelPlaceId, name: draft.hotelName, fullDescription: draft.hotelName, country: '' } : null
+  );
+  const [profileHotelName, setProfileHotelName] = useState(draft?.hotelName ?? '');
+  const [profileHotelAddress, setProfileHotelAddress] = useState(draft?.hotelAddress ?? '');
+  const [profileHotelPlaceId, setProfileHotelPlaceId] = useState(draft?.hotelPlaceId ?? '');
+  const [profileSkipAccommodation, setProfileSkipAccommodation] = useState(draft?.skipAccommodation ?? false);
+
+  // Autosaves the in-progress questionnaire onto the trip itself (debounced)
+  // so it survives this component unmounting/remounting on tab switches.
+  // Skips the very first render (nothing actually changed yet — just loaded).
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skippedFirstDraftSave = useRef(false);
+  useEffect(() => {
+    if (!skippedFirstDraftSave.current) {
+      skippedFirstDraftSave.current = true;
+      return;
+    }
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => {
+      updateTrip(trip.id, {
+        draftItineraryProfile: {
+          travelStyles: profileTravelStyles,
+          attractionsBudget: profileAttractionsBudget,
+          restaurantsBudget: profileRestaurantsBudget,
+          travelProfile: profileTravelProfile,
+          interests: profileInterests,
+          wakeUpTime: profileWakeUp,
+          bedtime: profileBedtime,
+          arrivalTime: profileArrivalTime,
+          departureTime: profileDepartureTime,
+          tripPurpose: profileTripPurpose,
+          considerSelectedPlaces: profileConsiderSelectedPlaces,
+          hotelName: profileHotelName,
+          hotelAddress: profileHotelAddress,
+          hotelPlaceId: profileHotelPlaceId,
+          skipAccommodation: profileSkipAccommodation,
+        },
+      });
+    }, 400);
+    return () => { if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    profileTravelStyles, profileAttractionsBudget, profileRestaurantsBudget, profileTravelProfile,
+    profileInterests, profileWakeUp, profileBedtime, profileArrivalTime, profileDepartureTime,
+    profileTripPurpose, profileConsiderSelectedPlaces, profileHotelName, profileHotelAddress,
+    profileHotelPlaceId, profileSkipAccommodation,
+  ]);
 
   const generateFromScratch = trpc.ai.generateFromScratch.useMutation();
   const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
@@ -1321,7 +1370,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
         await setItinerary(trip.id, patchedDays);
         // Name/places/descriptions were (re)generated in the user's current
         // language, so the trip's content language now matches it.
-        await updateTrip(trip.id, { contentLanguage: preferredLanguage });
+        // Itinerary generated successfully from this questionnaire — the
+        // autosaved in-progress draft (see the autosave effect above) has
+        // served its purpose and should not resurface on a future "gerar
+        // outro roteiro" pass.
+        await updateTrip(trip.id, { contentLanguage: preferredLanguage, draftItineraryProfile: null });
         setSelectedDay(0);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -1880,6 +1933,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
                             setProfileHotelPlaceId(p.placeId);
                           }}
                           searchTypes="establishment"
+                          biasLat={destLat}
+                          biasLng={destLng}
                         />
                       </View>
                       {profileHotelPlaceId.length > 0 && (

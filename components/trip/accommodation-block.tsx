@@ -244,6 +244,8 @@ function AddAccommodationModal({
                     setHotelPlaceId(p.placeId);
                   }}
                   searchTypes="establishment"
+                  biasLat={destination.lat}
+                  biasLng={destination.lng}
                 />
               </View>
             )}
@@ -294,6 +296,8 @@ function AddAccommodationModal({
                     setHouseAddress(p.fullDescription);
                   }}
                   searchTypes="address"
+                  biasLat={destination.lat}
+                  biasLng={destination.lng}
                 />
               </View>
             )}

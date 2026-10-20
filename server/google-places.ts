@@ -71,6 +71,28 @@ export function resolveLocalLanguageForCountry(countryCode: string | undefined):
   return (code && COUNTRY_CODE_TO_LOCAL_LANGUAGE[code]) || "en";
 }
 
+/** Default soft-bias radius for a destination-scoped Places Autocomplete search (e.g. hotels) — wide enough to cover a whole metro area without hard-restricting results to it. */
+export const DEFAULT_PLACES_BIAS_RADIUS_METERS = 50000;
+
+/**
+ * Resolves the `location`/`radius` query params for a geographically-biased
+ * Google Places Autocomplete request, or `null` when no destination
+ * coordinates are available — callers should simply omit the params in that
+ * case (an unbiased global search), never invent a center. This is a SOFT
+ * bias only (no `strictbounds`): Google can still surface a clearly-better
+ * match outside the radius, so a real, differently-named destination within
+ * the radius is never hard-excluded, and a wide destination region (e.g. a
+ * big city) isn't clipped by too small a radius.
+ */
+export function resolvePlacesLocationBias(
+  lat: number | undefined,
+  lng: number | undefined,
+  radiusMeters?: number,
+): { location: string; radius: string } | null {
+  if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) return null;
+  return { location: `${lat},${lng}`, radius: String(radiusMeters ?? DEFAULT_PLACES_BIAS_RADIUS_METERS) };
+}
+
 /**
  * Pick the best photo from a Google Places `photos` array.
  * User-submitted photos vary wildly in subject and orientation, so we prefer

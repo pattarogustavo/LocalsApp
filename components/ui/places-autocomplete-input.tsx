@@ -37,6 +37,18 @@ interface PlacesAutocompleteInputProps {
   dark?: boolean;
   /** Optional search type hint (passed to server for filtering) */
   searchTypes?: 'address' | 'establishment' | 'cities' | 'geocode' | 'mixed';
+  /**
+   * Optional geographic bias — e.g. the trip's destination center — so
+   * results are prioritized near a specific place instead of being a bare
+   * global text search. A SOFT bias only (never a hard restriction): a
+   * clearly-better match outside `biasRadiusMeters` can still appear.
+   * Omit entirely when no destination location is known yet (e.g. the
+   * destination hasn't been resolved to coordinates) — the search still
+   * works as a plain global query in that case, just unbiased.
+   */
+  biasLat?: number;
+  biasLng?: number;
+  biasRadiusMeters?: number;
 }
 
 /**
@@ -51,6 +63,9 @@ export function PlacesAutocompleteInput({
   icon = 'location-outline',
   dark = false,
   searchTypes,
+  biasLat,
+  biasLng,
+  biasRadiusMeters,
 }: PlacesAutocompleteInputProps) {
   const colors = useColors();
   const t = useTranslation();
@@ -62,7 +77,7 @@ export function PlacesAutocompleteInput({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, isFetching } = trpc.places.autocomplete.useQuery(
-    { query: debouncedQuery, types: searchTypes, language: preferredLanguage },
+    { query: debouncedQuery, types: searchTypes, language: preferredLanguage, biasLat, biasLng, biasRadiusMeters },
     { enabled: debouncedQuery.length >= 2 }
   );
 
