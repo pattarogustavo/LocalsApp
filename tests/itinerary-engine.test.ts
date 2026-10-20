@@ -10,6 +10,7 @@ import {
   dateToGoogleWeekdayIndex,
   classifyStopType,
   buildDailySummary,
+  findEmptyDays,
 } from "../server/itinerary/validate";
 import { withOneRepairAttempt, extractRepairableConflicts, buildRepairPromptBlock } from "../server/itinerary/repair";
 import { diversifyRestaurantLikeOrder } from "../server/itinerary/scoring";
@@ -768,6 +769,25 @@ describe("buildDailySummary", () => {
     const day = { stops: [{ placeName: "Airport", placeCategory: "attraction", stopType: "logistics" }] };
     expect(buildDailySummary(day, "moderado", "en")).toBe("");
   });
+
+  it("[FASE 4 — full pipeline] day.summary is computed AFTER opening-hours enforcement removes a stop — never mentions a stop that didn't survive final validation", async () => {
+    const hoursByPlaceId = new Map([["p1",
+      ["Monday: 9:00 AM – 6:00 PM", "Tuesday: 9:00 AM – 6:00 PM", "Wednesday: 9:00 AM – 6:00 PM", "Thursday: 9:00 AM – 6:00 PM",
+       "Friday: 9:00 AM – 6:00 PM", "Saturday: 9:00 AM – 6:00 PM", "Sunday: Closed"].join("\n"),
+    ]]);
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", stops: [ // Sunday
+        { id: "1", time: "10:00", googlePlaceId: "ok1", placeName: "Sagrada Família", placeCategory: "attraction", description: "x" },
+        { id: "2", time: "14:00", googlePlaceId: "p1", placeName: "Sunday-Closed Shop", placeCategory: "attraction", description: "x" },
+      ] },
+    ];
+    const { days: fixed } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, hoursByPlaceId, isFirstDay: () => false, isLastDay: () => false, requireLunch: false, requireDinner: false,
+    });
+    expect(fixed[0].stops.some((s: any) => s.placeName === "Sunday-Closed Shop")).toBe(false); // removed by opening-hours enforcement
+    expect(fixed[0].summary).toContain("Sagrada Família");
+    expect(fixed[0].summary).not.toContain("Sunday-Closed Shop"); // the summary must reflect the FINAL schedule, not the LLM's original proposal
+  });
 });
 
 // ─── Restaurant/cuisine diversity in ranking ────────────────────────────────
@@ -794,5 +814,140 @@ describe("diversifyRestaurantLikeOrder", () => {
     ];
     const diversified = diversifyRestaurantLikeOrder(ranked);
     expect(diversified[0].placeId).toBe("m1"); // untouched — not a restaurant-like slot
+  });
+});
+
+// ─── Final chronological ordering (regression: real 3-day test produced day 1
+// with stops at 15:30, 18:30, 10:00, 10:00, 21:30 — out of order) ────────────
+// Root cause: enforceOpeningHours' same-day reschedule branch changes a
+// stop's `.time` to fit an earlier open gap, but never re-sorted `day.stops`
+// afterward (unlike its own tryMoveToAnotherDay branch and the must-visit/
+// meal-insertion steps, which already did). Fixed with one final
+// chronological sort after every time-mutating step.
+
+const NARROW_MORNING_HOURS = [
+  "Monday: 10:00 AM – 11:30 AM", "Tuesday: 10:00 AM – 11:30 AM", "Wednesday: 10:00 AM – 11:30 AM",
+  "Thursday: 10:00 AM – 11:30 AM", "Friday: 10:00 AM – 11:30 AM", "Saturday: 10:00 AM – 11:30 AM",
+  "Sunday: 10:00 AM – 11:30 AM",
+].join("\n");
+
+function expectChronological(stops: any[]) {
+  const times = stops.map((s) => timeToMinutes(s.time)!);
+  for (let i = 0; i < times.length - 1; i++) {
+    expect(times[i]).toBeLessThanOrEqual(times[i + 1]);
+  }
+}
+
+describe("validateAndCorrectItinerary — final chronological re-sort", () => {
+  it("[regression] re-sorts a stop that enforceOpeningHours rescheduled to an earlier time than its original array neighbors", async () => {
+    const hoursByPlaceId = new Map([["p3", NARROW_MORNING_HOURS]]);
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", stops: [ // Sunday
+        { id: "1", time: "09:05", googlePlaceId: "p1", placeName: "Midmorning Museum", placeCategory: "museum", description: "x" },
+        { id: "2", time: "14:00", googlePlaceId: "p2", placeName: "Afternoon Walk", placeCategory: "attraction", description: "x" },
+        // Scheduled for 20:00, but only open 10:00-11:30 — enforceOpeningHours
+        // must reschedule it earlier than BOTH stops above, even though it's
+        // last in the original (pre-fix) array order.
+        { id: "3", time: "20:00", googlePlaceId: "p3", placeName: "Evening-Scheduled Morning Spot", placeCategory: "restaurant", description: "x" },
+      ] },
+    ];
+    const { days: fixed, warnings } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, hoursByPlaceId, isFirstDay: () => false, isLastDay: () => false, requireLunch: false, requireDinner: false,
+    });
+
+    const stop = fixed[0].stops.find((s: any) => s.placeName === "Evening-Scheduled Morning Spot");
+    expect(stop).toBeTruthy();
+    expect(stop.time).not.toBe("20:00"); // confirms the reschedule actually happened
+    expect(warnings.some((w: string) => w.includes("Rescheduled") && w.includes("Evening-Scheduled Morning Spot"))).toBe(true);
+
+    // The actual regression: the rescheduled stop must end up in the RIGHT
+    // array position, not just have the right `.time` while still sitting
+    // at its old (now wrong) index.
+    expectChronological(fixed[0].stops);
+    expect(fixed[0].stops[fixed[0].stops.length - 1].placeName).not.toBe("Evening-Scheduled Morning Spot");
+  });
+
+  it("[regression] stays chronological even when must-visit insertion, fallback meal insertion, and an hours reschedule all happen on the same day", async () => {
+    const hoursByPlaceId = new Map([["p3", NARROW_MORNING_HOURS]]);
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", stops: [
+        { id: "1", time: "09:00", googlePlaceId: "p1", placeName: "Morning Stop", placeCategory: "attraction", description: "x" },
+        { id: "2", time: "16:00", googlePlaceId: "p2", placeName: "Late Afternoon Stop", placeCategory: "attraction", description: "x" },
+        { id: "3", time: "20:30", googlePlaceId: "p3", placeName: "Evening-Scheduled Morning Spot", placeCategory: "restaurant", description: "x" },
+      ] },
+    ];
+    const { days: fixed } = await validateAndCorrectItinerary(days, {
+      ...baseCtx,
+      hoursByPlaceId,
+      isFirstDay: () => false,
+      isLastDay: () => false,
+      requireLunch: true,
+      requireDinner: false,
+      mustVisit: [{ name: "Must-See Landmark", category: "attraction", lat: 41.38, lng: 2.17 }],
+      fillerRestaurants: [{ googlePlaceId: "filler-1", name: "Fallback Bistro", lat: 41.38, lng: 2.17 }],
+    });
+
+    const names = fixed[0].stops.map((s: any) => s.placeName);
+    expect(names).toContain("Must-See Landmark");
+    expect(names).toContain("Fallback Bistro");
+    expectChronological(fixed[0].stops);
+  });
+
+  it("preserves each day's own date/destination — stops only ever reorder WITHIN their day, days don't get relabeled", async () => {
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", dayNumber: 1, stops: [
+        { id: "1", time: "18:00", googlePlaceId: "p1", placeName: "A", placeCategory: "attraction", description: "x" },
+        { id: "2", time: "09:00", googlePlaceId: "p2", placeName: "B", placeCategory: "attraction", description: "x" },
+      ] },
+      { date: "2026-10-19", destination: "Barcelona", dayNumber: 2, stops: [
+        { id: "3", time: "10:00", googlePlaceId: "p3", placeName: "C", placeCategory: "attraction", description: "x" },
+      ] },
+    ];
+    const { days: fixed } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, isFirstDay: () => false, isLastDay: () => false, requireLunch: false, requireDinner: false,
+    });
+    expect(fixed[0].date).toBe("2026-10-18");
+    expect(fixed[0].dayNumber).toBe(1);
+    expect(fixed[0].stops.map((s: any) => s.placeName)).toEqual(["B", "A"]); // re-sorted within day 1 only
+    expect(fixed[1].date).toBe("2026-10-19");
+    expect(fixed[1].stops.map((s: any) => s.placeName)).toEqual(["C"]);
+  });
+});
+
+// ─── findEmptyDays — "zero stops is never a successful generation" guard ────
+
+describe("findEmptyDays", () => {
+  it("returns an empty list when every day has at least one stop", () => {
+    const days = [{ dayNumber: 1, stops: [{ placeName: "X" }] }, { dayNumber: 2, stops: [{ placeName: "Y" }] }];
+    expect(findEmptyDays(days)).toEqual([]);
+  });
+
+  it("flags a day whose stops array is empty", () => {
+    const days = [{ dayNumber: 1, stops: [{ placeName: "X" }] }, { dayNumber: 2, stops: [] }];
+    expect(findEmptyDays(days)).toEqual([2]);
+  });
+
+  it("flags a day with a missing/malformed stops field the same as an empty array", () => {
+    const days = [{ dayNumber: 1, stops: undefined }];
+    expect(findEmptyDays(days)).toEqual([1]);
+  });
+
+  it("falls back to the 1-based array index when dayNumber is absent", () => {
+    const days = [{ stops: [{ placeName: "X" }] }, { stops: [] }];
+    expect(findEmptyDays(days)).toEqual([2]);
+  });
+
+  it("[integration] a stop that can never fit (closed all week, no other day to move to) leaves its day empty, and findEmptyDays catches it", async () => {
+    const ALWAYS_CLOSED = Array(7).fill("Closed").map((c, i) => `Day${i}: ${c}`).join("\n");
+    const hoursByPlaceId = new Map([["p1", ALWAYS_CLOSED]]);
+    const days = [
+      { date: "2026-10-18", destination: "Barcelona", dayNumber: 1, stops: [
+        { id: "1", time: "11:00", googlePlaceId: "p1", placeName: "Always Closed Shop", placeCategory: "attraction", description: "x" },
+      ] },
+    ];
+    const { days: fixed } = await validateAndCorrectItinerary(days, {
+      ...baseCtx, hoursByPlaceId, isFirstDay: () => true, isLastDay: () => true, requireLunch: false, requireDinner: false,
+    });
+    expect(findEmptyDays(fixed)).toEqual([1]);
   });
 });

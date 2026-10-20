@@ -80,6 +80,18 @@ export type InvokeParams = {
   model?: string;
   /** Per-request timeout in milliseconds, overriding the SDK default — useful for long web-search-enabled calls. */
   timeoutMs?: number;
+  /**
+   * Per-request override of the OpenAI SDK's automatic retry count (client
+   * default: 2). Useful for a caller that does its OWN bounded retry at the
+   * application level (e.g. ai.generateFromScratch's per-day generation,
+   * server/routers.ts) and wants a single real attempt per invokeLLM call
+   * instead of the SDK silently re-attempting up to 2 more times — which,
+   * for a call already near its timeout budget, turns one slow-but-maybe-
+   * fine request into 3x the wall-clock time before ultimately failing
+   * anyway (observed directly: a 45s timeoutMs call that needed ~80s to
+   * actually finish took ~137-139s to fail, not 45s, because of this).
+   */
+  maxRetries?: number;
 };
 
 export type ToolCall = {
@@ -427,11 +439,15 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   if (openaiToolChoice) requestBody.tool_choice = openaiToolChoice;
   if (textFormat) requestBody.text = { format: textFormat };
 
+  const requestOptions: Record<string, unknown> = {};
+  if (params.timeoutMs) requestOptions.timeout = params.timeoutMs;
+  if (params.maxRetries != null) requestOptions.maxRetries = params.maxRetries;
+
   let response: any;
   try {
     response = await client.responses.create(
       requestBody as any,
-      params.timeoutMs ? { timeout: params.timeoutMs } : undefined,
+      Object.keys(requestOptions).length > 0 ? (requestOptions as any) : undefined,
     );
   } catch (err) {
     // Surface a clear, actionable error for the two most common misconfig

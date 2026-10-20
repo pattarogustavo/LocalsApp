@@ -10,9 +10,12 @@ import { storagePut } from "./storage";
 import { getSupabaseAdmin } from "./_core/supabaseAdmin";
 import { prepareCandidatePool } from "./itinerary/candidates";
 import { buildDurationGuidancePromptBlock } from "./itinerary/duration";
-import { validateAndCorrectItinerary, type MustVisitPlace, type FillerRestaurantCandidate } from "./itinerary/validate";
-import { buildItineraryDaysSchema } from "./itinerary/schema";
+import { validateAndCorrectItinerary, findEmptyDays, type MustVisitPlace, type FillerRestaurantCandidate } from "./itinerary/validate";
+import { buildItineraryDaysSchema, buildMinimalDaySchema } from "./itinerary/schema";
+import { buildDayDescriptors, assignMustVisitToDays, type DayDescriptor, type AssignableMustVisit } from "./itinerary/day-descriptors";
 import { withOneRepairAttempt } from "./itinerary/repair";
+import { runIndependentPreparationSteps } from "./itinerary/prepare";
+import { filterHallucinatedStops } from "./itinerary/guard";
 import { buildTravelFetcher } from "./itinerary/routes";
 import { clusterByDay, buildClusteringPromptBlock } from "./itinerary/clustering";
 import { fetchForecastSummary, computeApproxSunTimes } from "./itinerary/weather";
@@ -27,7 +30,7 @@ import {
   AI_DESTINATION_INFO_CACHE_TTL_MS,
 } from "./cache";
 
-import { GOOGLE_PLACES_KEY, mapToGoogleLanguage, pickBestGooglePhoto, resolveGooglePhotoUrl, fetchCuratedPlaceDetails, resolveLocalLanguageForCountry } from "./google-places";
+import { GOOGLE_PLACES_KEY, mapToGoogleLanguage, pickBestGooglePhoto, resolveGooglePhotoUrl, fetchCuratedPlaceDetails, resolvePlacesLocationBias, resolveLocalLanguageForCountry } from "./google-places";
 import { fetchUnsplashPhoto } from "./unsplash";
 import * as catalog from "./catalog";
 
@@ -191,7 +194,7 @@ async function requireActiveSubscription(userId: number): Promise<void> {
 const TRANSLATION_MODEL = "gpt-5-mini";
 
 /** Runs `fn` over `items` with at most `limit` in flight at once, preserving result order. */
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let nextIndex = 0;
   async function worker() {
@@ -499,19 +502,24 @@ async function fetchRealCandidatesForDestinations(
  * on the shortlist that's actually going to be offered to the LLM. Mutates
  * and returns the same candidate objects.
  */
-async function fetchOpeningHoursForTopCandidates<T extends { placeId: string; hoursText?: string }>(
+/** Matches the concurrency already used for Place Details-style backfills elsewhere in the itinerary pipeline (server/itinerary/candidates.ts's backfillCatalogGoogleData, validate.ts's TRAVEL_FETCH_CONCURRENCY) — kept consistent rather than picking a new number without quota data to justify a different one. */
+const OPENING_HOURS_FETCH_CONCURRENCY = 6;
+
+export async function fetchOpeningHoursForTopCandidates<T extends { placeId: string; hoursText?: string }>(
   candidates: T[],
   limit: number,
   language?: string,
 ): Promise<T[]> {
   if (!GOOGLE_PLACES_KEY) return candidates;
   const top = candidates.slice(0, limit);
-  await Promise.all(
-    top.map(async (c) => {
-      const details = await fetchCuratedPlaceDetails(c.placeId, language);
-      if (details.hours) c.hoursText = details.hours;
-    })
-  );
+  // Bounded concurrency (previously an unlimited `Promise.all` over up to
+  // `limit` candidates at once — up to 40 simultaneous Place Details
+  // requests) instead of one-at-a-time: still fully parallel, just capped,
+  // same worker-pool helper already used elsewhere in this file.
+  await mapWithConcurrency(top, OPENING_HOURS_FETCH_CONCURRENCY, async (c) => {
+    const details = await fetchCuratedPlaceDetails(c.placeId, language);
+    if (details.hours) c.hoursText = details.hours;
+  });
   return candidates;
 }
 
@@ -729,6 +737,98 @@ async function resolveMustSeePlace(
   };
 }
 
+/** Matches the concurrency already used for other Place Details-style fan-outs in this file (OPENING_HOURS_FETCH_CONCURRENCY, validate.ts's TRAVEL_FETCH_CONCURRENCY). */
+const STOP_RESOLUTION_CONCURRENCY = 6;
+
+interface StopResolution {
+  resolved: boolean;
+  googlePlaceId?: string;
+  lat?: number;
+  lng?: number;
+  address?: string;
+  hoursText?: string;
+}
+
+/**
+ * Verifies a single AI-proposed stop (name only, no pre-fetched candidate)
+ * against a real Google Place. This is ai.generateFromScratch's "direct
+ * generation" replacement for the old pre-fetched-candidate hallucination
+ * guard (server/itinerary/guard.ts, still used by ai.generateItinerary):
+ * instead of checking a googlePlaceId against a list fetched BEFORE
+ * generation, it does a live Find Place From Text + Place Details lookup
+ * AFTER generation. `resolved: false` (Google can't find a real match) means
+ * the caller should treat the stop as unverifiable — never invent/keep it
+ * anyway just because the model sounded confident.
+ */
+export async function resolveAndVerifyStop(
+  placeName: string,
+  biasLat: number | undefined,
+  biasLng: number | undefined,
+  language: string | undefined,
+): Promise<StopResolution> {
+  if (!placeName || !GOOGLE_PLACES_KEY) return { resolved: false };
+  const placeId = await resolvePlaceIdByName(placeName, biasLat, biasLng, language);
+  if (!placeId) return { resolved: false };
+  const details = await fetchCuratedPlaceDetails(placeId, language);
+  if (details.lat == null || details.lng == null) return { resolved: false };
+  return { resolved: true, googlePlaceId: placeId, lat: details.lat, lng: details.lng, address: details.address, hoursText: details.hours };
+}
+
+/**
+ * Resolves and verifies every AI-proposed stop across all days against real
+ * Google Places data, bounded concurrency. Stops matching a user-selected or
+ * resolved must-see place by name (`trustedNamesLower`) are passed through
+ * untouched — they were already trusted/verified earlier (same as before
+ * this redesign) and are never re-checked here. An unresolved, untrusted
+ * stop is dropped (counted in `droppedCount`) rather than kept with
+ * unverified data.
+ */
+export async function resolveAndVerifyStops(
+  days: any[],
+  opts: { trustedNamesLower: Set<string>; biasLat?: number; biasLng?: number; language?: string },
+): Promise<{ days: any[]; droppedCount: number; resolvedCount: number; hoursByPlaceId: Map<string, string> }> {
+  const candidateStops = days.flatMap((day) => (day.stops || [])).filter(
+    (stop: any) => stop.placeName && !opts.trustedNamesLower.has(String(stop.placeName).toLowerCase()),
+  );
+
+  const resolutions = new Map<any, StopResolution>();
+  await mapWithConcurrency(candidateStops, STOP_RESOLUTION_CONCURRENCY, async (stop: any) => {
+    resolutions.set(stop, await resolveAndVerifyStop(stop.placeName, opts.biasLat, opts.biasLng, opts.language));
+  });
+
+  const hoursByPlaceId = new Map<string, string>();
+  let droppedCount = 0;
+  let resolvedCount = 0;
+
+  const patchedDays = days.map((day) => {
+    const stops = (day.stops || [])
+      .map((stop: any) => {
+        if (!stop.placeName) return null;
+        if (opts.trustedNamesLower.has(String(stop.placeName).toLowerCase())) return stop;
+
+        const resolution = resolutions.get(stop);
+        if (!resolution?.resolved) {
+          droppedCount++;
+          return null;
+        }
+        resolvedCount++;
+        if (resolution.hoursText && resolution.googlePlaceId) hoursByPlaceId.set(resolution.googlePlaceId, resolution.hoursText);
+        return {
+          ...stop,
+          googlePlaceId: resolution.googlePlaceId,
+          lat: resolution.lat ?? stop.lat,
+          lng: resolution.lng ?? stop.lng,
+          address: resolution.address ?? stop.address,
+          hours: resolution.hoursText ?? stop.hours,
+        };
+      })
+      .filter(Boolean);
+    return { ...day, stops };
+  });
+
+  return { days: patchedDays, droppedCount, resolvedCount, hoursByPlaceId };
+}
+
 /**
  * Runs deterministic geographic clustering (server/itinerary/clustering.ts)
  * independently per destination (so a multi-destination trip never mixes
@@ -852,56 +952,57 @@ function buildMealPreferencesBlock(
 /** Nudges the model to use its native web-search tool to cross-check real candidates against outside opinion, without forcing it to search every single place. */
 const WEB_SEARCH_INSTRUCTION = `Você pode pesquisar na web (sites de viagem, guias locais, imprensa, redes sociais, fóruns) pra confirmar ou descobrir quais dos candidatos reais listados são de fato os mais recomendados por moradores e conhecedores do destino — combine isso com seu próprio conhecimento e com os dados de avaliação disponíveis. Use a busca quando agregar valor real à escolha, não é obrigatório pesquisar pra cada lugar individualmente. Sua resposta final deve ser SOMENTE o JSON pedido, sem nenhum texto antes ou depois, mesmo que você tenha pesquisado antes de responder.`;
 
-/** Cheap, fast model for auxiliary passes that aren't the creative itinerary assembly itself. */
-const WEB_SEARCH_PRESCREEN_MODEL = "gpt-5-mini";
+// NOTE: a separate, schema-free web-search "pre-screen" LLM call (a
+// gpt-5-mini helper with enableWebSearch, formerly defined just above this
+// comment) used to run BEFORE the main itinerary call in both ai.generateItinerary and
+// ai.generateFromScratch, folding its free-text output into the prompt as
+// "dê peso extra a eles". Removed (itinerary-engine latency pass): it was a
+// full extra round-trip — the single largest, least-bounded latency
+// contributor per generation (web-search tool calls have no documented
+// upper bound) — for a result the main call's own training-knowledge
+// judgment already covers once the prompt explicitly asks for it (see
+// CANDIDATE_JUDGMENT_GUIDANCE_BLOCK below). The main call still grounds
+// every stop in a real candidate (Google Places + curated catalog) or a
+// resolved must-see/selected place; it just no longer waits on a second
+// model call to tell it which of those candidates are "really" good.
 
 /**
- * Separate, schema-free web-search pass run BEFORE the main itinerary
- * generation call (generateItinerary/generateFromScratch). Those calls force
- * tool_choice to their output-schema tool (see buildItineraryDaysSchema),
- * which can't coexist with the "auto" tool_choice web search needs to decide
- * for itself whether/when to search (see invokeLLM's `enableWebSearch`) — so
- * this runs its own free-text call first, and its result is folded into the
- * main prompt as extra context. Best-effort: any failure here is swallowed
- * and returns null, never blocking itinerary generation.
+ * Explicit judgment instruction for the main itinerary-generation call. The
+ * real-candidates list is pre-ordered by rankCandidates (interest match,
+ * quality, editorial affinity, popularity — server/itinerary/scoring.ts) so
+ * the model doesn't have to scan an unordered 180-candidate list, but that
+ * order is a SIGNAL, not a mandate: the previous prompt wording ("prefira os
+ * primeiros da lista") nudged the model straight back toward popularity-
+ * ordered picks even after the ranking/catalog work. This tells it instead
+ * to apply its own real-world judgment (authenticity, local reputation,
+ * cuisine fit, budget fit) and pick further down the list when that's
+ * genuinely the better choice — while keeping the hard grounding constraint
+ * intact (only real candidates/must-visit places, never an invented name,
+ * rating, price or hour).
  */
-async function preScreenRecommendedCandidates(
-  destinationSummary: string,
-  candidates: { name: string; types: string[]; rating?: number }[],
-): Promise<string | null> {
-  if (candidates.length === 0) return null;
+const CANDIDATE_JUDGMENT_GUIDANCE_BLOCK = `A ordem da lista de candidatos reais é apenas um sinal de popularidade/afinidade declarada (avaliações, catálogo editorial, interesses do viajante) — NÃO é um ranking de qualidade real nem uma ordem obrigatória de escolha. Use seu próprio conhecimento sobre o destino (autenticidade, reputação real entre moradores/conhecedores, culinária típica, adequação ao orçamento e às preferências declaradas do viajante) para decidir quais desses candidatos realmente valem a pena — mesmo que isso signifique escolher um candidato mais abaixo na lista em vez de um mais acima. NUNCA escolha um lugar só porque está no topo da lista ou tem mais avaliações: avalie se ele é genuinamente a melhor escolha para ESSE viajante específico. Mesmo assim, sua escolha final deve se limitar aos lugares que aparecem nas listas de candidatos reais e de lugares obrigatórios — nunca invente nomes de estabelecimentos, avaliações, preços ou horários que não estejam nessas listas ou nos dados fornecidos.`;
 
-  const candidatesList = candidates
-    .slice(0, 150)
-    .map((c) => `- ${c.name} (${c.types[0] || "lugar"}${c.rating ? `, rating ${c.rating}` : ""})`)
-    .join("\n");
+/** Quick, approximate travel-time/mode estimate is enough — real values always get recalculated right after generation via the Google Routes API (server/itinerary/routes.ts), so asking the model to compute them precisely just burns output tokens on throwaway work. The fields stay in the prompt (not dropped) as a fallback for the rare case the Routes/Directions call itself fails. */
+const TRAVEL_FIELDS_ESTIMATE_NOTE = `Esses campos (travelTimeToNext/travelModeToNext) são apenas uma estimativa rápida de referência — não gaste esforço calculando-os com precisão, pois serão recalculados automaticamente com dados reais de rota logo depois da geração.`;
 
-  const prompt = `Você vai ajudar a decidir quais lugares reais priorizar num roteiro de viagem para ${destinationSummary}.
+/**
+ * Replaces CANDIDATE_JUDGMENT_GUIDANCE_BLOCK for ai.generateFromScratch's
+ * "direct generation" flow: there is no pre-fetched candidate list at all
+ * here (see the redesign note above the endpoint's candidate-fetch step),
+ * so the model picks every place purely from its own knowledge. Grounding
+ * moves from "only pick from this list" (pre-hoc) to "every pick gets
+ * checked against real Google Places data afterward, and is dropped if it
+ * can't be verified" (post-hoc, resolveAndVerifyStops below) — this block
+ * sets the model's side of that contract: real/verifiable names, and never
+ * assert a fact (hours/price/rating) it isn't sure of.
+ */
+const DIRECT_GENERATION_GROUNDING_BLOCK = `Você tem liberdade total para escolher, usando seu próprio conhecimento real sobre o destino, quais atrações, bairros, restaurantes e experiências locais incluir — não existe uma lista de candidatos pré-selecionada para seguir.
 
-Candidatos reais disponíveis (já verificados no Google Places):
-${candidatesList}
-
-Pesquise na web se necessário, e identifique quais desses candidatos são genuinamente os mais recomendados por moradores/conhecedores do destino — não apenas os mais bem avaliados no Google. Retorne uma lista curta (até 15-20 nomes) dos que você mais recomendaria, com uma frase dizendo por quê.
-
-Responda em texto simples, um lugar por linha, no formato "Nome do lugar — motivo". Sem introdução nem conclusão.`;
-
-  try {
-    const response = await invokeLLM({
-      messages: [
-        { role: "system", content: "Você é um especialista local em viagens. Seja direto e objetivo." },
-        { role: "user", content: prompt },
-      ],
-      enableWebSearch: true,
-      model: WEB_SEARCH_PRESCREEN_MODEL,
-      max_tokens: 1500,
-    });
-    const text = String(response.choices[0]?.message.content || "").trim();
-    return text.length > 0 ? text : null;
-  } catch (err) {
-    console.warn("[itinerary] web-search pre-screening failed, proceeding without it:", err);
-    return null;
-  }
-}
+Regras de confiabilidade, não negociáveis:
+- Escolha SOMENTE lugares reais que você tem boa confiança que existem de fato (estabelecimentos conhecidos, verificáveis em fontes como Google Maps/guias de viagem) — NUNCA invente o nome de um lugar.
+- Para cada lugar, use o nome exato e completo como ele aparece publicamente (não abrevie, não traduza nomes próprios).
+- NÃO afirme horário de funcionamento, preço, nota/avaliação ou qualquer fato específico que você não tenha certeza de que é real — se não tiver certeza, não mencione esse dado (trate como desconhecido em vez de apresentá-lo como confirmado). O sistema confirma esses dados automaticamente depois, a partir de uma fonte verificada.
+- Dê prioridade a experiências autênticas e de qualidade, não apenas aos pontos turísticos mais óbvios — e a restaurantes que reflitam a culinária/cultura gastronômica real do destino, compatíveis com o orçamento e as preferências do viajante.`;
 
 /** Explicit hard-vs-soft constraint framing, so the model prioritizes correctly by itself before the deterministic validator double-checks it. */
 const HARD_SOFT_FRAMING_BLOCK = `
@@ -1369,6 +1470,18 @@ Responda APENAS com JSON válido neste formato exato:
         query: z.string().min(1),
         types: z.enum(['address', 'establishment', 'cities', 'geocode', 'mixed']).optional(),
         language: z.string().optional(),
+        // Optional geographic bias (e.g. the trip's destination center) —
+        // old clients that never send these get byte-for-byte the same
+        // unbiased request as before. Google's `location`+`radius` (without
+        // `strictbounds`) is a SOFT bias, never a hard restriction: a
+        // clearly-better match outside the radius can still surface, which
+        // is what "não limitar indevidamente a busca a um raio muito
+        // pequeno" calls for — this fixes "hotel search returns results from
+        // a different region" without risking false negatives for a large
+        // destination region.
+        biasLat: z.number().optional(),
+        biasLng: z.number().optional(),
+        biasRadiusMeters: z.number().optional(),
       }))
       .query(async ({ input }) => {
         if (!GOOGLE_PLACES_KEY) return { predictions: [] };
@@ -1378,6 +1491,11 @@ Responda APENAS com JSON válido neste formato exato:
           url.searchParams.set("input", input.query);
           url.searchParams.set("types", types);
           url.searchParams.set("language", mapToGoogleLanguage(input.language));
+          const bias = resolvePlacesLocationBias(input.biasLat, input.biasLng, input.biasRadiusMeters);
+          if (bias) {
+            url.searchParams.set("location", bias.location);
+            url.searchParams.set("radius", bias.radius);
+          }
           url.searchParams.set("key", GOOGLE_PLACES_KEY!);
           return url.toString();
         };
@@ -1829,7 +1947,21 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
         const { totalDays, destinations, selectedPlaces, preferences, cityTransportMode, accommodation } = input;
         const startDate = normalizeToDateOnlyString(input.startDate);
         const generationStartedAt = Date.now();
-        const telemetry = { llmCalls: 0, promptTokens: 0, completionTokens: 0 };
+        // Per-stage wall-clock breakdown (spec: observability for the
+        // latency-optimization pass) alongside the pre-existing LLM
+        // call/token counters — no stage here duplicates an existing
+        // counter, it only times stages telemetry.llmCalls/promptTokens/
+        // completionTokens didn't already cover.
+        const telemetry = {
+          llmCalls: 0,
+          promptTokens: 0,
+          completionTokens: 0,
+          candidateFetchMs: 0,
+          prepStepsMs: 0,
+          llmMainCallMs: 0,
+          repairCallMs: 0,
+          validateMs: 0,
+        };
 
         const destSummary = destinations
           .map((d) => `${d.name} (${d.country || ""}) — ${d.days} dias`)
@@ -1849,6 +1981,7 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
         // (interest/editorial/quality/popularity, never a hard filter) both
         // happen inside prepareCandidatePool.
         const selectedNamesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
+        const candidateFetchStartedAt = Date.now();
         const rawGoogleCandidates = await fetchRealCandidatesForDestinations(destinations, input.language);
         const { candidates: extraCandidates, excludedCount, catalogCount, totalBeforeCap } = await prepareCandidatePool(
           rawGoogleCandidates,
@@ -1862,34 +1995,36 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
             excludeNamesLower: selectedNamesLower,
           },
         );
+        telemetry.candidateFetchMs = Date.now() - candidateFetchStartedAt;
         if (excludedCount > 0) {
           console.log(`[ai.generateItinerary] filtered out ${excludedCount} candidate(s) matching the user's avoid list`);
         }
         console.log(`[ai.generateItinerary] candidate pool: ${extraCandidates.length} (of ${totalBeforeCap} ranked before cap), ${catalogCount} from curated catalog`);
 
-        // Real opening hours, fetched only for the shortlist actually offered
-        // to the model (keeps the extra Place Details calls bounded). Catalog
+        // Independent prep I/O — opening hours (backfills extraCandidates in
+        // place), must-see resolution, and weather/daylight lookup don't
+        // depend on each other's output, so they run concurrently instead of
+        // one after another (previously 3 sequential round-trips; a 4th,
+        // the web-search pre-screen call, has been removed entirely — see
+        // the note above CANDIDATE_JUDGMENT_GUIDANCE_BLOCK). Catalog
         // candidates' hours/lat/lng were already best-effort backfilled
-        // inside prepareCandidatePool — this additionally covers Google-only
-        // candidates, which never needed that backfill for lat/lng (Nearby
-        // Search already returns it) but still need opening hours.
-        await fetchOpeningHoursForTopCandidates(extraCandidates, 40, input.language);
+        // inside prepareCandidatePool — fetchOpeningHoursForTopCandidates
+        // here additionally covers Google-only candidates, which never
+        // needed that backfill for lat/lng (Nearby Search already returns
+        // it) but still need opening hours.
+        const destCenter = destinations.find((d) => d.lat != null && d.lng != null);
+        const prepStepsStartedAt = Date.now();
+        const { resolvedMustSee, weatherBlock } = await runIndependentPreparationSteps({
+          fetchOpeningHours: () => fetchOpeningHoursForTopCandidates(extraCandidates, 40, input.language),
+          resolveMustSee: () => resolveMustSeePlace(preferences?.mustSee, destCenter?.lat, destCenter?.lng, input.language),
+          buildWeatherBlock: () => buildWeatherBlockForDestinations(startDate, destinations, accommodation),
+        });
+        telemetry.prepStepsMs = Date.now() - prepStepsStartedAt;
         const hoursByPlaceId = new Map(extraCandidates.filter((c) => c.hoursText).map((c) => [c.placeId, c.hoursText!]));
 
         const realCandidatesSummary = extraCandidates.length > 0
           ? `\nLugares reais e verificados disponíveis${hasSelectedPlaces ? ' para completar o roteiro além dos obrigatórios acima' : ''} (use o nome EXATAMENTE como aparece na lista; NÃO invente nenhum lugar fora desta lista${hasSelectedPlaces ? ' nem da lista de obrigatórios' : ''}):\n${extraCandidates.map((c) => `[${c.placeId}] ${c.name} (${c.destinationName})${c.rating ? `, rating ${c.rating}` : ''}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}${c.source === 'catalog' ? ` [recomendação editorial local${c.curatedDescription ? `: ${c.curatedDescription}` : ''}]` : ''}`).join("\n")}`
           : '';
-
-        // Separate, schema-free web-search pass — see preScreenRecommendedCandidates
-        // for why this can't just be `enableWebSearch: true` on the main call below.
-        const preScreenedPlaces = await preScreenRecommendedCandidates(destSummary, extraCandidates);
-        const preScreenBlock = preScreenedPlaces
-          ? `\nPesquisa prévia identificou estes lugares como especialmente recomendados:\n${preScreenedPlaces}\n— dê peso extra a eles na sua escolha, mas você não é obrigado a usar só esses.`
-          : '';
-
-        // Promote a resolvable free-text "must-see" hint to a HARD constraint.
-        const destCenter = destinations.find((d) => d.lat != null && d.lng != null);
-        const resolvedMustSee = await resolveMustSeePlace(preferences?.mustSee, destCenter?.lat, destCenter?.lng, input.language);
 
         // Deterministic geographic clustering (server/itinerary/clustering.ts,
         // spec "Stage 4") — a suggested day→zone split per destination, fed
@@ -1897,7 +2032,6 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
         // candidate list. Advisory only: never removes a candidate, and the
         // model/validator can still override it for a hard constraint.
         const clusteringBlock = buildClusteringBlockForDestinations(destinations, extraCandidates, accommodation);
-        const weatherBlock = await buildWeatherBlockForDestinations(startDate, destinations, accommodation);
 
         const paceStops = preferences?.pace === 'relaxado' ? 3 : preferences?.pace === 'intenso' ? 6 : 4;
 
@@ -1926,8 +2060,10 @@ ${HARD_SOFT_FRAMING_BLOCK}
 
 Data de início: ${startDate}
 Destinos: ${destSummary}
-${placesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}${preScreenBlock}${clusteringBlock}${weatherBlock}
+${placesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}${clusteringBlock}${weatherBlock}
 ${hotelBlock}
+
+${CANDIDATE_JUDGMENT_GUIDANCE_BLOCK}
 
 Preferências:
 - Ritmo: ${preferences?.pace || "moderado"} (${paceStops} paradas de ATRAÇÕES/PASSEIOS por dia — café da manhã, almoço e jantar são ADICIONAIS a esse número, não descontados dele; ex: ritmo moderado = ${paceStops} atrações/passeios por dia, MAIS café da manhã, almoço e jantar quando aplicável)
@@ -1967,7 +2103,7 @@ Importante:
 - NUNCA escreva um horário específico (ex: "das 20:55 às 21:40") na descrição que seja diferente do campo "time" dessa parada — se quiser mencionar um período do dia na descrição, ele PRECISA ser exatamente consistente com o horário agendado, porque o campo "time" é a única fonte de verdade sobre quando a parada acontece.
 - Se a primeira ou última parada do dia for apenas um ponto de referência logístico (estação, aeroporto, ou a própria hospedagem do viajante) e não um lugar para efetivamente visitar/conhecer, deixe isso claro na descrição (ex: "ponto de partida para o passeio de hoje") em vez de escrever como se fosse uma recomendação de passeio.
 - Restaurantes: não escolha só pelo número de avaliações. Quando o destino tiver uma culinária ou cultura gastronômica/de bebidas local característica (ex: pubs tradicionais no Reino Unido, trattorias na Itália, bares de tapas na Espanha), inclua pelo menos uma experiência desse tipo quando for coerente com as preferências do viajante — não repita o mesmo tipo de cozinha em todas as refeições do roteiro só porque é popular.
-- O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
+- O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido. ${TRAVEL_FIELDS_ESTIMATE_NOTE}
 - Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.${hasSelectedPlaces ? '\n- ATENÇÃO: Use SOMENTE os lugares listados acima. NÃO adicione nenhum lugar que não esteja na lista.' : ''}${extraCandidates.length > 0 ? '\n- Use SOMENTE lugares da(s) lista(s) acima (obrigatórios e/ou candidatos reais). NÃO invente nenhum lugar de memória.' : ''}
 - Antes de finalizar o horário de cada parada, releia a descrição que você mesmo escreveu para esse lugar — se ela menciona um período do dia específico (manhã, tarde, entardecer, pôr do sol, noite, etc.), o horário agendado da parada PRECISA bater com essa recomendação. Se não bater, ajuste o horário pra refletir o que você mesmo recomendou, não o contrário.`;
 
@@ -1990,6 +2126,7 @@ Importante:
         // better. Never more than one extra call, never silently hidden from
         // the response (see the `warnings` field returned below).
         const generateAndValidate = async (repairBlock: string | undefined) => {
+          const llmCallStartedAt = Date.now();
           const response = await invokeLLM({
             messages: [
               { role: "system", content: "Você é um guia de viagens especialista. Crie roteiros detalhados, práticos e culturalmente ricos. Responda sempre em JSON válido." },
@@ -1997,7 +2134,14 @@ Importante:
             ],
             outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tips" }), strict: true },
             max_tokens: 16000,
+            timeoutMs: 45000,
           });
+          // repairBlock is only set on the one possible extra call
+          // withOneRepairAttempt makes (server/itinerary/repair.ts) — timing
+          // it separately from the first call keeps the breakdown meaningful
+          // even when a repair happens.
+          if (repairBlock) telemetry.repairCallMs += Date.now() - llmCallStartedAt;
+          else telemetry.llmMainCallMs += Date.now() - llmCallStartedAt;
           telemetry.llmCalls++;
           telemetry.promptTokens += response.usage?.prompt_tokens ?? 0;
           telemetry.completionTokens += response.usage?.completion_tokens ?? 0;
@@ -2017,34 +2161,22 @@ Importante:
 
           const rawDays: any[] = parsed.days || [];
 
-          // Hallucination guard (previously only applied in generateFromScratch):
-          // drop any AI-added stop whose googlePlaceId isn't a real candidate and
-          // whose name doesn't match a user-selected or must-visit place.
-          let droppedHallucinatedStops = 0;
-          for (const day of rawDays) {
-            day.stops = (day.stops || []).filter((stop: any) => {
-              if (!stop.placeName) return false;
-              if (extraCandidates.length === 0) return true; // no grounding pool available — nothing to check against
-              const isKnownCandidate = stop.googlePlaceId && candidatesByPlaceId.has(stop.googlePlaceId);
-              const isSelected = selectedNamesLower.has((stop.placeName || '').toLowerCase());
-              const isMustSee = mustSeeNamesLower.has((stop.placeName || '').toLowerCase());
-              if (!isKnownCandidate && !isSelected && !isMustSee) {
-                droppedHallucinatedStops++;
-                return false;
-              }
-              if (isKnownCandidate) {
-                const c = candidatesByPlaceId.get(stop.googlePlaceId)!;
-                stop.lat = c.lat ?? stop.lat;
-                stop.lng = c.lng ?? stop.lng;
-              }
-              return true;
-            });
-          }
+          // Hallucination guard: drop any AI-added stop whose googlePlaceId
+          // isn't a real candidate and whose name doesn't match a
+          // user-selected or must-visit place. Shared with
+          // ai.generateFromScratch (server/itinerary/guard.ts).
+          const allowedNamesLower = new Set<string>([...selectedNamesLower, ...mustSeeNamesLower]);
+          const { days: patchedDays, droppedCount: droppedHallucinatedStops } = filterHallucinatedStops(rawDays, {
+            candidatesByPlaceId,
+            allowedNamesLower,
+            hasCandidatePool: extraCandidates.length > 0,
+          });
           if (droppedHallucinatedStops > 0) {
             console.warn(`[ai.generateItinerary] dropped ${droppedHallucinatedStops} stop(s) that referenced places outside the real candidates / selected-places lists`);
           }
 
-          const { days: correctedDays, warnings } = await validateAndCorrectItinerary(rawDays, {
+          const validateStartedAt = Date.now();
+          const { days: correctedDays, warnings } = await validateAndCorrectItinerary(patchedDays, {
             wakeUpTime, bedtime, arrivalTime, departureTime,
             isFirstDay: (i) => i === 0,
             isLastDay: (i) => i === totalDays - 1,
@@ -2061,12 +2193,31 @@ Importante:
             accommodation,
             language: input.language,
           });
+          // Accumulates across the first attempt AND the repair attempt (if
+          // any) — validateAndCorrectItinerary, including its Google Routes
+          // calls, runs once per generateAndValidate call either way.
+          telemetry.validateMs += Date.now() - validateStartedAt;
           return { result: correctedDays, warnings };
         };
 
         const outcome = await withOneRepairAttempt(generateAndValidate);
+        const totalMs = Date.now() - generationStartedAt;
         console.log(
-          `[ai.generateItinerary] telemetry: totalMs=${Date.now() - generationStartedAt} llmCalls=${telemetry.llmCalls} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} candidatePool=${extraCandidates.length}(catalog=${catalogCount},rankedBeforeCap=${totalBeforeCap},excludedByAvoid=${excludedCount}) repairAttempted=${outcome.repairAttempted} repairUsed=${outcome.repairUsed} unresolvedWarnings=${outcome.warnings.length}`,
+          `[ai.generateItinerary] telemetry: totalMs=${totalMs} llmCalls=${telemetry.llmCalls} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} candidatePool=${extraCandidates.length}(catalog=${catalogCount},rankedBeforeCap=${totalBeforeCap},excludedByAvoid=${excludedCount}) repairAttempted=${outcome.repairAttempted} repairUsed=${outcome.repairUsed} unresolvedWarnings=${outcome.warnings.length}`,
+        );
+        // Structured per-stage timing breakdown (ms) — no secrets/user
+        // content, just counts and durations, safe to leave in production
+        // logs. repairCallMs/llmMainCallMs stay 0 when that stage didn't
+        // run (e.g. repairCallMs when no repair happened).
+        console.log(
+          `[ai.generateItinerary] timings: ${JSON.stringify({
+            candidateFetchMs: telemetry.candidateFetchMs,
+            prepStepsMs: telemetry.prepStepsMs,
+            llmMainCallMs: telemetry.llmMainCallMs,
+            repairCallMs: telemetry.repairCallMs,
+            validateMs: telemetry.validateMs,
+            totalMs,
+          })}`,
         );
 
         return { days: outcome.result, warnings: outcome.warnings.length > 0 ? outcome.warnings : undefined };
@@ -2142,7 +2293,26 @@ Importante:
         const { totalDays, destinations, cityTransportMode, selectedPlaces, profile, accommodation } = input;
         const startDate = normalizeToDateOnlyString(input.startDate);
         const generationStartedAt = Date.now();
-        const telemetry = { llmCalls: 0, promptTokens: 0, completionTokens: 0 };
+        // Per-stage wall-clock breakdown for the parallel-by-day redesign:
+        // dayGenerationMs is the WALL-CLOCK time of the whole parallel
+        // batch (not a sum of each call — those overlap), dayTimingsMs is
+        // each individual day call's own duration for per-day comparison.
+        // placeResolutionMs/suggestedPlacesPhotoMs are specific to this
+        // endpoint (ai.generateItinerary doesn't have either).
+        const telemetry = {
+          llmCalls: 0,
+          promptTokens: 0,
+          completionTokens: 0,
+          candidateFetchMs: 0,
+          prepStepsMs: 0,
+          dayGenerationMs: 0,
+          dayTimingsMs: [] as (number | null)[],
+          placeResolutionMs: 0,
+          validateMs: 0,
+          suggestedPlacesPhotoMs: 0,
+          stopsResolved: 0,
+          stopsDropped: 0,
+        };
 
         const destSummary = destinations
           .map((d) => `${d.name} (${d.country || ""}) — ${d.days} dias`)
@@ -2153,53 +2323,40 @@ Importante:
           ? `\nLugares que o usuário já selecionou e quer manter no roteiro (inclua todos estes, e complete o restante do roteiro com mais sugestões que combinem com o perfil abaixo):\n${selectedPlaces!.map((p) => `- ${p.name} (${p.category}) em ${p.destinationName}${p.hours ? `, horário: ${p.hours}` : ""}${p.address ? `, endereço: ${p.address}` : ""}${p.lat && p.lng ? `, coordenadas: ${p.lat},${p.lng}` : ""}`).join("\n")}`
           : "";
 
-        // Ground the whole itinerary in real, currently-open places from Google
-        // Places PLUS our own curated catalog (server/itinerary/candidates.ts)
-        // — same principle as ai.suggestPlaces, now extended to real
-        // itinerary generation too — instead of letting the model invent
-        // places from memory. Hard exclusion (avoid list) and ranking
-        // (interest/editorial/quality/popularity, never a hard filter) both
-        // happen inside prepareCandidatePool.
-        const rawRealCandidates = await fetchRealCandidatesForDestinations(destinations, input.language);
-        const selectedPlacesNamesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
-        const { candidates: realCandidates, excludedCount: excludedRealCount, catalogCount, totalBeforeCap } = await prepareCandidatePool(
-          rawRealCandidates,
-          destinations,
-          {
-            travelStyles: profile.travelStyle,
-            attractionsBudget: profile.attractionsBudget || profile.budget,
-            restaurantsBudget: profile.restaurantsBudget || profile.budget,
-            avoidText: profile.avoidPlaces,
-            language: input.language,
-            excludeNamesLower: selectedPlacesNamesLower,
-          },
-        );
-        if (excludedRealCount > 0) {
-          console.log(`[ai.generateFromScratch] filtered out ${excludedRealCount} candidate(s) matching the user's avoid list`);
-        }
-        console.log(`[ai.generateFromScratch] candidate pool: ${realCandidates.length} (of ${totalBeforeCap} ranked before cap), ${catalogCount} from curated catalog`);
+        // ─── "Direct generation" redesign (itinerary-engine latency/quality pass) ──
+        // Previously this endpoint pre-fetched a Google Places + curated-catalog
+        // candidate pool (ranked/capped/diversified), injected it into the
+        // prompt as a long text list, and forced the model to pick only from
+        // it. That large upfront fetch + large prompt was both the main
+        // latency driver and, per product direction, an unnecessary
+        // constraint on the model's own real-world judgment of quality/
+        // authenticity. The new flow instead: (1) lets the model choose
+        // freely from its own knowledge, grounded by explicit
+        // no-invented-facts instructions; (2) verifies every AI-chosen stop
+        // against real Google Places data AFTER generation (resolveAndVerifyStops
+        // below) instead of constraining it beforehand; (3) keeps a SMALL,
+        // never-shown-to-the-model fallback restaurant pool purely as a
+        // safety net for validateAndCorrectItinerary's meal-insertion step,
+        // so the deterministic validator still has something to fall back on
+        // without reintroducing a large candidate fetch.
+        const candidateFetchStartedAt = Date.now();
+        const fallbackCandidates = await fetchRealCandidatesForDestinations(destinations, input.language);
+        const fallbackRestaurantPool = fallbackCandidates
+          .filter((c) => c.types.includes('restaurant') && c.lat != null && c.lng != null)
+          .slice(0, 15);
+        await fetchOpeningHoursForTopCandidates(fallbackRestaurantPool, 15, input.language);
+        telemetry.candidateFetchMs = Date.now() - candidateFetchStartedAt;
 
-        await fetchOpeningHoursForTopCandidates(realCandidates, 40, input.language);
-        const candidatesByPlaceId = new Map(realCandidates.map((c) => [c.placeId, c]));
-        const hoursByPlaceId = new Map(realCandidates.filter((c) => c.hoursText).map((c) => [c.placeId, c.hoursText!]));
-        const realCandidatesSummary = realCandidates.length > 0
-          ? `\nLugares reais e verificados disponíveis para montar o roteiro (a lista já está ordenada por relevância/afinidade para o perfil do viajante):\n${realCandidates.map((c) => `[${c.placeId}] ${c.name} — destino: ${c.destinationName}, tipos: ${c.types.join(", ") || "?"}, rating: ${c.rating ?? "?"}, avaliações: ${c.userRatingsTotal}${c.hoursText ? `, horário: ${c.hoursText.replace(/\n/g, ' | ')}` : ''}${c.source === 'catalog' ? ` [recomendação editorial local${c.curatedDescription ? `: ${c.curatedDescription}` : ''}]` : ''}`).join("\n")}`
-          : "";
-
-        // Separate, schema-free web-search pass — see preScreenRecommendedCandidates
-        // for why this can't just be `enableWebSearch: true` on the main call below.
-        const preScreenedPlaces = await preScreenRecommendedCandidates(destSummary, realCandidates);
-        const preScreenBlock = preScreenedPlaces
-          ? `\nPesquisa prévia identificou estes lugares como especialmente recomendados:\n${preScreenedPlaces}\n— dê peso extra a eles na sua escolha, mas você não é obrigado a usar só esses.`
-          : '';
-
+        // Independent prep I/O run concurrently — must-see resolution and
+        // weather/daylight lookup don't depend on each other (or on the
+        // fallback pool above).
         const destCenter = destinations.find((d) => d.lat != null && d.lng != null);
-        const resolvedMustSee = await resolveMustSeePlace(profile.mustSee, destCenter?.lat, destCenter?.lng, input.language);
-
-        // Deterministic geographic clustering — see the identical use in
-        // ai.generateItinerary above for the full rationale.
-        const clusteringBlock = buildClusteringBlockForDestinations(destinations, realCandidates, accommodation);
-        const weatherBlock = await buildWeatherBlockForDestinations(startDate, destinations, accommodation);
+        const prepStepsStartedAt = Date.now();
+        const [resolvedMustSee, weatherBlock] = await Promise.all([
+          resolveMustSeePlace(profile.mustSee, destCenter?.lat, destCenter?.lng, input.language),
+          buildWeatherBlockForDestinations(startDate, destinations, accommodation),
+        ]);
+        telemetry.prepStepsMs = Date.now() - prepStepsStartedAt;
 
         const paceStops = profile.pace === 'relaxado' ? 3 : profile.pace === 'intenso' ? 6 : 4;
 
@@ -2221,169 +2378,260 @@ Importante:
         const hotelBlock = buildHotelPromptBlock(accommodation);
         const mealBlock = buildMealPreferencesBlock(profile.mealPreferences, {});
 
-        const prompt = `Crie um roteiro de viagem personalizado para ${totalDays} dias.
-${HARD_SOFT_FRAMING_BLOCK}
+        // ─── Parallel-by-day generation (itinerary-engine speed/quality redesign) ──
+        // Replaces the single monolithic call for the WHOLE trip (which a
+        // real isolated benchmark measured at ~81.5s for a 5-day itinerary
+        // under the full schema — see the optimization session notes) with
+        // one small call PER DAY, run concurrently. Each day call uses
+        // buildMinimalDaySchema() (server/itinerary/schema.ts): only time/
+        // placeName/placeCategory/description per stop — everything the
+        // backend can verify/compute itself (googlePlaceId, hours, address,
+        // lat/lng, travel time/mode) is left out of the LLM call entirely,
+        // not just "instructed to leave null" (the same real benchmark
+        // showed dropping those fields from the SCHEMA, not just the prompt
+        // text, is what actually cuts output tokens/latency — leaving a
+        // nullable field in the schema still costs its key+brackets).
+        const selectedPlacesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
+        const mustSeeNamesLower = new Set([resolvedMustSee?.name.toLowerCase()].filter(Boolean) as string[]);
+        const trustedNamesLower = new Set<string>([...selectedPlacesLower, ...mustSeeNamesLower]);
+        const mustVisit: MustVisitPlace[] = [
+          ...(selectedPlaces || []).map((p) => ({ name: p.name, category: p.category, address: p.address, lat: p.lat, lng: p.lng, hours: p.hours })),
+          ...(resolvedMustSee ? [resolvedMustSee] : []),
+        ];
+        // Small fallback-only pool (never shown to the model) — see the
+        // redesign note above the candidate-fetch step.
+        const fillerRestaurants: FillerRestaurantCandidate[] = fallbackRestaurantPool
+          .map((c) => ({ googlePlaceId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
 
-Data de início: ${startDate}
-Destinos: ${destSummary}
-${selectedPlacesSummary}${resolvedMustSee ? `\nLugar adicional OBRIGATÓRIO (mencionado pelo usuário, verificado como real): ${resolvedMustSee.name}${resolvedMustSee.address ? `, endereço: ${resolvedMustSee.address}` : ''}, coordenadas: ${resolvedMustSee.lat},${resolvedMustSee.lng}. Inclua-o em algum dia, respeitando horário de funcionamento e tempo disponível.` : ''}${realCandidatesSummary}${preScreenBlock}${clusteringBlock}${weatherBlock}
+        const dayDescriptors = buildDayDescriptors(startDate, destinations);
+        const assignableMustVisit: AssignableMustVisit[] = [
+          ...(selectedPlaces || []).map((p) => ({ name: p.name, destinationName: p.destinationName, address: p.address, lat: p.lat, lng: p.lng, hours: p.hours })),
+          ...(resolvedMustSee ? [{ name: resolvedMustSee.name, address: resolvedMustSee.address, lat: resolvedMustSee.lat, lng: resolvedMustSee.lng, hours: resolvedMustSee.hours }] : []),
+        ];
+        const mustVisitByDay = assignMustVisitToDays(dayDescriptors, assignableMustVisit);
+
+        function buildDayPrompt(descriptor: DayDescriptor): string {
+          const assigned = mustVisitByDay.get(descriptor.index) ?? [];
+          const assignedBlock = assigned.length > 0
+            ? `\nLugar(es) OBRIGATÓRIO(S) neste dia específico: ${assigned.map((m) => `${m.name}${m.address ? ` (${m.address})` : ''}${m.lat && m.lng ? `, coordenadas: ${m.lat},${m.lng}` : ''}`).join('; ')}. Inclua-os, respeitando horário de funcionamento e tempo disponível.`
+            : '';
+          const mustSeeHint = mustSee && assigned.length === 0
+            ? `\n- O usuário mencionou que gostaria de incluir, se possível, em algum dia da viagem: ${mustSee}.`
+            : '';
+
+          return `Planeje APENAS UM DIA de uma viagem de ${totalDays} dia(s) no total — este é o dia ${descriptor.index + 1} de ${totalDays}, em ${descriptor.destinationName}${descriptor.destinationCountry ? `, ${descriptor.destinationCountry}` : ''}. Data: ${descriptor.date}.
+${HARD_SOFT_FRAMING_BLOCK}
+${assignedBlock}${weatherBlock}
 ${hotelBlock}
+
+${DIRECT_GENERATION_GROUNDING_BLOCK}
 
 Perfil do viajante:
 - Estilo: ${profile.travelStyle.join(", ")}
 - Orçamento para atrações: ${attractionsBudget}
 - Orçamento para restaurantes: ${restaurantsBudget}
-- Ritmo: ${profile.pace} (${paceStops} paradas de ATRAÇÕES/PASSEIOS por dia — café da manhã, almoço e jantar são ADICIONAIS a esse número, não descontados dele; ex: ritmo moderado = ${paceStops} atrações/passeios por dia, MAIS café da manhã, almoço e jantar quando aplicável)
+- Ritmo: ${profile.pace} (${paceStops} paradas de ATRAÇÕES/PASSEIOS neste dia — café da manhã, almoço e jantar são ADICIONAIS a esse número, não descontados dele)
 - Tipo de viagem: ${profile.travelProfile}
-${profile.interests ? `- Interesses específicos do viajante: ${profile.interests}. Trate isso como um sinal FORTE de seleção, não um detalhe decorativo — priorize candidatos reais da lista acima que combinem com esses interesses em vez de simplesmente mencioná-los na descrição de lugares genéricos. Exemplos do nível de especificidade útil: "arquitetura gótica", "mercados de rua e feiras locais", "spots de fotografia ao pôr do sol", "cervejarias artesanais", "lojas de discos de vinil", "museus de ciência para crianças". Se nenhum candidato real combinar bem, é preferível manter a seleção pela qualidade geral a forçar um lugar irrelevante só para citar o interesse.` : ""}
-- Horário de acordar: ${wakeUpTime}
-- Horário de dormir: ${bedtime}
-- Horário de chegada (dia 1): ${arrivalTime}
-- Horário de saída (último dia): ${departureTime}${transportHint}${mealBlock}
-${profile.tripPurpose ? `- Motivo da viagem: ${profile.tripPurpose}. Leve isso em conta na escolha de lugares e no tom das descrições (ex: lua de mel → lugares/restaurantes românticos; aniversário → sugerir algo especial em um dos dias).` : ""}
-${mustSee ? `- O usuário mencionou que gostaria de incluir, se possível: ${mustSee}. É OBRIGATÓRIO tentar incluir, desde que tecnicamente viável (horário de funcionamento, tempo disponível, deslocamento); só deixe de fora se for genuinamente inviável.` : ""}
+${profile.interests ? `- Interesses específicos do viajante: ${profile.interests}. Trate isso como um sinal FORTE de seleção — escolha lugares reais que genuinamente combinem com esses interesses em vez de simplesmente mencioná-los na descrição de lugares genéricos.` : ""}${transportHint}${mealBlock}
+${profile.tripPurpose ? `- Motivo da viagem: ${profile.tripPurpose}. Leve isso em conta na escolha de lugares e no tom das descrições.` : ""}${mustSeeHint}
 ${profile.avoidPlaces ? `- O usuário pediu para EVITAR: ${profile.avoidPlaces}. NUNCA inclua lugares desse tipo, mesmo que populares ou bem avaliados.` : ""}
 
-${realCandidates.length > 0
-  ? 'Monte o roteiro dia a dia usando SOMENTE os lugares da lista de candidatos reais acima (e os lugares já selecionados pelo usuário, se houver), referenciando o googlePlaceId de cada um. A lista já está ordenada por relevância para o perfil do viajante — prefira os primeiros da lista quando fizer sentido, mas use bom senso de sequência geográfica e variedade. NÃO invente lugares fora dessas listas.'
-  : 'Crie o roteiro completo com lugares autênticos que combinem com o perfil acima.'}
+Coerência entre os dias da viagem: este é só UM dia dentro de uma viagem maior — evite repetir os pontos turísticos mais óbvios que já poderiam aparecer em outro dia, e distribua variedade de tipos de lugar ao longo da viagem como um todo.
 
-Regras de horário:
-- No primeiro dia (chegada), a primeira parada deve começar depois de ${arrivalTime}, com folga de pelo menos 1h30 para deslocamento e check-in.
-- No último dia (partida), a última parada deve terminar com pelo menos 2h de folga antes de ${departureTime}, para dar tempo de chegar ao aeroporto/estação.
-- Nos demais dias, a primeira parada deve começar depois do horário de acordar (${wakeUpTime}), com 30 a 60 minutos para o café da manhã.
-- A última parada de cada dia deve terminar antes do horário de dormir (${bedtime}), com folga de pelo menos 1h.
+Regras de horário para este dia:
+${descriptor.isFirstDay ? `- Este é o dia de CHEGADA: a primeira parada deve começar depois de ${arrivalTime}, com folga de pelo menos 1h30 para deslocamento e check-in.` : `- A primeira parada deve começar depois do horário de acordar (${wakeUpTime}), com 30 a 60 minutos para o café da manhã.`}
+${descriptor.isLastDay ? `- Este é o dia de PARTIDA: a última parada deve terminar com pelo menos 2h de folga antes de ${departureTime}, para dar tempo de chegar ao aeroporto/estação.` : `- A última parada deve terminar antes do horário de dormir (${bedtime}), com folga de pelo menos 1h.`}
 
 ${buildDurationGuidancePromptBlock(profile.pace)}
 
-Retorne um JSON com "days": array dia-a-dia, cada dia com:
-   { date (YYYY-MM-DD), destination, dayNumber, title, tip, estimatedCost, estimatedCostCurrency, stops: [{ id (uuid), time (HH:MM), googlePlaceId${realCandidates.length > 0 ? ' (exatamente o placeId entre colchetes do candidato real escolhido, ou vazio se a parada for um dos lugares já selecionados pelo usuário)' : ''}, placeName, placeCategory, description, address, lat, lng, travelTimeToNext, travelModeToNext }] }
+Retorne um JSON com: title (título do dia), tip (dica do dia), estimatedCost (número, estimativa aproximada SEMPRE na moeda local do destino — nunca em dólar a menos que o destino realmente use USD), estimatedCostCurrency (código ISO 4217 de 3 letras correspondente), e stops: array de paradas, cada uma com time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other|park|beach|market|neighborhood), description.
 
 Importante:
-- estimatedCost é uma estimativa aproximada SEMPRE na moeda local do destino (nunca em dólar, a menos que o destino realmente use USD) — preencha estimatedCostCurrency com o código ISO 4217 de 3 letras correspondente (ex: "EUR" para Paris, "GBP" para Londres). Não apresente isso como um preço verificado.
-- Inclua ${paceStops} paradas de atrações/passeios por dia (café da manhã, almoço e jantar contam à parte, não fazem parte desse número).
-- TODO dia (exceto talvez o dia de chegada, se chegar muito tarde) deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00, sem exceção${(profile.mealPreferences?.lunch === 'none' || profile.mealPreferences?.dinner === 'none') ? ", salvo as refeições desmarcadas acima" : ""}.
-- Inclua lat/lng reais para cada lugar.
-- Para cada parada, escreva uma descrição de 1-2 frases com uma orientação específica e útil sobre o que fazer ou ver ali — não uma frase genérica que serviria pra qualquer lugar do mesmo tipo. Se o lugar tiver uma obra, prato, vista ou horário especialmente recomendado, mencione isso especificamente. NUNCA deixe a descrição vazia, mesmo para a primeira parada do dia.
-- NUNCA escreva um horário específico (ex: "das 20:55 às 21:40") na descrição que seja diferente do campo "time" dessa parada — se quiser mencionar um período do dia na descrição, ele PRECISA ser exatamente consistente com o horário agendado, porque o campo "time" é a única fonte de verdade sobre quando a parada acontece.
-- Se a primeira ou última parada do dia for apenas um ponto de referência logístico (estação, aeroporto, ou a própria hospedagem do viajante) e não um lugar para efetivamente visitar/conhecer, deixe isso claro na descrição (ex: "ponto de partida para o passeio de hoje") em vez de escrever como se fosse uma recomendação de passeio.
-- Restaurantes: não escolha só pelo número de avaliações. Quando o destino tiver uma culinária ou cultura gastronômica/de bebidas local característica (ex: pubs tradicionais no Reino Unido, trattorias na Itália, bares de tapas na Espanha), inclua pelo menos uma experiência desse tipo quando for coerente com as preferências do viajante — não repita o mesmo tipo de cozinha em todas as refeições do roteiro só porque é popular.
-- O travelModeToNext deve refletir o meio de transporte preferido: ${cityTransportMode || 'driving'}. Mesmo assim, se duas paradas consecutivas estiverem a uma distância curta (menos de ~1km / menos de 15 min a pé), recomende travelModeToNext como 'walking' independente do meio de transporte geral escolhido.
-- Ao escolher os lugares e a ordem das paradas de cada dia, agrupe por proximidade geográfica dentro da mesma região/bairro da cidade, minimizando deslocamentos longos entre paradas consecutivas.
-- Distribua bem os horários ao longo do dia.
-- Respeite o orçamento (atrações e restaurantes separadamente) e o ritmo do viajante.${realCandidates.length > 0 ? '\n- NÃO invente nenhum lugar fora da lista de candidatos reais e da lista de lugares já selecionados pelo usuário.' : ''}
-- Antes de finalizar o horário de cada parada, releia a descrição que você mesmo escreveu para esse lugar — se ela menciona um período do dia específico (manhã, tarde, entardecer, pôr do sol, noite, etc.), o horário agendado da parada PRECISA bater com essa recomendação. Se não bater, ajuste o horário pra refletir o que você mesmo recomendou, não o contrário.`;
+- Inclua ${paceStops} paradas de atrações/passeios (café da manhã, almoço e jantar contam à parte).
+- Este dia deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00${(profile.mealPreferences?.lunch === 'none' || profile.mealPreferences?.dinner === 'none') ? ", salvo as refeições desmarcadas acima" : ""}, salvo se isso for genuinamente inviável no dia de chegada/partida.
+- Para cada parada, escreva uma descrição de 1-2 frases com uma orientação específica e útil sobre o que fazer ou ver ali — não uma frase genérica que serviria pra qualquer lugar do mesmo tipo. NUNCA deixe a descrição vazia.
+- NUNCA escreva um horário específico na descrição que seja diferente do campo "time" dessa parada.
+- Restaurantes: não escolha só pelo número de avaliações. Quando o destino tiver uma culinária ou cultura gastronômica/de bebidas local característica, inclua pelo menos uma experiência desse tipo quando for coerente com as preferências do viajante.
+- Agrupe por proximidade geográfica dentro da mesma região/bairro, minimizando deslocamentos longos entre paradas consecutivas, e distribua bem os horários ao longo do dia.
+- Respeite o orçamento (atrações e restaurantes separadamente) e o ritmo do viajante.`;
+        }
 
-        // Deterministic validate → correct pass checks: opening hours,
-        // must-visit inclusion, exclusions, required meals,
-        // arrival/departure/wake/bed bounds, duplicate/overlap cleanup, and
-        // real travel times. Wrapped in a bounded single-repair loop
-        // (server/itinerary/repair.ts): a hard unresolved conflict (e.g. a
-        // must-visit place that didn't fit) triggers exactly ONE more
-        // targeted LLM call before the result is finalized.
-        const selectedPlacesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
-        const mustVisit: MustVisitPlace[] = [
-          ...(selectedPlaces || []).map((p) => ({ name: p.name, category: p.category, address: p.address, lat: p.lat, lng: p.lng, hours: p.hours })),
-          ...(resolvedMustSee ? [resolvedMustSee] : []),
-        ];
-        const fillerRestaurants: FillerRestaurantCandidate[] = realCandidates
-          .filter((c) => c.types.includes('restaurant') && c.lat != null && c.lng != null)
-          .slice(0, 15)
-          .map((c) => ({ googlePlaceId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
+        // One small call per day, bounded concurrency — see the redesign
+        // note above. maxRetries: 0 on each call because this function does
+        // its OWN single manual retry (never the SDK's default 2), which is
+        // exactly what avoids the old monolithic call's 45s×3≈137s failure
+        // mode when a call is genuinely slow rather than hung.
+        //
+        // Configurable via env (never hardcoded only) so concurrency can be
+        // tuned without a code change if real-world conditions change.
+        // Investigated directly (isolated diagnostic, not assumed): an
+        // earlier 30000ms timeout here caused EVERY day to fail in a real
+        // 3-day and 5-day end-to-end test. That was NOT a concurrency or
+        // rate-limit problem — concurrency 1, 2, 3 (fresh client and a
+        // shared client, mirroring this file's getClient() singleton) all
+        // succeeded fine with a small schema; no RateLimitError, no 429, no
+        // rate-limit headers, ever observed. Reproducing with the REAL
+        // per-day prompt/schema (profile block, grounding instructions,
+        // 10-category enum, description field) showed it alone — even at
+        // concurrency 1, no parallelism at all — took ~35.9s (1439 output
+        // tokens), already over the old 30s budget. The timeout was simply
+        // too low for this prompt/schema's real size, chosen from an
+        // earlier benchmark that used a smaller schema. Set with real
+        // margin now, not a guess.
+        const DAY_GENERATION_CONCURRENCY = Number(process.env.ITINERARY_DAY_GENERATION_CONCURRENCY) || 5;
+        const DAY_GENERATION_TIMEOUT_MS = Number(process.env.ITINERARY_DAY_GENERATION_TIMEOUT_MS) || 60000;
+        const DAY_GENERATION_MAX_TOKENS = 4000;
 
-        const generateAndValidate = async (repairBlock: string | undefined) => {
-          const response = await invokeLLM({
-            messages: [
-              { role: "system", content: "Você é um guia de viagens especialista. Crie roteiros personalizados, detalhados e culturalmente ricos. Responda sempre em JSON válido." },
-              { role: "user", content: repairBlock ? `${prompt}${repairBlock}` : prompt },
-            ],
-            outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tip" }), strict: true },
-            max_tokens: 16000,
-          });
-          telemetry.llmCalls++;
-          telemetry.promptTokens += response.usage?.prompt_tokens ?? 0;
-          telemetry.completionTokens += response.usage?.completion_tokens ?? 0;
+        type DaySuccess = { index: number; ok: true; title: string | null; tip: string | null; estimatedCost: number | null; estimatedCostCurrency: string | null; stops: any[]; llmCallMs: number; retried: boolean; promptTokens: number; completionTokens: number };
+        type DayFailure = { index: number; ok: false; error: string; retried: boolean };
 
-          const content = response.choices[0].message.content as string;
-          let parsed: any;
-          try {
-            parsed = JSON.parse(content);
-          } catch (err) {
-            console.error("[ai.generateFromScratch] Failed to parse LLM response as JSON. Raw content (first 500 chars):", content.slice(0, 500));
-            throw new TRPCError({
-              code: "INTERNAL_SERVER_ERROR",
-              message: "Não foi possível gerar o roteiro: a resposta da IA veio incompleta ou inválida. Tente novamente.",
-              cause: err,
+        async function generateSingleDay(descriptor: DayDescriptor): Promise<DaySuccess | DayFailure> {
+          const promptText = buildDayPrompt(descriptor);
+          const attempt = async () => {
+            const startedAt = Date.now();
+            const response = await invokeLLM({
+              messages: [
+                { role: "system", content: "Você é um guia de viagens especialista. Planeja UM dia por vez de uma viagem maior. Responda sempre em JSON válido." },
+                { role: "user", content: promptText },
+              ],
+              outputSchema: { name: "itinerary_single_day", schema: buildMinimalDaySchema(), strict: true },
+              max_tokens: DAY_GENERATION_MAX_TOKENS,
+              timeoutMs: DAY_GENERATION_TIMEOUT_MS,
+              maxRetries: 0,
             });
+            const ms = Date.now() - startedAt;
+            const parsed = JSON.parse(response.choices[0].message.content as string);
+            return { parsed, ms, promptTokens: response.usage?.prompt_tokens ?? 0, completionTokens: response.usage?.completion_tokens ?? 0 };
+          };
+
+          let retried = false;
+          try {
+            const { parsed, ms, promptTokens, completionTokens } = await attempt();
+            return { index: descriptor.index, ok: true, title: parsed.title ?? null, tip: parsed.tip ?? null, estimatedCost: parsed.estimatedCost ?? null, estimatedCostCurrency: parsed.estimatedCostCurrency ?? null, stops: parsed.stops ?? [], llmCallMs: ms, retried, promptTokens, completionTokens };
+          } catch (firstErr) {
+            console.warn(`[ai.generateFromScratch] day ${descriptor.index + 1} generation failed, retrying once:`, firstErr instanceof Error ? firstErr.message : firstErr);
+            retried = true;
+            try {
+              const { parsed, ms, promptTokens, completionTokens } = await attempt();
+              return { index: descriptor.index, ok: true, title: parsed.title ?? null, tip: parsed.tip ?? null, estimatedCost: parsed.estimatedCost ?? null, estimatedCostCurrency: parsed.estimatedCostCurrency ?? null, stops: parsed.stops ?? [], llmCallMs: ms, retried, promptTokens, completionTokens };
+            } catch (secondErr) {
+              return { index: descriptor.index, ok: false, error: secondErr instanceof Error ? secondErr.message : String(secondErr), retried };
+            }
           }
+        }
 
-          const days: any[] = parsed.days || [];
+        const dayGenerationStartedAt = Date.now();
+        const dayResults = await mapWithConcurrency(dayDescriptors, DAY_GENERATION_CONCURRENCY, generateSingleDay);
+        telemetry.dayGenerationMs = Date.now() - dayGenerationStartedAt;
+        telemetry.dayTimingsMs = dayResults.map((r) => (r.ok ? r.llmCallMs : null));
+        telemetry.llmCalls = dayResults.reduce((sum, r) => sum + (r.retried ? 2 : 1), 0);
+        telemetry.promptTokens = dayResults.reduce((sum, r) => sum + (r.ok ? r.promptTokens : 0), 0);
+        telemetry.completionTokens = dayResults.reduce((sum, r) => sum + (r.ok ? r.completionTokens : 0), 0);
 
-          // Rebuild suggestedPlaces from the stops actually used in the itinerary,
-          // discarding whatever "suggestedPlaces" the AI may still have volunteered
-          // (which can include places that never made it into any day). Also
-          // backfills a googlePlaceId on any stop that's missing one, so every
-          // stop links to a real suggestedPlaces entry.
-          //
-          // Guard against hallucination — same principle as ai.suggestPlaces: when
-          // real candidates were available, a stop only survives if its
-          // googlePlaceId matches one of them or its name matches a place the
-          // user selected; anything else means the AI ignored the "don't
-          // invent" instruction, so the stop is dropped rather than trusting an
-          // unverifiable place.
-          let droppedHallucinatedStops = 0;
-          const patchedDays = days.map((day: any) => {
-            const stops = (day.stops || []).map((stop: any) => {
-              if (!stop.placeName) return null;
-
-              const candidate = stop.googlePlaceId ? candidatesByPlaceId.get(stop.googlePlaceId) : undefined;
-              const isSelectedPlace = selectedPlacesLower.has(stop.placeName.toLowerCase());
-              if (realCandidates.length > 0 && !candidate && !isSelectedPlace) {
-                droppedHallucinatedStops++;
-                return null;
-              }
-
-              const resolvedGooglePlaceId = candidate?.placeId || stop.googlePlaceId || undefined;
-              return {
-                ...stop,
-                googlePlaceId: resolvedGooglePlaceId,
-                placeName: candidate?.name || stop.placeName,
-                lat: candidate?.lat ?? stop.lat,
-                lng: candidate?.lng ?? stop.lng,
-              };
-            }).filter(Boolean);
-            return { ...day, stops };
+        // Fail loudly, never silently — a day that failed even after one
+        // retry must never be dropped and presented as if the itinerary
+        // were complete (per product direction).
+        const failedDays = dayResults.filter((r): r is DayFailure => !r.ok);
+        if (failedDays.length > 0) {
+          console.error(
+            `[ai.generateFromScratch] ${failedDays.length} day(s) failed to generate after one retry each: ${failedDays.map((d) => `day ${d.index + 1}: ${d.error}`).join("; ")}`,
+          );
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: failedDays.length === 1
+              ? `Não foi possível gerar o dia ${failedDays[0].index + 1} do roteiro. Tente novamente.`
+              : `Não foi possível gerar ${failedDays.length} dos dias do roteiro. Tente novamente.`,
           });
+        }
 
-          if (droppedHallucinatedStops > 0) {
-            console.warn(`[ai.generateFromScratch] dropped ${droppedHallucinatedStops} stop(s) that referenced places outside the real candidates / selected-places lists`);
-          }
+        const rawDays: any[] = dayDescriptors.map((descriptor) => {
+          const result = dayResults.find((r) => r.index === descriptor.index) as DaySuccess;
+          return {
+            date: descriptor.date,
+            destination: descriptor.destinationName,
+            dayNumber: descriptor.index + 1,
+            title: result.title,
+            tip: result.tip,
+            estimatedCost: result.estimatedCost,
+            estimatedCostCurrency: result.estimatedCostCurrency,
+            stops: result.stops,
+          };
+        });
 
-          const { days: correctedDays, warnings } = await validateAndCorrectItinerary(patchedDays, {
-            wakeUpTime, bedtime, arrivalTime, departureTime,
-            isFirstDay: (i) => i === 0,
-            isLastDay: (i) => i === totalDays - 1,
-            avoidText: profile.avoidPlaces,
-            mustVisit,
-            requireLunch: profile.mealPreferences?.lunch !== 'none',
-            requireDinner: profile.mealPreferences?.dinner !== 'none',
-            lunchMode: profile.mealPreferences?.lunch,
-            dinnerMode: profile.mealPreferences?.dinner,
-            hoursByPlaceId,
-            fillerRestaurants,
-            pace: profile.pace,
-            fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
-            accommodation,
-            language: input.language,
+        // Post-generation grounding: verify every AI-chosen stop against
+        // real Google Places data (resolveAndVerifyStops above) instead of
+        // checking it against a pre-fetched candidate list — this
+        // endpoint's "direct generation" replacement for
+        // server/itinerary/guard.ts's filterHallucinatedStops (still used,
+        // unchanged, by ai.generateItinerary). A stop that can't be
+        // verified as a real place is dropped rather than trusted on the
+        // model's word; user-selected/must-see stops are passed through
+        // untouched (already trusted). Runs on the MERGED, whole-trip array
+        // so verification concurrency isn't needlessly limited per-day.
+        const placeResolutionStartedAt = Date.now();
+        const { days: patchedDays, droppedCount: droppedUnverifiedStops, resolvedCount, hoursByPlaceId } = await resolveAndVerifyStops(rawDays, {
+          trustedNamesLower,
+          biasLat: destCenter?.lat,
+          biasLng: destCenter?.lng,
+          language: input.language,
+        });
+        telemetry.placeResolutionMs = Date.now() - placeResolutionStartedAt;
+        telemetry.stopsResolved = resolvedCount;
+        telemetry.stopsDropped = droppedUnverifiedStops;
+        if (droppedUnverifiedStops > 0) {
+          console.warn(`[ai.generateFromScratch] dropped ${droppedUnverifiedStops} stop(s) that could not be verified against real Google Places data`);
+        }
+
+        // Deterministic validate → correct pass, run ONCE on the whole
+        // merged itinerary (not per day) — this is what catches
+        // cross-day issues a per-day call can't see on its own: duplicate
+        // stops across different days, must-visit places that still didn't
+        // fit anywhere, missing meals, and real Google Routes travel times.
+        // No LLM "repair" call here (unlike ai.generateItinerary, which
+        // still has withOneRepairAttempt): a global planning call wasn't
+        // shown to be necessary or fast for this redesign (see the
+        // optimization session notes), so any conflict the deterministic
+        // layer can't fix on its own surfaces in `warnings` instead.
+        const validateStartedAt = Date.now();
+        const { days: correctedDays, warnings } = await validateAndCorrectItinerary(patchedDays, {
+          wakeUpTime, bedtime, arrivalTime, departureTime,
+          isFirstDay: (i) => i === 0,
+          isLastDay: (i) => i === totalDays - 1,
+          avoidText: profile.avoidPlaces,
+          mustVisit,
+          requireLunch: profile.mealPreferences?.lunch !== 'none',
+          requireDinner: profile.mealPreferences?.dinner !== 'none',
+          lunchMode: profile.mealPreferences?.lunch,
+          dinnerMode: profile.mealPreferences?.dinner,
+          hoursByPlaceId,
+          fillerRestaurants,
+          pace: profile.pace,
+          fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
+          accommodation,
+          language: input.language,
+        });
+        telemetry.validateMs = Date.now() - validateStartedAt;
+
+        // A day with zero stops is never a successful generation, even
+        // though validateAndCorrectItinerary completed without throwing —
+        // it can legitimately end up removing every stop from a day (e.g.
+        // every candidate stop got shifted/removed for not fitting the
+        // arrival/departure/wake/bed buffers) and still return normally,
+        // because "zero stops left" isn't a condition it treats as fatal on
+        // its own. Catching it here (findEmptyDays, server/itinerary/validate.ts)
+        // is what stops that from being presented to the user as a complete,
+        // successful itinerary.
+        const emptyDayNumbersList = findEmptyDays(correctedDays);
+        if (emptyDayNumbersList.length > 0) {
+          const emptyDayNumbers = emptyDayNumbersList.join(", ");
+          console.error(`[ai.generateFromScratch] day(s) ${emptyDayNumbers} ended up with zero stops after validation — refusing to return an incomplete itinerary as if it were complete.`);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: emptyDayNumbersList.length === 1
+              ? `Não foi possível montar o dia ${emptyDayNumbers} do roteiro (nenhuma parada coube nas restrições de horário). Tente novamente ou ajuste os horários informados.`
+              : `Não foi possível montar os dias ${emptyDayNumbers} do roteiro (nenhuma parada coube nas restrições de horário). Tente novamente ou ajuste os horários informados.`,
           });
-          return { result: correctedDays, warnings };
-        };
-
-        const outcome = await withOneRepairAttempt(generateAndValidate);
-        console.log(
-          `[ai.generateFromScratch] telemetry: totalMs=${Date.now() - generationStartedAt} llmCalls=${telemetry.llmCalls} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} candidatePool=${realCandidates.length}(catalog=${catalogCount},rankedBeforeCap=${totalBeforeCap},excludedByAvoid=${excludedRealCount}) repairAttempted=${outcome.repairAttempted} repairUsed=${outcome.repairUsed} unresolvedWarnings=${outcome.warnings.length}`,
-        );
-        const correctedDays = outcome.result;
+        }
 
         // Build placesByKey exclusively from correctedDays — the itinerary
         // AFTER validation/correction — so suggestedPlaces reflects exactly
@@ -2399,19 +2647,23 @@ Importante:
         for (const day of correctedDays) {
           for (const stop of day.stops || []) {
             if (!stop.placeName) continue;
-            const candidate = stop.googlePlaceId ? candidatesByPlaceId.get(stop.googlePlaceId) : undefined;
+            // No separate candidate lookup needed here: resolveAndVerifyStops
+            // already backfilled lat/lng/address/hours/googlePlaceId directly
+            // onto each stop (for user-selected/must-see stops, those fields
+            // came from the client/must-see resolution instead) — stop.* is
+            // already the best data we have.
             const key = stop.googlePlaceId || stop.placeName.toLowerCase();
             if (!placesByKey.has(key)) {
               placesByKey.set(key, {
                 googlePlaceId: stop.googlePlaceId,
-                name: candidate?.name || stop.placeName,
+                name: stop.placeName,
                 category: stop.placeCategory || 'attraction',
                 address: stop.address,
                 description: stop.description,
-                lat: candidate?.lat ?? stop.lat,
-                lng: candidate?.lng ?? stop.lng,
+                lat: stop.lat,
+                lng: stop.lng,
                 hours: stop.hours,
-                destinationName: candidate?.destinationName || day.destination,
+                destinationName: day.destination,
               });
             }
           }
@@ -2421,6 +2673,7 @@ Importante:
         // highest-resolution curation as ai.suggestPlaces. Places backed by a
         // real candidate already have a verified place_id; only the (rare)
         // fallback places need the name-based lookup.
+        const suggestedPlacesPhotoStartedAt = Date.now();
         const suggestedPlaces = await Promise.all(
           Array.from(placesByKey.values()).map(async (place) => {
             let imageUrl: string | undefined;
@@ -2431,8 +2684,27 @@ Importante:
             return { ...place, imageUrl };
           })
         );
+        telemetry.suggestedPlacesPhotoMs = Date.now() - suggestedPlacesPhotoStartedAt;
 
-        return { days: correctedDays, suggestedPlaces, warnings: outcome.warnings.length > 0 ? outcome.warnings : undefined };
+        const totalMs = Date.now() - generationStartedAt;
+        const retriedDaysCount = dayResults.filter((r) => r.retried).length;
+        console.log(
+          `[ai.generateFromScratch] telemetry: totalMs=${totalMs} totalDays=${totalDays} dayLlmCalls=${telemetry.llmCalls} retriedDays=${retriedDaysCount} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} stopsResolved=${telemetry.stopsResolved} stopsDropped=${telemetry.stopsDropped} fallbackRestaurantPool=${fallbackRestaurantPool.length} unresolvedWarnings=${warnings.length}`,
+        );
+        console.log(
+          `[ai.generateFromScratch] timings: ${JSON.stringify({
+            candidateFetchMs: telemetry.candidateFetchMs,
+            prepStepsMs: telemetry.prepStepsMs,
+            dayGenerationMs: telemetry.dayGenerationMs,
+            dayTimingsMs: telemetry.dayTimingsMs,
+            placeResolutionMs: telemetry.placeResolutionMs,
+            validateMs: telemetry.validateMs,
+            suggestedPlacesPhotoMs: telemetry.suggestedPlacesPhotoMs,
+            totalMs,
+          })}`,
+        );
+
+        return { days: correctedDays, suggestedPlaces, warnings: warnings.length > 0 ? warnings : undefined };
       }),
 
     /**

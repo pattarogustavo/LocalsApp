@@ -229,6 +229,25 @@ export interface ValidationResult {
   warnings: string[];
 }
 
+/**
+ * Returns the (1-based) day numbers that ended up with zero stops after
+ * validateAndCorrectItinerary ran. A day can legitimately lose every stop
+ * during correction (e.g. every candidate got removed for not fitting the
+ * arrival/departure/wake/bed buffers, or an opening-hours conflict) without
+ * validateAndCorrectItinerary itself treating that as fatal — it only
+ * corrects, it doesn't decide what counts as an acceptable final result.
+ * Callers (e.g. ai.generateFromScratch, server/routers.ts) must call this
+ * and refuse to return a zero-stop day as if the itinerary were complete —
+ * the whole point is that this check actually runs, not that it lives in
+ * any particular file.
+ */
+export function findEmptyDays(days: any[]): number[] {
+  return days
+    .map((day, i) => ({ dayNumber: day?.dayNumber ?? i + 1, stops: day?.stops }))
+    .filter(({ stops }) => !Array.isArray(stops) || stops.length === 0)
+    .map(({ dayNumber }) => dayNumber);
+}
+
 const ARRIVAL_BUFFER_MIN = 90;
 const DEPARTURE_BUFFER_MIN = 120;
 
@@ -1008,6 +1027,30 @@ export async function validateAndCorrectItinerary(
   // above). Runs after every other time-shifting step so it always compares
   // against the truly final, authoritative `time` field.
   days.forEach((day: any, dIdx: number) => reconcileExplicitDescriptionTimes(day, dIdx, warnings));
+
+  // ── 11b) Final chronological re-sort (bug found in real testing: a 3-day
+  // generation came back with day 1's stops at 15:30, 18:30, 10:00, 10:00,
+  // 21:30 — out of order). Root cause: enforceOpeningHours' same-day
+  // reschedule branch (step 10b above) changes a stop's `.time` to fit an
+  // earlier open gap found via findFeasibleStartInDay, but — unlike the
+  // must-visit/meal-insertion steps above, and unlike its OWN
+  // tryMoveToAnotherDay branch, both of which already re-sort after
+  // mutating `day.stops` — it never re-sorted the array afterward, so the
+  // stop stayed at its original (now wrong) array position. Every other
+  // time-mutating step above either preserves relative order on its own
+  // (uniform shifts, neighbor-bounded adjustments) or already re-sorts
+  // right after mutating, so this single final sort is a safe, complete fix
+  // — not a workaround — for the end of the whole chain: it runs after
+  // EVERY possible time mutation (buffers, duration realism, travel-time
+  // insertion, time-of-day hints, opening-hours reschedule, description
+  // reconciliation) and before anything that reads stop order (the
+  // per-day-highlights logic in step 13, and the final returned contract
+  // the app renders as a timeline). Never changes a stop's `time`,
+  // `travelTimeToNext`/`travelModeToNext`, or which day it's on — purely
+  // reorders each day's own `stops` array by the times already decided.
+  days.forEach((day: any) => {
+    day.stops.sort((a: any, b: any) => (timeToMinutes(a.time) ?? 0) - (timeToMinutes(b.time) ?? 0));
+  });
 
   // ── 12) Classify every stop (attraction/restaurant/accommodation/logistics)
   // and guarantee a non-empty, honest description — never an unexplained

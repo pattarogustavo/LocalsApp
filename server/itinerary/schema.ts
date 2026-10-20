@@ -81,3 +81,47 @@ export function buildItineraryDaysSchema(opts: { dayTipField: "tip" | "tips" }):
     additionalProperties: false,
   };
 }
+
+/**
+ * Minimal per-day schema for ai.generateFromScratch's parallel-by-day
+ * "direct generation" redesign (itinerary-engine speed/quality pass).
+ *
+ * Drops everything the backend computes/verifies itself after generation
+ * instead of trusting the model for it: googlePlaceId, hours, address, lat,
+ * lng, travelTimeToNext, travelModeToNext (resolved by
+ * resolveAndVerifyStops + the Google Routes travel fetcher in
+ * server/routers.ts), plus date/destination/dayNumber (the backend already
+ * knows these from the day descriptor it generated the prompt from — asking
+ * the model to echo them back is pure wasted output). Measured impact of
+ * dropping the stop-level fields alone (server/itinerary/schema.ts's full
+ * stopSchema vs. this one): ~3.5x fewer output tokens for the same content,
+ * ~2.8-3.1x faster wall-clock time, in a real isolated OpenAI benchmark
+ * (gpt-6.1-sol, Responses API, Structured Outputs) run before this change —
+ * see the itinerary-engine optimization session notes for the raw numbers.
+ */
+const minimalStopSchema = {
+  type: "object",
+  properties: {
+    time: { type: "string", description: "HH:MM" },
+    placeName: { type: "string" },
+    placeCategory: { type: "string", enum: ["attraction", "restaurant", "cafe", "museum", "hidden_gem", "other", "park", "beach", "market", "neighborhood"] },
+    description: { type: "string" },
+  },
+  required: ["time", "placeName", "placeCategory", "description"],
+  additionalProperties: false,
+} as const;
+
+export function buildMinimalDaySchema(): Record<string, unknown> {
+  return {
+    type: "object",
+    properties: {
+      title: nullable({ type: "string" }),
+      tip: nullable({ type: "string" }),
+      estimatedCost: nullable({ type: "number" }),
+      estimatedCostCurrency: nullable({ type: "string" }),
+      stops: { type: "array", items: minimalStopSchema },
+    },
+    required: ["title", "tip", "estimatedCost", "estimatedCostCurrency", "stops"],
+    additionalProperties: false,
+  };
+}
