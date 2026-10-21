@@ -52,9 +52,9 @@ describe("per-stage telemetry — ai.generateItinerary", () => {
   });
 });
 
-describe("per-stage telemetry — ai.generateFromScratch (day-block parallel redesign)", () => {
-  it("declares a timing field for every requested stage, including the block generation batch and photo-resolution steps unique to this endpoint", () => {
-    for (const field of ["candidateFetchMs", "prepStepsMs", "generationMs", "blockTimingsMs", "placeResolutionMs", "validateMs", "suggestedPlacesPhotoMs"]) {
+describe("per-stage telemetry — ai.generateFromScratch (whole-trip call + per-day fallback redesign)", () => {
+  it("declares a timing field for every requested stage, including the planning call and photo-resolution steps unique to this endpoint", () => {
+    for (const field of ["candidateFetchMs", "prepStepsMs", "generationMs", "planningCallMs", "fallbackCallsMs", "placeResolutionMs", "validateMs", "suggestedPlacesPhotoMs"]) {
       expect(generateFromScratchBody).toContain(field);
     }
   });
@@ -67,27 +67,42 @@ describe("per-stage telemetry — ai.generateFromScratch (day-block parallel red
     expect(timingsLogIdx).toBeGreaterThan(photoResolutionIdx);
   });
 
-  it("has exactly one invokeLLM call SITE (inside callBlock, invoked once per day-block via mapWithConcurrency) and exactly one validateAndCorrectItinerary call site, run once on the whole merged itinerary", () => {
+  it("has exactly one invokeLLM call SITE (inside callBlock, reused for the whole-trip call, the per-day fallback, and the empty-day repair) and exactly two validateAndCorrectItinerary call sites (initial pass + the one re-validation after an empty-day repair)", () => {
     expect((generateFromScratchBody.match(/await invokeLLM\(/g) || []).length).toBe(1);
-    expect((generateFromScratchBody.match(/await validateAndCorrectItinerary\(/g) || []).length).toBe(1);
+    expect((generateFromScratchBody.match(/await validateAndCorrectItinerary\(/g) || []).length).toBe(2);
   });
 
   it("no longer calls withOneRepairAttempt — no extra global planning/repair LLM call for this endpoint", () => {
     expect(generateFromScratchBody).not.toMatch(/withOneRepairAttempt\(/);
   });
 
-  it("splits days into blocks run concurrently via mapWithConcurrency, with block size/concurrency and per-block timeout/token budget env-configurable, not hardcoded-only", () => {
-    expect(generateFromScratchBody).toMatch(/ITINERARY_BLOCK_SIZE/);
-    expect(generateFromScratchBody).toMatch(/ITINERARY_BLOCK_CONCURRENCY/);
-    expect(generateFromScratchBody).toMatch(/ITINERARY_BLOCK_TIMEOUT_BASE_MS/);
-    expect(generateFromScratchBody).toMatch(/ITINERARY_BLOCK_TIMEOUT_PER_DAY_MS/);
-    expect(generateFromScratchBody).toMatch(/mapWithConcurrency\(dayBlocks, BLOCK_CONCURRENCY, generateBlock\)/);
+  it("no longer chunks the trip into fixed-size day-blocks — one call covers the whole trip, with per-day fallback only for whatever that call didn't produce", () => {
+    expect(generateFromScratchBody).not.toMatch(/ITINERARY_BLOCK_SIZE/);
+    expect(generateFromScratchBody).not.toMatch(/ITINERARY_BLOCK_CONCURRENCY/);
+    expect(generateFromScratchBody).toMatch(/ITINERARY_FALLBACK_CONCURRENCY/);
+    expect(generateFromScratchBody).toMatch(/await generateBlock\(feasibleDescriptors\)/);
+    expect(generateFromScratchBody).toMatch(/mapWithConcurrency\(descriptorsNeedingFallback, FALLBACK_CONCURRENCY, \(d\) => generateBlock\(\[d\]\)\)/);
   });
 
-  it("refuses to return an itinerary with an unexpected empty day — zero stops is never treated as a successful generation, unless deterministically marked infeasible beforehand", () => {
+  it("never throws out of the mutation for a day-level failure — a block/day/place failure degrades to a warning instead of discarding the whole trip (the all-or-nothing bug this redesign replaces)", () => {
+    expect(generateFromScratchBody).not.toMatch(/throw new TRPCError/);
+  });
+
+  it("isolates a day that fails even after its per-day fallback retry as a specific warning, not a thrown error", () => {
+    expect(generateFromScratchBody).toMatch(/generationFailedDayNumbers/);
+    expect(generateFromScratchBody).toMatch(/não pôde ser gerado/);
+  });
+
+  it("gives a day that ends up with zero stops after validation exactly one targeted repair regeneration before it, too, degrades to a warning", () => {
     expect(generateFromScratchBody).toMatch(/findEmptyDays/);
-    expect(generateFromScratchBody).toMatch(/zero stops/i);
-    expect(generateFromScratchBody).toMatch(/infeasibleDayNumbers/);
+    expect(generateFromScratchBody).toMatch(/repairOutcome/);
+    expect(generateFromScratchBody).toMatch(/repairedDaysCount/);
+    expect(generateFromScratchBody).toMatch(/não pôde ser montado/);
+  });
+
+  it("substitutes a same-category real place for a stop that can't be verified, instead of only dropping it", () => {
+    expect(generateFromScratchBody).toMatch(/resolveAndVerifyStopsWithSubstitution/);
+    expect(generateFromScratchBody).toMatch(/stopsSubstituted/);
   });
 
   it("deterministically computes each day's feasible time window BEFORE calling the model, and never sends an infeasible day to the LLM", () => {
@@ -101,18 +116,13 @@ describe("per-stage telemetry — ai.generateFromScratch (day-block parallel red
     expect(generateFromScratchBody).toMatch(/não teve nenhuma parada/);
   });
 
-  it("refuses to return an itinerary missing a whole day from the model's response, naming exactly the failed block's day numbers", () => {
-    expect(generateFromScratchBody).toMatch(/missingDayNumbers/);
-    expect(generateFromScratchBody).toMatch(/failedDayNumbers/);
-  });
-
-  it("a block's own invokeLLM call passes maxRetries: 0 and does its own single manual retry instead, without crashing other blocks' results", () => {
+  it("the whole-trip/per-day/repair calls all pass maxRetries: 0 and do their own single manual retry instead, without crashing other days' results", () => {
     expect(generateFromScratchBody).toMatch(/maxRetries:\s*0/);
     expect(generateFromScratchBody).toMatch(/retrying once/i);
     expect(generateFromScratchBody).toMatch(/BlockOutcome/);
   });
 
-  it("each block call uses the minimal trip schema, not the full itinerary schema", () => {
+  it("the planning/fallback/repair calls use the minimal trip schema, not the full itinerary schema", () => {
     expect(generateFromScratchBody).toContain("buildMinimalTripSchema()");
     expect(generateFromScratchBody).not.toContain("buildItineraryDaysSchema(");
   });

@@ -829,6 +829,152 @@ export async function resolveAndVerifyStops(
   return { days: patchedDays, droppedCount, resolvedCount, hoursByPlaceId };
 }
 
+/** Google Places "type" to bias a same-category substitution search when an AI-chosen stop can't be verified as real. Approximate — good enough to keep a substitute thematically close, not an exact category mirror. */
+const SUBSTITUTION_GOOGLE_TYPE: Record<string, string> = {
+  attraction: "tourist_attraction",
+  restaurant: "restaurant",
+  cafe: "cafe",
+  museum: "museum",
+  hidden_gem: "tourist_attraction",
+  park: "park",
+  beach: "tourist_attraction",
+  market: "shopping_mall",
+  neighborhood: "tourist_attraction",
+  other: "tourist_attraction",
+};
+
+/**
+ * Finds a real, same-category replacement for a stop whose AI-proposed name
+ * could not be verified against Google Places, instead of just dropping it.
+ * Picks the top-ranked (rating × log10(reviews)) nearby candidate of a
+ * matching Google type that isn't already used elsewhere in the trip.
+ * Returns null if no suitable candidate exists — callers must still fall
+ * back to dropping the stop in that case, now with an explicit warning
+ * instead of silence.
+ */
+async function findSubstitutePlace(
+  category: string,
+  biasLat: number | undefined,
+  biasLng: number | undefined,
+  usedKeysLower: Set<string>,
+  language: string | undefined,
+): Promise<{ googlePlaceId: string; name: string; lat?: number; lng?: number; address?: string; hoursText?: string } | null> {
+  if (!GOOGLE_PLACES_KEY || biasLat == null || biasLng == null) return null;
+  const googleType = SUBSTITUTION_GOOGLE_TYPE[category] || "tourist_attraction";
+  const candidates = await nearbySearchCandidates(biasLat, biasLng, googleType, 5000, language);
+  const best = candidates
+    .filter((c) => c.businessStatus !== "CLOSED_PERMANENTLY" && c.businessStatus !== "CLOSED_TEMPORARILY")
+    .filter((c) => !usedKeysLower.has(c.placeId.toLowerCase()) && !usedKeysLower.has(c.name.toLowerCase()))
+    .sort((a, b) => (b.rating ?? 3.5) * Math.log10(b.userRatingsTotal + 1) - (a.rating ?? 3.5) * Math.log10(a.userRatingsTotal + 1))[0];
+  if (!best) return null;
+  const details = await fetchCuratedPlaceDetails(best.placeId, language);
+  if (details.lat == null || details.lng == null) return null;
+  return { googlePlaceId: best.placeId, name: best.name, lat: details.lat, lng: details.lng, address: details.address, hoursText: details.hours };
+}
+
+/**
+ * Same verification as resolveAndVerifyStops, but an AI-chosen stop that
+ * can't be matched to a real place is given one chance at a same-category
+ * substitution (findSubstitutePlace) before being dropped — losing a place
+ * no longer silently shrinks a day's plan when a credible real alternative
+ * exists nearby. A stop that fails BOTH verification and substitution is
+ * still dropped, but now with an explicit warning instead of silence (the
+ * failure-isolation redesign — see the generateFromScratch rewrite notes).
+ */
+export async function resolveAndVerifyStopsWithSubstitution(
+  days: any[],
+  opts: {
+    trustedNamesLower: Set<string>;
+    biasLat?: number;
+    biasLng?: number;
+    language?: string;
+    biasByDayNumber?: Map<number, { lat?: number; lng?: number }>;
+  },
+): Promise<{ days: any[]; droppedCount: number; resolvedCount: number; substitutedCount: number; hoursByPlaceId: Map<string, string>; warnings: string[] }> {
+  const usedKeysLower = new Set<string>();
+  for (const day of days) {
+    for (const stop of day.stops || []) {
+      if (!stop.placeName) continue;
+      if (stop.googlePlaceId) usedKeysLower.add(String(stop.googlePlaceId).toLowerCase());
+      usedKeysLower.add(String(stop.placeName).toLowerCase());
+    }
+  }
+
+  const candidateStops = days.flatMap((day) => (day.stops || []).map((stop: any) => ({ stop, day }))).filter(
+    ({ stop }) => stop.placeName && !opts.trustedNamesLower.has(String(stop.placeName).toLowerCase()),
+  );
+
+  const warnings: string[] = [];
+  const hoursByPlaceId = new Map<string, string>();
+  let droppedCount = 0;
+  let resolvedCount = 0;
+  let substitutedCount = 0;
+  const resolutions = new Map<any, { kept: boolean; placeName?: string; description?: string; googlePlaceId?: string; lat?: number; lng?: number; address?: string; hoursText?: string }>();
+
+  await mapWithConcurrency(candidateStops, STOP_RESOLUTION_CONCURRENCY, async ({ stop, day }) => {
+    const bias = opts.biasByDayNumber?.get(day.dayNumber);
+    const biasLat = bias?.lat ?? opts.biasLat;
+    const biasLng = bias?.lng ?? opts.biasLng;
+
+    const resolution = await resolveAndVerifyStop(stop.placeName, biasLat, biasLng, opts.language);
+    if (resolution.resolved) {
+      resolvedCount++;
+      if (resolution.hoursText && resolution.googlePlaceId) hoursByPlaceId.set(resolution.googlePlaceId, resolution.hoursText);
+      if (resolution.googlePlaceId) usedKeysLower.add(resolution.googlePlaceId.toLowerCase());
+      resolutions.set(stop, { kept: true, googlePlaceId: resolution.googlePlaceId, lat: resolution.lat, lng: resolution.lng, address: resolution.address, hoursText: resolution.hoursText });
+      return;
+    }
+
+    const substitute = await findSubstitutePlace(stop.placeCategory, biasLat, biasLng, usedKeysLower, opts.language);
+    if (substitute) {
+      substitutedCount++;
+      usedKeysLower.add(substitute.googlePlaceId.toLowerCase());
+      usedKeysLower.add(substitute.name.toLowerCase());
+      if (substitute.hoursText) hoursByPlaceId.set(substitute.googlePlaceId, substitute.hoursText);
+      warnings.push(`Substituted "${stop.placeName}" (could not verify as a real place) with "${substitute.name}" on day ${day.dayNumber ?? "?"}`);
+      resolutions.set(stop, {
+        kept: true,
+        googlePlaceId: substitute.googlePlaceId,
+        lat: substitute.lat,
+        lng: substitute.lng,
+        address: substitute.address,
+        hoursText: substitute.hoursText,
+        placeName: substitute.name,
+        description: genericCategoryDescription(stop.placeCategory || "other", opts.language),
+      });
+      return;
+    }
+
+    droppedCount++;
+    warnings.push(`Removed "${stop.placeName}" on day ${day.dayNumber ?? "?"} — could not verify as a real place and no suitable alternative was found nearby`);
+    resolutions.set(stop, { kept: false });
+  });
+
+  const patchedDays = days.map((day) => {
+    const stops = (day.stops || [])
+      .map((stop: any) => {
+        if (!stop.placeName) return null;
+        if (opts.trustedNamesLower.has(String(stop.placeName).toLowerCase())) return stop;
+        const outcome = resolutions.get(stop);
+        if (!outcome?.kept) return null;
+        return {
+          ...stop,
+          placeName: outcome.placeName ?? stop.placeName,
+          description: outcome.description ?? stop.description,
+          googlePlaceId: outcome.googlePlaceId,
+          lat: outcome.lat ?? stop.lat,
+          lng: outcome.lng ?? stop.lng,
+          address: outcome.address ?? stop.address,
+          hours: outcome.hoursText ?? stop.hours,
+        };
+      })
+      .filter(Boolean);
+    return { ...day, stops };
+  });
+
+  return { days: patchedDays, droppedCount, resolvedCount, substitutedCount, hoursByPlaceId, warnings };
+}
+
 /**
  * Runs deterministic geographic clustering (server/itinerary/clustering.ts)
  * independently per destination (so a multi-destination trip never mixes
@@ -2304,13 +2450,21 @@ Importante:
           candidateFetchMs: 0,
           prepStepsMs: 0,
           generationMs: 0,
-          blockTimingsMs: [] as (number | null)[],
+          planningCallMs: 0,
+          planningRetried: false,
+          planningFailedOutright: false,
+          fallbackDaysUsed: [] as number[],
+          fallbackCallsMs: [] as number[],
+          fallbackDaysFailed: [] as number[],
           retried: false,
           placeResolutionMs: 0,
           validateMs: 0,
           suggestedPlacesPhotoMs: 0,
           stopsResolved: 0,
           stopsDropped: 0,
+          stopsSubstituted: 0,
+          repairedDaysCount: 0,
+          repairedDaysFailed: [] as number[],
         };
         const warningsFromInfeasibleDays: string[] = [];
 
@@ -2487,32 +2641,31 @@ Importante:
           ? `\n- O usuário mencionou que gostaria de incluir, se possível, em algum dia da viagem: ${mustSee}.`
           : '';
 
-        // ─── Day-block parallel generation (latency redesign, replacing the
-        // single whole-trip call) ──────────────────────────────────────────
-        // A real benchmark of the single whole-trip call (this session)
-        // measured output generation at a near-constant ~40 completion-
-        // tokens/second for this schema regardless of day count (1 day:
-        // 8.18s/310 tokens; 3 days: 74.4s/3212 tokens; 5 days: 112.6s/4864
-        // tokens) — i.e. wall time scales with OUTPUT token count, which
-        // scales with day count, because every day's stops have to be
-        // described in the same response. Splitting into one call per
-        // small BLOCK of consecutive days, run concurrently, caps each
-        // call's own output size (and therefore its own wall time) to a
-        // block's worth of days instead of the whole trip's — total wall
-        // time becomes the slowest block's call, not the sum of every
-        // day's tokens. Blocks still carry the FULL list of all days as
-        // context (buildDayContextBlock for every descriptor, cheap input
-        // tokens) so each call still "sees" the whole trip for variety/
-        // coherence purposes, even though it only generates stops for its
-        // own days. Cross-block duplicates that slip through anyway are
-        // still caught by validateAndCorrectItinerary's existing dedup,
-        // which already runs once on the whole merged itinerary below.
-        const BLOCK_SIZE = Math.max(1, Number(process.env.ITINERARY_BLOCK_SIZE) || 2);
-        const BLOCK_CONCURRENCY = Math.max(1, Number(process.env.ITINERARY_BLOCK_CONCURRENCY) || 4);
-        const dayBlocks: DayDescriptor[][] = [];
-        for (let i = 0; i < feasibleDescriptors.length; i += BLOCK_SIZE) {
-          dayBlocks.push(feasibleDescriptors.slice(i, i + BLOCK_SIZE));
-        }
+        // ─── Whole-trip planning call + per-day fallback (replacing the
+        // day-block-chunking design) ───────────────────────────────────────
+        // The previous redesign split the trip into small BLOCKs of
+        // consecutive days, each its own OpenAI call, run concurrently —
+        // meant to cap each call's wall time, but it made generation
+        // all-or-nothing: if any one block failed its single retry, the
+        // ENTIRE mutation threw and discarded every other block that had
+        // already succeeded (this is the root cause of the "days 1, 2
+        // could not be created" production symptom — block [1,2] is
+        // scheduled first and, for short trips, often the only block).
+        //
+        // This redesign instead asks for the WHOLE trip in one call (one
+        // real benchmark measured ~29.4s for 5 days / ~8.2s for 1 day under
+        // this same minimal schema — see buildMinimalTripSchema — faster
+        // than block-chunking's retry-compounded worst case), and only
+        // falls back to smaller, per-day calls for whatever the whole-trip
+        // call failed to produce. A day that fails even in the fallback
+        // path becomes a `warnings[]` entry, never a thrown error — see
+        // generateDaysWithFallback below.
+        const FALLBACK_CONCURRENCY = Math.max(1, Number(process.env.ITINERARY_FALLBACK_CONCURRENCY) || 4);
+        // Per-day bias coordinates for place resolution/substitution below —
+        // each DayDescriptor already carries its destination's lat/lng.
+        const biasByDayNumber = new Map<number, { lat?: number; lng?: number }>(
+          dayDescriptors.map((d) => [d.index + 1, { lat: d.lat, lng: d.lng }]),
+        );
 
         function buildBlockPrompt(block: DayDescriptor[]): string {
           const allDayContext = dayDescriptors.map(buildDayContextBlock).join('\n');
@@ -2630,54 +2783,81 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
           }
         }
 
+        // ─── Step 1: one whole-trip planning call ──────────────────────────
+        // generateBlock/callBlock (defined above) are generic over any
+        // subset of days — calling them with EVERY feasible day at once is
+        // the new primary path. generateBlock already does its own single
+        // bounded retry internally, so a transient model/API failure is
+        // handled before we ever consider this "failed outright".
         const dayGenerationStartedAt = Date.now();
-        const blockOutcomes = dayBlocks.length > 0
-          ? await mapWithConcurrency(dayBlocks, BLOCK_CONCURRENCY, generateBlock)
-          : [];
+        const primaryOutcome = feasibleDescriptors.length > 0
+          ? await generateBlock(feasibleDescriptors)
+          : { ok: true as const, dayNumbers: [], days: [], ms: 0, retried: false, promptTokens: 0, completionTokens: 0 };
         telemetry.generationMs = Date.now() - dayGenerationStartedAt;
-        telemetry.blockTimingsMs = blockOutcomes.map((o) => (o.ok ? o.ms : null));
-        telemetry.llmCalls = blockOutcomes.reduce((sum, o) => sum + (o.retried ? 2 : 1), 0);
-        telemetry.promptTokens = blockOutcomes.reduce((sum, o) => sum + (o.ok ? o.promptTokens : 0), 0);
-        telemetry.completionTokens = blockOutcomes.reduce((sum, o) => sum + (o.ok ? o.completionTokens : 0), 0);
-        telemetry.retried = blockOutcomes.some((o) => o.retried);
-
-        // Fail loudly, never silently — a block that failed even after its
-        // own retry must never be dropped and presented as if the itinerary
-        // were complete. Naming the exact day numbers of every failed block
-        // (not a generic message) per product direction.
-        const failedBlocks = blockOutcomes.filter((o): o is Extract<BlockOutcome, { ok: false }> => !o.ok);
-        if (failedBlocks.length > 0) {
-          const failedDayNumbers = failedBlocks.flatMap((b) => b.dayNumbers).sort((a, b) => a - b);
-          console.error(`[ai.generateFromScratch] day(s) ${failedDayNumbers.join(", ")} failed to generate after one retry each.`);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: failedDayNumbers.length === 1
-              ? `Não foi possível gerar o dia ${failedDayNumbers[0]} do roteiro. Tente novamente.`
-              : `Não foi possível gerar os dias ${failedDayNumbers.join(", ")} do roteiro. Tente novamente.`,
-          });
+        telemetry.planningCallMs = primaryOutcome.ok ? primaryOutcome.ms : telemetry.generationMs;
+        telemetry.planningRetried = primaryOutcome.retried;
+        telemetry.planningFailedOutright = !primaryOutcome.ok;
+        if (feasibleDescriptors.length > 0) telemetry.llmCalls += primaryOutcome.retried ? 2 : 1;
+        if (primaryOutcome.ok) {
+          telemetry.promptTokens += primaryOutcome.promptTokens;
+          telemetry.completionTokens += primaryOutcome.completionTokens;
         }
+        telemetry.retried = primaryOutcome.retried;
 
         // Matched by dayNumber, not array position, so the backend never
-        // silently misattributes one day's stops to another if a block's
-        // array order ever drifts from what was asked.
+        // silently misattributes one day's stops to another if the
+        // response's array order ever drifts from what was asked.
         const byDayNumber = new Map<number, any>();
-        for (const outcome of blockOutcomes) {
-          if (!outcome.ok) continue;
-          for (const d of outcome.days) {
+        if (primaryOutcome.ok) {
+          for (const d of primaryOutcome.days) {
             if (typeof d?.dayNumber === "number") byDayNumber.set(d.dayNumber, d);
           }
+        } else {
+          console.warn(`[ai.generateFromScratch] whole-trip planning call failed after one retry, falling back to per-day generation: ${primaryOutcome.error}`);
         }
-        const missingDayNumbers = feasibleDescriptors
-          .map((d) => d.index + 1)
-          .filter((n) => !byDayNumber.has(n));
-        if (missingDayNumbers.length > 0) {
-          console.error(`[ai.generateFromScratch] day(s) ${missingDayNumbers.join(", ")} missing from the generated response.`);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: missingDayNumbers.length === 1
-              ? `Não foi possível gerar o dia ${missingDayNumbers[0]} do roteiro. Tente novamente.`
-              : `Não foi possível gerar ${missingDayNumbers.length} dos dias do roteiro. Tente novamente.`,
-          });
+
+        // ─── Step 2: per-day fallback for whatever the primary call didn't
+        // produce ────────────────────────────────────────────────────────
+        // Never a thrown error at this layer: a day that fails here too is
+        // recorded as a warning and left with zero stops (caught by the
+        // empty-day repair step below, which gets one more targeted try
+        // before it, too, degrades to a warning instead of a hard failure).
+        // This is what makes a single day's failure (model timeout, invalid
+        // output, etc.) stop being a whole-trip failure.
+        const descriptorsNeedingFallback = feasibleDescriptors.filter((d) => !byDayNumber.has(d.index + 1));
+        if (descriptorsNeedingFallback.length > 0) {
+          const fallbackOutcomes = await mapWithConcurrency(descriptorsNeedingFallback, FALLBACK_CONCURRENCY, (d) => generateBlock([d]));
+          for (const outcome of fallbackOutcomes) {
+            telemetry.llmCalls += outcome.retried ? 2 : 1;
+            if (outcome.ok) {
+              telemetry.promptTokens += outcome.promptTokens;
+              telemetry.completionTokens += outcome.completionTokens;
+              telemetry.fallbackCallsMs.push(outcome.ms);
+              for (const d of outcome.days) {
+                if (typeof d?.dayNumber === "number") {
+                  byDayNumber.set(d.dayNumber, d);
+                  telemetry.fallbackDaysUsed.push(d.dayNumber);
+                }
+              }
+            } else {
+              telemetry.fallbackDaysFailed.push(...outcome.dayNumbers);
+              console.error(`[ai.generateFromScratch] fallback generation for day(s) ${outcome.dayNumbers.join(", ")} also failed after one retry: ${outcome.error}`);
+            }
+          }
+        }
+
+        // Any day still missing after the primary call AND its per-day
+        // fallback is a genuine generation failure for that one day — never
+        // silently presented as complete, but also never allowed to discard
+        // every OTHER day that did succeed (the all-or-nothing bug this
+        // redesign replaces). It surfaces as a specific warning instead.
+        const generationFailedDayNumbers = new Set<number>(
+          feasibleDescriptors.map((d) => d.index + 1).filter((n) => !byDayNumber.has(n)),
+        );
+        for (const dayNumber of generationFailedDayNumbers) {
+          warningsFromInfeasibleDays.push(
+            `Dia ${dayNumber} não pôde ser gerado (falha ao gerar o roteiro desse dia mesmo após nova tentativa). Os demais dias estão completos — tente gerar esse dia novamente.`,
+          );
         }
 
         // Infeasible days (computed deterministically above, never sent to
@@ -2694,7 +2874,7 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
 
         const rawDays: any[] = dayDescriptors.map((descriptor) => {
           const dayNumber = descriptor.index + 1;
-          if (infeasibleDayNumbers.has(dayNumber)) {
+          if (infeasibleDayNumbers.has(dayNumber) || generationFailedDayNumbers.has(dayNumber)) {
             return {
               date: descriptor.date,
               destination: descriptor.destinationName,
@@ -2720,57 +2900,67 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
         });
 
         // Post-generation grounding: verify every AI-chosen stop against
-        // real Google Places data (resolveAndVerifyStops above) instead of
-        // checking it against a pre-fetched candidate list — this
-        // endpoint's "direct generation" replacement for
+        // real Google Places data (resolveAndVerifyStopsWithSubstitution
+        // above) instead of checking it against a pre-fetched candidate
+        // list — this endpoint's "direct generation" replacement for
         // server/itinerary/guard.ts's filterHallucinatedStops (still used,
         // unchanged, by ai.generateItinerary). A stop that can't be
-        // verified as a real place is dropped rather than trusted on the
-        // model's word; user-selected/must-see stops are passed through
-        // untouched (already trusted). Runs on the MERGED, whole-trip array
-        // so verification concurrency isn't needlessly limited per-day.
+        // verified as a real place gets one same-category substitution
+        // attempt before being dropped (per-place failure isolation — see
+        // resolveAndVerifyStopsWithSubstitution); user-selected/must-see
+        // stops are passed through untouched (already trusted). Runs on the
+        // MERGED, whole-trip array so verification concurrency isn't
+        // needlessly limited per-day.
         const placeResolutionStartedAt = Date.now();
-        const { days: patchedDays, droppedCount: droppedUnverifiedStops, resolvedCount, hoursByPlaceId } = await resolveAndVerifyStops(rawDays, {
+        const { days: patchedDays, droppedCount: droppedUnverifiedStops, resolvedCount, substitutedCount, hoursByPlaceId, warnings: resolutionWarnings } = await resolveAndVerifyStopsWithSubstitution(rawDays, {
           trustedNamesLower,
           biasLat: destCenter?.lat,
           biasLng: destCenter?.lng,
+          biasByDayNumber,
           language: input.language,
         });
         telemetry.placeResolutionMs = Date.now() - placeResolutionStartedAt;
         telemetry.stopsResolved = resolvedCount;
         telemetry.stopsDropped = droppedUnverifiedStops;
+        telemetry.stopsSubstituted = substitutedCount;
         if (droppedUnverifiedStops > 0) {
-          console.warn(`[ai.generateFromScratch] dropped ${droppedUnverifiedStops} stop(s) that could not be verified against real Google Places data`);
+          console.warn(`[ai.generateFromScratch] dropped ${droppedUnverifiedStops} stop(s) that could not be verified against real Google Places data or substituted`);
         }
 
-        // Deterministic validate → correct pass, run ONCE on the whole
-        // merged itinerary (not per day) — this is what catches
-        // cross-day issues a per-day call can't see on its own: duplicate
-        // stops across different days, must-visit places that still didn't
-        // fit anywhere, missing meals, and real Google Routes travel times.
-        // No LLM "repair" call here (unlike ai.generateItinerary, which
-        // still has withOneRepairAttempt): a global planning call wasn't
-        // shown to be necessary or fast for this redesign (see the
-        // optimization session notes), so any conflict the deterministic
-        // layer can't fix on its own surfaces in `warnings` instead.
+        // Deterministic validate → correct pass, run on the whole merged
+        // itinerary (not per day) — this is what catches cross-day issues a
+        // per-day call can't see on its own: duplicate stops across
+        // different days, must-visit places that still didn't fit
+        // anywhere, missing meals, and real Google Routes travel times. No
+        // LLM "repair" call here (unlike ai.generateItinerary, which still
+        // has withOneRepairAttempt): a global planning call wasn't shown to
+        // be necessary or fast for this redesign, so any conflict the
+        // deterministic layer can't fix on its own surfaces in `warnings`
+        // instead — EXCEPT a day left with zero stops, which gets one
+        // targeted regeneration attempt below before IT, too, degrades to
+        // a warning (see the empty-day repair step right after).
+        function buildValidateCtx(hoursMap: Map<string, string>) {
+          return {
+            wakeUpTime, bedtime, arrivalTime, departureTime,
+            isFirstDay: (i: number) => i === 0,
+            isLastDay: (i: number) => i === totalDays - 1,
+            avoidText: profile.avoidPlaces,
+            mustVisit,
+            requireLunch: profile.mealPreferences?.lunch !== 'none',
+            requireDinner: profile.mealPreferences?.dinner !== 'none',
+            lunchMode: profile.mealPreferences?.lunch,
+            dinnerMode: profile.mealPreferences?.dinner,
+            hoursByPlaceId: hoursMap,
+            fillerRestaurants,
+            pace: profile.pace,
+            fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
+            accommodation,
+            language: input.language,
+          };
+        }
         const validateStartedAt = Date.now();
-        const { days: correctedDays, warnings } = await validateAndCorrectItinerary(patchedDays, {
-          wakeUpTime, bedtime, arrivalTime, departureTime,
-          isFirstDay: (i) => i === 0,
-          isLastDay: (i) => i === totalDays - 1,
-          avoidText: profile.avoidPlaces,
-          mustVisit,
-          requireLunch: profile.mealPreferences?.lunch !== 'none',
-          requireDinner: profile.mealPreferences?.dinner !== 'none',
-          lunchMode: profile.mealPreferences?.lunch,
-          dinnerMode: profile.mealPreferences?.dinner,
-          hoursByPlaceId,
-          fillerRestaurants,
-          pace: profile.pace,
-          fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
-          accommodation,
-          language: input.language,
-        });
+        let { days: correctedDays, warnings } = await validateAndCorrectItinerary(patchedDays, buildValidateCtx(hoursByPlaceId));
+        warnings = [...resolutionWarnings, ...warnings];
         telemetry.validateMs = Date.now() - validateStartedAt;
 
         // A day with zero stops is never a successful generation, even
@@ -2779,26 +2969,86 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
         // every candidate stop got shifted/removed for not fitting the
         // arrival/departure/wake/bed buffers) and still return normally,
         // because "zero stops left" isn't a condition it treats as fatal on
-        // its own. Catching it here (findEmptyDays, server/itinerary/validate.ts)
-        // is what stops that from being presented to the user as a complete,
-        // successful itinerary.
-        // Days deterministically marked infeasible BEFORE generation (see
-        // computeDayWindowMinutes above) are excluded here — they already
-        // have their own explicit warning (warningsFromInfeasibleDays) and
-        // must never crash the whole trip's generation just for genuinely
-        // having zero available minutes. Any OTHER zero-stop day (model
-        // failure, validation removing everything unexpectedly) still
-        // fails loudly below, unchanged.
-        const emptyDayNumbersList = findEmptyDays(correctedDays).filter((n) => !infeasibleDayNumbers.has(n));
+        // its own. Days deterministically marked infeasible BEFORE
+        // generation, or already explicitly warned about as a generation
+        // failure above, are excluded here — they already have their own
+        // explicit warning and must never be treated as a NEW failure.
+        //
+        // Any OTHER zero-stop day gets exactly ONE targeted regeneration
+        // attempt for that single day (never a whole-trip retry) before it,
+        // too, degrades to a warning instead of a thrown error — this is
+        // the per-day failure isolation this redesign exists to add: one
+        // day failing to assemble a valid schedule no longer discards every
+        // other day that already succeeded (the root cause of the original
+        // "days 1, 2 could not be created" production symptom).
+        let emptyDayNumbersList = findEmptyDays(correctedDays).filter(
+          (n) => !infeasibleDayNumbers.has(n) && !generationFailedDayNumbers.has(n),
+        );
         if (emptyDayNumbersList.length > 0) {
-          const emptyDayNumbers = emptyDayNumbersList.join(", ");
-          console.error(`[ai.generateFromScratch] day(s) ${emptyDayNumbers} ended up with zero stops after validation — refusing to return an incomplete itinerary as if it were complete.`);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: emptyDayNumbersList.length === 1
-              ? `Não foi possível montar o dia ${emptyDayNumbers} do roteiro (nenhuma parada coube nas restrições de horário). Tente novamente ou ajuste os horários informados.`
-              : `Não foi possível montar os dias ${emptyDayNumbers} do roteiro (nenhuma parada coube nas restrições de horário). Tente novamente ou ajuste os horários informados.`,
-          });
+          for (const dayNumber of emptyDayNumbersList) {
+            const descriptor = dayDescriptors[dayNumber - 1];
+            const dayIdx = correctedDays.findIndex((d: any) => d.dayNumber === dayNumber);
+            if (!descriptor || dayIdx === -1) continue;
+
+            const repairOutcome = await generateBlock([descriptor]);
+            telemetry.llmCalls += repairOutcome.retried ? 2 : 1;
+            if (!repairOutcome.ok) {
+              telemetry.repairedDaysFailed.push(dayNumber);
+              console.error(`[ai.generateFromScratch] day ${dayNumber} ended up empty after validation and its repair regeneration also failed: ${repairOutcome.error}`);
+              continue;
+            }
+            const repairedRaw = repairOutcome.days.find((d: any) => d.dayNumber === dayNumber) ?? repairOutcome.days[0];
+            if (!repairedRaw) {
+              telemetry.repairedDaysFailed.push(dayNumber);
+              continue;
+            }
+
+            const singleDayInput = [{
+              date: correctedDays[dayIdx].date,
+              destination: correctedDays[dayIdx].destination,
+              dayNumber,
+              title: repairedRaw.title ?? null,
+              tip: repairedRaw.tip ?? null,
+              estimatedCost: repairedRaw.estimatedCost ?? null,
+              estimatedCostCurrency: repairedRaw.estimatedCostCurrency ?? null,
+              stops: Array.isArray(repairedRaw.stops) ? repairedRaw.stops : [],
+            }];
+            const { days: resolvedSingleDay, substitutedCount: repairSubstituted, hoursByPlaceId: repairHours, warnings: repairResolutionWarnings } = await resolveAndVerifyStopsWithSubstitution(singleDayInput, {
+              trustedNamesLower,
+              biasLat: destCenter?.lat,
+              biasLng: destCenter?.lng,
+              biasByDayNumber,
+              language: input.language,
+            });
+            telemetry.stopsSubstituted += repairSubstituted;
+            for (const [k, v] of repairHours) hoursByPlaceId.set(k, v);
+            warnings.push(...repairResolutionWarnings);
+            correctedDays[dayIdx] = resolvedSingleDay[0];
+            telemetry.repairedDaysCount++;
+          }
+
+          // Re-run the deterministic validator once more over the WHOLE
+          // merged itinerary — cheap and safe to call twice (it only ever
+          // reorders/shifts/drops/inserts stops from data already in hand)
+          // — so the repaired day's stops get the same dedup/meal/opening-
+          // hours/travel-time treatment as every other day, instead of
+          // being spliced in raw.
+          const revalidated = await validateAndCorrectItinerary(correctedDays, buildValidateCtx(hoursByPlaceId));
+          correctedDays = revalidated.days;
+          warnings = [...warnings, ...revalidated.warnings];
+          emptyDayNumbersList = findEmptyDays(correctedDays).filter(
+            (n) => !infeasibleDayNumbers.has(n) && !generationFailedDayNumbers.has(n),
+          );
+        }
+
+        // Any day still empty after that one repair attempt is a genuine,
+        // isolated failure for that single day — reported as a specific
+        // warning, never a thrown error that would discard every other
+        // day's successfully-assembled schedule.
+        for (const dayNumber of emptyDayNumbersList) {
+          warningsFromInfeasibleDays.push(
+            `Dia ${dayNumber} não pôde ser montado (nenhuma parada coube nas restrições de horário, mesmo após uma nova tentativa). Os demais dias estão completos — tente ajustar os horários informados ou gerar esse dia novamente.`,
+          );
         }
 
         // Build placesByKey exclusively from correctedDays — the itinerary
@@ -2840,34 +3090,54 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
         // Fetch a real photo for each unique place, reusing the same landscape /
         // highest-resolution curation as ai.suggestPlaces. Places backed by a
         // real candidate already have a verified place_id; only the (rare)
-        // fallback places need the name-based lookup.
+        // fallback places need the name-based lookup. Bounded concurrency
+        // (mapWithConcurrency) instead of an unbounded Promise.all — for a
+        // long, dense itinerary (e.g. a 5-day "intenso" trip, ~40 unique
+        // places) firing every photo lookup at once was a classic N+1
+        // fan-out that could itself contend for Google API rate limits and
+        // added unnecessary tail latency to the response.
+        const SUGGESTED_PLACES_PHOTO_CONCURRENCY = Math.max(1, Number(process.env.ITINERARY_PHOTO_CONCURRENCY) || 8);
         const suggestedPlacesPhotoStartedAt = Date.now();
-        const suggestedPlaces = await Promise.all(
-          Array.from(placesByKey.values()).map(async (place) => {
+        const suggestedPlaces = await mapWithConcurrency(
+          Array.from(placesByKey.values()),
+          SUGGESTED_PLACES_PHOTO_CONCURRENCY,
+          async (place) => {
             let imageUrl: string | undefined;
             if (GOOGLE_PLACES_KEY) {
               const placeId = place.googlePlaceId ?? await resolvePlaceIdByName(place.name, place.lat, place.lng, input.language);
               if (placeId) imageUrl = (await fetchCuratedPlaceDetails(placeId, input.language)).imageUrl;
             }
             return { ...place, imageUrl };
-          })
+          },
         );
         telemetry.suggestedPlacesPhotoMs = Date.now() - suggestedPlacesPhotoStartedAt;
 
         const totalMs = Date.now() - generationStartedAt;
         console.log(
-          `[ai.generateFromScratch] telemetry: totalMs=${totalMs} totalDays=${totalDays} llmCalls=${telemetry.llmCalls} retried=${telemetry.retried} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} stopsResolved=${telemetry.stopsResolved} stopsDropped=${telemetry.stopsDropped} fallbackRestaurantPool=${fallbackRestaurantPool.length} unresolvedWarnings=${warnings.length}`,
+          `[ai.generateFromScratch] telemetry: totalMs=${totalMs} totalDays=${totalDays} llmCalls=${telemetry.llmCalls} planningRetried=${telemetry.planningRetried} planningFailedOutright=${telemetry.planningFailedOutright} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} stopsResolved=${telemetry.stopsResolved} stopsSubstituted=${telemetry.stopsSubstituted} stopsDropped=${telemetry.stopsDropped} fallbackDaysUsed=${JSON.stringify(telemetry.fallbackDaysUsed)} fallbackDaysFailed=${JSON.stringify(telemetry.fallbackDaysFailed)} repairedDaysCount=${telemetry.repairedDaysCount} repairedDaysFailed=${JSON.stringify(telemetry.repairedDaysFailed)} fallbackRestaurantPool=${fallbackRestaurantPool.length} unresolvedWarnings=${warnings.length}`,
         );
         console.log(
           `[ai.generateFromScratch] timings: ${JSON.stringify({
             candidateFetchMs: telemetry.candidateFetchMs,
             prepStepsMs: telemetry.prepStepsMs,
             generationMs: telemetry.generationMs,
-            blockTimingsMs: telemetry.blockTimingsMs,
+            planningCallMs: telemetry.planningCallMs,
+            fallbackCallsMs: telemetry.fallbackCallsMs,
             placeResolutionMs: telemetry.placeResolutionMs,
             validateMs: telemetry.validateMs,
             suggestedPlacesPhotoMs: telemetry.suggestedPlacesPhotoMs,
             totalMs,
+            // Per-stage share of totalMs, rounded to whole percent, so the
+            // dominant stage is visible at a glance without doing the
+            // arithmetic by hand from the raw ms figures above.
+            stageSharePct: totalMs > 0 ? {
+              candidateFetch: Math.round((telemetry.candidateFetchMs / totalMs) * 100),
+              prepSteps: Math.round((telemetry.prepStepsMs / totalMs) * 100),
+              generation: Math.round((telemetry.generationMs / totalMs) * 100),
+              placeResolution: Math.round((telemetry.placeResolutionMs / totalMs) * 100),
+              validate: Math.round((telemetry.validateMs / totalMs) * 100),
+              suggestedPlacesPhoto: Math.round((telemetry.suggestedPlacesPhotoMs / totalMs) * 100),
+            } : null,
           })}`,
         );
 
