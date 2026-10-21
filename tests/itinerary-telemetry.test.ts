@@ -52,9 +52,9 @@ describe("per-stage telemetry — ai.generateItinerary", () => {
   });
 });
 
-describe("per-stage telemetry — ai.generateFromScratch (parallel-by-day redesign)", () => {
-  it("declares a timing field for every requested stage, including the per-day generation and photo-resolution steps unique to this endpoint", () => {
-    for (const field of ["candidateFetchMs", "prepStepsMs", "dayGenerationMs", "dayTimingsMs", "placeResolutionMs", "validateMs", "suggestedPlacesPhotoMs"]) {
+describe("per-stage telemetry — ai.generateFromScratch (day-block parallel redesign)", () => {
+  it("declares a timing field for every requested stage, including the block generation batch and photo-resolution steps unique to this endpoint", () => {
+    for (const field of ["candidateFetchMs", "prepStepsMs", "generationMs", "blockTimingsMs", "placeResolutionMs", "validateMs", "suggestedPlacesPhotoMs"]) {
       expect(generateFromScratchBody).toContain(field);
     }
   });
@@ -67,7 +67,7 @@ describe("per-stage telemetry — ai.generateFromScratch (parallel-by-day redesi
     expect(timingsLogIdx).toBeGreaterThan(photoResolutionIdx);
   });
 
-  it("has exactly one invokeLLM call SITE (inside generateSingleDay, invoked once per day at runtime via mapWithConcurrency) and exactly one validateAndCorrectItinerary call site, run once on the whole merged itinerary", () => {
+  it("has exactly one invokeLLM call SITE (inside callBlock, invoked once per day-block via mapWithConcurrency) and exactly one validateAndCorrectItinerary call site, run once on the whole merged itinerary", () => {
     expect((generateFromScratchBody.match(/await invokeLLM\(/g) || []).length).toBe(1);
     expect((generateFromScratchBody.match(/await validateAndCorrectItinerary\(/g) || []).length).toBe(1);
   });
@@ -76,23 +76,44 @@ describe("per-stage telemetry — ai.generateFromScratch (parallel-by-day redesi
     expect(generateFromScratchBody).not.toMatch(/withOneRepairAttempt\(/);
   });
 
-  it("day-generation concurrency and timeout are configurable via env, not hardcoded-only (investigation finding: the earlier 30000ms value was too low for the real per-day prompt, confirmed by an isolated benchmark — not a concurrency/rate-limit bug)", () => {
-    expect(generateFromScratchBody).toMatch(/ITINERARY_DAY_GENERATION_CONCURRENCY/);
-    expect(generateFromScratchBody).toMatch(/ITINERARY_DAY_GENERATION_TIMEOUT_MS/);
+  it("splits days into blocks run concurrently via mapWithConcurrency, with block size/concurrency and per-block timeout/token budget env-configurable, not hardcoded-only", () => {
+    expect(generateFromScratchBody).toMatch(/ITINERARY_BLOCK_SIZE/);
+    expect(generateFromScratchBody).toMatch(/ITINERARY_BLOCK_CONCURRENCY/);
+    expect(generateFromScratchBody).toMatch(/ITINERARY_BLOCK_TIMEOUT_BASE_MS/);
+    expect(generateFromScratchBody).toMatch(/ITINERARY_BLOCK_TIMEOUT_PER_DAY_MS/);
+    expect(generateFromScratchBody).toMatch(/mapWithConcurrency\(dayBlocks, BLOCK_CONCURRENCY, generateBlock\)/);
   });
 
-  it("refuses to return an itinerary with an empty day — zero stops is never treated as a successful generation", () => {
+  it("refuses to return an itinerary with an unexpected empty day — zero stops is never treated as a successful generation, unless deterministically marked infeasible beforehand", () => {
     expect(generateFromScratchBody).toMatch(/findEmptyDays/);
     expect(generateFromScratchBody).toMatch(/zero stops/i);
+    expect(generateFromScratchBody).toMatch(/infeasibleDayNumbers/);
   });
 
-  it("passes maxRetries: 0 to each day's invokeLLM call and does its own single manual retry instead", () => {
+  it("deterministically computes each day's feasible time window BEFORE calling the model, and never sends an infeasible day to the LLM", () => {
+    expect(generateFromScratchBody).toMatch(/computeDayWindowMinutes/);
+    expect(generateFromScratchBody).toMatch(/MIN_FEASIBLE_WINDOW_MINUTES/);
+    expect(generateFromScratchBody).toMatch(/feasibleDescriptors/);
+  });
+
+  it("surfaces an explicit plain-language warning for a day with no feasible time window, instead of a silent empty day or a hard failure", () => {
+    expect(generateFromScratchBody).toMatch(/warningsFromInfeasibleDays/);
+    expect(generateFromScratchBody).toMatch(/não teve nenhuma parada/);
+  });
+
+  it("refuses to return an itinerary missing a whole day from the model's response, naming exactly the failed block's day numbers", () => {
+    expect(generateFromScratchBody).toMatch(/missingDayNumbers/);
+    expect(generateFromScratchBody).toMatch(/failedDayNumbers/);
+  });
+
+  it("a block's own invokeLLM call passes maxRetries: 0 and does its own single manual retry instead, without crashing other blocks' results", () => {
     expect(generateFromScratchBody).toMatch(/maxRetries:\s*0/);
     expect(generateFromScratchBody).toMatch(/retrying once/i);
+    expect(generateFromScratchBody).toMatch(/BlockOutcome/);
   });
 
-  it("a day call uses the minimal per-day schema, not the full itinerary schema", () => {
-    expect(generateFromScratchBody).toContain("buildMinimalDaySchema()");
+  it("each block call uses the minimal trip schema, not the full itinerary schema", () => {
+    expect(generateFromScratchBody).toContain("buildMinimalTripSchema()");
     expect(generateFromScratchBody).not.toContain("buildItineraryDaysSchema(");
   });
 });

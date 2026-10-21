@@ -11,7 +11,7 @@ import { getSupabaseAdmin } from "./_core/supabaseAdmin";
 import { prepareCandidatePool } from "./itinerary/candidates";
 import { buildDurationGuidancePromptBlock } from "./itinerary/duration";
 import { validateAndCorrectItinerary, findEmptyDays, type MustVisitPlace, type FillerRestaurantCandidate } from "./itinerary/validate";
-import { buildItineraryDaysSchema, buildMinimalDaySchema } from "./itinerary/schema";
+import { buildItineraryDaysSchema, buildMinimalDaySchema, buildMinimalTripSchema } from "./itinerary/schema";
 import { buildDayDescriptors, assignMustVisitToDays, type DayDescriptor, type AssignableMustVisit } from "./itinerary/day-descriptors";
 import { withOneRepairAttempt } from "./itinerary/repair";
 import { runIndependentPreparationSteps } from "./itinerary/prepare";
@@ -2293,10 +2293,8 @@ Importante:
         const { totalDays, destinations, cityTransportMode, selectedPlaces, profile, accommodation } = input;
         const startDate = normalizeToDateOnlyString(input.startDate);
         const generationStartedAt = Date.now();
-        // Per-stage wall-clock breakdown for the parallel-by-day redesign:
-        // dayGenerationMs is the WALL-CLOCK time of the whole parallel
-        // batch (not a sum of each call — those overlap), dayTimingsMs is
-        // each individual day call's own duration for per-day comparison.
+        // Per-stage wall-clock breakdown for the single-call redesign:
+        // generationMs is the one whole-trip planning call's own duration.
         // placeResolutionMs/suggestedPlacesPhotoMs are specific to this
         // endpoint (ai.generateItinerary doesn't have either).
         const telemetry = {
@@ -2305,14 +2303,16 @@ Importante:
           completionTokens: 0,
           candidateFetchMs: 0,
           prepStepsMs: 0,
-          dayGenerationMs: 0,
-          dayTimingsMs: [] as (number | null)[],
+          generationMs: 0,
+          blockTimingsMs: [] as (number | null)[],
+          retried: false,
           placeResolutionMs: 0,
           validateMs: 0,
           suggestedPlacesPhotoMs: 0,
           stopsResolved: 0,
           stopsDropped: 0,
         };
+        const warningsFromInfeasibleDays: string[] = [];
 
         const destSummary = destinations
           .map((d) => `${d.name} (${d.country || ""}) — ${d.days} dias`)
@@ -2378,19 +2378,33 @@ Importante:
         const hotelBlock = buildHotelPromptBlock(accommodation);
         const mealBlock = buildMealPreferencesBlock(profile.mealPreferences, {});
 
-        // ─── Parallel-by-day generation (itinerary-engine speed/quality redesign) ──
-        // Replaces the single monolithic call for the WHOLE trip (which a
-        // real isolated benchmark measured at ~81.5s for a 5-day itinerary
-        // under the full schema — see the optimization session notes) with
-        // one small call PER DAY, run concurrently. Each day call uses
-        // buildMinimalDaySchema() (server/itinerary/schema.ts): only time/
-        // placeName/placeCategory/description per stop — everything the
-        // backend can verify/compute itself (googlePlaceId, hours, address,
-        // lat/lng, travel time/mode) is left out of the LLM call entirely,
-        // not just "instructed to leave null" (the same real benchmark
-        // showed dropping those fields from the SCHEMA, not just the prompt
-        // text, is what actually cuts output tokens/latency — leaving a
-        // nullable field in the schema still costs its key+brackets).
+        // ─── Single whole-trip planning call (itinerary-engine redesign) ──────────
+        // Replaces BOTH earlier approaches: the original single monolithic
+        // call under the FULL schema (~81.5s for 5 days — see the
+        // optimization session notes) and the parallel-by-day calls that
+        // briefly replaced it (one small call per day, run concurrently).
+        // The per-day approach cut latency per call but gave the model zero
+        // visibility into any day but its own — real end-to-end testing
+        // (Barcelona, 1/3/5 days) measured ~42-55s total once post-hoc
+        // dedup/resolution/validation were included, i.e. SLOWER overall
+        // than this single call under the same reduced per-stop schema
+        // (~29.4s for 5 days, measured earlier), while also producing worse
+        // itineraries: a per-day call can only avoid repeating a restaurant/
+        // attraction it personally generated, so cross-day repeats and lack
+        // of restaurant variety had to be caught after the fact by
+        // validateAndCorrectItinerary's dedup step — which can only DROP a
+        // repeat, never pick a better alternative in its place.
+        //
+        // This call instead asks the model to plan every day of the trip at
+        // once, so it has the full itinerary in view while choosing and can
+        // genuinely vary cuisine/attraction type across days and keep
+        // geographic continuity between consecutive days on its own. It
+        // still uses the same minimal per-stop schema as before (time/
+        // placeName/placeCategory/description only — everything the backend
+        // can verify/compute itself afterward — googlePlaceId, hours,
+        // address, lat/lng, travel time/mode — is left out of the schema
+        // entirely, not just "instructed to leave null": a nullable field
+        // still costs its key+brackets in output tokens).
         const selectedPlacesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
         const mustSeeNamesLower = new Set([resolvedMustSee?.name.toLowerCase()].filter(Boolean) as string[]);
         const trustedNamesLower = new Set<string>([...selectedPlacesLower, ...mustSeeNamesLower]);
@@ -2410,18 +2424,102 @@ Importante:
         ];
         const mustVisitByDay = assignMustVisitToDays(dayDescriptors, assignableMustVisit);
 
-        function buildDayPrompt(descriptor: DayDescriptor): string {
+        // Per-day context block — date, destination, arrival/departure/
+        // wake/bed rules, and any must-visit place assigned to that specific
+        // day — folded into every block prompt below (see the block-split
+        // redesign note before generateBlock) so every call still sees the
+        // WHOLE trip's context even though it only generates stops for its
+        // own block's days.
+        function buildDayContextBlock(descriptor: DayDescriptor): string {
           const assigned = mustVisitByDay.get(descriptor.index) ?? [];
           const assignedBlock = assigned.length > 0
-            ? `\nLugar(es) OBRIGATÓRIO(S) neste dia específico: ${assigned.map((m) => `${m.name}${m.address ? ` (${m.address})` : ''}${m.lat && m.lng ? `, coordenadas: ${m.lat},${m.lng}` : ''}`).join('; ')}. Inclua-os, respeitando horário de funcionamento e tempo disponível.`
+            ? ` Lugar(es) OBRIGATÓRIO(S) neste dia: ${assigned.map((m) => `${m.name}${m.address ? ` (${m.address})` : ''}${m.lat && m.lng ? `, coordenadas: ${m.lat},${m.lng}` : ''}`).join('; ')}.`
             : '';
-          const mustSeeHint = mustSee && assigned.length === 0
-            ? `\n- O usuário mencionou que gostaria de incluir, se possível, em algum dia da viagem: ${mustSee}.`
-            : '';
+          // Independent conditions (never an if/else chain) — a single-day
+          // trip is BOTH the arrival and departure day at once, and must get
+          // BOTH rules, not just whichever one a chain happened to check
+          // first (a real bug caught via an isolated live benchmark of this
+          // exact function: a 1-day trip, first+last simultaneously, got
+          // told only the arrival rule and never the "leave 2h before
+          // departure" bound, measurably different from how the original
+          // per-day prompt builder stated both independently).
+          const arrivalRule = descriptor.isFirstDay
+            ? `Dia de CHEGADA: a primeira parada deve começar depois de ${arrivalTime}, com folga de pelo menos 1h30 para deslocamento e check-in.`
+            : `Primeira parada depois de acordar (${wakeUpTime}).`;
+          const departureRule = descriptor.isLastDay
+            ? `Dia de PARTIDA: a última parada deve terminar com pelo menos 2h de folga antes de ${departureTime}.`
+            : `Última parada antes de dormir (${bedtime}).`;
+          const scheduleRule = `${arrivalRule} ${departureRule}`;
+          return `Dia ${descriptor.index + 1} (dayNumber=${descriptor.index + 1}) — ${descriptor.date}, ${descriptor.destinationName}${descriptor.destinationCountry ? `, ${descriptor.destinationCountry}` : ''}. ${scheduleRule}${assignedBlock}`;
+        }
 
-          return `Planeje APENAS UM DIA de uma viagem de ${totalDays} dia(s) no total — este é o dia ${descriptor.index + 1} de ${totalDays}, em ${descriptor.destinationName}${descriptor.destinationCountry ? `, ${descriptor.destinationCountry}` : ''}. Data: ${descriptor.date}.
+        // Deterministic, pre-LLM feasibility check for each day's own
+        // schedule window — minutes between the earliest a stop can start
+        // and the latest one can end, from arrival/wake-up/bedtime/
+        // departure alone. A 1-day trip is both the arrival AND departure
+        // day at once (same bug class fixed in buildDayContextBlock above):
+        // arriving 15:00 (+1h30 buffer = 16:30 earliest start) with a
+        // departure of 18:00 (-2h buffer = 16:00 latest end) is a NEGATIVE
+        // window, confirmed for real in this session's own benchmark (the
+        // model correctly returned zero stops for exactly this case). That
+        // case must never reach the model at all, and must never crash the
+        // whole trip's generation the way a model/validation failure does
+        // — it's an expected, explainable outcome, not an error.
+        function parseHHMM(value: string): number {
+          const [h, m] = value.split(":").map((n) => parseInt(n, 10));
+          return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+        }
+        function computeDayWindowMinutes(descriptor: DayDescriptor): number {
+          const start = descriptor.isFirstDay ? parseHHMM(arrivalTime) + 90 : parseHHMM(wakeUpTime);
+          const end = descriptor.isLastDay ? parseHHMM(departureTime) - 120 : parseHHMM(bedtime);
+          return end - start;
+        }
+        const MIN_FEASIBLE_WINDOW_MINUTES = 30;
+        const infeasibleDayNumbers = new Set<number>();
+        for (const descriptor of dayDescriptors) {
+          if (computeDayWindowMinutes(descriptor) < MIN_FEASIBLE_WINDOW_MINUTES) {
+            infeasibleDayNumbers.add(descriptor.index + 1);
+          }
+        }
+        const feasibleDescriptors = dayDescriptors.filter((d) => !infeasibleDayNumbers.has(d.index + 1));
+
+        const mustSeeHint = mustSee
+          ? `\n- O usuário mencionou que gostaria de incluir, se possível, em algum dia da viagem: ${mustSee}.`
+          : '';
+
+        // ─── Day-block parallel generation (latency redesign, replacing the
+        // single whole-trip call) ──────────────────────────────────────────
+        // A real benchmark of the single whole-trip call (this session)
+        // measured output generation at a near-constant ~40 completion-
+        // tokens/second for this schema regardless of day count (1 day:
+        // 8.18s/310 tokens; 3 days: 74.4s/3212 tokens; 5 days: 112.6s/4864
+        // tokens) — i.e. wall time scales with OUTPUT token count, which
+        // scales with day count, because every day's stops have to be
+        // described in the same response. Splitting into one call per
+        // small BLOCK of consecutive days, run concurrently, caps each
+        // call's own output size (and therefore its own wall time) to a
+        // block's worth of days instead of the whole trip's — total wall
+        // time becomes the slowest block's call, not the sum of every
+        // day's tokens. Blocks still carry the FULL list of all days as
+        // context (buildDayContextBlock for every descriptor, cheap input
+        // tokens) so each call still "sees" the whole trip for variety/
+        // coherence purposes, even though it only generates stops for its
+        // own days. Cross-block duplicates that slip through anyway are
+        // still caught by validateAndCorrectItinerary's existing dedup,
+        // which already runs once on the whole merged itinerary below.
+        const BLOCK_SIZE = Math.max(1, Number(process.env.ITINERARY_BLOCK_SIZE) || 2);
+        const BLOCK_CONCURRENCY = Math.max(1, Number(process.env.ITINERARY_BLOCK_CONCURRENCY) || 4);
+        const dayBlocks: DayDescriptor[][] = [];
+        for (let i = 0; i < feasibleDescriptors.length; i += BLOCK_SIZE) {
+          dayBlocks.push(feasibleDescriptors.slice(i, i + BLOCK_SIZE));
+        }
+
+        function buildBlockPrompt(block: DayDescriptor[]): string {
+          const allDayContext = dayDescriptors.map(buildDayContextBlock).join('\n');
+          const blockDayNumbers = block.map((d) => d.index + 1);
+          return `Planeje uma viagem completa de ${totalDays} dia(s): ${destSummary}.
 ${HARD_SOFT_FRAMING_BLOCK}
-${assignedBlock}${weatherBlock}
+${weatherBlock}
 ${hotelBlock}
 
 ${DIRECT_GENERATION_GROUNDING_BLOCK}
@@ -2430,131 +2528,194 @@ Perfil do viajante:
 - Estilo: ${profile.travelStyle.join(", ")}
 - Orçamento para atrações: ${attractionsBudget}
 - Orçamento para restaurantes: ${restaurantsBudget}
-- Ritmo: ${profile.pace} (${paceStops} paradas de ATRAÇÕES/PASSEIOS neste dia — café da manhã, almoço e jantar são ADICIONAIS a esse número, não descontados dele)
+- Ritmo: ${profile.pace} (${paceStops} paradas de ATRAÇÕES/PASSEIOS por dia — café da manhã, almoço e jantar são ADICIONAIS a esse número, não descontados dele)
 - Tipo de viagem: ${profile.travelProfile}
 ${profile.interests ? `- Interesses específicos do viajante: ${profile.interests}. Trate isso como um sinal FORTE de seleção — escolha lugares reais que genuinamente combinem com esses interesses em vez de simplesmente mencioná-los na descrição de lugares genéricos.` : ""}${transportHint}${mealBlock}
 ${profile.tripPurpose ? `- Motivo da viagem: ${profile.tripPurpose}. Leve isso em conta na escolha de lugares e no tom das descrições.` : ""}${mustSeeHint}
 ${profile.avoidPlaces ? `- O usuário pediu para EVITAR: ${profile.avoidPlaces}. NUNCA inclua lugares desse tipo, mesmo que populares ou bem avaliados.` : ""}
 
-Coerência entre os dias da viagem: este é só UM dia dentro de uma viagem maior — evite repetir os pontos turísticos mais óbvios que já poderiam aparecer em outro dia, e distribua variedade de tipos de lugar ao longo da viagem como um todo.
-
-Regras de horário para este dia:
-${descriptor.isFirstDay ? `- Este é o dia de CHEGADA: a primeira parada deve começar depois de ${arrivalTime}, com folga de pelo menos 1h30 para deslocamento e check-in.` : `- A primeira parada deve começar depois do horário de acordar (${wakeUpTime}), com 30 a 60 minutos para o café da manhã.`}
-${descriptor.isLastDay ? `- Este é o dia de PARTIDA: a última parada deve terminar com pelo menos 2h de folga antes de ${departureTime}, para dar tempo de chegar ao aeroporto/estação.` : `- A última parada deve terminar antes do horário de dormir (${bedtime}), com folga de pelo menos 1h.`}
+Contexto de TODOS os dias da viagem (para você manter coerência e variedade mesmo só gerando parte deles agora):
+${allDayContext}
 
 ${buildDurationGuidancePromptBlock(profile.pace)}
 
-Retorne um JSON com: title (título do dia), tip (dica do dia), estimatedCost (número, estimativa aproximada SEMPRE na moeda local do destino — nunca em dólar a menos que o destino realmente use USD), estimatedCostCurrency (código ISO 4217 de 3 letras correspondente), e stops: array de paradas, cada uma com time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other|park|beach|market|neighborhood), description.
+Coerência entre os dias da viagem — isto é o que mais diferencia um roteiro bom de um genérico:
+- NUNCA repita o mesmo lugar (atração ou restaurante) em outro dia da viagem, mesmo um dia que você não está gerando agora.
+- Distribua variedade real de tipos de lugar e, especialmente, de culinária/estilo de restaurante ao longo de TODA a viagem — não só dentro dos dias que você está gerando agora.
+- Agrupe cada dia por proximidade geográfica dentro da mesma região/bairro, minimizando deslocamentos longos entre paradas consecutivas do mesmo dia.
+- Quando a viagem tiver vários destinos, nunca misture lugares de destinos diferentes no mesmo dia.
 
-Importante:
+Restaurantes (prioridade explícita de qualidade, não só preencher um horário):
+- Escolha por culinária e autenticidade local, adequação ao orçamento de restaurantes do viajante, e adequação ao horário da refeição — nunca um restaurante genérico só para ocupar o horário.
+- Quando o destino tiver uma culinária ou cultura gastronômica/de bebidas local característica, inclua pelo menos uma experiência desse tipo em algum dia, se coerente com as preferências do viajante.
+- Não escolha só pelo número de avaliações.
+
+IMPORTANTE: mesmo vendo o contexto de todos os dias acima, gere ESTA CHAMADA apenas para o(s) dia(s): ${blockDayNumbers.join(", ")}. Não gere os outros dias.
+
+Para cada dia, retorne: dayNumber (o número do dia, igual ao "dayNumber=" indicado acima), title (título do dia), tip (dica do dia), estimatedCost (número, estimativa aproximada SEMPRE na moeda local do destino daquele dia — nunca em dólar a menos que o destino realmente use USD), estimatedCostCurrency (código ISO 4217 de 3 letras correspondente), e stops: array de paradas, cada uma com time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other|park|beach|market|neighborhood), description.
+
+Importante, para cada dia:
 - Inclua ${paceStops} paradas de atrações/passeios (café da manhã, almoço e jantar contam à parte).
-- Este dia deve ter exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00${(profile.mealPreferences?.lunch === 'none' || profile.mealPreferences?.dinner === 'none') ? ", salvo as refeições desmarcadas acima" : ""}, salvo se isso for genuinamente inviável no dia de chegada/partida.
-- Para cada parada, escreva uma descrição de 1-2 frases com uma orientação específica e útil sobre o que fazer ou ver ali — não uma frase genérica que serviria pra qualquer lugar do mesmo tipo. NUNCA deixe a descrição vazia.
+- Exatamente uma parada de almoço entre 12:00-14:00 e uma de jantar entre 19:00-21:00${(profile.mealPreferences?.lunch === 'none' || profile.mealPreferences?.dinner === 'none') ? ", salvo as refeições desmarcadas acima" : ""}, salvo se isso for genuinamente inviável no dia de chegada/partida.
+- Para cada parada, escreva uma descrição objetiva de 1 frase direta, com uma orientação específica e útil sobre o que fazer ou ver ali — não uma frase genérica que serviria pra qualquer lugar do mesmo tipo. NUNCA deixe a descrição vazia.
 - NUNCA escreva um horário específico na descrição que seja diferente do campo "time" dessa parada.
-- Restaurantes: não escolha só pelo número de avaliações. Quando o destino tiver uma culinária ou cultura gastronômica/de bebidas local característica, inclua pelo menos uma experiência desse tipo quando for coerente com as preferências do viajante.
-- Agrupe por proximidade geográfica dentro da mesma região/bairro, minimizando deslocamentos longos entre paradas consecutivas, e distribua bem os horários ao longo do dia.
-- Respeite o orçamento (atrações e restaurantes separadamente) e o ritmo do viajante.`;
+
+Retorne um único JSON com a chave "days": um array com exatamente ${block.length} objeto(s), apenas para o(s) dia(s) ${blockDayNumbers.join(", ")} listado(s) acima, nessa ordem.`;
         }
 
-        // One small call per day, bounded concurrency — see the redesign
-        // note above. maxRetries: 0 on each call because this function does
-        // its OWN single manual retry (never the SDK's default 2), which is
-        // exactly what avoids the old monolithic call's 45s×3≈137s failure
-        // mode when a call is genuinely slow rather than hung.
-        //
-        // Configurable via env (never hardcoded only) so concurrency can be
-        // tuned without a code change if real-world conditions change.
-        // Investigated directly (isolated diagnostic, not assumed): an
-        // earlier 30000ms timeout here caused EVERY day to fail in a real
-        // 3-day and 5-day end-to-end test. That was NOT a concurrency or
-        // rate-limit problem — concurrency 1, 2, 3 (fresh client and a
-        // shared client, mirroring this file's getClient() singleton) all
-        // succeeded fine with a small schema; no RateLimitError, no 429, no
-        // rate-limit headers, ever observed. Reproducing with the REAL
-        // per-day prompt/schema (profile block, grounding instructions,
-        // 10-category enum, description field) showed it alone — even at
-        // concurrency 1, no parallelism at all — took ~35.9s (1439 output
-        // tokens), already over the old 30s budget. The timeout was simply
-        // too low for this prompt/schema's real size, chosen from an
-        // earlier benchmark that used a smaller schema. Set with real
-        // margin now, not a guess.
-        const DAY_GENERATION_CONCURRENCY = Number(process.env.ITINERARY_DAY_GENERATION_CONCURRENCY) || 5;
-        const DAY_GENERATION_TIMEOUT_MS = Number(process.env.ITINERARY_DAY_GENERATION_TIMEOUT_MS) || 60000;
-        const DAY_GENERATION_MAX_TOKENS = 4000;
+        // Timeout/token budget scale with the BLOCK's own day count, not the
+        // whole trip's — this is the actual lever that caps each call's own
+        // wall time now that blocks run concurrently. Configurable via env,
+        // never hardcoded only. Base/per-day figures sized conservatively
+        // from this session's real single-call measurements (~940-1000
+        // completion tokens/day at ~40 tokens/sec), with margin for the
+        // (smaller) per-block prompt overhead.
+        const BLOCK_TIMEOUT_BASE_MS = Number(process.env.ITINERARY_BLOCK_TIMEOUT_BASE_MS) || 15000;
+        const BLOCK_TIMEOUT_PER_DAY_MS = Number(process.env.ITINERARY_BLOCK_TIMEOUT_PER_DAY_MS) || 20000;
+        const BLOCK_MAX_TOKENS_BASE = 600;
+        const BLOCK_MAX_TOKENS_PER_DAY = 1300;
 
-        type DaySuccess = { index: number; ok: true; title: string | null; tip: string | null; estimatedCost: number | null; estimatedCostCurrency: string | null; stops: any[]; llmCallMs: number; retried: boolean; promptTokens: number; completionTokens: number };
-        type DayFailure = { index: number; ok: false; error: string; retried: boolean };
+        type BlockOutcome =
+          | { ok: true; dayNumbers: number[]; days: any[]; ms: number; retried: boolean; promptTokens: number; completionTokens: number }
+          | { ok: false; dayNumbers: number[]; error: string; retried: boolean };
 
-        async function generateSingleDay(descriptor: DayDescriptor): Promise<DaySuccess | DayFailure> {
-          const promptText = buildDayPrompt(descriptor);
-          const attempt = async () => {
-            const startedAt = Date.now();
-            const response = await invokeLLM({
-              messages: [
-                { role: "system", content: "Você é um guia de viagens especialista. Planeja UM dia por vez de uma viagem maior. Responda sempre em JSON válido." },
-                { role: "user", content: promptText },
-              ],
-              outputSchema: { name: "itinerary_single_day", schema: buildMinimalDaySchema(), strict: true },
-              max_tokens: DAY_GENERATION_MAX_TOKENS,
-              timeoutMs: DAY_GENERATION_TIMEOUT_MS,
-              maxRetries: 0,
-            });
-            const ms = Date.now() - startedAt;
-            const parsed = JSON.parse(response.choices[0].message.content as string);
-            return { parsed, ms, promptTokens: response.usage?.prompt_tokens ?? 0, completionTokens: response.usage?.completion_tokens ?? 0 };
+        async function callBlock(block: DayDescriptor[]): Promise<{ days: any[]; ms: number; promptTokens: number; completionTokens: number }> {
+          const promptText = buildBlockPrompt(block);
+          const timeoutMs = Math.min(90000, BLOCK_TIMEOUT_BASE_MS + BLOCK_TIMEOUT_PER_DAY_MS * block.length);
+          const maxTokens = Math.min(16000, BLOCK_MAX_TOKENS_BASE + BLOCK_MAX_TOKENS_PER_DAY * block.length);
+          const startedAt = Date.now();
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: "Você é um guia de viagens especialista. Planeja parte de uma viagem maior, mas com visão do contexto da viagem inteira. Responda sempre em JSON válido." },
+              { role: "user", content: promptText },
+            ],
+            outputSchema: { name: "itinerary_block", schema: buildMinimalTripSchema(), strict: true },
+            max_tokens: maxTokens,
+            timeoutMs,
+            maxRetries: 0,
+          });
+          const ms = Date.now() - startedAt;
+          const parsed = JSON.parse(response.choices[0].message.content as string);
+          return {
+            days: Array.isArray(parsed.days) ? parsed.days : [],
+            ms,
+            promptTokens: response.usage?.prompt_tokens ?? 0,
+            completionTokens: response.usage?.completion_tokens ?? 0,
           };
+        }
 
-          let retried = false;
+        // Each block does its OWN single manual retry (never the SDK's
+        // default 2) — same reasoning as the earlier single-call design: a
+        // call near its timeout budget turning into 3x the wall-clock time
+        // before ultimately failing anyway is worse than one fast, explicit
+        // retry. A block's outcome is always returned, never thrown, so one
+        // failing block can't crash mapWithConcurrency's Promise.all and
+        // silently take down blocks that already succeeded — each failure
+        // is attributed to EXACTLY the day numbers in that block.
+        async function generateBlock(block: DayDescriptor[]): Promise<BlockOutcome> {
+          const dayNumbers = block.map((d) => d.index + 1);
           try {
-            const { parsed, ms, promptTokens, completionTokens } = await attempt();
-            return { index: descriptor.index, ok: true, title: parsed.title ?? null, tip: parsed.tip ?? null, estimatedCost: parsed.estimatedCost ?? null, estimatedCostCurrency: parsed.estimatedCostCurrency ?? null, stops: parsed.stops ?? [], llmCallMs: ms, retried, promptTokens, completionTokens };
+            const r = await callBlock(block);
+            return { ok: true, dayNumbers, days: r.days, ms: r.ms, retried: false, promptTokens: r.promptTokens, completionTokens: r.completionTokens };
           } catch (firstErr) {
-            console.warn(`[ai.generateFromScratch] day ${descriptor.index + 1} generation failed, retrying once:`, firstErr instanceof Error ? firstErr.message : firstErr);
-            retried = true;
+            console.warn(`[ai.generateFromScratch] block for day(s) ${dayNumbers.join(", ")} failed, retrying once:`, firstErr instanceof Error ? firstErr.message : firstErr);
             try {
-              const { parsed, ms, promptTokens, completionTokens } = await attempt();
-              return { index: descriptor.index, ok: true, title: parsed.title ?? null, tip: parsed.tip ?? null, estimatedCost: parsed.estimatedCost ?? null, estimatedCostCurrency: parsed.estimatedCostCurrency ?? null, stops: parsed.stops ?? [], llmCallMs: ms, retried, promptTokens, completionTokens };
+              const r = await callBlock(block);
+              return { ok: true, dayNumbers, days: r.days, ms: r.ms, retried: true, promptTokens: r.promptTokens, completionTokens: r.completionTokens };
             } catch (secondErr) {
-              return { index: descriptor.index, ok: false, error: secondErr instanceof Error ? secondErr.message : String(secondErr), retried };
+              const error = secondErr instanceof Error ? secondErr.message : String(secondErr);
+              console.error(`[ai.generateFromScratch] block for day(s) ${dayNumbers.join(", ")} failed after one retry:`, error);
+              return { ok: false, dayNumbers, error, retried: true };
             }
           }
         }
 
         const dayGenerationStartedAt = Date.now();
-        const dayResults = await mapWithConcurrency(dayDescriptors, DAY_GENERATION_CONCURRENCY, generateSingleDay);
-        telemetry.dayGenerationMs = Date.now() - dayGenerationStartedAt;
-        telemetry.dayTimingsMs = dayResults.map((r) => (r.ok ? r.llmCallMs : null));
-        telemetry.llmCalls = dayResults.reduce((sum, r) => sum + (r.retried ? 2 : 1), 0);
-        telemetry.promptTokens = dayResults.reduce((sum, r) => sum + (r.ok ? r.promptTokens : 0), 0);
-        telemetry.completionTokens = dayResults.reduce((sum, r) => sum + (r.ok ? r.completionTokens : 0), 0);
+        const blockOutcomes = dayBlocks.length > 0
+          ? await mapWithConcurrency(dayBlocks, BLOCK_CONCURRENCY, generateBlock)
+          : [];
+        telemetry.generationMs = Date.now() - dayGenerationStartedAt;
+        telemetry.blockTimingsMs = blockOutcomes.map((o) => (o.ok ? o.ms : null));
+        telemetry.llmCalls = blockOutcomes.reduce((sum, o) => sum + (o.retried ? 2 : 1), 0);
+        telemetry.promptTokens = blockOutcomes.reduce((sum, o) => sum + (o.ok ? o.promptTokens : 0), 0);
+        telemetry.completionTokens = blockOutcomes.reduce((sum, o) => sum + (o.ok ? o.completionTokens : 0), 0);
+        telemetry.retried = blockOutcomes.some((o) => o.retried);
 
-        // Fail loudly, never silently — a day that failed even after one
-        // retry must never be dropped and presented as if the itinerary
-        // were complete (per product direction).
-        const failedDays = dayResults.filter((r): r is DayFailure => !r.ok);
-        if (failedDays.length > 0) {
-          console.error(
-            `[ai.generateFromScratch] ${failedDays.length} day(s) failed to generate after one retry each: ${failedDays.map((d) => `day ${d.index + 1}: ${d.error}`).join("; ")}`,
-          );
+        // Fail loudly, never silently — a block that failed even after its
+        // own retry must never be dropped and presented as if the itinerary
+        // were complete. Naming the exact day numbers of every failed block
+        // (not a generic message) per product direction.
+        const failedBlocks = blockOutcomes.filter((o): o is Extract<BlockOutcome, { ok: false }> => !o.ok);
+        if (failedBlocks.length > 0) {
+          const failedDayNumbers = failedBlocks.flatMap((b) => b.dayNumbers).sort((a, b) => a - b);
+          console.error(`[ai.generateFromScratch] day(s) ${failedDayNumbers.join(", ")} failed to generate after one retry each.`);
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: failedDays.length === 1
-              ? `Não foi possível gerar o dia ${failedDays[0].index + 1} do roteiro. Tente novamente.`
-              : `Não foi possível gerar ${failedDays.length} dos dias do roteiro. Tente novamente.`,
+            message: failedDayNumbers.length === 1
+              ? `Não foi possível gerar o dia ${failedDayNumbers[0]} do roteiro. Tente novamente.`
+              : `Não foi possível gerar os dias ${failedDayNumbers.join(", ")} do roteiro. Tente novamente.`,
           });
         }
 
+        // Matched by dayNumber, not array position, so the backend never
+        // silently misattributes one day's stops to another if a block's
+        // array order ever drifts from what was asked.
+        const byDayNumber = new Map<number, any>();
+        for (const outcome of blockOutcomes) {
+          if (!outcome.ok) continue;
+          for (const d of outcome.days) {
+            if (typeof d?.dayNumber === "number") byDayNumber.set(d.dayNumber, d);
+          }
+        }
+        const missingDayNumbers = feasibleDescriptors
+          .map((d) => d.index + 1)
+          .filter((n) => !byDayNumber.has(n));
+        if (missingDayNumbers.length > 0) {
+          console.error(`[ai.generateFromScratch] day(s) ${missingDayNumbers.join(", ")} missing from the generated response.`);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: missingDayNumbers.length === 1
+              ? `Não foi possível gerar o dia ${missingDayNumbers[0]} do roteiro. Tente novamente.`
+              : `Não foi possível gerar ${missingDayNumbers.length} dos dias do roteiro. Tente novamente.`,
+          });
+        }
+
+        // Infeasible days (computed deterministically above, never sent to
+        // the model) get an explicit, plain-language warning instead of a
+        // silently "complete" empty day or a fatal crash of the whole trip
+        // — both matter equally per product direction.
+        for (const descriptor of dayDescriptors) {
+          const dayNumber = descriptor.index + 1;
+          if (!infeasibleDayNumbers.has(dayNumber)) continue;
+          warningsFromInfeasibleDays.push(
+            `Dia ${dayNumber} (${descriptor.date}) não teve nenhuma parada: o tempo entre chegada/acordar e partida/dormir nesse dia é insuficiente (menos de ${MIN_FEASIBLE_WINDOW_MINUTES} minutos livres) para incluir qualquer passeio. Considere ajustar o horário de chegada/partida informado.`,
+          );
+        }
+
         const rawDays: any[] = dayDescriptors.map((descriptor) => {
-          const result = dayResults.find((r) => r.index === descriptor.index) as DaySuccess;
+          const dayNumber = descriptor.index + 1;
+          if (infeasibleDayNumbers.has(dayNumber)) {
+            return {
+              date: descriptor.date,
+              destination: descriptor.destinationName,
+              dayNumber,
+              title: null,
+              tip: null,
+              estimatedCost: null,
+              estimatedCostCurrency: null,
+              stops: [],
+            };
+          }
+          const result = byDayNumber.get(dayNumber);
           return {
             date: descriptor.date,
             destination: descriptor.destinationName,
-            dayNumber: descriptor.index + 1,
-            title: result.title,
-            tip: result.tip,
-            estimatedCost: result.estimatedCost,
-            estimatedCostCurrency: result.estimatedCostCurrency,
-            stops: result.stops,
+            dayNumber,
+            title: result.title ?? null,
+            tip: result.tip ?? null,
+            estimatedCost: result.estimatedCost ?? null,
+            estimatedCostCurrency: result.estimatedCostCurrency ?? null,
+            stops: Array.isArray(result.stops) ? result.stops : [],
           };
         });
 
@@ -2621,7 +2782,14 @@ Importante:
         // its own. Catching it here (findEmptyDays, server/itinerary/validate.ts)
         // is what stops that from being presented to the user as a complete,
         // successful itinerary.
-        const emptyDayNumbersList = findEmptyDays(correctedDays);
+        // Days deterministically marked infeasible BEFORE generation (see
+        // computeDayWindowMinutes above) are excluded here — they already
+        // have their own explicit warning (warningsFromInfeasibleDays) and
+        // must never crash the whole trip's generation just for genuinely
+        // having zero available minutes. Any OTHER zero-stop day (model
+        // failure, validation removing everything unexpectedly) still
+        // fails loudly below, unchanged.
+        const emptyDayNumbersList = findEmptyDays(correctedDays).filter((n) => !infeasibleDayNumbers.has(n));
         if (emptyDayNumbersList.length > 0) {
           const emptyDayNumbers = emptyDayNumbersList.join(", ");
           console.error(`[ai.generateFromScratch] day(s) ${emptyDayNumbers} ended up with zero stops after validation — refusing to return an incomplete itinerary as if it were complete.`);
@@ -2687,16 +2855,15 @@ Importante:
         telemetry.suggestedPlacesPhotoMs = Date.now() - suggestedPlacesPhotoStartedAt;
 
         const totalMs = Date.now() - generationStartedAt;
-        const retriedDaysCount = dayResults.filter((r) => r.retried).length;
         console.log(
-          `[ai.generateFromScratch] telemetry: totalMs=${totalMs} totalDays=${totalDays} dayLlmCalls=${telemetry.llmCalls} retriedDays=${retriedDaysCount} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} stopsResolved=${telemetry.stopsResolved} stopsDropped=${telemetry.stopsDropped} fallbackRestaurantPool=${fallbackRestaurantPool.length} unresolvedWarnings=${warnings.length}`,
+          `[ai.generateFromScratch] telemetry: totalMs=${totalMs} totalDays=${totalDays} llmCalls=${telemetry.llmCalls} retried=${telemetry.retried} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} stopsResolved=${telemetry.stopsResolved} stopsDropped=${telemetry.stopsDropped} fallbackRestaurantPool=${fallbackRestaurantPool.length} unresolvedWarnings=${warnings.length}`,
         );
         console.log(
           `[ai.generateFromScratch] timings: ${JSON.stringify({
             candidateFetchMs: telemetry.candidateFetchMs,
             prepStepsMs: telemetry.prepStepsMs,
-            dayGenerationMs: telemetry.dayGenerationMs,
-            dayTimingsMs: telemetry.dayTimingsMs,
+            generationMs: telemetry.generationMs,
+            blockTimingsMs: telemetry.blockTimingsMs,
             placeResolutionMs: telemetry.placeResolutionMs,
             validateMs: telemetry.validateMs,
             suggestedPlacesPhotoMs: telemetry.suggestedPlacesPhotoMs,
@@ -2704,7 +2871,8 @@ Importante:
           })}`,
         );
 
-        return { days: correctedDays, suggestedPlaces, warnings: warnings.length > 0 ? warnings : undefined };
+        const allWarnings = [...warningsFromInfeasibleDays, ...warnings];
+        return { days: correctedDays, suggestedPlaces, warnings: allWarnings.length > 0 ? allWarnings : undefined };
       }),
 
     /**

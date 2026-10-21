@@ -125,3 +125,45 @@ export function buildMinimalDaySchema(): Record<string, unknown> {
     additionalProperties: false,
   };
 }
+
+/**
+ * Whole-trip counterpart to buildMinimalDaySchema, for the single main
+ * planning call (itinerary-engine single-call redesign, replacing the
+ * parallel-by-day calls above). Asking for every day in ONE response, instead
+ * of one call per day, is what actually gives the model real cross-day
+ * awareness — it can see the whole trip at once and avoid repeating the same
+ * restaurant/attraction, vary cuisine across days, and keep geographic
+ * continuity between consecutive days — none of which a per-day call (which
+ * only ever saw ITS OWN day) could do on its own; the previous design relied
+ * entirely on post-hoc dedup (validateAndCorrectItinerary) to paper over
+ * that, which can only ever remove a repeat, never pick a better alternative.
+ *
+ * `dayNumber` is included (unlike the per-day schema's implicit "whichever
+ * day this prompt was for") so the backend can match each returned day back
+ * to its prompt-side descriptor by value instead of trusting array order,
+ * even though the prompt also asks for days in order.
+ */
+const minimalTripDaySchema = {
+  type: "object",
+  properties: {
+    dayNumber: { type: "number", description: "1-based day index within the whole trip, matching the day list in the prompt" },
+    title: nullable({ type: "string" }),
+    tip: nullable({ type: "string" }),
+    estimatedCost: nullable({ type: "number" }),
+    estimatedCostCurrency: nullable({ type: "string" }),
+    stops: { type: "array", items: minimalStopSchema },
+  },
+  required: ["dayNumber", "title", "tip", "estimatedCost", "estimatedCostCurrency", "stops"],
+  additionalProperties: false,
+} as const;
+
+export function buildMinimalTripSchema(): Record<string, unknown> {
+  return {
+    type: "object",
+    properties: {
+      days: { type: "array", items: minimalTripDaySchema },
+    },
+    required: ["days"],
+    additionalProperties: false,
+  };
+}
