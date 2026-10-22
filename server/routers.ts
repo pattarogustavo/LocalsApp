@@ -1,6 +1,7 @@
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
+import { ENV } from "./_core/env";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { searchIslands } from "../constants/islands-regions";
@@ -2465,6 +2466,8 @@ Importante:
           stopsSubstituted: 0,
           repairedDaysCount: 0,
           repairedDaysFailed: [] as number[],
+          planningTimedOut: false,
+          fallbackDaysTimedOut: [] as number[],
         };
         const warningsFromInfeasibleDays: string[] = [];
 
@@ -2716,26 +2719,48 @@ Importante, para cada dia:
 Retorne um único JSON com a chave "days": um array com exatamente ${block.length} objeto(s), apenas para o(s) dia(s) ${blockDayNumbers.join(", ")} listado(s) acima, nessa ordem.`;
         }
 
-        // Timeout/token budget scale with the BLOCK's own day count, not the
-        // whole trip's — this is the actual lever that caps each call's own
-        // wall time now that blocks run concurrently. Configurable via env,
-        // never hardcoded only. Base/per-day figures sized conservatively
-        // from this session's real single-call measurements (~940-1000
-        // completion tokens/day at ~40 tokens/sec), with margin for the
-        // (smaller) per-block prompt overhead.
-        const BLOCK_TIMEOUT_BASE_MS = Number(process.env.ITINERARY_BLOCK_TIMEOUT_BASE_MS) || 15000;
-        const BLOCK_TIMEOUT_PER_DAY_MS = Number(process.env.ITINERARY_BLOCK_TIMEOUT_PER_DAY_MS) || 20000;
+        // Timeout MUST cover the worst case of the call's own max_tokens
+        // budget, not an independently-guessed constant — production logs
+        // showed blocks timing out on BOTH the first attempt and the
+        // identical retry, which only happens when the timeout budget is
+        // structurally smaller than the time needed to generate up to the
+        // allowed max_tokens. Confirmed: the previous per-day timeout
+        // increment (20000ms/day) was smaller than the time this model
+        // needs to generate the per-day token budget (1300 tokens) at the
+        // measured ~40 tokens/sec throughput (~32500ms/day) — the budget
+        // was guaranteed to be too tight whenever the model used close to
+        // its allowed output, which is exactly when real itineraries (rich
+        // per-stop descriptions) need it. Deriving timeoutMs FROM maxTokens
+        // (plus a measured-throughput margin and a fixed network/prompt
+        // overhead) keeps the two numbers from drifting apart again.
         const BLOCK_MAX_TOKENS_BASE = 600;
         const BLOCK_MAX_TOKENS_PER_DAY = 1300;
+        const LLM_TOKENS_PER_SECOND = Number(process.env.ITINERARY_LLM_TOKENS_PER_SECOND) || 40;
+        const BLOCK_TIMEOUT_OVERHEAD_MS = Number(process.env.ITINERARY_BLOCK_TIMEOUT_OVERHEAD_MS) || 10000;
+        const BLOCK_TIMEOUT_SAFETY_MARGIN = Number(process.env.ITINERARY_BLOCK_TIMEOUT_SAFETY_MARGIN) || 1.4;
+        const BLOCK_TIMEOUT_MAX_MS = Number(process.env.ITINERARY_BLOCK_TIMEOUT_MAX_MS) || 150000;
+
+        function timeoutForMaxTokens(maxTokens: number): number {
+          const generationMs = (maxTokens / LLM_TOKENS_PER_SECOND) * 1000 * BLOCK_TIMEOUT_SAFETY_MARGIN;
+          return Math.min(BLOCK_TIMEOUT_MAX_MS, Math.ceil(BLOCK_TIMEOUT_OVERHEAD_MS + generationMs));
+        }
+
+        // Identifies a request that failed because it hit our OWN timeoutMs
+        // budget (OpenAI SDK's client-side abort), as opposed to a real API
+        // error (auth, rate limit, bad JSON) — needed to tell "the timeout
+        // budget was too tight" apart from other failure causes in telemetry.
+        function isTimeoutError(err: unknown): boolean {
+          return err instanceof Error && /timed? ?out/i.test(err.message);
+        }
 
         type BlockOutcome =
           | { ok: true; dayNumbers: number[]; days: any[]; ms: number; retried: boolean; promptTokens: number; completionTokens: number }
-          | { ok: false; dayNumbers: number[]; error: string; retried: boolean };
+          | { ok: false; dayNumbers: number[]; error: string; retried: boolean; timedOut: boolean };
 
         async function callBlock(block: DayDescriptor[]): Promise<{ days: any[]; ms: number; promptTokens: number; completionTokens: number }> {
           const promptText = buildBlockPrompt(block);
-          const timeoutMs = Math.min(90000, BLOCK_TIMEOUT_BASE_MS + BLOCK_TIMEOUT_PER_DAY_MS * block.length);
           const maxTokens = Math.min(16000, BLOCK_MAX_TOKENS_BASE + BLOCK_MAX_TOKENS_PER_DAY * block.length);
+          const timeoutMs = timeoutForMaxTokens(maxTokens);
           const startedAt = Date.now();
           const response = await invokeLLM({
             messages: [
@@ -2771,14 +2796,15 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
             const r = await callBlock(block);
             return { ok: true, dayNumbers, days: r.days, ms: r.ms, retried: false, promptTokens: r.promptTokens, completionTokens: r.completionTokens };
           } catch (firstErr) {
-            console.warn(`[ai.generateFromScratch] block for day(s) ${dayNumbers.join(", ")} failed, retrying once:`, firstErr instanceof Error ? firstErr.message : firstErr);
+            console.warn(`[ai.generateFromScratch] block for day(s) ${dayNumbers.join(", ")} failed, retrying once (timedOut=${isTimeoutError(firstErr)}):`, firstErr instanceof Error ? firstErr.message : firstErr);
             try {
               const r = await callBlock(block);
               return { ok: true, dayNumbers, days: r.days, ms: r.ms, retried: true, promptTokens: r.promptTokens, completionTokens: r.completionTokens };
             } catch (secondErr) {
               const error = secondErr instanceof Error ? secondErr.message : String(secondErr);
-              console.error(`[ai.generateFromScratch] block for day(s) ${dayNumbers.join(", ")} failed after one retry:`, error);
-              return { ok: false, dayNumbers, error, retried: true };
+              const timedOut = isTimeoutError(secondErr);
+              console.error(`[ai.generateFromScratch] block for day(s) ${dayNumbers.join(", ")} failed after one retry (timedOut=${timedOut}):`, error);
+              return { ok: false, dayNumbers, error, retried: true, timedOut };
             }
           }
         }
@@ -2797,6 +2823,7 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
         telemetry.planningCallMs = primaryOutcome.ok ? primaryOutcome.ms : telemetry.generationMs;
         telemetry.planningRetried = primaryOutcome.retried;
         telemetry.planningFailedOutright = !primaryOutcome.ok;
+        telemetry.planningTimedOut = !primaryOutcome.ok && primaryOutcome.timedOut;
         if (feasibleDescriptors.length > 0) telemetry.llmCalls += primaryOutcome.retried ? 2 : 1;
         if (primaryOutcome.ok) {
           telemetry.promptTokens += primaryOutcome.promptTokens;
@@ -2841,7 +2868,8 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
               }
             } else {
               telemetry.fallbackDaysFailed.push(...outcome.dayNumbers);
-              console.error(`[ai.generateFromScratch] fallback generation for day(s) ${outcome.dayNumbers.join(", ")} also failed after one retry: ${outcome.error}`);
+              if (outcome.timedOut) telemetry.fallbackDaysTimedOut.push(...outcome.dayNumbers);
+              console.error(`[ai.generateFromScratch] fallback generation for day(s) ${outcome.dayNumbers.join(", ")} also failed after one retry (timedOut=${outcome.timedOut}): ${outcome.error}`);
             }
           }
         }
@@ -3114,7 +3142,7 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
 
         const totalMs = Date.now() - generationStartedAt;
         console.log(
-          `[ai.generateFromScratch] telemetry: totalMs=${totalMs} totalDays=${totalDays} llmCalls=${telemetry.llmCalls} planningRetried=${telemetry.planningRetried} planningFailedOutright=${telemetry.planningFailedOutright} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} stopsResolved=${telemetry.stopsResolved} stopsSubstituted=${telemetry.stopsSubstituted} stopsDropped=${telemetry.stopsDropped} fallbackDaysUsed=${JSON.stringify(telemetry.fallbackDaysUsed)} fallbackDaysFailed=${JSON.stringify(telemetry.fallbackDaysFailed)} repairedDaysCount=${telemetry.repairedDaysCount} repairedDaysFailed=${JSON.stringify(telemetry.repairedDaysFailed)} fallbackRestaurantPool=${fallbackRestaurantPool.length} unresolvedWarnings=${warnings.length}`,
+          `[ai.generateFromScratch] telemetry: model=${ENV.openaiModel} totalMs=${totalMs} totalDays=${totalDays} llmCalls=${telemetry.llmCalls} planningRetried=${telemetry.planningRetried} planningFailedOutright=${telemetry.planningFailedOutright} planningTimedOut=${telemetry.planningTimedOut} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} stopsResolved=${telemetry.stopsResolved} stopsSubstituted=${telemetry.stopsSubstituted} stopsDropped=${telemetry.stopsDropped} fallbackDaysUsed=${JSON.stringify(telemetry.fallbackDaysUsed)} fallbackDaysFailed=${JSON.stringify(telemetry.fallbackDaysFailed)} fallbackDaysTimedOut=${JSON.stringify(telemetry.fallbackDaysTimedOut)} repairedDaysCount=${telemetry.repairedDaysCount} repairedDaysFailed=${JSON.stringify(telemetry.repairedDaysFailed)} fallbackRestaurantPool=${fallbackRestaurantPool.length} unresolvedWarnings=${warnings.length}`,
         );
         console.log(
           `[ai.generateFromScratch] timings: ${JSON.stringify({
