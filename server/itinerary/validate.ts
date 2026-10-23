@@ -346,7 +346,7 @@ const TIME_OF_DAY_HINTS: { label: string; min: number; max: number; pattern: Reg
   },
 ];
 
-function isMeal(stop: any, windowStart: number, windowEnd: number): boolean {
+export function isMeal(stop: any, windowStart: number, windowEnd: number): boolean {
   const t = timeToMinutes(stop.time);
   if (t == null) return false;
   const category = (stop.placeCategory || "").toLowerCase();

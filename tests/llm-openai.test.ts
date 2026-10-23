@@ -199,4 +199,24 @@ describe("invokeLLM — OpenAI migration (server/_core/llm.ts)", () => {
     await invokeLLM({ messages: [{ role: "user", content: "x" }], timeoutMs: 25000 });
     expect(mockCreate.mock.calls[0][1]).toEqual({ timeout: 25000 });
   });
+
+  it("passes reasoning.effort through to the SDK call when reasoningEffort is set (itinerary-generation latency fix)", async () => {
+    mockCreate.mockResolvedValueOnce({
+      id: "r", model: "gpt-6.1-sol", status: "completed",
+      output: [], output_text: "", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+    });
+    const invokeLLM = await freshInvokeLLM();
+    await invokeLLM({ messages: [{ role: "user", content: "x" }], reasoningEffort: "low" });
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({ reasoning: { effort: "low" } });
+  });
+
+  it("omits reasoning entirely when reasoningEffort isn't set — no behavior change for existing callers", async () => {
+    mockCreate.mockResolvedValueOnce({
+      id: "r", model: "gpt-6.1-sol", status: "completed",
+      output: [], output_text: "", usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+    });
+    const invokeLLM = await freshInvokeLLM();
+    await invokeLLM({ messages: [{ role: "user", content: "x" }] });
+    expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("reasoning");
+  });
 });

@@ -134,11 +134,14 @@ async function backfillCatalogGoogleData(
     while (next < targets.length) {
       const c = targets[next++];
       try {
-        const details = await fetchCuratedPlaceDetails(c.placeId, language);
+        // includePhoto: false — this backfill only ever reads lat/lng/hours/
+        // hasPhoto, never the resolved image URL itself, so resolving it
+        // would be an extra network round-trip per candidate for nothing.
+        const details = await fetchCuratedPlaceDetails(c.placeId, language, { includePhoto: false });
         if (details.lat != null) c.lat = details.lat;
         if (details.lng != null) c.lng = details.lng;
         if (details.hours) c.hoursText = details.hours;
-        if (details.imageUrl) c.hasPhoto = true;
+        if (details.hasPhoto) c.hasPhoto = true;
       } catch {
         // leave this candidate without backfilled fields — never blocks the pool.
       }

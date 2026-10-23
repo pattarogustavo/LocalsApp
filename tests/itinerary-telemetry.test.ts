@@ -59,12 +59,12 @@ describe("per-stage telemetry — ai.generateFromScratch (whole-trip call + per-
     }
   });
 
-  it("logs a single structured timings line, measured AFTER photo resolution so totalMs reflects the whole endpoint", () => {
+  it("logs a single structured timings line, measured AFTER the itinerary is fully assembled (validation + any empty-day repair) so totalMs reflects the whole endpoint", () => {
     expect(generateFromScratchBody).toMatch(/\[ai\.generateFromScratch\] timings: \$\{JSON\.stringify\(\{/);
     const timingsLogIdx = generateFromScratchBody.indexOf("[ai.generateFromScratch] timings:");
-    const photoResolutionIdx = generateFromScratchBody.indexOf("suggestedPlacesPhotoStartedAt");
-    expect(photoResolutionIdx).toBeGreaterThan(-1);
-    expect(timingsLogIdx).toBeGreaterThan(photoResolutionIdx);
+    const validateIdx = generateFromScratchBody.indexOf("const validateStartedAt");
+    expect(validateIdx).toBeGreaterThan(-1);
+    expect(timingsLogIdx).toBeGreaterThan(validateIdx);
   });
 
   it("has exactly one invokeLLM call SITE (inside callBlock, reused for the whole-trip call, the per-day fallback, and the empty-day repair) and exactly two validateAndCorrectItinerary call sites (initial pass + the one re-validation after an empty-day repair)", () => {
@@ -100,9 +100,27 @@ describe("per-stage telemetry — ai.generateFromScratch (whole-trip call + per-
     expect(generateFromScratchBody).toMatch(/não pôde ser montado/);
   });
 
-  it("substitutes a same-category real place for a stop that can't be verified, instead of only dropping it", () => {
-    expect(generateFromScratchBody).toMatch(/resolveAndVerifyStopsWithSubstitution/);
-    expect(generateFromScratchBody).toMatch(/stopsSubstituted/);
+  it("AI-first architecture: makes no Google Places call to verify/substitute the model's own proposed stops before returning — patchedDays is rawDays verbatim, resolved later on demand", () => {
+    expect(generateFromScratchBody).not.toMatch(/resolveAndVerifyStopsWithSubstitution/);
+    expect(generateFromScratchBody).toMatch(/const patchedDays = rawDays;/);
+  });
+
+  it("omits fetchTravel from the validate context — real travel time is resolved later via the existing on-demand directions.batchRoute flow, not computed synchronously for every leg during generation", () => {
+    expect(generateFromScratchBody).not.toMatch(/fetchTravel:\s*buildTravelFetcher/);
+  });
+
+  it("exposes a dedicated on-demand endpoint for resolving AI-proposed stop names to real place data, mirroring the existing directions.batchRoute on-demand pattern", () => {
+    expect(routersSource).toMatch(/resolveItineraryStops: protectedProcedure/);
+    expect(routersSource).toMatch(/await resolveAndVerifyStop\(p\.placeName, p\.lat, p\.lng, input\.language\)/);
+  });
+
+  it("only fetches the fallback restaurant pool when a day is actually missing a required meal after generation, not unconditionally on every trip", () => {
+    expect(generateFromScratchBody).toMatch(/fetchFallbackRestaurantPoolIfNeeded/);
+    expect(generateFromScratchBody).toMatch(/candidateFetchWasNeeded/);
+  });
+
+  it("no longer fetches a photo for every suggestedPlaces entry during generation", () => {
+    expect(generateFromScratchBody).not.toMatch(/resolvePlaceIdByName\(place\.name/);
   });
 
   it("deterministically computes each day's feasible time window BEFORE calling the model, and never sends an infeasible day to the LLM", () => {

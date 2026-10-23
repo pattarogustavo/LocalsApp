@@ -11,7 +11,7 @@ import { storagePut } from "./storage";
 import { getSupabaseAdmin } from "./_core/supabaseAdmin";
 import { prepareCandidatePool } from "./itinerary/candidates";
 import { buildDurationGuidancePromptBlock } from "./itinerary/duration";
-import { validateAndCorrectItinerary, findEmptyDays, type MustVisitPlace, type FillerRestaurantCandidate } from "./itinerary/validate";
+import { validateAndCorrectItinerary, findEmptyDays, isMeal, type MustVisitPlace, type FillerRestaurantCandidate } from "./itinerary/validate";
 import { buildItineraryDaysSchema, buildMinimalDaySchema, buildMinimalTripSchema } from "./itinerary/schema";
 import { buildDayDescriptors, assignMustVisitToDays, type DayDescriptor, type AssignableMustVisit } from "./itinerary/day-descriptors";
 import { withOneRepairAttempt } from "./itinerary/repair";
@@ -518,7 +518,9 @@ export async function fetchOpeningHoursForTopCandidates<T extends { placeId: str
   // requests) instead of one-at-a-time: still fully parallel, just capped,
   // same worker-pool helper already used elsewhere in this file.
   await mapWithConcurrency(top, OPENING_HOURS_FETCH_CONCURRENCY, async (c) => {
-    const details = await fetchCuratedPlaceDetails(c.placeId, language);
+    // includePhoto: false — only .hoursText is read here; skip the extra
+    // photo-URL round trip entirely.
+    const details = await fetchCuratedPlaceDetails(c.placeId, language, { includePhoto: false });
     if (details.hours) c.hoursText = details.hours;
   });
   return candidates;
@@ -725,7 +727,9 @@ async function resolveMustSeePlace(
   if (trimmed.length < 3 || trimmed.length > 80 || /[,.;\n]/.test(trimmed)) return null;
   const placeId = await resolvePlaceIdByName(trimmed, biasLat, biasLng, language);
   if (!placeId) return null;
-  const details = await fetchCuratedPlaceDetails(placeId, language);
+  // includePhoto: false — this result only ever feeds address/lat/lng/hours
+  // into a MustVisitPlace; imageUrl is never read.
+  const details = await fetchCuratedPlaceDetails(placeId, language, { includePhoto: false });
   if (details.lat == null || details.lng == null) return null;
   return {
     name: trimmed,
@@ -770,7 +774,11 @@ export async function resolveAndVerifyStop(
   if (!placeName || !GOOGLE_PLACES_KEY) return { resolved: false };
   const placeId = await resolvePlaceIdByName(placeName, biasLat, biasLng, language);
   if (!placeId) return { resolved: false };
-  const details = await fetchCuratedPlaceDetails(placeId, language);
+  // includePhoto: false — StopResolution never carries imageUrl; this runs
+  // once per AI-proposed stop (the hottest loop in this file), so skipping
+  // the extra photo-URL round trip here is the single biggest latency win
+  // in the post-generation grounding stage.
+  const details = await fetchCuratedPlaceDetails(placeId, language, { includePhoto: false });
   if (details.lat == null || details.lng == null) return { resolved: false };
   return { resolved: true, googlePlaceId: placeId, lat: details.lat, lng: details.lng, address: details.address, hoursText: details.hours };
 }
@@ -868,7 +876,8 @@ async function findSubstitutePlace(
     .filter((c) => !usedKeysLower.has(c.placeId.toLowerCase()) && !usedKeysLower.has(c.name.toLowerCase()))
     .sort((a, b) => (b.rating ?? 3.5) * Math.log10(b.userRatingsTotal + 1) - (a.rating ?? 3.5) * Math.log10(a.userRatingsTotal + 1))[0];
   if (!best) return null;
-  const details = await fetchCuratedPlaceDetails(best.placeId, language);
+  // includePhoto: false — the returned substitute never carries imageUrl.
+  const details = await fetchCuratedPlaceDetails(best.placeId, language, { includePhoto: false });
   if (details.lat == null || details.lng == null) return null;
   return { googlePlaceId: best.placeId, name: best.name, lat: details.lat, lng: details.lng, address: details.address, hoursText: details.hours };
 }
@@ -2461,9 +2470,6 @@ Importante:
           placeResolutionMs: 0,
           validateMs: 0,
           suggestedPlacesPhotoMs: 0,
-          stopsResolved: 0,
-          stopsDropped: 0,
-          stopsSubstituted: 0,
           repairedDaysCount: 0,
           repairedDaysFailed: [] as number[],
           planningTimedOut: false,
@@ -2480,29 +2486,48 @@ Importante:
           ? `\nLugares que o usuário já selecionou e quer manter no roteiro (inclua todos estes, e complete o restante do roteiro com mais sugestões que combinem com o perfil abaixo):\n${selectedPlaces!.map((p) => `- ${p.name} (${p.category}) em ${p.destinationName}${p.hours ? `, horário: ${p.hours}` : ""}${p.address ? `, endereço: ${p.address}` : ""}${p.lat && p.lng ? `, coordenadas: ${p.lat},${p.lng}` : ""}`).join("\n")}`
           : "";
 
-        // ─── "Direct generation" redesign (itinerary-engine latency/quality pass) ──
+        // ─── "AI-first" redesign (2026 itinerary-architecture pass) ────────────
         // Previously this endpoint pre-fetched a Google Places + curated-catalog
         // candidate pool (ranked/capped/diversified), injected it into the
         // prompt as a long text list, and forced the model to pick only from
         // it. That large upfront fetch + large prompt was both the main
         // latency driver and, per product direction, an unnecessary
         // constraint on the model's own real-world judgment of quality/
-        // authenticity. The new flow instead: (1) lets the model choose
-        // freely from its own knowledge, grounded by explicit
-        // no-invented-facts instructions; (2) verifies every AI-chosen stop
-        // against real Google Places data AFTER generation (resolveAndVerifyStops
-        // below) instead of constraining it beforehand; (3) keeps a SMALL,
-        // never-shown-to-the-model fallback restaurant pool purely as a
-        // safety net for validateAndCorrectItinerary's meal-insertion step,
-        // so the deterministic validator still has something to fall back on
-        // without reintroducing a large candidate fetch.
+        // authenticity. A later pass replaced that with AFTER-generation
+        // verification of every stop against real Google Places data — still
+        // a synchronous, blocking fan-out of per-stop external calls before
+        // the response could go out. The current, approved architecture goes
+        // further: the critical path makes NO Google Places calls for the
+        // model's own proposed stops at all. Real-world place data (lat/lng/
+        // address, photos, hours) is resolved ON DEMAND instead, via the new
+        // `ai.resolveItineraryStops` endpoint (added below, mirrors the
+        // existing on-demand pattern `directions.batchRoute`/"Update Routes"
+        // already uses) — never fabricated, just not fetched up front.
+        //
+        // The ONE place a real-candidate fetch still happens here is the
+        // meal-insertion safety net below (`fetchFallbackRestaurantPoolIfNeeded`)
+        // — and even that is now lazy: it only runs if a deterministic,
+        // zero-external-call check finds a day actually missing a required
+        // meal after generation (rare — the prompt already strongly requires
+        // lunch/dinner). Every trip where the model did its job pays zero
+        // cost for this safety net.
+        let fallbackRestaurantPool: (NearbyCandidate & { destinationName: string })[] = [];
+        let candidateFetchWasNeeded = false;
         const candidateFetchStartedAt = Date.now();
-        const fallbackCandidates = await fetchRealCandidatesForDestinations(destinations, input.language);
-        const fallbackRestaurantPool = fallbackCandidates
-          .filter((c) => c.types.includes('restaurant') && c.lat != null && c.lng != null)
-          .slice(0, 15);
-        await fetchOpeningHoursForTopCandidates(fallbackRestaurantPool, 15, input.language);
-        telemetry.candidateFetchMs = Date.now() - candidateFetchStartedAt;
+        async function fetchFallbackRestaurantPoolIfNeeded(days: any[]): Promise<void> {
+          const lunchMissing = profile.mealPreferences?.lunch !== 'none'
+            && days.some((d) => !d.stops?.some((s: any) => isMeal(s, 12 * 60, 14 * 60 + 30)));
+          const dinnerMissing = profile.mealPreferences?.dinner !== 'none'
+            && days.some((d) => !d.stops?.some((s: any) => isMeal(s, 19 * 60, 21 * 60 + 30)));
+          if (!lunchMissing && !dinnerMissing) return;
+          candidateFetchWasNeeded = true;
+          const fallbackCandidates = await fetchRealCandidatesForDestinations(destinations, input.language);
+          const pool = fallbackCandidates
+            .filter((c) => c.types.includes('restaurant') && c.lat != null && c.lng != null)
+            .slice(0, 15);
+          await fetchOpeningHoursForTopCandidates(pool, 15, input.language);
+          fallbackRestaurantPool = pool;
+        }
 
         // Independent prep I/O run concurrently — must-see resolution and
         // weather/daylight lookup don't depend on each other (or on the
@@ -2562,18 +2587,10 @@ Importante:
         // address, lat/lng, travel time/mode — is left out of the schema
         // entirely, not just "instructed to leave null": a nullable field
         // still costs its key+brackets in output tokens).
-        const selectedPlacesLower = new Set((selectedPlaces || []).map((p) => p.name.toLowerCase()));
-        const mustSeeNamesLower = new Set([resolvedMustSee?.name.toLowerCase()].filter(Boolean) as string[]);
-        const trustedNamesLower = new Set<string>([...selectedPlacesLower, ...mustSeeNamesLower]);
         const mustVisit: MustVisitPlace[] = [
           ...(selectedPlaces || []).map((p) => ({ name: p.name, category: p.category, address: p.address, lat: p.lat, lng: p.lng, hours: p.hours })),
           ...(resolvedMustSee ? [resolvedMustSee] : []),
         ];
-        // Small fallback-only pool (never shown to the model) — see the
-        // redesign note above the candidate-fetch step.
-        const fillerRestaurants: FillerRestaurantCandidate[] = fallbackRestaurantPool
-          .map((c) => ({ googlePlaceId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
-
         const dayDescriptors = buildDayDescriptors(startDate, destinations);
         const assignableMustVisit: AssignableMustVisit[] = [
           ...(selectedPlaces || []).map((p) => ({ name: p.name, destinationName: p.destinationName, address: p.address, lat: p.lat, lng: p.lng, hours: p.hours })),
@@ -2664,11 +2681,6 @@ Importante:
         // path becomes a `warnings[]` entry, never a thrown error — see
         // generateDaysWithFallback below.
         const FALLBACK_CONCURRENCY = Math.max(1, Number(process.env.ITINERARY_FALLBACK_CONCURRENCY) || 4);
-        // Per-day bias coordinates for place resolution/substitution below —
-        // each DayDescriptor already carries its destination's lat/lng.
-        const biasByDayNumber = new Map<number, { lat?: number; lng?: number }>(
-          dayDescriptors.map((d) => [d.index + 1, { lat: d.lat, lng: d.lng }]),
-        );
 
         function buildBlockPrompt(block: DayDescriptor[]): string {
           const allDayContext = dayDescriptors.map(buildDayContextBlock).join('\n');
@@ -2740,6 +2752,40 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
         const BLOCK_TIMEOUT_SAFETY_MARGIN = Number(process.env.ITINERARY_BLOCK_TIMEOUT_SAFETY_MARGIN) || 1.4;
         const BLOCK_TIMEOUT_MAX_MS = Number(process.env.ITINERARY_BLOCK_TIMEOUT_MAX_MS) || 150000;
 
+        // Reasoning effort for the block-generation call — see invokeLLM's
+        // `reasoningEffort` doc comment (server/_core/llm.ts) for the
+        // measured latency/quality tradeoff this was verified against
+        // (gpt-6.1-sol, this exact prompt shape: ~34% faster at 5 days, same
+        // day/stop counts, no empty descriptions in the sampled output).
+        // Env-overridable (not just a code constant) so this can be dialed
+        // back in production without a redeploy if a real quality
+        // regression shows up that this session's spot-check didn't catch.
+        // Validated against OpenAI's documented effort set rather than
+        // passed through raw — an invalid value would otherwise turn into a
+        // hard 400 on every single generation call in production.
+        const VALID_REASONING_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
+        const envReasoningEffort = process.env.ITINERARY_LLM_REASONING_EFFORT;
+        const BLOCK_REASONING_EFFORT = (envReasoningEffort && VALID_REASONING_EFFORTS.has(envReasoningEffort)
+          ? envReasoningEffort
+          : "low") as "low" | "medium" | "high" | "xhigh" | "max";
+
+        // Model for the block-generation call, overriding ENV.openaiModel
+        // (the global default, still used by every OTHER invokeLLM caller —
+        // ai.generateItinerary, translation, curate scripts) ONLY for this
+        // endpoint's own block generation. "gpt-6-luna" was selected from a
+        // live benchmark against the production model (gpt-6.1-sol) and two
+        // other candidates (gpt-5-mini, gpt-5.4-mini) using this endpoint's
+        // real prompt shape at reasoning effort "low": fastest or tied-
+        // fastest at 1/3/5 days (~8.6s/16.2s/19.0s vs gpt-6.1-sol's
+        // ~23.8s/43.6s/59.0s — roughly 60-68% faster), equal-or-more stops
+        // produced, and no empty descriptions or schema failures across the
+        // sampled runs. Env-overridable for the same rollback reason as
+        // BLOCK_REASONING_EFFORT above. See the final report for the full
+        // benchmark table and the quality spot-check (real, verifiable
+        // Barcelona places, correctly reflecting the sampled trip's stated
+        // interests).
+        const BLOCK_MODEL = process.env.ITINERARY_LLM_MODEL || "gpt-6-luna";
+
         function timeoutForMaxTokens(maxTokens: number): number {
           const generationMs = (maxTokens / LLM_TOKENS_PER_SECOND) * 1000 * BLOCK_TIMEOUT_SAFETY_MARGIN;
           return Math.min(BLOCK_TIMEOUT_MAX_MS, Math.ceil(BLOCK_TIMEOUT_OVERHEAD_MS + generationMs));
@@ -2771,6 +2817,8 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
             max_tokens: maxTokens,
             timeoutMs,
             maxRetries: 0,
+            reasoningEffort: BLOCK_REASONING_EFFORT,
+            model: BLOCK_MODEL,
           });
           const ms = Date.now() - startedAt;
           const parsed = JSON.parse(response.choices[0].message.content as string);
@@ -2927,47 +2975,51 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
           };
         });
 
-        // Post-generation grounding: verify every AI-chosen stop against
-        // real Google Places data (resolveAndVerifyStopsWithSubstitution
-        // above) instead of checking it against a pre-fetched candidate
-        // list — this endpoint's "direct generation" replacement for
-        // server/itinerary/guard.ts's filterHallucinatedStops (still used,
-        // unchanged, by ai.generateItinerary). A stop that can't be
-        // verified as a real place gets one same-category substitution
-        // attempt before being dropped (per-place failure isolation — see
-        // resolveAndVerifyStopsWithSubstitution); user-selected/must-see
-        // stops are passed through untouched (already trusted). Runs on the
-        // MERGED, whole-trip array so verification concurrency isn't
-        // needlessly limited per-day.
-        const placeResolutionStartedAt = Date.now();
-        const { days: patchedDays, droppedCount: droppedUnverifiedStops, resolvedCount, substitutedCount, hoursByPlaceId, warnings: resolutionWarnings } = await resolveAndVerifyStopsWithSubstitution(rawDays, {
-          trustedNamesLower,
-          biasLat: destCenter?.lat,
-          biasLng: destCenter?.lng,
-          biasByDayNumber,
-          language: input.language,
-        });
-        telemetry.placeResolutionMs = Date.now() - placeResolutionStartedAt;
-        telemetry.stopsResolved = resolvedCount;
-        telemetry.stopsDropped = droppedUnverifiedStops;
-        telemetry.stopsSubstituted = substitutedCount;
-        if (droppedUnverifiedStops > 0) {
-          console.warn(`[ai.generateFromScratch] dropped ${droppedUnverifiedStops} stop(s) that could not be verified against real Google Places data or substituted`);
-        }
+        // ─── No synchronous place verification ─────────────────────────────
+        // The approved AI-first architecture makes NO Google Places calls
+        // for the model's own proposed stops before the response goes out —
+        // `patchedDays` is `rawDays` verbatim. Stops the model proposed
+        // therefore carry no lat/lng/address/googlePlaceId yet (the minimal
+        // per-stop schema never included those fields in the first place —
+        // they were only ever backfilled by the verification step this
+        // removes). This is never presented as fake/guessed data: the
+        // fields are simply absent (undefined), exactly like any other
+        // not-yet-resolved place in this schema, and the client already
+        // guards every one of these fields as optional (types/voyage.ts
+        // ItineraryStop, components/trip/itinerary-block.tsx). Real
+        // coordinates/address/hours/photo become available through the new
+        // `ai.resolveItineraryStops` on-demand endpoint below, exactly
+        // mirroring how travel time already works via the existing
+        // `directions.batchRoute`/"Update Routes" on-demand action.
+        const patchedDays = rawDays;
+        const hoursByPlaceId = new Map<string, string>();
+        const resolutionWarnings: string[] = [];
+        telemetry.placeResolutionMs = 0;
 
         // Deterministic validate → correct pass, run on the whole merged
         // itinerary (not per day) — this is what catches cross-day issues a
         // per-day call can't see on its own: duplicate stops across
         // different days, must-visit places that still didn't fit
-        // anywhere, missing meals, and real Google Routes travel times. No
-        // LLM "repair" call here (unlike ai.generateItinerary, which still
-        // has withOneRepairAttempt): a global planning call wasn't shown to
-        // be necessary or fast for this redesign, so any conflict the
+        // anywhere, missing meals, and (locally, no external call)
+        // arrival/departure/duration/time-of-day consistency. No LLM
+        // "repair" call here (unlike ai.generateItinerary, which still has
+        // withOneRepairAttempt): a global planning call wasn't shown to be
+        // necessary or fast for this redesign, so any conflict the
         // deterministic layer can't fix on its own surfaces in `warnings`
         // instead — EXCEPT a day left with zero stops, which gets one
         // targeted regeneration attempt below before IT, too, degrades to
         // a warning (see the empty-day repair step right after).
-        function buildValidateCtx(hoursMap: Map<string, string>) {
+        //
+        // fetchTravel/hoursByPlaceId are both omitted from this context:
+        // ValidateContext already treats `fetchTravel` as optional (its
+        // own `if (ctx.fetchTravel)` guard skips step 9's Google Routes
+        // fan-out entirely when absent — real travel time is computed later,
+        // on demand, by the exact same mechanism "Update Routes" already
+        // uses) and an empty `hoursByPlaceId` makes every opening-hours
+        // check resolve to "unknown", which enforceOpeningHours already
+        // treats as "can't verify, never block on it" — both are pre-
+        // existing graceful-degradation paths, not new code.
+        function buildValidateCtx(hoursMap: Map<string, string>, fillerRestaurants: FillerRestaurantCandidate[]) {
           return {
             wakeUpTime, bedtime, arrivalTime, departureTime,
             isFirstDay: (i: number) => i === 0,
@@ -2981,13 +3033,19 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
             hoursByPlaceId: hoursMap,
             fillerRestaurants,
             pace: profile.pace,
-            fetchTravel: buildTravelFetcher(cityTransportMode, input.language),
             accommodation,
             language: input.language,
           };
         }
+        // Lazy meal-insertion safety net — only fetches real restaurant
+        // candidates if the model's own output actually left a day without
+        // a required meal (see fetchFallbackRestaurantPoolIfNeeded above).
+        await fetchFallbackRestaurantPoolIfNeeded(patchedDays);
+        telemetry.candidateFetchMs = Date.now() - candidateFetchStartedAt;
+        const fillerRestaurants: FillerRestaurantCandidate[] = fallbackRestaurantPool
+          .map((c) => ({ googlePlaceId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
         const validateStartedAt = Date.now();
-        let { days: correctedDays, warnings } = await validateAndCorrectItinerary(patchedDays, buildValidateCtx(hoursByPlaceId));
+        let { days: correctedDays, warnings } = await validateAndCorrectItinerary(patchedDays, buildValidateCtx(hoursByPlaceId, fillerRestaurants));
         warnings = [...resolutionWarnings, ...warnings];
         telemetry.validateMs = Date.now() - validateStartedAt;
 
@@ -3031,7 +3089,10 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
               continue;
             }
 
-            const singleDayInput = [{
+            // No synchronous place verification here either (same AI-first
+            // policy as the primary generation path above) — the repaired
+            // day's stops are spliced in exactly as the model returned them.
+            correctedDays[dayIdx] = {
               date: correctedDays[dayIdx].date,
               destination: correctedDays[dayIdx].destination,
               dayNumber,
@@ -3040,28 +3101,23 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
               estimatedCost: repairedRaw.estimatedCost ?? null,
               estimatedCostCurrency: repairedRaw.estimatedCostCurrency ?? null,
               stops: Array.isArray(repairedRaw.stops) ? repairedRaw.stops : [],
-            }];
-            const { days: resolvedSingleDay, substitutedCount: repairSubstituted, hoursByPlaceId: repairHours, warnings: repairResolutionWarnings } = await resolveAndVerifyStopsWithSubstitution(singleDayInput, {
-              trustedNamesLower,
-              biasLat: destCenter?.lat,
-              biasLng: destCenter?.lng,
-              biasByDayNumber,
-              language: input.language,
-            });
-            telemetry.stopsSubstituted += repairSubstituted;
-            for (const [k, v] of repairHours) hoursByPlaceId.set(k, v);
-            warnings.push(...repairResolutionWarnings);
-            correctedDays[dayIdx] = resolvedSingleDay[0];
+            };
             telemetry.repairedDaysCount++;
           }
+
+          // The repair may have introduced a day that's STILL missing a
+          // required meal — re-check and fetch the fallback pool (if not
+          // already fetched) before re-validating.
+          await fetchFallbackRestaurantPoolIfNeeded(correctedDays);
+          const repairFillerRestaurants: FillerRestaurantCandidate[] = fallbackRestaurantPool
+            .map((c) => ({ googlePlaceId: c.placeId, name: c.name, lat: c.lat, lng: c.lng }));
 
           // Re-run the deterministic validator once more over the WHOLE
           // merged itinerary — cheap and safe to call twice (it only ever
           // reorders/shifts/drops/inserts stops from data already in hand)
-          // — so the repaired day's stops get the same dedup/meal/opening-
-          // hours/travel-time treatment as every other day, instead of
-          // being spliced in raw.
-          const revalidated = await validateAndCorrectItinerary(correctedDays, buildValidateCtx(hoursByPlaceId));
+          // — so the repaired day's stops get the same dedup/meal
+          // treatment as every other day, instead of being spliced in raw.
+          const revalidated = await validateAndCorrectItinerary(correctedDays, buildValidateCtx(hoursByPlaceId, repairFillerRestaurants));
           correctedDays = revalidated.days;
           warnings = [...warnings, ...revalidated.warnings];
           emptyDayNumbersList = findEmptyDays(correctedDays).filter(
@@ -3115,37 +3171,29 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
           }
         }
 
-        // Fetch a real photo for each unique place, reusing the same landscape /
-        // highest-resolution curation as ai.suggestPlaces. Places backed by a
-        // real candidate already have a verified place_id; only the (rare)
-        // fallback places need the name-based lookup. Bounded concurrency
-        // (mapWithConcurrency) instead of an unbounded Promise.all — for a
-        // long, dense itinerary (e.g. a 5-day "intenso" trip, ~40 unique
-        // places) firing every photo lookup at once was a classic N+1
-        // fan-out that could itself contend for Google API rate limits and
-        // added unnecessary tail latency to the response.
-        const SUGGESTED_PLACES_PHOTO_CONCURRENCY = Math.max(1, Number(process.env.ITINERARY_PHOTO_CONCURRENCY) || 8);
-        const suggestedPlacesPhotoStartedAt = Date.now();
-        const suggestedPlaces = await mapWithConcurrency(
-          Array.from(placesByKey.values()),
-          SUGGESTED_PLACES_PHOTO_CONCURRENCY,
-          async (place) => {
-            let imageUrl: string | undefined;
-            if (GOOGLE_PLACES_KEY) {
-              const placeId = place.googlePlaceId ?? await resolvePlaceIdByName(place.name, place.lat, place.lng, input.language);
-              if (placeId) imageUrl = (await fetchCuratedPlaceDetails(placeId, input.language)).imageUrl;
-            }
-            return { ...place, imageUrl };
-          },
-        );
-        telemetry.suggestedPlacesPhotoMs = Date.now() - suggestedPlacesPhotoStartedAt;
+        // No photo fetch here (AI-first architecture — see the note above
+        // `patchedDays`): previously this did a Google Places name-based
+        // lookup PLUS a photo-URL resolution for every unique place in the
+        // itinerary before returning — exactly the "fetch photos... before
+        // the itinerary is ready" the current architecture forbids. Photos
+        // are now loaded on demand, via the existing `places.curatedDetails`/
+        // `places.catalogDetails` endpoints once a place has a real
+        // `googlePlaceId` (from the new `ai.resolveItineraryStops` below).
+        telemetry.suggestedPlacesPhotoMs = 0;
+        const suggestedPlaces = Array.from(placesByKey.values());
 
         const totalMs = Date.now() - generationStartedAt;
         console.log(
-          `[ai.generateFromScratch] telemetry: model=${ENV.openaiModel} totalMs=${totalMs} totalDays=${totalDays} llmCalls=${telemetry.llmCalls} planningRetried=${telemetry.planningRetried} planningFailedOutright=${telemetry.planningFailedOutright} planningTimedOut=${telemetry.planningTimedOut} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} stopsResolved=${telemetry.stopsResolved} stopsSubstituted=${telemetry.stopsSubstituted} stopsDropped=${telemetry.stopsDropped} fallbackDaysUsed=${JSON.stringify(telemetry.fallbackDaysUsed)} fallbackDaysFailed=${JSON.stringify(telemetry.fallbackDaysFailed)} fallbackDaysTimedOut=${JSON.stringify(telemetry.fallbackDaysTimedOut)} repairedDaysCount=${telemetry.repairedDaysCount} repairedDaysFailed=${JSON.stringify(telemetry.repairedDaysFailed)} fallbackRestaurantPool=${fallbackRestaurantPool.length} unresolvedWarnings=${warnings.length}`,
+          `[ai.generateFromScratch] telemetry: model=${BLOCK_MODEL} reasoningEffort=${BLOCK_REASONING_EFFORT} totalMs=${totalMs} totalDays=${totalDays} llmCalls=${telemetry.llmCalls} planningRetried=${telemetry.planningRetried} planningFailedOutright=${telemetry.planningFailedOutright} planningTimedOut=${telemetry.planningTimedOut} promptTokens=${telemetry.promptTokens} completionTokens=${telemetry.completionTokens} candidateFetchWasNeeded=${candidateFetchWasNeeded} fallbackDaysUsed=${JSON.stringify(telemetry.fallbackDaysUsed)} fallbackDaysFailed=${JSON.stringify(telemetry.fallbackDaysFailed)} fallbackDaysTimedOut=${JSON.stringify(telemetry.fallbackDaysTimedOut)} repairedDaysCount=${telemetry.repairedDaysCount} repairedDaysFailed=${JSON.stringify(telemetry.repairedDaysFailed)} fallbackRestaurantPool=${fallbackRestaurantPool.length} unresolvedWarnings=${warnings.length}`,
         );
         console.log(
           `[ai.generateFromScratch] timings: ${JSON.stringify({
+            // candidateFetchMs is NOT exclusive wall time on the critical
+            // path: it's kicked off before prepStepsMs/generationMs and
+            // only awaited right before validateAndCorrectItinerary, so its
+            // duration overlaps with both — stageSharePct below can sum to
+            // over 100% as a result. See the candidate-fetch note above
+            // candidateFetchStartedAt in this function.
             candidateFetchMs: telemetry.candidateFetchMs,
             prepStepsMs: telemetry.prepStepsMs,
             generationMs: telemetry.generationMs,
@@ -3171,6 +3219,54 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
 
         const allWarnings = [...warningsFromInfeasibleDays, ...warnings];
         return { days: correctedDays, suggestedPlaces, warnings: allWarnings.length > 0 ? allWarnings : undefined };
+      }),
+
+    /**
+     * On-demand place resolution for AI-proposed stops that have no real
+     * lat/lng/address yet (ai.generateFromScratch's AI-first architecture —
+     * see the notes above `patchedDays` there — deliberately returns stops
+     * without this data rather than resolving every stop synchronously
+     * before the itinerary is ready). This is the mechanism that fills it
+     * in afterward, exactly mirroring the existing `directions.batchRoute`
+     * on-demand action ("Update Routes" in itinerary-block.tsx): a small,
+     * explicit batch call the client makes when it actually needs real-
+     * world data (rendering map pins, enabling navigation), never
+     * unconditionally during generation. Resolves place identity/location
+     * only (googlePlaceId/lat/lng/address) — hours and photos are each
+     * already their own on-demand step via the existing
+     * `places.curatedDetails`/`places.catalogDetails` endpoints once a
+     * googlePlaceId is known, so this call stays as cheap as possible.
+     * Never fabricates a match: a stop that can't be matched to a real
+     * place is simply left unresolved (resolved: false), same no-
+     * hallucination guarantee as resolveAndVerifyStop always had.
+     */
+    resolveItineraryStops: protectedProcedure
+      .input(
+        z.object({
+          places: z.array(
+            z.object({
+              placeName: z.string(),
+              lat: z.number().optional(),
+              lng: z.number().optional(),
+            })
+          ).min(1).max(50),
+          language: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await requireActiveSubscription(ctx.user.id);
+        const results = await mapWithConcurrency(input.places, STOP_RESOLUTION_CONCURRENCY, async (p) => {
+          const r = await resolveAndVerifyStop(p.placeName, p.lat, p.lng, input.language);
+          return {
+            placeName: p.placeName,
+            resolved: r.resolved,
+            googlePlaceId: r.googlePlaceId,
+            lat: r.lat,
+            lng: r.lng,
+            address: r.address,
+          };
+        });
+        return { places: results };
       }),
 
     /**

@@ -92,6 +92,21 @@ export type InvokeParams = {
    * actually finish took ~137-139s to fail, not 45s, because of this).
    */
   maxRetries?: number;
+  /**
+   * Caps reasoning effort for reasoning models ("low" | "medium" | "high" |
+   * "xhigh" | "max" — exact supported set is model-dependent; e.g.
+   * gpt-6.1-sol rejects "minimal"/"none" and accepts "low" as its lowest).
+   * Omitted = provider default. Measured directly against this app's own
+   * itinerary block prompt (gpt-6.1-sol, 5-day whole-trip call): default
+   * reasoning effort spent ~38% of output tokens (1552 of 4060) on hidden
+   * reasoning before any itinerary content, for ~95s wall time; "low" cut
+   * that to ~17% (481 of 2875) for ~63s wall time (-34%), with identical
+   * day/stop counts and no empty descriptions in the sampled output. Only
+   * pass this for a call where lower reasoning effort was actually verified
+   * not to degrade output quality — it is NOT a safe blanket default for
+   * every invokeLLM caller.
+   */
+  reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
 };
 
 export type ToolCall = {
@@ -438,6 +453,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   if (openaiTools) requestBody.tools = openaiTools;
   if (openaiToolChoice) requestBody.tool_choice = openaiToolChoice;
   if (textFormat) requestBody.text = { format: textFormat };
+  if (params.reasoningEffort) requestBody.reasoning = { effort: params.reasoningEffort };
 
   const requestOptions: Record<string, unknown> = {};
   if (params.timeoutMs) requestOptions.timeout = params.timeoutMs;

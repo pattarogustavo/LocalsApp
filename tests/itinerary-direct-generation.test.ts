@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { resolveAndVerifyStops } from "../server/routers";
+import { resolveAndVerifyStops, resolveAndVerifyStop } from "../server/routers";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -128,5 +128,36 @@ describe("resolveAndVerifyStops — ai.generateFromScratch's post-generation gro
 
     const days = [{ stops: [{ placeName: "Some Place" }] }];
     await expect(resolveAndVerifyStops(days, { trustedNamesLower: new Set() })).resolves.toMatchObject({ droppedCount: 1, resolvedCount: 0 });
+  });
+});
+
+// ─── resolveAndVerifyStop — the single-stop primitive the new on-demand
+// ai.resolveItineraryStops endpoint wraps (AI-first architecture: this is
+// the ONLY place Google Places gets called for an AI-proposed stop now,
+// and only when the client explicitly asks for it after generation, not
+// synchronously during ai.generateFromScratch itself). ─────────────────────
+describe("resolveAndVerifyStop — on-demand per-stop resolution (backs ai.resolveItineraryStops)", () => {
+  it("resolves a real place to its googlePlaceId/lat/lng/address, without ever fetching a photo", async () => {
+    const fetchMock = mockGooglePlacesFetch({
+      "Casa Batlló": { placeId: "real-3", lat: 41.3917, lng: 2.1649, address: "Passeig de Gràcia, 43" },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await resolveAndVerifyStop("Casa Batlló", undefined, undefined, "pt-BR");
+
+    expect(result).toMatchObject({ resolved: true, googlePlaceId: "real-3", lat: 41.3917, lng: 2.1649, address: "Passeig de Gràcia, 43" });
+    // Only findplacefromtext + details — never a third call to resolve a photo URL.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const call of fetchMock.mock.calls) {
+      expect(String(call[0])).not.toContain("/place/photo");
+    }
+  });
+
+  it("leaves a stop unresolved (never fabricates coordinates) when Google can't find a match", async () => {
+    vi.stubGlobal("fetch", mockGooglePlacesFetch({ "Nonexistent Place": "unresolvable" }));
+
+    const result = await resolveAndVerifyStop("Nonexistent Place", undefined, undefined, "pt-BR");
+
+    expect(result).toEqual({ resolved: false });
   });
 });

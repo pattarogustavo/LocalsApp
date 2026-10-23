@@ -11,6 +11,7 @@ import {
   classifyStopType,
   buildDailySummary,
   findEmptyDays,
+  isMeal,
 } from "../server/itinerary/validate";
 import { withOneRepairAttempt, extractRepairableConflicts, buildRepairPromptBlock } from "../server/itinerary/repair";
 import { diversifyRestaurantLikeOrder } from "../server/itinerary/scoring";
@@ -140,6 +141,31 @@ describe("time helpers", () => {
     expect(dateToGoogleWeekdayIndex("2026-09-14")).toBe(0);
     // 2026-09-20 is a Sunday
     expect(dateToGoogleWeekdayIndex("2026-09-20")).toBe(6);
+  });
+});
+
+// isMeal is exported (not just used internally by validateAndCorrectItinerary's
+// own meal-presence check) specifically so ai.generateFromScratch can run the
+// identical "is this day missing a required meal?" check itself, BEFORE
+// deciding whether to pay for the fallback-restaurant Google Places fetch at
+// all (AI-first architecture — the fetch is now lazy/on-demand, only run when
+// this check finds a real gap in the model's own output).
+describe("isMeal (AI-first architecture: gates the lazy fallback-restaurant fetch)", () => {
+  it("is true for a restaurant/cafe stop inside the given time window", () => {
+    expect(isMeal({ time: "13:00", placeCategory: "restaurant" }, 12 * 60, 14 * 60 + 30)).toBe(true);
+    expect(isMeal({ time: "12:00", placeCategory: "cafe" }, 12 * 60, 14 * 60 + 30)).toBe(true);
+  });
+
+  it("is false outside the window, even for a restaurant/cafe stop", () => {
+    expect(isMeal({ time: "09:00", placeCategory: "restaurant" }, 12 * 60, 14 * 60 + 30)).toBe(false);
+  });
+
+  it("is false for a non-food category, even inside the window", () => {
+    expect(isMeal({ time: "13:00", placeCategory: "attraction" }, 12 * 60, 14 * 60 + 30)).toBe(false);
+  });
+
+  it("is false for a stop with no parsable time", () => {
+    expect(isMeal({ time: undefined, placeCategory: "restaurant" }, 12 * 60, 14 * 60 + 30)).toBe(false);
   });
 });
 

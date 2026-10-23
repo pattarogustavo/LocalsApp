@@ -141,9 +141,27 @@ export async function resolveGooglePhotoUrl(photoReference: string): Promise<str
 /**
  * Fetch real address/hours/phone/photo for a single place_id via Place Details,
  * reusing the same landscape + highest-resolution photo curation as places.details.
+ *
+ * `opts.includePhoto` (default true) controls whether the photo_reference is
+ * resolved to a stable URL — that resolution is its OWN extra network
+ * round-trip (resolveGooglePhotoUrl follows a redirect to
+ * googleusercontent.com) on top of this Place Details call. Several callers
+ * in the itinerary-generation path (stop verification, must-see resolution,
+ * opening-hours backfill, same-category substitution) only ever read
+ * address/hours/lat/lng from this result and discard imageUrl — for those,
+ * paying for a photo fetch on every single call was pure latency with no
+ * effect on the response. `hasPhoto` is always populated for free from the
+ * same Details response (no extra request) so a caller that only needs to
+ * know whether a photo exists (not the resolved URL) never needs
+ * `includePhoto: true` either.
  */
-export async function fetchCuratedPlaceDetails(placeId: string, language?: string): Promise<{ address?: string; hours?: string; phone?: string; imageUrl?: string; lat?: number; lng?: number }> {
+export async function fetchCuratedPlaceDetails(
+  placeId: string,
+  language?: string,
+  opts?: { includePhoto?: boolean },
+): Promise<{ address?: string; hours?: string; phone?: string; imageUrl?: string; hasPhoto?: boolean; lat?: number; lng?: number }> {
   if (!GOOGLE_PLACES_KEY) return {};
+  const includePhoto = opts?.includePhoto ?? true;
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
     url.searchParams.set("place_id", placeId);
@@ -154,9 +172,9 @@ export async function fetchCuratedPlaceDetails(placeId: string, language?: strin
     const data = (await res.json()) as any;
     if (data.status !== "OK") return {};
     const result = data.result;
-    let imageUrl: string | undefined;
     const bestPhotoRef = pickBestGooglePhoto(result?.photos);
-    if (bestPhotoRef) {
+    let imageUrl: string | undefined;
+    if (bestPhotoRef && includePhoto) {
       imageUrl = await resolveGooglePhotoUrl(bestPhotoRef);
     }
     return {
@@ -164,6 +182,7 @@ export async function fetchCuratedPlaceDetails(placeId: string, language?: strin
       hours: result?.opening_hours?.weekday_text?.join("\n"),
       phone: result?.formatted_phone_number,
       imageUrl,
+      hasPhoto: !!bestPhotoRef,
       lat: result?.geometry?.location?.lat,
       lng: result?.geometry?.location?.lng,
     };

@@ -1131,7 +1131,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
   const RESTAURANTS_BUDGET_OPTIONS = useMemo(() => getRestaurantsBudgetOptions(t), [t]);
   const PROFILE_OPTIONS = useMemo(() => getProfileOptions(t), [t]);
   const PACE_OPTIONS = useMemo(() => getPaceOptions(t), [t]);
-  const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace, addAccommodation, updateTrip } = useTripsStore(
+  const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace, addAccommodation, updateTrip, updateItineraryStop, updatePlace } = useTripsStore(
     useShallow((s) => ({
       setItinerary: s.setItinerary,
       addItineraryStop: s.addItineraryStop,
@@ -1140,6 +1140,8 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
       upsertPlace: s.upsertPlace,
       addAccommodation: s.addAccommodation,
       updateTrip: s.updateTrip,
+      updateItineraryStop: s.updateItineraryStop,
+      updatePlace: s.updatePlace,
     })),
   );
   const [selectedDay, setSelectedDay] = useState(0);
@@ -1228,6 +1230,11 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
   ]);
 
   const generateFromScratch = trpc.ai.generateFromScratch.useMutation();
+  // On-demand place resolution (AI-first itinerary architecture): generation
+  // itself never calls Google Places for the model's own proposed stops, so
+  // this batch call fills in real lat/lng/address/googlePlaceId afterward,
+  // in the background, without delaying the itinerary's initial display.
+  const resolveItineraryStops = trpc.ai.resolveItineraryStops.useMutation();
   const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const profileHotelDetailsQuery = trpc.places.details.useQuery(
     { placeId: profileHotelPlaceId, language: preferredLanguage },
@@ -1270,6 +1277,132 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
     () => trip.places.filter((p) => !scheduledPlaceIds.has(p.id)),
     [trip.places, scheduledPlaceIds]
   );
+
+  // ── Background place resolution bookkeeping ───────────────────────────────
+  // isMountedRef: this component unmounts on tab switches (see the draft-
+  // autosave comment above) — guards against applying a resolution result
+  // after that happens.
+  // generationTokenRef: bumped on every successful generation; a resolution
+  // response is only applied if it still matches the generation it was
+  // requested for, so an older, slower-to-resolve batch can never overwrite
+  // stops from a newer generation with stale data.
+  // resolvingTokensRef: tokens currently being resolved — guards against
+  // firing the exact same batch twice (e.g. a future caller accidentally
+  // invoking this twice for one generation) WITHOUT blocking a genuinely
+  // newer generation's own resolution, which must always be allowed to run
+  // even if an older one is still in flight.
+  const isMountedRef = useRef(true);
+  const generationTokenRef = useRef(0);
+  const resolvingTokensRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  /**
+   * Fire-and-forget: resolves every just-generated stop that has no real
+   * lat/lng yet against Google Places, then gap-fills the result onto the
+   * stop AND its linked Place record — never overwriting a value that's
+   * already there (same philosophy as upsertPlace's own gap-fill, and never
+   * applied to a stop a user may have edited/removed in the meantime, since
+   * both the stop and its current lat/lng are re-checked against the LIVE
+   * store state at apply time, not the snapshot taken when this started).
+   * Never throws into its caller — a failure here must never surface as an
+   * itinerary-generation error, since the itinerary is already saved and
+   * showing by the time this runs.
+   */
+  const resolveNewStopsInBackground = useCallback(async (generationToken: number, days: DayItinerary[]) => {
+    if (resolvingTokensRef.current.has(generationToken)) return; // this exact batch is already in flight
+    type Target = { dayIndex: number; stopId: string; placeNameLower: string };
+    const targets: Target[] = [];
+    const uniqueNamesLower = new Map<string, string>(); // lowercased -> original-case name to send
+    days.forEach((day, dayIndex) => {
+      for (const stop of day.stops || []) {
+        if (!stop.id || !stop.placeName) continue;
+        if (stop.lat != null && stop.lng != null) continue; // already resolved (e.g. a selected/must-see place)
+        const lower = stop.placeName.toLowerCase();
+        targets.push({ dayIndex, stopId: stop.id, placeNameLower: lower });
+        if (!uniqueNamesLower.has(lower)) uniqueNamesLower.set(lower, stop.placeName);
+      }
+    });
+    if (uniqueNamesLower.size === 0) return;
+
+    resolvingTokensRef.current.add(generationToken);
+    try {
+      // The endpoint caps a single batch at 50 places — chunk defensively
+      // even though a normal trip (up to ~40 unique stops at "intenso"
+      // pace) stays under that on its own.
+      const allNames = Array.from(uniqueNamesLower.values());
+      const resolvedByNameLower = new Map<string, { googlePlaceId?: string; lat?: number; lng?: number; address?: string }>();
+      for (let i = 0; i < allNames.length; i += 50) {
+        const chunk = allNames.slice(i, i + 50);
+        try {
+          const response = await resolveItineraryStops.mutateAsync({
+            places: chunk.map((name) => ({ placeName: name, lat: destLat, lng: destLng })),
+            language: preferredLanguage,
+          });
+          for (const p of response.places) {
+            if (p.resolved) resolvedByNameLower.set(p.placeName.toLowerCase(), { googlePlaceId: p.googlePlaceId, lat: p.lat, lng: p.lng, address: p.address });
+          }
+        } catch (chunkErr) {
+          // Partial failure isolation: one batch failing never blocks the
+          // others, and never fabricates data for the names it couldn't
+          // resolve — they just stay unresolved, same as if this call never
+          // ran at all.
+          console.error('[itinerary] resolveItineraryStops batch failed:', chunkErr);
+        }
+      }
+      if (resolvedByNameLower.size === 0) return;
+
+      // Stale-response guard: a newer generation (or this component having
+      // unmounted) means these results are no longer relevant to apply.
+      if (!isMountedRef.current || generationTokenRef.current !== generationToken) return;
+
+      const liveTrip = useTripsStore.getState().trips.find((tr) => tr.id === trip.id);
+      if (!liveTrip) return;
+
+      for (const target of targets) {
+        const resolved = resolvedByNameLower.get(target.placeNameLower);
+        if (!resolved) continue;
+        const liveDay = liveTrip.itinerary[target.dayIndex];
+        const liveStop = liveDay?.stops.find((s) => s.id === target.stopId);
+        if (!liveStop) continue; // stop no longer exists (deleted, or the itinerary was regenerated again)
+        if (liveStop.lat != null && liveStop.lng != null) continue; // already has coordinates — never overwrite
+
+        const stopUpdates: Partial<ItineraryStop> = {};
+        if (resolved.lat != null && resolved.lng != null) {
+          stopUpdates.lat = resolved.lat;
+          stopUpdates.lng = resolved.lng;
+        }
+        if (liveStop.address == null && resolved.address != null) stopUpdates.address = resolved.address;
+        if (liveStop.googlePlaceId == null && resolved.googlePlaceId != null) stopUpdates.googlePlaceId = resolved.googlePlaceId;
+        if (Object.keys(stopUpdates).length > 0) {
+          await updateItineraryStop(trip.id, target.dayIndex, target.stopId, stopUpdates);
+        }
+
+        // Gap-fill the linked Place record too, so the Lugares tab and any
+        // other place-detail view also picks up the resolved location.
+        if (liveStop.placeId) {
+          const livePlace = liveTrip.places.find((p) => p.id === liveStop.placeId);
+          if (livePlace) {
+            const placeUpdates: Partial<Place> = {};
+            if (livePlace.lat == null && resolved.lat != null) placeUpdates.lat = resolved.lat;
+            if (livePlace.lng == null && resolved.lng != null) placeUpdates.lng = resolved.lng;
+            if (livePlace.address == null && resolved.address != null) placeUpdates.address = resolved.address;
+            if (livePlace.placeId == null && resolved.googlePlaceId != null) placeUpdates.placeId = resolved.googlePlaceId;
+            if (Object.keys(placeUpdates).length > 0) {
+              await updatePlace(trip.id, livePlace.id, placeUpdates);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      // Belt-and-suspenders: this function must never throw into a
+      // fire-and-forget caller.
+      console.error('[itinerary] resolveNewStopsInBackground failed:', err);
+    } finally {
+      resolvingTokensRef.current.delete(generationToken);
+    }
+  }, [resolveItineraryStops, destLat, destLng, preferredLanguage, trip.id, updateItineraryStop, updatePlace]);
 
   const handleGenerateFromScratch = async () => {
     setShowProfileModal(false);
@@ -1364,7 +1497,12 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
               imageUrl: sp?.imageUrl,
               addedByAI: true,
             });
-            return { ...stop, placeId: localPlaceId };
+            // Every stop needs a stable id — the backend's minimal stop
+            // schema never includes one (see server/itinerary/schema.ts),
+            // and a stable id is what lets the background place-resolution
+            // pass below (and "Update Routes"/edit/delete) safely target
+            // this exact stop later without relying on array position.
+            return { ...stop, id: stop.id || generateId(), placeId: localPlaceId };
           })),
         })));
         await setItinerary(trip.id, patchedDays);
@@ -1377,6 +1515,13 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
         await updateTrip(trip.id, { contentLanguage: preferredLanguage, draftItineraryProfile: null });
         setSelectedDay(0);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+        // Deliberately NOT awaited: the itinerary is already saved and on
+        // screen above this line — real coordinates/addresses are resolved
+        // in the background (AI-first architecture) and must never delay
+        // showing the generated itinerary.
+        const myGenerationToken = ++generationTokenRef.current;
+        resolveNewStopsInBackground(myGenerationToken, patchedDays);
       }
     } catch (e) {
       console.error('Generate from scratch error:', e);
