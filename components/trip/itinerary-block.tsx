@@ -18,6 +18,8 @@ import { trpc } from '@/lib/trpc';
 import { CityTransportSection } from '@/components/trip/transport-block';
 import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
 import { generateId } from '@/utils/trip-helpers';
+import { buildStopMapsUrl, buildDirectionsUrl } from '@/utils/maps-url';
+import { buildConsecutiveLegs, chunkLegs } from '@/utils/route-legs';
 import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop, CityTransportMode } from '@/types/voyage';
 import type { TripPermissions } from '@/hooks/use-trip-permissions';
 import { useTranslation } from '@/hooks/use-translation';
@@ -235,15 +237,19 @@ interface StopLike {
   lng?: number;
   imageUrl?: string;
   placeId?: string;
+  googlePlaceId?: string;
   travelTimeToNext?: string;
   travelModeToNext?: string;
+  mapsUrlToNext?: string;
 }
 
 function StopItem({
   stop,
   isLast,
   prevStop,
+  nextStop,
   cityTransportMode,
+  destinationContext,
   onDelete,
   onTimeChange,
   onMove,
@@ -254,7 +260,9 @@ function StopItem({
   stop: StopLike;
   isLast: boolean;
   prevStop?: StopLike | null;
+  nextStop?: StopLike | null;
   cityTransportMode?: string;
+  destinationContext?: string;
   onDelete?: () => void;
   onTimeChange?: (t: string) => void;
   onMove?: () => void;
@@ -291,20 +299,23 @@ function StopItem({
   const catIcon  = CATEGORY_ICONS[cat] || 'location-outline';
   const catColor = CATEGORY_COLORS[cat] || colors.textAccent;
 
+  // Always resolvable locally — no Google Places call. Prefers a verified
+  // googlePlaceId/lat-lng when present, otherwise falls back to the stop's
+  // name plus the destination city, which Google Maps geocodes itself when
+  // the link is opened.
   const openMaps = () => {
-    const destCoord = stop.lat && stop.lng ? `${stop.lat},${stop.lng}` : stop.address;
-    if (!destCoord) return;
     const travelmode = toDirectionsMode(cityTransportMode);
-    const originCoord = prevStop
-      ? (prevStop.lat && prevStop.lng ? `${prevStop.lat},${prevStop.lng}` : prevStop.address)
-      : null;
-    if (originCoord) {
-      Linking.openURL(
-        `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originCoord)}&destination=${encodeURIComponent(destCoord)}&travelmode=${travelmode}`
-      );
-    } else {
-      Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(destCoord)}`);
-    }
+    const url = prevStop
+      ? buildDirectionsUrl(prevStop, stop, travelmode, destinationContext)
+      : buildStopMapsUrl(stop, destinationContext);
+    Linking.openURL(url);
+  };
+
+  const openMapsToNext = () => {
+    if (!nextStop) return;
+    const travelmode = toDirectionsMode(stop.travelModeToNext || cityTransportMode);
+    const url = stop.mapsUrlToNext || buildDirectionsUrl(stop, nextStop, travelmode, destinationContext);
+    Linking.openURL(url);
   };
 
   // Swipe-left reveals the delete button on the right
@@ -390,7 +401,7 @@ function StopItem({
               ) : null}
 
               <View style={styles.stopActions}>
-                {(stop.lat || stop.address) ? (
+                {name ? (
                   <TouchableOpacity onPress={openMaps} style={styles.stopActionBtn}>
                     <Ionicons name="map-outline" size={13} color={colors.textAccent} />
                     <Text style={styles.stopActionText}>Maps</Text>
@@ -495,30 +506,32 @@ function StopItem({
         </View>
       </Modal>
 
-      {/* Transit connector to next stop */}
-      {!isLast && stop.travelTimeToNext ? (
+      {/* Transit connector to next stop — the Maps link is always available
+          (built locally, falling back to name+city when unresolved yet);
+          the duration shows a neutral placeholder until route enrichment
+          fills it in the background. */}
+      {!isLast && nextStop ? (
         <TouchableOpacity
           style={styles.gmTransitRow}
-          onPress={() => {
-            const url = (stop as any).mapsUrlToNext;
-            if (url) Linking.openURL(url);
-          }}
-          activeOpacity={(stop as any).mapsUrlToNext ? 0.7 : 1}
+          onPress={openMapsToNext}
+          activeOpacity={0.7}
         >
           {/* Align with the vertical line */}
           <View style={styles.gmTransitIconWrap}>
             <View style={styles.gmTransitIconBg}>
               <Ionicons
-                name={travelModeIcon(stop.travelModeToNext) as any}
+                name={travelModeIcon(stop.travelModeToNext || cityTransportMode) as any}
                 size={11}
                 color={colors.muted}
               />
             </View>
           </View>
-          <Text style={styles.gmTransitText}>{stop.travelTimeToNext}</Text>
-          {(stop as any).mapsUrlToNext ? (
-            <Ionicons name="open-outline" size={10} color={withAlpha(colors.primary, 0.5)} style={{ marginLeft: 4 }} />
-          ) : null}
+          {stop.travelTimeToNext ? (
+            <Text style={styles.gmTransitText}>{stop.travelTimeToNext}</Text>
+          ) : (
+            <ActivityIndicator size="small" color={colors.muted} style={{ marginHorizontal: 2 }} />
+          )}
+          <Ionicons name="open-outline" size={10} color={withAlpha(colors.primary, 0.5)} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
       ) : null}
 
@@ -868,7 +881,9 @@ function DayView({
           stop={hotelStop}
           isLast={rawStops.length === 0}
           prevStop={null}
+          nextStop={rawStops[0] ?? null}
           cityTransportMode={cityTransportMode}
+          destinationContext={day?.destination}
           animIndex={0}
           linkedPlace={places?.find((p) => (p.category as string) === 'hotel') ?? null}
         />
@@ -878,6 +893,7 @@ function DayView({
       {rawStops.map((s, idx) => {
         const i = idx + (hotelStop ? 1 : 0);
         const prevS = i > 0 ? stops[i - 1] : null;
+        const nextS = i < stops.length - 1 ? stops[i + 1] : null;
         const linked = s.placeId ? (places?.find((p) => p.id === s.placeId) ?? null) : null;
         return (
           <StopItem
@@ -885,6 +901,8 @@ function DayView({
             stop={s}
             isLast={idx === rawStops.length - 1}
             prevStop={prevS}
+            nextStop={nextS}
+            destinationContext={day?.destination}
             cityTransportMode={cityTransportMode}
             onDelete={s.id && permissions.canEdit ? () => handleDeleteStop(s) : undefined}
             onTimeChange={s.id && permissions.canEdit ? (t) => handleTimeChange(s, t) : undefined}
@@ -1235,6 +1253,10 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
   // this batch call fills in real lat/lng/address/googlePlaceId afterward,
   // in the background, without delaying the itinerary's initial display.
   const resolveItineraryStops = trpc.ai.resolveItineraryStops.useMutation();
+  // Same batch-route integration "Atualizar rotas" already uses (see
+  // DayView.handleUpdateRoutes) — reused here to fill in travel durations
+  // automatically in the background right after generation.
+  const batchRouteMutation = trpc.directions.batchRoute.useMutation();
   const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const profileHotelDetailsQuery = trpc.places.details.useQuery(
     { placeId: profileHotelPlaceId, language: preferredLanguage },
@@ -1294,6 +1316,10 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
   const isMountedRef = useRef(true);
   const generationTokenRef = useRef(0);
   const resolvingTokensRef = useRef<Set<number>>(new Set());
+  // Same dedupe convention, separate set: route enrichment runs independently
+  // of place resolution (it doesn't need lat/lng — see resolveRoutesInBackground)
+  // and must not be blocked by, or block, that other background pass.
+  const resolvingRouteTokensRef = useRef<Set<number>>(new Set());
   useEffect(() => {
     return () => { isMountedRef.current = false; };
   }, []);
@@ -1403,6 +1429,70 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
       resolvingTokensRef.current.delete(generationToken);
     }
   }, [resolveItineraryStops, destLat, destLng, preferredLanguage, trip.id, updateItineraryStop, updatePlace]);
+
+  /**
+   * Fire-and-forget: computes travel time + a Google Maps directions link
+   * for every consecutive stop pair within each day, using the same
+   * directions.batchRoute integration "Atualizar rotas" already uses (see
+   * DayView.handleUpdateRoutes). Runs right after generation, in parallel
+   * with resolveNewStopsInBackground — it does NOT wait for that pass,
+   * since a stop with no lat/lng/address yet can still be located by name
+   * + destination city (locatorFor), the same fallback the Maps links use.
+   * Never overwrites a leg already resolved for the current travel mode,
+   * and never throws into its fire-and-forget caller — a failed batch just
+   * leaves those legs unresolved, same as if "Atualizar rotas" were never
+   * tapped.
+   */
+  const resolveRoutesInBackground = useCallback(async (generationToken: number, days: DayItinerary[]) => {
+    if (resolvingRouteTokensRef.current.has(generationToken)) return;
+    const mode = toDirectionsMode(cityTransportMode || trip.cityTransportMode);
+    const legs = buildConsecutiveLegs(days, mode);
+    if (legs.length === 0) return;
+
+    resolvingRouteTokensRef.current.add(generationToken);
+    const startedAt = Date.now();
+    let resolvedCount = 0;
+    let errorCount = 0;
+    try {
+      // directions.batchRoute caps a single call at 20 pairs — chunk and
+      // run a few chunks at a time rather than one unbounded Promise.all.
+      const chunks = chunkLegs(legs, 20);
+      const CONCURRENCY = 3;
+      let nextChunkIdx = 0;
+      const worker = async () => {
+        while (nextChunkIdx < chunks.length) {
+          const chunk = chunks[nextChunkIdx++];
+          try {
+            const result = await batchRouteMutation.mutateAsync({
+              pairs: chunk.map((leg) => ({ origin: leg.origin, destination: leg.destination, mode: leg.mode })),
+              language: preferredLanguage,
+            });
+            if (!isMountedRef.current || generationTokenRef.current !== generationToken) return;
+            result.results.forEach((r, i) => {
+              const leg = chunk[i];
+              if (r?.found) {
+                resolvedCount++;
+                updateItineraryStop(trip.id, leg.dayIdx, leg.stopId, {
+                  travelTimeToNext: r.durationText,
+                  travelModeToNext: mode as any,
+                  mapsUrlToNext: r.mapsUrl,
+                });
+              }
+            });
+          } catch (chunkErr) {
+            errorCount++;
+            console.error('[itinerary] route enrichment batch failed:', chunkErr);
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, worker));
+    } finally {
+      resolvingRouteTokensRef.current.delete(generationToken);
+      // Lightweight telemetry for route enrichment, separate from
+      // itinerary-generation latency.
+      console.info(`[itinerary] route enrichment: ${resolvedCount}/${legs.length} legs resolved in ${Date.now() - startedAt}ms (${errorCount} batch errors)`);
+    }
+  }, [batchRouteMutation, cityTransportMode, trip.cityTransportMode, trip.id, preferredLanguage, updateItineraryStop]);
 
   const handleGenerateFromScratch = async () => {
     setShowProfileModal(false);
@@ -1522,6 +1612,10 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
         // showing the generated itinerary.
         const myGenerationToken = ++generationTokenRef.current;
         resolveNewStopsInBackground(myGenerationToken, patchedDays);
+        // Independent of place resolution above — route enrichment locates
+        // unresolved stops by name + destination city, so it doesn't need
+        // to wait for lat/lng to arrive first.
+        resolveRoutesInBackground(myGenerationToken, patchedDays);
       }
     } catch (e) {
       console.error('Generate from scratch error:', e);
