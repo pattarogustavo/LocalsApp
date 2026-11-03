@@ -114,12 +114,41 @@ describe("storageDeletePrefix", () => {
     await expect(storageDeletePrefix("trip-documents/42/")).rejects.toThrow(/Storage delete failed/);
   });
 
-  it("does nothing when the prefix is empty", async () => {
+  it("does nothing when the list result is empty", async () => {
     const storageDeletePrefix = await freshStorageDeletePrefix();
     listMock.mockResolvedValueOnce({ data: [], error: null });
 
     await storageDeletePrefix("trip-documents/42/");
 
     expect(removeMock).not.toHaveBeenCalled();
+  });
+
+  describe("prefix validation", () => {
+    it.each([
+      ["", "empty string"],
+      ["/", "just a slash"],
+      ["trip-documents/", "no segment after the root"],
+      ["../x", "path traversal, wrong root"],
+      ["trip-documents//", "double slash"],
+      ["trip-documents/../x", "contains .."],
+      ["trip-documents/42/../x", "contains .. mid-path"],
+    ])("rejects %j (%s) before listing anything", async (badPrefix) => {
+      const storageDeletePrefix = await freshStorageDeletePrefix();
+
+      await expect(storageDeletePrefix(badPrefix)).rejects.toThrow(/Invalid storage prefix/);
+      expect(listMock).not.toHaveBeenCalled();
+      expect(removeMock).not.toHaveBeenCalled();
+    });
+
+    it.each(["trip-documents/42/", "trip-documents/42/abc-1/"])(
+      "accepts the valid prefix %j",
+      async (goodPrefix) => {
+        const storageDeletePrefix = await freshStorageDeletePrefix();
+        listMock.mockResolvedValueOnce({ data: [], error: null });
+
+        await expect(storageDeletePrefix(goodPrefix)).resolves.toBeUndefined();
+        expect(listMock).toHaveBeenCalled();
+      },
+    );
   });
 });

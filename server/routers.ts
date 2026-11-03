@@ -1274,6 +1274,9 @@ export const appRouter = router({
      * data, including the Supabase Auth identity (Apple Guideline 5.1.1v).
      */
     deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
+      if (!Number.isInteger(ctx.user.id) || ctx.user.id <= 0) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Invalid user id" });
+      }
       try {
         await storageDeletePrefix(`trip-documents/${ctx.user.id}/`);
       } catch (err) {
@@ -3834,13 +3837,17 @@ ${SUGGEST_FALLBACK_WEB_SEARCH ? `\n${WEB_SEARCH_INSTRUCTION}` : ''}`;
 
     /** Delete a trip by clientId. */
     delete: protectedProcedure
-      .input(z.object({ clientId: z.string().min(1).max(64) }))
+      .input(z.object({ clientId: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/) }))
       .mutation(async ({ ctx, input }) => {
         await db.deleteTripByClientId(ctx.user.id, input.clientId);
-        try {
-          await storageDeletePrefix(`trip-documents/${ctx.user.id}/${input.clientId}/`);
-        } catch (err) {
-          console.error("[trips.delete] storage cleanup failed:", err);
+        if (Number.isInteger(ctx.user.id) && ctx.user.id > 0) {
+          try {
+            await storageDeletePrefix(`trip-documents/${ctx.user.id}/${input.clientId}/`);
+          } catch (err) {
+            console.error("[trips.delete] storage cleanup failed:", err);
+          }
+        } else {
+          console.error("[trips.delete] storage cleanup skipped: invalid user id", ctx.user.id);
         }
         return { ok: true };
       }),

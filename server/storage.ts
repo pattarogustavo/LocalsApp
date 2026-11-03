@@ -52,15 +52,41 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
 const LIST_PAGE_SIZE = 100;
 
 /**
+ * Validates that `prefix` is safely scoped under "trip-documents/" before
+ * any listing happens, so a bad caller can never trigger a scan (let alone
+ * a delete) outside that tree or across ".." segments. Returns the
+ * normalized prefix (leading/trailing slashes stripped) on success.
+ */
+function assertValidStoragePrefix(prefix: string): string {
+  if (!prefix || prefix === "/") {
+    throw new Error("Invalid storage prefix: must not be empty");
+  }
+  if (prefix.includes("..") || prefix.includes("//") || /[\x00-\x1f\x7f]/.test(prefix)) {
+    throw new Error(`Invalid storage prefix: "${prefix}" contains disallowed characters`);
+  }
+  if (!prefix.startsWith("trip-documents/")) {
+    throw new Error(`Invalid storage prefix: "${prefix}" must start with "trip-documents/"`);
+  }
+
+  const normalized = normalizeKey(prefix).replace(/\/+$/, "");
+  const segments = normalized.split("/").filter(Boolean);
+  if (segments.length < 2) {
+    throw new Error(`Invalid storage prefix: "${prefix}" has too few segments`);
+  }
+
+  return normalized;
+}
+
+/**
  * Recursively deletes every object under `prefix` (a folder path, e.g.
  * "trip-documents/42/"). Supabase Storage's `list` only returns the
  * immediate children of a folder, not a flat prefix match, so folders are
  * walked breadth-first; entries with `id === null` are subfolders.
  */
 export async function storageDeletePrefix(prefix: string): Promise<void> {
+  const normalizedPrefix = assertValidStoragePrefix(prefix);
   const bucket = getBucket();
   const client = getSupabaseAdmin();
-  const normalizedPrefix = normalizeKey(prefix).replace(/\/+$/, "");
 
   const folderQueue: string[] = [normalizedPrefix];
   const filePaths: string[] = [];
