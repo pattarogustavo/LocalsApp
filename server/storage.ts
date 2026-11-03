@@ -49,6 +49,58 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
   return { key, url: `/storage/${key}` };
 }
 
+const LIST_PAGE_SIZE = 100;
+
+/**
+ * Recursively deletes every object under `prefix` (a folder path, e.g.
+ * "trip-documents/42/"). Supabase Storage's `list` only returns the
+ * immediate children of a folder, not a flat prefix match, so folders are
+ * walked breadth-first; entries with `id === null` are subfolders.
+ */
+export async function storageDeletePrefix(prefix: string): Promise<void> {
+  const bucket = getBucket();
+  const client = getSupabaseAdmin();
+  const normalizedPrefix = normalizeKey(prefix).replace(/\/+$/, "");
+
+  const folderQueue: string[] = [normalizedPrefix];
+  const filePaths: string[] = [];
+
+  while (folderQueue.length > 0) {
+    const folder = folderQueue.shift()!;
+    let offset = 0;
+    for (;;) {
+      const { data, error } = await client.storage
+        .from(bucket)
+        .list(folder, { limit: LIST_PAGE_SIZE, offset });
+
+      if (error) {
+        throw new Error(`Storage list failed for "${folder}": ${error.message}`);
+      }
+      if (!data || data.length === 0) break;
+
+      for (const entry of data) {
+        const entryPath = `${folder}/${entry.name}`;
+        if (entry.id === null) {
+          folderQueue.push(entryPath);
+        } else {
+          filePaths.push(entryPath);
+        }
+      }
+
+      if (data.length < LIST_PAGE_SIZE) break;
+      offset += LIST_PAGE_SIZE;
+    }
+  }
+
+  for (let i = 0; i < filePaths.length; i += LIST_PAGE_SIZE) {
+    const batch = filePaths.slice(i, i + LIST_PAGE_SIZE);
+    const { error } = await client.storage.from(bucket).remove(batch);
+    if (error) {
+      throw new Error(`Storage delete failed for prefix "${normalizedPrefix}": ${error.message}`);
+    }
+  }
+}
+
 export async function storageGetSignedUrl(relKey: string): Promise<string> {
   const key = normalizeKey(relKey);
 

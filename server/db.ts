@@ -87,6 +87,7 @@ export async function deleteUserData(userId: number): Promise<void> {
   }
   await db.delete(tripShares).where(or(eq(tripShares.ownerId, userId), eq(tripShares.inviteeUserId, userId)));
   await db.delete(trips).where(eq(trips.userId, userId));
+  await db.delete(pushTokens).where(eq(pushTokens.userId, userId));
   await db.delete(users).where(eq(users.id, userId));
 }
 

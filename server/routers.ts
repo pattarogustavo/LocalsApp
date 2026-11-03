@@ -7,7 +7,7 @@ import { z } from "zod";
 import { searchIslands } from "../constants/islands-regions";
 import * as db from "./db";
 import crypto from "crypto";
-import { storagePut } from "./storage";
+import { storagePut, storageDeletePrefix } from "./storage";
 import { getSupabaseAdmin } from "./_core/supabaseAdmin";
 import { prepareCandidatePool } from "./itinerary/candidates";
 import { buildDurationGuidancePromptBlock } from "./itinerary/duration";
@@ -1274,6 +1274,15 @@ export const appRouter = router({
      * data, including the Supabase Auth identity (Apple Guideline 5.1.1v).
      */
     deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
+      try {
+        await storageDeletePrefix(`trip-documents/${ctx.user.id}/`);
+      } catch (err) {
+        console.error("[account.deleteAccount] storage cleanup failed:", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Falha ao remover seus arquivos. Tente novamente.",
+        });
+      }
       await db.deleteUserData(ctx.user.id);
       const { error } = await getSupabaseAdmin().auth.admin.deleteUser(ctx.user.openId);
       if (error) {
@@ -3828,6 +3837,11 @@ ${SUGGEST_FALLBACK_WEB_SEARCH ? `\n${WEB_SEARCH_INSTRUCTION}` : ''}`;
       .input(z.object({ clientId: z.string().min(1).max(64) }))
       .mutation(async ({ ctx, input }) => {
         await db.deleteTripByClientId(ctx.user.id, input.clientId);
+        try {
+          await storageDeletePrefix(`trip-documents/${ctx.user.id}/${input.clientId}/`);
+        } catch (err) {
+          console.error("[trips.delete] storage cleanup failed:", err);
+        }
         return { ok: true };
       }),
   }),
