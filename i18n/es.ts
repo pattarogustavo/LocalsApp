@@ -866,17 +866,6 @@ export const es: Translations = {
     continueWithoutSubscribing: 'Continuar sin suscribirme',
   },
 
-  proBadge: {
-    label: 'Pro',
-  },
-
-  aiLock: {
-    placesTitle: 'Las sugerencias de lugares son una función Pro',
-    placesMsg: 'Suscríbete para recibir sugerencias de lugares con IA para cada destino de tu viaje.',
-    infoTitle: 'La información del destino es una función Pro',
-    infoMsg: 'Suscríbete para ver clima, afluencia, salud y visado generados por IA para cada destino.',
-    unlockBtn: 'Desbloquear con Pro',
-  },
   sharing: {
     title: 'Compartir Viaje',
     sharedWithMe: 'Compartidos Conmigo',

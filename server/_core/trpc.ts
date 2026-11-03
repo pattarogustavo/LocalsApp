@@ -5,6 +5,16 @@ import type { TrpcContext } from "./context";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
+  // tRPC's own PAYMENT_REQUIRED code already maps to HTTP 402 — this just
+  // relabels it as the app-facing 'PAYWALL_REQUIRED' code the client checks
+  // for (see throwPaywallRequired in routers.ts).
+  errorFormatter(opts) {
+    const { shape } = opts;
+    if (shape.data.code === "PAYMENT_REQUIRED") {
+      return { ...shape, data: { ...shape.data, code: "PAYWALL_REQUIRED" as const } };
+    }
+    return shape;
+  },
 });
 
 export const router = t.router;

@@ -148,11 +148,6 @@ export function PaywallModal({ visible, onClose, feature }: PaywallModalProps) {
                 </View>
               </View>
             ))}
-
-            {/* Free trial note */}
-            <Text style={[styles.trialNote, { color: colors.muted }]}>
-              7 dias grátis · Cancele quando quiser · Sem compromisso
-            </Text>
           </ScrollView>
         </View>
       </View>
@@ -277,10 +272,5 @@ const styles = StyleSheet.create({
     color: ON_PRIMARY,
     fontSize: 16,
     fontWeight: '700',
-  },
-  trialNote: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 4,
   },
 });

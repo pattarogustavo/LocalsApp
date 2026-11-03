@@ -207,3 +207,24 @@ export const catalogRequests = pgTable("catalog_requests", {
 
 export type CatalogRequest = typeof catalogRequests.$inferSelect;
 export type InsertCatalogRequest = typeof catalogRequests.$inferInsert;
+
+/**
+ * Tracks a non-Pro user's one free use of each AI feature (info/places/
+ * itinerary), all scoped to whichever trip first used any of them — the
+ * user's "free trip". `tripId` is the client-generated `trips.clientId`
+ * string (not the numeric `trips.id`), matching what every AI endpoint
+ * already receives from the app. Row lifecycle (claim/release) is driven by
+ * the claim_free_ai/release_free_ai SQL functions (see
+ * drizzle/0009_free_ai_usage.sql) — this table is otherwise only read from
+ * server/db.ts, never written directly via Drizzle.
+ */
+export const freeAiUsage = pgTable("free_ai_usage", {
+  userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  tripId: varchar("trip_id", { length: 64 }).notNull(),
+  infoUsed: boolean("info_used").default(false).notNull(),
+  placesUsed: boolean("places_used").default(false).notNull(),
+  itineraryUsed: boolean("itinerary_used").default(false).notNull(),
+});
+
+export type FreeAiUsage = typeof freeAiUsage.$inferSelect;
+export type InsertFreeAiUsage = typeof freeAiUsage.$inferInsert;

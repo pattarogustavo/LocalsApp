@@ -13,7 +13,7 @@ import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/store/auth';
-import { ProBadge } from '@/components/trial-banner';
+import { handlePaywallError } from '@/hooks/use-paywall-guard';
 import { trpc } from '@/lib/trpc';
 import { CityTransportSection } from '@/components/trip/transport-block';
 import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
@@ -778,10 +778,6 @@ function DayView({
   };
 
   const handleUpdateRoutes = async () => {
-    if (!permissions.canUseAI) {
-      router.push('/paywall' as any);
-      return;
-    }
     const mode = toDirectionsMode(cityTransportMode);
     // Build origin/destination pairs for every day in the itinerary, tracking
     // which day + stop each pair belongs to so results can be applied back correctly.
@@ -820,6 +816,7 @@ function DayView({
       });
     } catch (e) {
       console.error('Directions error:', e);
+      handlePaywallError(e);
     } finally {
       setUpdatingRoutes(false);
     }
@@ -827,7 +824,7 @@ function DayView({
 
   return (
     <View>
-      {/* Update routes button — AI-equivalent write action, requires canUseAI */}
+      {/* Update routes button — AI-equivalent write action, Pro-only server-side */}
       {stops.length >= 2 && permissions.canEdit && (
         <TouchableOpacity
           onPress={handleUpdateRoutes}
@@ -1363,6 +1360,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
         const chunk = allNames.slice(i, i + 50);
         try {
           const response = await resolveItineraryStops.mutateAsync({
+            tripId: trip.id,
             places: chunk.map((name) => ({ placeName: name, lat: destLat, lng: destLng })),
             language: preferredLanguage,
           });
@@ -1375,6 +1373,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
           // resolve — they just stay unresolved, same as if this call never
           // ran at all.
           console.error('[itinerary] resolveItineraryStops batch failed:', chunkErr);
+          handlePaywallError(chunkErr);
         }
       }
       if (resolvedByNameLower.size === 0) return;
@@ -1619,8 +1618,10 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
       }
     } catch (e) {
       console.error('Generate from scratch error:', e);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(t.common.error, getGenerationErrorMessage(e, t.ai.error));
+      if (!handlePaywallError(e)) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert(t.common.error, getGenerationErrorMessage(e, t.ai.error));
+      }
     } finally {
       setGenerating(false);
     }
@@ -1862,7 +1863,6 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
               <TouchableOpacity
                 onPress={() => {
                   setShowCreateModal(false);
-                  if (!permissions.canUseAI) { router.push('/paywall' as any); return; }
                   setShowProfileModal(true);
                 }}
                 style={styles.createModeOption}
@@ -1871,10 +1871,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
                   <Ionicons name="sparkles" size={20} color={colors.textAccent} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.createModeLabel}>{t.itinerary.createModeAutoLabel}</Text>
-                    <ProBadge />
-                  </View>
+                  <Text style={styles.createModeLabel}>{t.itinerary.createModeAutoLabel}</Text>
                   <Text style={styles.createModeDesc}>{t.itinerary.createModeAutoDesc}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colors.muted} />

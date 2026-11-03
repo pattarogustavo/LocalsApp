@@ -883,18 +883,6 @@ export const de: Translations = {
     continueWithoutSubscribing: 'Ohne Abo fortfahren',
   },
 
-  proBadge: {
-    label: 'Pro',
-  },
-
-  aiLock: {
-    placesTitle: 'Ortsvorschläge sind eine Pro-Funktion',
-    placesMsg: 'Abonniere, um KI-Ortsvorschläge für jedes Reiseziel deiner Reise zu erhalten.',
-    infoTitle: 'Reiseziel-Infos sind eine Pro-Funktion',
-    infoMsg: 'Abonniere, um KI-generierte Infos zu Klima, Andrang, Gesundheit und Visum für jedes Reiseziel zu sehen.',
-    unlockBtn: 'Mit Pro freischalten',
-  },
-
   sharing: {
     title: 'Reise teilen',
     sharedWithMe: 'Mit mir geteilt',

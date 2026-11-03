@@ -906,20 +906,6 @@ export const pt = {
     continueWithoutSubscribing: 'Continuar sem assinar',
   },
 
-  // ── Pro Badge ─────────────────────────────────────────────────────────────────
-  proBadge: {
-    label: 'Pro',
-  },
-
-  // ── AI Feature Lock (non-subscribers) ─────────────────────────────────────────
-  aiLock: {
-    placesTitle: 'Sugestões de lugares são um recurso Pro',
-    placesMsg: 'Assine para receber sugestões de lugares com IA para cada destino da sua viagem.',
-    infoTitle: 'Informações do destino são um recurso Pro',
-    infoMsg: 'Assine para ver clima, lotação, saúde e visto gerados por IA para cada destino.',
-    unlockBtn: 'Desbloquear com Pro',
-  },
-
   // ── Sharing ─────────────────────────────────────────────────────────────────
   sharing: {
     title: 'Compartilhar Viagem',

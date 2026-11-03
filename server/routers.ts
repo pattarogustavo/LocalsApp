@@ -174,19 +174,97 @@ export async function processRevenueCatWebhook(
 }
 
 /**
- * Guards AI-powered procedures (itinerary generation, place suggestions,
- * destination info) behind an active subscription, checked fresh against the
- * DB (which auto-expires stale statuses) so no OpenAI call is ever made
- * on behalf of a non-subscriber.
+ * Thrown wherever the client should open the paywall instead of showing a
+ * generic error. tRPC's own PAYMENT_REQUIRED code already maps to HTTP 402;
+ * the errorFormatter in _core/trpc.ts relabels it as 'PAYWALL_REQUIRED' in
+ * `error.data.code`, which the app's centralized paywall handler checks for.
+ */
+export function throwPaywallRequired(message = "Assine para continuar usando a IA."): never {
+  throw new TRPCError({ code: "PAYMENT_REQUIRED", message });
+}
+
+export async function isProUser(userId: number): Promise<boolean> {
+  const status = await db.getSubscriptionStatus(userId);
+  return !!status && status.subscriptionStatus === "active";
+}
+
+/**
+ * Guards AI-adjacent procedures that stay Pro-only even under the free-trip
+ * rule (catalogDetails, resolveItineraryStops' non-free-trip case, the
+ * Update Routes batchRoute gate) behind an active subscription, checked
+ * fresh against the DB (which auto-expires stale statuses) so no OpenAI/
+ * Google call is ever made on behalf of a non-subscriber.
  */
 async function requireActiveSubscription(userId: number): Promise<void> {
-  const status = await db.getSubscriptionStatus(userId);
-  if (!status || status.subscriptionStatus !== "active") {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Este recurso de IA é exclusivo para assinantes do TheLocals Pro. Assine para continuar.",
-    });
+  if (!(await isProUser(userId))) {
+    throwPaywallRequired("Este recurso de IA é exclusivo para assinantes do TheLocals Pro. Assine para continuar.");
   }
+}
+
+/**
+ * Gate for the three "free trip" AI features (destination info, suggested
+ * places, itinerary generation — generateItinerary and generateFromScratch
+ * share the same 'itinerary' claim, since they're two entry points to the
+ * same generation). Pro users always run `generate()` directly. A non-Pro
+ * user gets exactly one free use of `feature`, on whichever trip first used
+ * any of the three ("their free trip") — claimed atomically via
+ * claim_free_ai so concurrent requests can't double-spend it. If `generate()`
+ * throws after a successful claim, the claim is released so a server/LLM
+ * failure never costs the user their one free credit.
+ */
+export async function withFreeAiGate<T>(
+  userId: number,
+  tripId: string,
+  feature: db.FreeAiFeature,
+  generate: () => Promise<T>,
+): Promise<T> {
+  if (await isProUser(userId)) {
+    return generate();
+  }
+  const claimed = await db.claimFreeAi(userId, tripId, feature);
+  if (!claimed) {
+    throwPaywallRequired();
+  }
+  try {
+    return await generate();
+  } catch (err) {
+    await db.releaseFreeAi(userId, feature).catch((releaseErr) => {
+      console.error(`[withFreeAiGate] release_free_ai failed for user=${userId} feature=${feature}:`, releaseErr);
+    });
+    throw err;
+  }
+}
+
+/**
+ * Gate for AI-adjacent endpoints that stay Pro-only, except on the user's
+ * own free trip (ai.resolveItineraryStops: resolving stop coordinates after
+ * a free generateFromScratch call would otherwise break the free itinerary,
+ * since it's a follow-up to a feature already granted, not a new one).
+ * Never claims or releases anything — the itinerary claim already covers it.
+ */
+export async function requireProOrFreeTrip(userId: number, tripId: string): Promise<void> {
+  if (await isProUser(userId)) return;
+  const usage = await db.getFreeAiUsage(userId);
+  if (usage && usage.tripId === tripId) return;
+  throwPaywallRequired();
+}
+
+/** By placeId when present (stable even if the name is re-localized), else by lowercased name. */
+function destinationIdentity(d: unknown): string {
+  const dest = d as { placeId?: unknown; name?: unknown } | null;
+  if (dest && typeof dest.placeId === 'string' && dest.placeId) return `id:${dest.placeId}`;
+  return `name:${String(dest?.name ?? '').toLowerCase()}`;
+}
+
+/** True if the destination *set* differs (added/removed/swapped) — reordering or changing `days` doesn't count. */
+export function destinationSetChanged(before: unknown[], after: unknown[]): boolean {
+  const beforeSet = new Set(before.map(destinationIdentity));
+  const afterSet = new Set(after.map(destinationIdentity));
+  if (beforeSet.size !== afterSet.size) return true;
+  for (const id of afterSet) {
+    if (!beforeSet.has(id)) return true;
+  }
+  return false;
 }
 
 // ─── Trip content translation helpers ──────────────────────────────────────────
@@ -1336,6 +1414,7 @@ export const appRouter = router({
      */
     generate: protectedProcedure
       .input(z.object({
+        tripId: z.string().min(1).max(64),
         destination: z.string(),
         country: z.string().optional(),
         travelMonth: z.string().optional(), // e.g. "junho"
@@ -1343,9 +1422,6 @@ export const appRouter = router({
         language: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        // Subscription check always runs before the cache is consulted, so a
-        // cache hit can never substitute for AI access on a free account.
-        await requireActiveSubscription(ctx.user.id);
         const { destination, country, travelMonth, originCountry } = input;
 
         // Keyed on every input that can change the LLM's answer (climate/visa
@@ -1359,15 +1435,25 @@ export const appRouter = router({
           normalizeCacheKeyPart(travelMonth),
           normalizeCacheKeyPart(originCountry),
         ].join('|');
-        const cached = destinationInfoCache.get(cacheKey);
-        if (cached) {
-          console.log(`[destinationInfo.generate] cache hit: "${destination}"`);
-          return { data: cached };
-        }
-        console.log(`[destinationInfo.generate] cache miss: "${destination}"`);
 
-        const languageName = getLanguageName(input.language);
-        const prompt = `Você é um especialista em viagens. Forneça informações práticas e concisas sobre viajar para ${destination}${country ? `, ${country}` : ''}${travelMonth ? ` no mês de ${travelMonth}` : ''} para turistas do ${originCountry}.
+        // The free-AI gate (Pro check / claim) always runs before the cache
+        // is consulted, so a cache hit can never substitute for AI access on
+        // a free account's other trips. The LLM call below throws instead of
+        // swallowing its own failure, so a real failure propagates through
+        // withFreeAiGate's release logic (instead of silently costing the
+        // free use) before being turned into a graceful `{ data: null }` by
+        // the outer catch.
+        try {
+          return await withFreeAiGate(ctx.user.id, input.tripId, 'info', async () => {
+            const cached = destinationInfoCache.get(cacheKey);
+            if (cached) {
+              console.log(`[destinationInfo.generate] cache hit: "${destination}"`);
+              return { data: cached };
+            }
+            console.log(`[destinationInfo.generate] cache miss: "${destination}"`);
+
+            const languageName = getLanguageName(input.language);
+            const prompt = `Você é um especialista em viagens. Forneça informações práticas e concisas sobre viajar para ${destination}${country ? `, ${country}` : ''}${travelMonth ? ` no mês de ${travelMonth}` : ''} para turistas do ${originCountry}.
 
 Escreva todos os textos (description, recommendation, tip, notes, type, tips) em ${languageName}, não em português, a menos que ${languageName} seja português.
 
@@ -1400,20 +1486,22 @@ Responda APENAS com JSON válido neste formato exato:
   "tips": ["Dica prática 1", "Dica prática 2"]
 }`;
 
-        try {
-          const response = await invokeLLM({
-            messages: [
-              { role: 'system', content: `Você é um especialista em viagens internacionais. Escreva os textos em ${languageName}, não em português, a menos que ${languageName} seja português. Responda sempre em JSON válido.` },
-              { role: 'user', content: prompt },
-            ],
-            response_format: { type: 'json_object' },
+            const response = await invokeLLM({
+              messages: [
+                { role: 'system', content: `Você é um especialista em viagens internacionais. Escreva os textos em ${languageName}, não em português, a menos que ${languageName} seja português. Responda sempre em JSON válido.` },
+                { role: 'user', content: prompt },
+              ],
+              response_format: { type: 'json_object' },
+            });
+            const content = response.choices[0].message.content as string;
+            const data = JSON.parse(content);
+            // Never cache an empty/falsy result — only a real answer is reused.
+            if (data) destinationInfoCache.set(cacheKey, data, AI_DESTINATION_INFO_CACHE_TTL_MS);
+            return { data };
           });
-          const content = response.choices[0].message.content as string;
-          const data = JSON.parse(content);
-          // Never cache an empty/falsy result — only a real answer is reused.
-          if (data) destinationInfoCache.set(cacheKey, data, AI_DESTINATION_INFO_CACHE_TTL_MS);
-          return { data };
-        } catch {
+        } catch (err) {
+          if (err instanceof TRPCError && err.code === 'PAYMENT_REQUIRED') throw err;
+          console.error('[destinationInfo.generate] failed:', err);
           return { data: null };
         }
       }),
@@ -1606,7 +1694,11 @@ Responda APENAS com JSON válido neste formato exato:
         if (!data) return { found: false as const };
         return { found: true as const, ...data };
       }),
-    batchRoute: publicProcedure
+    // Pro-only: the app treats "Update Routes" as an AI-equivalent write
+    // action (see its client-side comment in itinerary-block.tsx), so this
+    // needs its own gate — unlike directions.route above, which is a plain
+    // read with no such restriction.
+    batchRoute: protectedProcedure
       .input(z.object({
         pairs: z.array(z.object({
           origin: z.string(),
@@ -1615,7 +1707,8 @@ Responda APENAS com JSON válido neste formato exato:
         })).max(20),
         language: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        await requireActiveSubscription(ctx.user.id);
         const results = await Promise.all(
           input.pairs.map(async (p) => {
             const data = await fetchDirections(p.origin, p.destination, p.mode, input.language);
@@ -2110,8 +2203,7 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
           language: z.string().optional(),
         })
       )
-      .mutation(async ({ ctx, input }) => {
-        await requireActiveSubscription(ctx.user.id);
+      .mutation(async ({ ctx, input }) => withFreeAiGate(ctx.user.id, input.tripId, 'itinerary', async () => {
         const { totalDays, destinations, selectedPlaces, preferences, cityTransportMode, accommodation } = input;
         const startDate = normalizeToDateOnlyString(input.startDate);
         const generationStartedAt = Date.now();
@@ -2389,7 +2481,7 @@ Importante:
         );
 
         return { days: outcome.result, warnings: outcome.warnings.length > 0 ? outcome.warnings : undefined };
-      }),
+      })),
 
     /**
      * Generate place suggestions for a destination by category.
@@ -2456,8 +2548,7 @@ Importante:
           language: z.string().optional(),
         })
       )
-      .mutation(async ({ ctx, input }) => {
-        await requireActiveSubscription(ctx.user.id);
+      .mutation(async ({ ctx, input }) => withFreeAiGate(ctx.user.id, input.tripId, 'itinerary', async () => {
         const { totalDays, destinations, cityTransportMode, selectedPlaces, profile, accommodation } = input;
         const startDate = normalizeToDateOnlyString(input.startDate);
         const generationStartedAt = Date.now();
@@ -3231,7 +3322,7 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
 
         const allWarnings = [...warningsFromInfeasibleDays, ...warnings];
         return { days: correctedDays, suggestedPlaces, warnings: allWarnings.length > 0 ? allWarnings : undefined };
-      }),
+      })),
 
     /**
      * On-demand place resolution for AI-proposed stops that have no real
@@ -3263,10 +3354,11 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
             })
           ).min(1).max(50),
           language: z.string().optional(),
+          tripId: z.string().min(1).max(64),
         })
       )
       .mutation(async ({ ctx, input }) => {
-        await requireActiveSubscription(ctx.user.id);
+        await requireProOrFreeTrip(ctx.user.id, input.tripId);
         const results = await mapWithConcurrency(input.places, STOP_RESOLUTION_CONCURRENCY, async (p) => {
           const r = await resolveAndVerifyStop(p.placeName, p.lat, p.lng, input.language);
           return {
@@ -3304,12 +3396,13 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
           // places using the new categories (park/beach/market/neighborhood)
           // are mapped back to the pre-existing category set in the response.
           categoriesV2: z.boolean().optional(),
+          tripId: z.string().min(1).max(64),
         })
       )
-      .mutation(async ({ ctx, input }) => {
-        // Subscription check always runs before anything else, so neither the
-        // catalog nor a cache hit can substitute for AI access on a free account.
-        await requireActiveSubscription(ctx.user.id);
+      .mutation(async ({ ctx, input }) => withFreeAiGate(ctx.user.id, input.tripId, 'places', async () => {
+        // The free-AI gate (Pro check / claim) always runs before anything
+        // else, so neither the catalog nor a cache hit can substitute for AI
+        // access on a free account's other trips.
         const { destinationName, country, existingPlaces, categoriesV2 } = input;
         const debugSteps: string[] = [];
         const existingLower = new Set((existingPlaces || []).map((n) => n.toLowerCase()));
@@ -3496,8 +3589,8 @@ ${SUGGEST_FALLBACK_WEB_SEARCH ? `\n${WEB_SEARCH_INSTRUCTION}` : ''}`;
           return { places: detailed, debugSteps, source, reason: 'ai-failed' as const };
         }
         return { places: detailed, debugSteps, source };
-      }),
-    }),
+      })),
+  }),
 
   // ─── Weather ─────────────────────────────────────────────────────────────────────────────────────
   weather: router({
@@ -3831,6 +3924,20 @@ ${SUGGEST_FALLBACK_WEB_SEARCH ? `\n${WEB_SEARCH_INSTRUCTION}` : ''}`;
         const found = await db.getTripByClientId(ctx.user.id, input.clientId);
         if (!found) throw new Error('Trip not found');
         const sanitized = sanitizeTripPatch(input.patch);
+
+        // A non-Pro user may not switch their free trip to a different
+        // destination — only reordering or changing day counts is allowed,
+        // since that isn't "using AI on another trip" in disguise.
+        if (Array.isArray(sanitized.destinations) && !(await isProUser(ctx.user.id))) {
+          const usage = await db.getFreeAiUsage(ctx.user.id);
+          if (usage && usage.tripId === input.clientId) {
+            const current = JSON.parse(found.data) as { destinations?: unknown[] };
+            if (destinationSetChanged(current.destinations ?? [], sanitized.destinations)) {
+              throwPaywallRequired();
+            }
+          }
+        }
+
         const { data, updatedAt } = await db.applyTripPatch(found.id, sanitized);
         return { data, updatedAt: updatedAt.toISOString() };
       }),

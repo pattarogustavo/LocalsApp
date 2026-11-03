@@ -1,19 +1,22 @@
 import { useMemo } from 'react';
-import { useSubscription } from '@/hooks/use-subscription';
 
 export type TripRole = 'owner' | 'editor' | 'viewer';
 
 export interface TripPermissions {
   role: TripRole;
   isOwner: boolean;
-  /** Owner or editor — may change any part of the trip except AI features. */
+  /**
+   * Owner or editor — may change any part of the trip, including triggering
+   * AI features. Whether an AI call actually succeeds (Pro, this trip's one
+   * free use, or neither) is entirely the backend's call, surfaced to the
+   * caller as a 402 PAYWALL_REQUIRED (see hooks/use-paywall-guard.ts) rather
+   * than a client-side permission.
+   */
   canEdit: boolean;
   /** Only the owner may invite, change roles, or cancel invites. */
   canManageTravelers: boolean;
   /** Only the owner may delete the trip for everyone. */
   canDeleteTrip: boolean;
-  /** canEdit AND the current (logged-in) account has an active subscription. */
-  canUseAI: boolean;
 }
 
 /**
@@ -23,8 +26,6 @@ export interface TripPermissions {
  * sharing.listSharedWithMe for a trip shared with this account.
  */
 export function useTripPermissions(role: TripRole): TripPermissions {
-  const { hasAccess } = useSubscription();
-
   return useMemo(() => {
     const isOwner = role === 'owner';
     const canEdit = role === 'owner' || role === 'editor';
@@ -34,7 +35,6 @@ export function useTripPermissions(role: TripRole): TripPermissions {
       canEdit,
       canManageTravelers: isOwner,
       canDeleteTrip: isOwner,
-      canUseAI: canEdit && hasAccess,
     };
-  }, [role, hasAccess]);
+  }, [role]);
 }

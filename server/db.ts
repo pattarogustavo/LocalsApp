@@ -1,6 +1,6 @@
-import { and, eq, ilike, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { InsertUser, users, trips, tripShares, pushTokens, InsertTripRow } from "../drizzle/schema";
+import { InsertUser, users, trips, tripShares, pushTokens, InsertTripRow, freeAiUsage } from "../drizzle/schema";
 import { mergeTripSections } from "./sharing/trip-merge";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -411,4 +411,43 @@ export async function getPushTokensForUsers(userIds: number[]) {
   const db = await getDb();
   if (!db || userIds.length === 0) return [];
   return db.select().from(pushTokens).where(inArray(pushTokens.userId, userIds));
+}
+
+// ─── Free AI usage (monetization: one free use per feature, per free trip) ───
+
+export type FreeAiFeature = "info" | "places" | "itinerary";
+
+/**
+ * Atomically claims `userId`'s one free use of `feature` on `tripId`, via
+ * the claim_free_ai SQL function (see drizzle/0009_free_ai_usage.sql).
+ * Returns true if granted, false if already used (on this or another trip)
+ * or if `tripId` isn't this user's free trip.
+ */
+export async function claimFreeAi(userId: number, tripId: string, feature: FreeAiFeature): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.execute<{ claim_free_ai: boolean }>(
+    sql`select claim_free_ai(${userId}, ${tripId}, ${feature}) as claim_free_ai`,
+  );
+  return result[0]?.claim_free_ai === true;
+}
+
+/** Gives back a claimed free use of `feature` for `userId` — call when the AI generation itself fails after a successful claim. */
+export async function releaseFreeAi(userId: number, feature: FreeAiFeature): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.execute(sql`select release_free_ai(${userId}, ${feature})`);
+}
+
+/** The user's free_ai_usage row, if any — used to tell whether a given trip is this user's free trip. */
+export async function getFreeAiUsage(userId: number): Promise<{ tripId: string; infoUsed: boolean; placesUsed: boolean; itineraryUsed: boolean } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select({
+    tripId: freeAiUsage.tripId,
+    infoUsed: freeAiUsage.infoUsed,
+    placesUsed: freeAiUsage.placesUsed,
+    itineraryUsed: freeAiUsage.itineraryUsed,
+  }).from(freeAiUsage).where(eq(freeAiUsage.userId, userId)).limit(1);
+  return result[0] ?? null;
 }

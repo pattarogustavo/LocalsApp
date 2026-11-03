@@ -883,18 +883,6 @@ export const fr: Translations = {
     continueWithoutSubscribing: "Continuer sans m'abonner",
   },
 
-  proBadge: {
-    label: 'Pro',
-  },
-
-  aiLock: {
-    placesTitle: 'Les suggestions de lieux sont une fonctionnalité Pro',
-    placesMsg: 'Abonnez-vous pour recevoir des suggestions de lieux par IA pour chaque destination de votre voyage.',
-    infoTitle: 'Les infos de destination sont une fonctionnalité Pro',
-    infoMsg: 'Abonnez-vous pour voir le climat, l\'affluence, la santé et les visas générés par IA pour chaque destination.',
-    unlockBtn: 'Débloquer avec Pro',
-  },
-
   sharing: {
     title: 'Partager le voyage',
     sharedWithMe: 'Partagés avec moi',

@@ -36,7 +36,7 @@ import { TripPhotosBlock } from '@/components/trip/photos-block';
 import { TransportSummaryCard } from '@/components/trip/next-transport-card';
 import { useColors } from '@/hooks/use-colors';
 import { useTripPermissions, type TripPermissions, type TripRole } from '@/hooks/use-trip-permissions';
-import { ProBadge } from '@/components/trial-banner';
+import { handlePaywallError } from '@/hooks/use-paywall-guard';
 import { type ThemeColorPalette } from '@/constants/theme';
 import { generateId } from '@/utils/trip-helpers';
 import * as ImagePicker from 'expo-image-picker';
@@ -947,7 +947,7 @@ function TransportTab({ trip, permissions }: { trip: any; permissions: TripPermi
 function DestinationInfoCard({ tripId, destination, travelMonth, permissions }: { tripId: string; destination: Destination; travelMonth?: string; permissions: TripPermissions }) {
   const generateInfo = trpc.destinationInfo.generate.useMutation();
   const updateDestinationInfo = useTripsStore((s) => s.updateDestinationInfo);
-  const { canUseAI } = permissions;
+  const { canEdit } = permissions;
   const [info, setInfo] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
@@ -961,6 +961,7 @@ function DestinationInfoCard({ tripId, destination, travelMonth, permissions }: 
     setLoading(true);
     try {
       const result = await generateInfo.mutateAsync({
+        tripId,
         destination: destination.name,
         country: destination.country,
         travelMonth,
@@ -969,7 +970,8 @@ function DestinationInfoCard({ tripId, destination, travelMonth, permissions }: 
       setInfo(result.data);
       setLoaded(true);
       await updateDestinationInfo(tripId, destination.id, result.data);
-    } catch {
+    } catch (err) {
+      handlePaywallError(err);
       setLoaded(true);
     } finally {
       setLoading(false);
@@ -977,18 +979,19 @@ function DestinationInfoCard({ tripId, destination, travelMonth, permissions }: 
   };
 
   // Auto-load on mount: a cached result is always shown (viewing isn't a
-  // write action), regardless of role or subscription. Only triggering a
-  // *new* generation requires AI access — users without it get a locked
-  // state instead.
+  // write action), regardless of role. Only an editor may trigger a *new*
+  // generation — whether that's actually allowed (Pro, or this trip's one
+  // free use) is entirely the backend's call now; a 402 opens the paywall
+  // via the catch above instead of a client-side locked state.
   React.useEffect(() => {
     if (destination.aiDestinationInfo) {
       setInfo(destination.aiDestinationInfo);
       setLoaded(true);
       return;
     }
-    if (!canUseAI) return;
+    if (!canEdit) return;
     load();
-  }, [canUseAI, destination.aiDestinationInfo]);
+  }, [canEdit, destination.aiDestinationInfo]);
 
   const crowdColor = (level: string) => {
     if (!level) return colors.textAccent;
@@ -1004,36 +1007,17 @@ function DestinationInfoCard({ tripId, destination, travelMonth, permissions }: 
       <View style={infoStyles.destHeader}>
         <Text style={infoStyles.destFlag}>{getCountryFlag(destination.country || destination.name) || '🌍'}</Text>
         <Text style={infoStyles.destName}>{destination.name}</Text>
-        <ProBadge />
         {travelMonth && <Text style={infoStyles.destMonth}>{travelMonth}</Text>}
       </View>
 
-      {!info && !canUseAI && (
-        <View style={infoStyles.aiLockedBox}>
-          <View style={infoStyles.aiLockedIconBg}>
-            <Ionicons name="lock-closed" size={18} color={colors.textAccent} />
-          </View>
-          <Text style={infoStyles.aiLockedTitle}>{t.aiLock.infoTitle}</Text>
-          <Text style={infoStyles.aiLockedMsg}>{t.aiLock.infoMsg}</Text>
-          <TouchableOpacity
-            style={infoStyles.aiLockedBtn}
-            activeOpacity={0.85}
-            onPress={() => router.push('/paywall' as any)}
-          >
-            <Ionicons name="sparkles" size={13} color={colors.textOnPrimary} />
-            <Text style={infoStyles.aiLockedBtnText}>{t.aiLock.unlockBtn}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {canUseAI && loading && (
+      {canEdit && loading && (
         <View style={infoStyles.loadingRow}>
           <ActivityIndicator size="small" color={colors.textAccent} />
           <Text style={infoStyles.loadingText}>{t.info.loading(destination.name)}</Text>
         </View>
       )}
 
-      {canUseAI && !loading && !info && loaded && (
+      {canEdit && !loading && !info && loaded && (
         <View style={infoStyles.loadingRow}>
           <Ionicons name="alert-circle-outline" size={16} color={colors.muted} />
           <Text style={infoStyles.loadingText}>{t.info.loadError}</Text>
@@ -1216,50 +1200,6 @@ const createInfoStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     paddingVertical: 12,
   },
   loadingText: { fontSize: 13, color: colors.muted },
-  aiLockedBox: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 16,
-    backgroundColor: withAlpha(colors.foreground, 0.04),
-    borderRadius: 14,
-    gap: 6,
-  },
-  aiLockedIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: withAlpha(colors.primary, 0.12),
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  aiLockedTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.foreground,
-    textAlign: 'center',
-  },
-  aiLockedMsg: {
-    fontSize: 12,
-    color: colors.muted,
-    textAlign: 'center',
-    lineHeight: 17,
-    marginBottom: 8,
-  },
-  aiLockedBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primary,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-  },
-  aiLockedBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textOnPrimary,
-  },
   section: {
     marginBottom: 14,
     paddingBottom: 14,

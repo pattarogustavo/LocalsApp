@@ -12,7 +12,7 @@ import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
 import { useShallow } from 'zustand/react/shallow';
 import { useTranslation } from '@/hooks/use-translation';
-import { ProBadge } from '@/components/trial-banner';
+import { handlePaywallError } from '@/hooks/use-paywall-guard';
 import { trpc } from '@/lib/trpc';
 import { trpcVanilla } from '@/lib/trpc-vanilla';
 import type { Place, Destination, PlaceAttachment } from '@/types/voyage';
@@ -396,7 +396,7 @@ function AIPanel({
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
-  const { canEdit, canUseAI } = permissions;
+  const { canEdit } = permissions;
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingSlow, setLoadingSlow] = useState(false);
@@ -423,6 +423,7 @@ function AIPanel({
     const slowTimer = setTimeout(() => setLoadingSlow(true), 10000);
     try {
       const result = await suggestPlaces.mutateAsync({
+        tripId,
         destinationName: destination.name,
         country: destination.country || '',
         categories: ['attraction', 'restaurant', 'cafe', 'museum', 'park', 'beach', 'market', 'neighborhood', 'hidden_gem'],
@@ -440,7 +441,7 @@ function AIPanel({
     } catch (e) {
       console.error('AI suggest places error:', e);
       fetchedRef.current = false;
-      setLoadError(true);
+      if (!handlePaywallError(e)) setLoadError(true);
     } finally {
       clearTimeout(slowTimer);
       setLoading(false);
@@ -497,14 +498,16 @@ function AIPanel({
         }));
       } catch (e) {
         console.error('[places.catalogDetails] batch fetch error:', e);
+        handlePaywallError(e);
       }
     })();
   }, [visiblePlaces, preferredLanguage]);
 
   // Auto-load on mount: a cached result is always shown (viewing isn't a
-  // write action), regardless of role or subscription. Only triggering a
-  // *new* generation requires AI access — users without it get a locked
-  // state instead.
+  // write action), regardless of role. Only an editor may trigger a *new*
+  // generation — whether that's actually allowed (Pro, or this trip's one
+  // free use) is entirely the backend's call now; a 402 opens the paywall
+  // via loadSuggestions' catch instead of a client-side locked state.
   useEffect(() => {
     if (destination.aiSuggestedPlaces && destination.aiSuggestedPlaces.length > 0) {
       fetchedRef.current = true;
@@ -512,29 +515,9 @@ function AIPanel({
       setLoaded(true);
       return;
     }
-    if (!canUseAI) return;
+    if (!canEdit) return;
     loadSuggestions();
-  }, [canUseAI, destination.aiSuggestedPlaces]);
-
-  if (suggestions.length === 0 && !canUseAI) {
-    return (
-      <View style={styles.aiLockedBox}>
-        <View style={styles.aiLockedIconBg}>
-          <Ionicons name="lock-closed" size={18} color={colors.textAccent} />
-        </View>
-        <Text style={styles.aiLockedTitle}>{t.aiLock.placesTitle}</Text>
-        <Text style={styles.aiLockedMsg}>{t.aiLock.placesMsg}</Text>
-        <TouchableOpacity
-          style={styles.aiLockedBtn}
-          activeOpacity={0.85}
-          onPress={() => router.push('/paywall' as any)}
-        >
-          <Ionicons name="sparkles" size={13} color={colors.textOnPrimary} />
-          <Text style={styles.aiLockedBtnText}>{t.aiLock.unlockBtn}</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  }, [canEdit, destination.aiSuggestedPlaces]);
 
   const isAdded = (place: Place) =>
     addedPlaces.some((p) => (place.placeId && p.placeId === place.placeId) || p.name === place.name);
@@ -574,7 +557,7 @@ function AIPanel({
         <Text style={styles.aiEmptyText}>
           {searchQuery ? `${t.places.noCustomResults}` : t.places.noAvailable}
         </Text>
-        {canUseAI ? (
+        {canEdit ? (
           <TouchableOpacity
             onPress={() => { fetchedRef.current = false; loadSuggestions(); }}
             style={styles.aiRefreshBtn}
@@ -776,7 +759,7 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
-  const { canEdit, canUseAI } = permissions;
+  const { canEdit } = permissions;
   const { removePlace, setItinerary, upsertPlace } = useTripsStore(
     useShallow((s) => ({ removePlace: s.removePlace, setItinerary: s.setItinerary, upsertPlace: s.upsertPlace })),
   );
@@ -885,7 +868,7 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
   }, [myPlaces, destinations]);
 
   const handleGenerateItinerary = async () => {
-    if (places.length === 0 || !canUseAI) return;
+    if (places.length === 0 || !canEdit) return;
     setGeneratingItinerary(true);
     try {
       const { trips } = useTripsStore.getState();
@@ -947,6 +930,7 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
       }
     } catch (e) {
       console.error('Itinerary generation error:', e);
+      handlePaywallError(e);
     } finally {
       setGeneratingItinerary(false);
     }
@@ -1043,7 +1027,6 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
         <View style={styles.availHeader}>
           <Text style={styles.sectionLabel}>{t.places.recommendations}</Text>
           <Text style={styles.availSubtitle}>Sugestões para cada destino</Text>
-          <ProBadge />
         </View>
 
         {/* Search within recommendations */}
@@ -1288,52 +1271,6 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   },
   showMoreBtnText: { color: colors.textAccent, fontSize: 13, fontWeight: '600' },
   destAiBlock: { marginBottom: 16 },
-
-  // AI locked state (non-subscribers)
-  aiLockedBox: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 16,
-    backgroundColor: withAlpha(colors.foreground, 0.04),
-    borderRadius: 14,
-    gap: 6,
-  },
-  aiLockedIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: withAlpha(colors.primary, 0.12),
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  aiLockedTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.foreground,
-    textAlign: 'center',
-  },
-  aiLockedMsg: {
-    fontSize: 12,
-    color: colors.muted,
-    textAlign: 'center',
-    lineHeight: 17,
-    marginBottom: 8,
-  },
-  aiLockedBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primary,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-  },
-  aiLockedBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textOnPrimary,
-  },
 
   // Available place row
   availRow: {
