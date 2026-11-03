@@ -26,6 +26,7 @@ import { trpc } from '@/lib/trpc';
 import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
+import { privacyUrl, SUPPORT_EMAIL } from '@/constants/links';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -787,7 +788,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[styles.menuRow, styles.menuRowBorder]}
               activeOpacity={0.7}
-              onPress={() => Linking.openURL('https://pattarogustavo.github.io/The-Locals/')}
+              onPress={() => Linking.openURL(privacyUrl(currentLang))}
             >
               <View style={styles.menuIconBg}>
                 <Ionicons name="shield-checkmark-outline" size={16} color={withAlpha(colors.foreground, 0.6)} />
@@ -827,7 +828,7 @@ export default function ProfileScreen() {
                 t.profile.notificationsDesc,
                 [
                   { text: t.common.close, style: 'cancel' },
-                  { text: t.profile.help, onPress: () => Linking.openURL('mailto:ghstudioapp@gmail.com?subject=Suporte%20TheLocals') },
+                  { text: t.profile.help, onPress: () => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Suporte%20TheLocals`) },
                 ]
               )}
             >
@@ -841,7 +842,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[styles.menuRow, styles.menuRowBorder]}
               activeOpacity={0.7}
-              onPress={() => Linking.openURL('mailto:ghstudioapp@gmail.com?subject=Suporte%20TheLocals')}
+              onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Suporte%20TheLocals`)}
             >
               <View style={styles.menuIconBg}>
                 <Ionicons name="chatbubble-outline" size={16} color={withAlpha(colors.foreground, 0.6)} />
