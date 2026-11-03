@@ -135,6 +135,8 @@ export const de: Translations = {
       codeInvalid: 'Ungültiger oder abgelaufener Code.',
       passwordTooShort: 'Passwort muss mindestens 6 Zeichen lang sein.',
       passwordMismatch: 'Passwörter stimmen nicht überein.',
+      samePassword: 'Bitte wähle ein Passwort, das sich von deinem aktuellen unterscheidet.',
+      weakPassword: 'Das Passwort ist zu schwach. Bitte wähle ein stärkeres Passwort.',
       rateLimitError: 'Bitte warte 60 Sekunden, bevor du erneut sendest.',
       genericError: 'Dein Passwort konnte nicht zurückgesetzt werden. Bitte versuche es erneut.',
       linkInvalidTitle: 'Ungültiger oder abgelaufener Link',

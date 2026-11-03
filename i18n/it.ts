@@ -135,6 +135,8 @@ export const it: Translations = {
       codeInvalid: 'Codice non valido o scaduto.',
       passwordTooShort: 'La password deve avere almeno 6 caratteri.',
       passwordMismatch: 'Le password non corrispondono.',
+      samePassword: 'Scegli una password diversa da quella attuale.',
+      weakPassword: 'La password è troppo debole. Scegli una password più sicura.',
       rateLimitError: 'Attendi 60 secondi prima di reinviare.',
       genericError: 'Non è stato possibile reimpostare la tua password. Riprova.',
       linkInvalidTitle: 'Link non valido o scaduto',

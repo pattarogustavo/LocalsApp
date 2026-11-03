@@ -135,6 +135,8 @@ export const pt = {
       codeInvalid: 'Código inválido ou expirado.',
       passwordTooShort: 'A senha deve ter pelo menos 6 caracteres.',
       passwordMismatch: 'As senhas não coincidem.',
+      samePassword: 'Escolha uma senha diferente da atual.',
+      weakPassword: 'Senha muito fraca. Escolha uma senha mais forte.',
       rateLimitError: 'Aguarde 60 segundos antes de reenviar.',
       genericError: 'Não foi possível redefinir sua senha. Tente novamente.',
       linkInvalidTitle: 'Link inválido ou expirado',

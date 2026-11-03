@@ -135,6 +135,8 @@ export const fr: Translations = {
       codeInvalid: 'Code invalide ou expiré.',
       passwordTooShort: 'Le mot de passe doit comporter au moins 6 caractères.',
       passwordMismatch: 'Les mots de passe ne correspondent pas.',
+      samePassword: "Veuillez choisir un mot de passe différent de l'actuel.",
+      weakPassword: 'Le mot de passe est trop faible. Veuillez en choisir un plus fort.',
       rateLimitError: 'Veuillez attendre 60 secondes avant de renvoyer.',
       genericError: "Impossible de réinitialiser votre mot de passe. Veuillez réessayer.",
       linkInvalidTitle: 'Lien invalide ou expiré',

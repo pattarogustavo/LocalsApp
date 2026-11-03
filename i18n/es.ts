@@ -134,6 +134,8 @@ export const es: Translations = {
       codeInvalid: 'Código inválido o expirado.',
       passwordTooShort: 'La contraseña debe tener al menos 6 caracteres.',
       passwordMismatch: 'Las contraseñas no coinciden.',
+      samePassword: 'Elige una contraseña diferente a la actual.',
+      weakPassword: 'La contraseña es demasiado débil. Elige una contraseña más segura.',
       rateLimitError: 'Espera 60 segundos antes de reenviar.',
       genericError: 'No se pudo restablecer tu contraseña. Inténtalo de nuevo.',
       linkInvalidTitle: 'Enlace inválido o expirado',

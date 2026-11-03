@@ -40,7 +40,8 @@ import { useColors } from '@/hooks/use-colors';
 import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
 import { parseResetPasswordLink } from '@/utils/auth-reset-link';
 import { validateNewPassword } from '@/utils/password-validation';
-import { isRateLimitError } from '@/utils/supabase-error';
+import { isRateLimitError, isRetryableError, isSamePasswordError, isWeakPasswordError } from '@/utils/supabase-error';
+import { isResetLinkConsumed, markResetLinkConsumed } from '@/utils/consumed-reset-links';
 
 const ON_PRIMARY = SchemeColors.light.background;
 const RESEND_SECONDS = 60;
@@ -71,6 +72,7 @@ export default function ResetPasswordScreen() {
   const [resendLoading, setResendLoading] = useState(false);
 
   const completedRef = useRef(false);
+  const otpVerifiedRef = useRef(false);
   const deepLinkUrl = Linking.useURL();
 
   const showEmailField = !params.email;
@@ -91,9 +93,14 @@ export default function ResetPasswordScreen() {
     (async () => {
       const candidate = deepLinkUrl ?? (await Linking.getInitialURL().catch(() => null));
       if (cancelled || !candidate) return;
+      // A cached getInitialURL() can resurface the same link after its
+      // single-use token has already been consumed — skip it so the code
+      // flow renders normally instead of re-validating (and failing) it.
+      if (isResetLinkConsumed(candidate)) return;
       const parsed = parseResetPasswordLink(candidate);
       if (parsed.kind === 'invalid') return;
 
+      markResetLinkConsumed(candidate);
       setMode('link');
       setLinkStatus('validating');
       try {
@@ -147,6 +154,16 @@ export default function ResetPasswordScreen() {
     return undefined;
   };
 
+  const alertUpdateUserError = (updateError: unknown) => {
+    if (isSamePasswordError(updateError)) {
+      Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.samePassword);
+    } else if (isWeakPasswordError(updateError)) {
+      Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.weakPassword);
+    } else {
+      Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.genericError);
+    }
+  };
+
   const handleSubmitCode = async () => {
     setTouched({ email: true, code: true, password: true, confirm: true });
     const trimmedEmail = email.trim().toLowerCase();
@@ -154,7 +171,10 @@ export default function ResetPasswordScreen() {
       Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.fillEmail);
       return;
     }
-    if (!code || code.length !== 6) {
+    // Once verifyOtp has already succeeded for this screen, the code has
+    // been consumed server-side — a retry (e.g. after a same/weak password
+    // rejection) must go straight to updateUser instead of re-sending it.
+    if (!otpVerifiedRef.current && (!code || code.length !== 6)) {
       Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.fillFields);
       return;
     }
@@ -162,20 +182,31 @@ export default function ResetPasswordScreen() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: trimmedEmail,
-        type: 'recovery',
-        token: code,
-      });
-      if (error) {
-        Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.codeInvalid);
-        return;
+      if (!otpVerifiedRef.current) {
+        const { error } = await supabase.auth.verifyOtp({
+          email: trimmedEmail,
+          type: 'recovery',
+          token: code,
+        });
+        if (error) {
+          if (isRateLimitError(error)) {
+            Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.rateLimitError);
+          } else if (isRetryableError(error)) {
+            Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.genericError);
+          } else {
+            Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.codeInvalid);
+          }
+          return;
+        }
+        otpVerifiedRef.current = true;
       }
+
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) {
-        Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.genericError);
+        alertUpdateUserError(updateError);
         return;
       }
+      const { data } = await supabase.auth.getSession();
       await finishWithSession(data.session);
     } catch {
       Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.genericError);
@@ -192,7 +223,7 @@ export default function ResetPasswordScreen() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) {
-        Alert.alert(t.auth.resetPassword.errorTitle, t.auth.resetPassword.genericError);
+        alertUpdateUserError(error);
         return;
       }
       const { data } = await supabase.auth.getSession();
