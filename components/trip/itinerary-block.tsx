@@ -688,7 +688,6 @@ function DayView({
   allDays,
   cityTransportMode,
   accommodations,
-  onGoToPlaces,
   startDate,
   places,
   permissions,
@@ -700,7 +699,6 @@ function DayView({
   allDays: DayItinerary[];
   cityTransportMode?: string;
   accommodations?: Accommodation[];
-  onGoToPlaces: () => void;
   startDate: string;
   places?: Place[];
   permissions: TripPermissions;
@@ -730,12 +728,6 @@ function DayView({
     return (
       <View style={styles.emptyDay}>
         <Text style={styles.emptyDayText}>{t.itinerary.noStops}</Text>
-        {permissions.canEdit && (
-          <TouchableOpacity onPress={onGoToPlaces} style={styles.goToPlacesBtn}>
-            <Ionicons name="location-outline" size={14} color={colors.textOnPrimary} />
-            <Text style={styles.goToPlacesBtnText}>{t.itinerary.addStop}</Text>
-          </TouchableOpacity>
-        )}
       </View>
     );
   }
@@ -1761,7 +1753,6 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
           startDate={trip.startDate}
           cityTransportMode={cityTransportMode || trip.cityTransportMode}
           accommodations={trip.accommodations}
-          onGoToPlaces={onGoToPlaces}
           places={trip.places}
           permissions={permissions}
         />
@@ -1783,7 +1774,10 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
                 setShowCreateModal(true);
               }
             }}
-            style={[styles.createItineraryBtn, { marginTop: 16, marginBottom: 0 }]}
+            style={[
+              styles.createItineraryBtn,
+              { marginTop: computeDayStops(displayDays[selectedDay], trip.accommodations).stops.length === 0 ? 12 : 16, marginBottom: 0 },
+            ]}
             disabled={generating}
           >
             {generating ? (
@@ -2414,7 +2408,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   dayTipText: { flex: 1, fontSize: 12, color: colors.muted, lineHeight: 18 },
 
   // Empty day
-  emptyDay: { paddingVertical: 20, alignItems: 'center', gap: 12 },
+  emptyDay: { paddingVertical: 8, alignItems: 'center' },
   emptyDayText: { fontSize: 14, color: colors.muted, textAlign: 'center' },
   goToPlacesBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
