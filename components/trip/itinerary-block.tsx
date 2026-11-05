@@ -1269,7 +1269,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
   const destLat = trip.destinations?.[0]?.lat;
   const destLng = trip.destinations?.[0]?.lng;
   const weatherQuery = trpc.weather.forecast.useQuery(
-    { lat: destLat ?? 0, lon: destLng ?? 0, days: Math.min(trip.totalDays || 1, 5) },
+    { lat: destLat ?? 0, lon: destLng ?? 0, days: Math.min(trip.totalDays || 1, 5), language: preferredLanguage },
     { enabled: !!(destLat && destLng), staleTime: 1000 * 60 * 30 }
   );
 

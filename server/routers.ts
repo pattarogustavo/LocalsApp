@@ -62,6 +62,22 @@ function getLanguageName(lang?: string): string {
   return (code && LANGUAGE_NAMES[code]) || "português";
 }
 
+// OpenWeatherMap's `lang` query param uses its own codes, which don't all
+// match our app's two-letter language codes (notably Portuguese is "pt_br").
+const OPENWEATHER_LANG_BY_APP_LANGUAGE: Record<string, string> = {
+  pt: "pt_br",
+  en: "en",
+  es: "es",
+  fr: "fr",
+  de: "de",
+  it: "it",
+};
+
+export function mapLanguageToOpenWeatherLang(language?: string): string {
+  const code = language?.slice(0, 2).toLowerCase();
+  return (code && OPENWEATHER_LANG_BY_APP_LANGUAGE[code]) || "en";
+}
+
 /**
  * Constant-time string comparison, so a bad webhook secret guess can't be
  * narrowed down via response-time differences.
@@ -3604,13 +3620,15 @@ ${SUGGEST_FALLBACK_WEB_SEARCH ? `\n${WEB_SEARCH_INSTRUCTION}` : ''}`;
         lat: z.number(),
         lon: z.number(),
         days: z.number().min(1).max(5).default(5),
+        language: z.string().optional(),
       }))
       .query(async ({ input }) => {
         if (!OPENWEATHER_KEY) {
           return { days: [], available: false };
         }
         try {
-          const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${input.lat}&lon=${input.lon}&appid=${OPENWEATHER_KEY}&units=metric&cnt=40`;
+          const owmLang = mapLanguageToOpenWeatherLang(input.language);
+          const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${input.lat}&lon=${input.lon}&appid=${OPENWEATHER_KEY}&units=metric&cnt=40&lang=${owmLang}`;
           const res = await fetch(url);
           if (!res.ok) return { days: [], available: false };
           const json = (await res.json()) as any;
