@@ -690,7 +690,7 @@ export default function TripDetailScreen() {
           <ImageBackground source={{ uri: heroImage }} style={{ flex: 1 }}>
             <LinearGradient
               colors={['rgba(0,0,0,0.15)', 'rgba(44,36,22,0.5)']}
-              style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 20, paddingHorizontal: 20 }}
+              style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 28, paddingHorizontal: 20 }}
             >
               {/* Top bar */}
               <View
@@ -740,6 +740,14 @@ export default function TripDetailScreen() {
               <Text style={styles.heroSubtitle}>{countryName}</Text>
             </LinearGradient>
           </ImageBackground>
+          {/* Short gradient transition into the page background, so the
+              photo doesn't end on a hard edge. Uses the background color
+              itself at alpha 0 (not "transparent") to avoid an iOS fringe. */}
+          <LinearGradient
+            colors={[withAlpha(colors.background, 0), colors.background]}
+            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 24 }}
+            pointerEvents="none"
+          />
         </View>
 
         {/* Action buttons row: Data + Destinos */}
