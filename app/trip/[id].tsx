@@ -602,11 +602,11 @@ export default function TripDetailScreen() {
 
   const TABS: { key: TabKey; label: string; icon: string }[] = [
     { key: 'geral', label: t.trip.tabs.overview, icon: 'location' },
+    { key: 'historia', label: 'Info', icon: 'information-circle' },
     { key: 'transporte', label: t.transport.title, icon: 'airplane' },
     { key: 'hospedagem', label: t.accommodation.title, icon: 'bed' },
     { key: 'lugares', label: t.places.title, icon: 'map' },
     { key: 'fotos', label: t.photos.title, icon: 'images' },
-    { key: 'historia', label: 'Info', icon: 'information-circle' },
   ];
   const [showEditDate, setShowEditDate] = useState(false);
   const [showEditDests, setShowEditDests] = useState(false);
