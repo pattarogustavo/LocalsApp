@@ -45,6 +45,10 @@ interface TripsState {
    * below works on it exactly like an owned trip. Call again on every
    * refresh (focus, pull-to-refresh) to keep it current. */
   hydrateSharedTrip: (shareId: number, shareRole: 'editor' | 'viewer', trip: Trip) => void;
+  /** Drops local copies of shared trips whose shareId is no longer among
+   * `activeShareIds` (access revoked or hidden on the server). Never
+   * touches trips this account owns (no shareId). */
+  pruneRevokedSharedTrips: (activeShareIds: Set<number>) => void;
   /** Owner-side pull: if the server's copy of this owned trip is newer than
    * our local one (most likely because an editor saved a change), adopt
    * whichever patchable sections actually differ. Never touches sections we
@@ -392,6 +396,14 @@ export const useTripsStore = create<TripsState>((set, get) => {
     const trips = existing
       ? get().trips.map((t) => (t.id === trip.id ? hydrated : t))
       : [...get().trips, hydrated];
+    set({ trips });
+    saveToStorage(trips).catch(() => {});
+  },
+
+  pruneRevokedSharedTrips: (activeShareIds: Set<number>) => {
+    const current = get().trips;
+    const trips = current.filter((t) => !t.shareId || activeShareIds.has(t.shareId));
+    if (trips.length === current.length) return;
     set({ trips });
     saveToStorage(trips).catch(() => {});
   },

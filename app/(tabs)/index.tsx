@@ -26,6 +26,7 @@ import { reconcileTripReminders } from '@/lib/trip-notifications';
 import { TripCard, TripCardStacked, getImageForTrip } from '@/components/trip-card';
 import { CreateTripSheet } from '@/components/create-trip-sheet';
 import { isTripUpcoming, isTripPast, isTripOngoing, getTripName } from '@/utils/trip-helpers';
+import { mergeTripsWithShared, type SharedTripRow } from '@/utils/shared-trips';
 import type { Trip } from '@/types/voyage';
 import { useAuthStore } from '@/store/auth';
 import { useSubscription } from '@/hooks/use-subscription';
@@ -46,8 +47,8 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { openInbox } = useLocalSearchParams<{ openInbox?: string }>();
-  const { trips, loadTrips } = useTripsStore(
-    useShallow((s) => ({ trips: s.trips, loadTrips: s.loadTrips })),
+  const { trips, loadTrips, pruneRevokedSharedTrips } = useTripsStore(
+    useShallow((s) => ({ trips: s.trips, loadTrips: s.loadTrips, pruneRevokedSharedTrips: s.pruneRevokedSharedTrips })),
   );
   const [showCreate, setShowCreate] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,22 +89,33 @@ export default function HomeScreen() {
     staleTime: 60_000,
   });
 
-  const { sharedTrips, sharedShareIdByTripId } = useMemo(() => {
-    const list: Trip[] = [];
+  const { sharedTripRows, sharedShareIdByTripId } = useMemo(() => {
+    const rows: SharedTripRow[] = [];
     const map: Record<string, number> = {};
     for (const s of sharedTripsQuery.data ?? []) {
       let tripData: Trip | null = null;
       try { tripData = JSON.parse(s.tripData); } catch {}
       if (!tripData) continue;
-      list.push(tripData);
+      rows.push({ shareId: s.shareId, shareRole: s.shareRole, tripData });
       map[tripData.id] = s.shareId;
     }
-    return { sharedTrips: list, sharedShareIdByTripId: map };
+    return { sharedTripRows: rows, sharedShareIdByTripId: map };
   }, [sharedTripsQuery.data]);
 
-  const sharedTripIds = useMemo(() => new Set(sharedTrips.map((t) => t.id)), [sharedTrips]);
+  const allTrips = useMemo(() => mergeTripsWithShared(trips, sharedTripRows), [trips, sharedTripRows]);
 
-  const allTrips = useMemo(() => [...trips, ...sharedTrips], [trips, sharedTrips]);
+  const sharedTripIds = useMemo(
+    () => new Set(allTrips.filter((t) => t.shareId != null).map((t) => t.id)),
+    [allTrips],
+  );
+
+  // Once the server's list of trips shared with me is known, drop local
+  // copies whose access was revoked or hidden (but never touch own trips).
+  useEffect(() => {
+    if (!sharedTripsQuery.isSuccess) return;
+    const activeShareIds = new Set((sharedTripsQuery.data ?? []).map((s) => s.shareId));
+    pruneRevokedSharedTrips(activeShareIds);
+  }, [sharedTripsQuery.isSuccess, sharedTripsQuery.data, pruneRevokedSharedTrips]);
 
   const upcomingTrips = allTrips.filter((t) => isTripUpcoming(t) || isTripOngoing(t))
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
