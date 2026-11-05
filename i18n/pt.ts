@@ -218,6 +218,10 @@ export const pt = {
     multiDay: '{days} Dias',
     in: 'em',
     daysDistributed: 'dias distribuídos',
+    coverMenuKeepOriginal: 'Manter a imagem original',
+    coverMenuRevertOriginal: 'Voltar à imagem original',
+    coverMenuOpenCamera: 'Abrir a câmera',
+    coverMenuChooseGallery: 'Escolher da galeria',
   },
 
   // ── Itinerary ───────────────────────────────────────────────────────────────

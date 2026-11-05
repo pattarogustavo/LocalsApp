@@ -211,6 +211,10 @@ export const es: Translations = {
     multiDay: '{days} Días',
     in: 'en',
     daysDistributed: 'días distribuidos',
+    coverMenuKeepOriginal: 'Mantener la imagen original',
+    coverMenuRevertOriginal: 'Volver a la imagen original',
+    coverMenuOpenCamera: 'Abrir la cámara',
+    coverMenuChooseGallery: 'Elegir de la galería',
   },
   itinerary: {
     title: 'Itinerario',

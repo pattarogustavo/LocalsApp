@@ -215,6 +215,10 @@ export const it: Translations = {
     multiDay: '{days} Giorni',
     in: 'a',
     daysDistributed: 'giorni distribuiti',
+    coverMenuKeepOriginal: "Mantenere l'immagine originale",
+    coverMenuRevertOriginal: "Tornare all'immagine originale",
+    coverMenuOpenCamera: 'Apri la fotocamera',
+    coverMenuChooseGallery: 'Scegli dalla galleria',
   },
 
   itinerary: {

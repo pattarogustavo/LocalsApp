@@ -7,6 +7,8 @@ import {
   ImageBackground,
   Dimensions,
   Alert,
+  ActionSheetIOS,
+  Platform,
   Modal,
   StyleSheet,
   Pressable,
@@ -40,6 +42,7 @@ import { handlePaywallError } from '@/hooks/use-paywall-guard';
 import { type ThemeColorPalette } from '@/constants/theme';
 import { generateId } from '@/utils/trip-helpers';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import type { Destination, Trip } from '@/types/voyage';
 import { PlacesAutocompleteInput } from '@/components/ui/places-autocomplete-input';
 import { useTripsStore as useTripsStoreForDuration } from '@/store/trips';
@@ -608,7 +611,38 @@ export default function TripDetailScreen() {
   const [showEditDate, setShowEditDate] = useState(false);
   const [showEditDests, setShowEditDests] = useState(false);
 
-  const handlePickCoverPhoto = async () => {
+  // Copies a freshly picked/captured photo out of the picker's temp location
+  // (which iOS may clean up) into the app's own documents directory, so the
+  // cover photo survives after the picker session ends.
+  const persistCoverImage = async (tripId: string, uri: string): Promise<string> => {
+    try {
+      const dir = `${FileSystem.documentDirectory}covers/`;
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+      const dest = `${dir}${tripId}.jpg`;
+      await FileSystem.copyAsync({ from: uri, to: dest });
+      return `${dest}?t=${Date.now()}`;
+    } catch {
+      return uri;
+    }
+  };
+
+  const handleOpenCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(t.photos.permissionTitle, t.photos.cameraPermission);
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.9,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const persisted = await persistCoverImage(trip!.id, result.assets[0].uri);
+      await updateCoverImage(trip!.id, persisted);
+    }
+  };
+
+  const handleChooseFromGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert(t.photos.permissionTitle, t.photos.galleryPermission);
@@ -619,7 +653,43 @@ export default function TripDetailScreen() {
       quality: 0.9,
     });
     if (!result.canceled && result.assets[0]) {
-      await updateCoverImage(trip!.id, result.assets[0].uri);
+      const persisted = await persistCoverImage(trip!.id, result.assets[0].uri);
+      await updateCoverImage(trip!.id, persisted);
+    }
+  };
+
+  const handleRevertToOriginal = async () => {
+    await updateCoverImage(trip!.id, '');
+  };
+
+  const handlePickCoverPhoto = () => {
+    const hasCustomCover = !!trip?.coverImageUrl;
+    const keepOrRevertLabel = hasCustomCover ? t.trip.coverMenuRevertOriginal : t.trip.coverMenuKeepOriginal;
+
+    if (Platform.OS === 'ios') {
+      const options = [keepOrRevertLabel, t.trip.coverMenuOpenCamera, t.trip.coverMenuChooseGallery, t.common.cancel];
+      const cancelButtonIndex = options.length - 1;
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options, cancelButtonIndex, destructiveButtonIndex: hasCustomCover ? 0 : undefined },
+        (buttonIndex) => {
+          if (buttonIndex === 0) {
+            if (hasCustomCover) handleRevertToOriginal();
+          } else if (buttonIndex === 1) {
+            handleOpenCamera();
+          } else if (buttonIndex === 2) {
+            handleChooseFromGallery();
+          }
+        }
+      );
+    } else {
+      Alert.alert('', '', [
+        ...(hasCustomCover
+          ? [{ text: keepOrRevertLabel, onPress: handleRevertToOriginal }]
+          : [{ text: keepOrRevertLabel, onPress: () => {} }]),
+        { text: t.trip.coverMenuOpenCamera, onPress: handleOpenCamera },
+        { text: t.trip.coverMenuChooseGallery, onPress: handleChooseFromGallery },
+        { text: t.common.cancel, style: 'cancel' },
+      ]);
     }
   };
 
