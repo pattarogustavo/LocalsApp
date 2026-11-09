@@ -488,6 +488,8 @@ export interface NearbyCandidate {
   priceLevel?: number;
   /** Real opening_hours.weekday_text, backfilled by fetchOpeningHoursForTopCandidates. */
   hoursText?: string;
+  /** Nearby Search's `vicinity`, refined to a real formatted_address by fetchOpeningHoursForTopCandidates when available. */
+  address?: string;
 }
 
 /**
@@ -520,6 +522,7 @@ async function nearbySearchCandidates(lat: number, lng: number, type: string, ra
         lat: r.geometry?.location?.lat,
         lng: r.geometry?.location?.lng,
         priceLevel: typeof r.price_level === "number" ? r.price_level : undefined,
+        address: r.vicinity,
       }));
   } catch (err) {
     console.error(`[places] nearby search failed for type="${type}":`, err);
@@ -600,7 +603,7 @@ async function fetchRealCandidatesForDestinations(
 /** Matches the concurrency already used for Place Details-style backfills elsewhere in the itinerary pipeline (server/itinerary/candidates.ts's backfillCatalogGoogleData, validate.ts's TRAVEL_FETCH_CONCURRENCY) — kept consistent rather than picking a new number without quota data to justify a different one. */
 const OPENING_HOURS_FETCH_CONCURRENCY = 6;
 
-export async function fetchOpeningHoursForTopCandidates<T extends { placeId: string; hoursText?: string }>(
+export async function fetchOpeningHoursForTopCandidates<T extends { placeId: string; hoursText?: string; address?: string }>(
   candidates: T[],
   limit: number,
   language?: string,
@@ -612,10 +615,13 @@ export async function fetchOpeningHoursForTopCandidates<T extends { placeId: str
   // requests) instead of one-at-a-time: still fully parallel, just capped,
   // same worker-pool helper already used elsewhere in this file.
   await mapWithConcurrency(top, OPENING_HOURS_FETCH_CONCURRENCY, async (c) => {
-    // includePhoto: false — only .hoursText is read here; skip the extra
-    // photo-URL round trip entirely.
+    // includePhoto: false — only .hoursText/.address are read here; skip the
+    // extra photo-URL round trip entirely. .address piggybacks on this same
+    // call for free (formatted_address is already part of the requested
+    // `fields`) — never an extra Place Details request on its own.
     const details = await fetchCuratedPlaceDetails(c.placeId, language, { includePhoto: false });
     if (details.hours) c.hoursText = details.hours;
+    if (details.address) c.address = details.address;
   });
   return candidates;
 }
@@ -2364,8 +2370,8 @@ ${buildDurationGuidancePromptBlock(preferences?.pace)}
 Retorne um JSON com o array "days". Cada dia deve ter:
 - date: data no formato YYYY-MM-DD
 - destination: nome do destino
-- title: título do dia (ex: "Chegada em Paris — Torre Eiffel e Champs-Élysées")
-- tips: dica do dia em 1 frase
+- title: tema do dia em até ~6 palavras (ex: "Centro histórico e mercados")
+- tips: UMA dica prática de 1 frase, baseada apenas nos lugares e horários daquele dia (sem citar lugares que não estão no roteiro)
 - estimatedCost: custo estimado do dia (número), SEMPRE na moeda local do destino (nunca converta para dólar) — ex: para Paris use EUR, para Londres use GBP, para Tóquio use JPY. É uma estimativa aproximada, não um preço verificado — não finja mais precisão do que você realmente tem.
 - estimatedCostCurrency: o código ISO 4217 de 3 letras da moeda usada acima (ex: "EUR", "GBP", "JPY", "USD" apenas se o destino realmente usar dólar americano)
 - stops: array de paradas do dia, cada parada com:
@@ -2389,6 +2395,12 @@ Importante:
           ...(selectedPlaces || []).map((p) => ({ name: p.name, category: p.category, address: p.address, lat: p.lat, lng: p.lng, hours: p.hours })),
           ...(resolvedMustSee ? [resolvedMustSee] : []),
         ];
+        // Real lat/lng/address for stops that only match by name (no
+        // googlePlaceId candidate) — a user-selected place or the resolved
+        // must-see — so filterHallucinatedStops can backfill those too.
+        const realDataByNameLower = new Map(
+          mustVisit.map((p) => [p.name.toLowerCase(), { placeId: '', name: p.name, lat: p.lat, lng: p.lng, address: p.address }]),
+        );
         const fillerRestaurants: FillerRestaurantCandidate[] = extraCandidates
           .filter((c) => c.types.includes('restaurant') && c.lat != null && c.lng != null)
           .slice(0, 15)
@@ -2445,6 +2457,7 @@ Importante:
           const { days: patchedDays, droppedCount: droppedHallucinatedStops } = filterHallucinatedStops(rawDays, {
             candidatesByPlaceId,
             allowedNamesLower,
+            realDataByNameLower,
             hasCandidatePool: extraCandidates.length > 0,
           });
           if (droppedHallucinatedStops > 0) {
@@ -2839,7 +2852,7 @@ Restaurantes (prioridade explícita de qualidade, não só preencher um horário
 
 IMPORTANTE: mesmo vendo o contexto de todos os dias acima, gere ESTA CHAMADA apenas para o(s) dia(s): ${blockDayNumbers.join(", ")}. Não gere os outros dias.
 
-Para cada dia, retorne: dayNumber (o número do dia, igual ao "dayNumber=" indicado acima), title (título do dia), tip (dica do dia), estimatedCost (número, estimativa aproximada SEMPRE na moeda local do destino daquele dia — nunca em dólar a menos que o destino realmente use USD), estimatedCostCurrency (código ISO 4217 de 3 letras correspondente), e stops: array de paradas, cada uma com time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other|park|beach|market|neighborhood), description.
+Para cada dia, retorne: dayNumber (o número do dia, igual ao "dayNumber=" indicado acima), title (tema do dia em até ~6 palavras, ex: "Centro histórico e mercados"), tip (UMA dica prática de 1 frase, baseada apenas nos lugares e horários daquele dia — sem citar lugares que não estão no roteiro), estimatedCost (número, estimativa aproximada SEMPRE na moeda local do destino daquele dia — nunca em dólar a menos que o destino realmente use USD), estimatedCostCurrency (código ISO 4217 de 3 letras correspondente), e stops: array de paradas, cada uma com time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other|park|beach|market|neighborhood), description.
 
 Importante, para cada dia:
 - Inclua ${paceStops} paradas de atrações/passeios (café da manhã, almoço e jantar contam à parte).

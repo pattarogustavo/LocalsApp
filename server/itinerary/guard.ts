@@ -29,12 +29,21 @@ export interface GuardCandidate {
   name: string;
   lat?: number;
   lng?: number;
+  address?: string;
 }
 
 export interface FilterHallucinatedStopsOptions {
   candidatesByPlaceId: Map<string, GuardCandidate>;
   /** Lowercased names allowed even without a candidate match (user-selected places + resolved must-see). */
   allowedNamesLower: Set<string>;
+  /**
+   * Real lat/lng/address for the same allowed-by-name places, keyed by the
+   * same lowercased name — lets a stop that only matched by name (no
+   * googlePlaceId candidate, e.g. a user-selected place or a resolved
+   * must-see) still get backfilled with real coordinates/address instead of
+   * whatever the model guessed.
+   */
+  realDataByNameLower?: Map<string, GuardCandidate>;
   /** False when no real candidate pool was fetched at all — in that case nothing is grounded, so every named stop is kept as-is. */
   hasCandidatePool: boolean;
 }
@@ -56,20 +65,36 @@ export function filterHallucinatedStops<Day extends { stops?: any[] }>(
         if (!stop.placeName) return null;
         if (!opts.hasCandidatePool) return stop;
 
+        const nameLower = String(stop.placeName).toLowerCase();
         const candidate = stop.googlePlaceId ? opts.candidatesByPlaceId.get(stop.googlePlaceId) : undefined;
-        const isAllowedByName = opts.allowedNamesLower.has(String(stop.placeName).toLowerCase());
+        const isAllowedByName = opts.allowedNamesLower.has(nameLower);
         if (!candidate && !isAllowedByName) {
           droppedCount++;
           return null;
         }
 
-        if (!candidate) return stop;
+        if (candidate) {
+          return {
+            ...stop,
+            googlePlaceId: candidate.placeId,
+            placeName: candidate.name,
+            lat: candidate.lat ?? stop.lat,
+            lng: candidate.lng ?? stop.lng,
+            address: candidate.address ?? stop.address,
+          };
+        }
+
+        // No googlePlaceId candidate, but matched by name (user-selected
+        // place or resolved must-see) — backfill real lat/lng/address for
+        // that place too, instead of trusting whatever the model returned
+        // (which the output schema allows to be null).
+        const realData = opts.realDataByNameLower?.get(nameLower);
+        if (!realData) return stop;
         return {
           ...stop,
-          googlePlaceId: candidate.placeId,
-          placeName: candidate.name,
-          lat: candidate.lat ?? stop.lat,
-          lng: candidate.lng ?? stop.lng,
+          lat: realData.lat ?? stop.lat,
+          lng: realData.lng ?? stop.lng,
+          address: realData.address ?? stop.address,
         };
       })
       .filter(Boolean);

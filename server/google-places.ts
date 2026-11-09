@@ -93,26 +93,29 @@ export function resolvePlacesLocationBias(
   return { location: `${lat},${lng}`, radius: String(radiusMeters ?? DEFAULT_PLACES_BIAS_RADIUS_METERS) };
 }
 
+/** How many of Google's own leading photos to consider before giving up on finding a landscape one. */
+const BEST_PHOTO_SEARCH_WINDOW = 5;
+
 /**
  * Pick the best photo from a Google Places `photos` array.
- * User-submitted photos vary wildly in subject and orientation, so we prefer
- * strictly landscape shots (width > height) — more likely to be a view of the place
- * rather than a close-up of food, an interior, or a menu — and among those
- * pick the highest resolution. If no landscape photo exists, fall back to
- * the highest-resolution photo overall so we never end up without an image.
+ * Google orders this array by its own relevance signal, and the first photo
+ * is usually the most representative one for the place — sorting by
+ * resolution instead tended to surface user-submitted close-ups (food,
+ * menus, interiors) that just happened to be high-res. So we now respect
+ * Google's original order: scan the first `BEST_PHOTO_SEARCH_WINDOW` photos
+ * and use the first landscape one (width > height, more likely to be an
+ * actual view of the place). If none of those are landscape, fall back to
+ * the very first photo in the list rather than picking by resolution.
  */
 export function pickBestGooglePhoto(
   photos: { photo_reference: string; width?: number; height?: number }[] | undefined
 ): string | undefined {
   if (!photos || photos.length === 0) return undefined;
 
-  const byResolutionDesc = (a: typeof photos[number], b: typeof photos[number]) =>
-    (b.width || 0) * (b.height || 0) - (a.width || 0) * (a.height || 0);
+  const window = photos.slice(0, BEST_PHOTO_SEARCH_WINDOW);
+  const firstLandscape = window.find((p) => (p.width || 0) > (p.height || 0));
 
-  const landscape = photos.filter((p) => (p.width || 0) > (p.height || 0));
-  const pool = landscape.length > 0 ? landscape : photos;
-
-  return [...pool].sort(byResolutionDesc)[0]?.photo_reference;
+  return (firstLandscape || photos[0]).photo_reference;
 }
 
 /**

@@ -45,6 +45,7 @@ export interface GoogleSourcedCandidateInput {
   lng?: number;
   priceLevel?: number;
   hoursText?: string;
+  address?: string;
 }
 
 export interface PoolCandidate extends ScorableCandidate {
@@ -54,6 +55,7 @@ export interface PoolCandidate extends ScorableCandidate {
   lat?: number;
   lng?: number;
   hoursText?: string;
+  address?: string;
   source: "catalog" | "google";
   category?: string;
   curatedDescription?: string;
@@ -141,6 +143,7 @@ async function backfillCatalogGoogleData(
         if (details.lat != null) c.lat = details.lat;
         if (details.lng != null) c.lng = details.lng;
         if (details.hours) c.hoursText = details.hours;
+        if (details.address) c.address = details.address;
         if (details.hasPhoto) c.hasPhoto = true;
       } catch {
         // leave this candidate without backfilled fields — never blocks the pool.
@@ -217,6 +220,7 @@ export async function prepareCandidatePool(
             lng: g.lng ?? c.lng,
             priceLevel: g.priceLevel ?? c.priceLevel,
             hoursText: g.hoursText ?? c.hoursText,
+            address: g.address ?? c.address,
             source: "catalog" as const,
           }
         : c,

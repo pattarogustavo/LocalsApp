@@ -864,6 +864,19 @@ function DayView({
         </View>
       )}
 
+      {/* Day theme + tip — shown once at the top, above the stops */}
+      {(day?.title || day?.tip || day?.tips) ? (
+        <View style={styles.dayThemeBlock}>
+          {day?.title ? <Text style={styles.dayThemeTitle}>{day.title}</Text> : null}
+          {(day?.tip || day?.tips) ? (
+            <View style={styles.dayTip}>
+              <Ionicons name="bulb-outline" size={14} color={colors.accent} />
+              <Text style={styles.dayTipText}>{day?.tip ?? day?.tips}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
       {/* Hotel stop (virtual, not draggable) */}
       {hotelStop && (
         <StopItem
@@ -902,12 +915,6 @@ function DayView({
           />
         );
       })}
-      {day?.tips ? (
-        <View style={styles.dayTip}>
-          <Ionicons name="bulb-outline" size={14} color={colors.accent} />
-          <Text style={styles.dayTipText}>{day.tips}</Text>
-        </View>
-      ) : null}
 
       {/* Move stop modal — position (before/after) or change day */}
       <Modal visible={showMoveModal} transparent animationType="fade" onRequestClose={() => { setShowMoveModal(false); setStopToMove(null); }}>
@@ -2403,8 +2410,10 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   travelIconBg: { width: 20, height: 20, borderRadius: 10, backgroundColor: withAlpha(colors.foreground, 0.06), alignItems: 'center', justifyContent: 'center' },
   travelText: { fontSize: 11, color: colors.muted, paddingLeft: 10 },
 
-  // Day tip
-  dayTip: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 12, padding: 10, backgroundColor: withAlpha(colors.accent, 0.1), borderRadius: 10, borderLeftWidth: 2, borderLeftColor: colors.accent },
+  // Day theme + tip
+  dayThemeBlock: { marginBottom: 8 },
+  dayThemeTitle: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 },
+  dayTip: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, backgroundColor: withAlpha(colors.accent, 0.1), borderRadius: 10, borderLeftWidth: 2, borderLeftColor: colors.accent },
   dayTipText: { flex: 1, fontSize: 12, color: colors.muted, lineHeight: 18 },
 
   // Empty day
