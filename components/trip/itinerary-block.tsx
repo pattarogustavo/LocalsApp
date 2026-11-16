@@ -20,6 +20,7 @@ import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/place
 import { generateId } from '@/utils/trip-helpers';
 import { buildStopMapsUrl, buildDirectionsUrl } from '@/utils/maps-url';
 import { buildConsecutiveLegs, chunkLegs } from '@/utils/route-legs';
+import { toDateLocale } from '@/utils/date-locale';
 import type { Trip, DayItinerary, TravelPace, Accommodation, Place, ItineraryStop, CityTransportMode } from '@/types/voyage';
 import type { TripPermissions } from '@/hooks/use-trip-permissions';
 import { useTranslation } from '@/hooks/use-translation';
@@ -90,20 +91,6 @@ function getPaceOptions(t: Translations): { id: TravelPace; label: string; icon:
     { id: 'moderado', label: t.itinerary.paceOptionsLabels.moderado, icon: 'partly-sunny-outline', desc: t.itinerary.paceOptionsDesc.moderado },
     { id: 'intenso', label: t.itinerary.paceOptionsLabels.intenso, icon: 'flash-outline', desc: t.itinerary.paceOptionsDesc.intenso },
   ];
-}
-
-const DATE_LOCALE_MAP: Record<string, string> = {
-  pt: 'pt-BR',
-  en: 'en-US',
-  es: 'es-ES',
-  fr: 'fr-FR',
-  de: 'de-DE',
-  it: 'it-IT',
-};
-
-function toDateLocale(lang?: string): string {
-  const code = lang?.slice(0, 2).toLowerCase();
-  return (code && DATE_LOCALE_MAP[code]) || 'pt-BR';
 }
 
 // ─── Build empty day placeholders ─────────────────────────────────────────────
@@ -246,7 +233,6 @@ interface StopLike {
 function StopItem({
   stop,
   isLast,
-  prevStop,
   nextStop,
   cityTransportMode,
   destinationContext,
@@ -259,7 +245,6 @@ function StopItem({
 }: {
   stop: StopLike;
   isLast: boolean;
-  prevStop?: StopLike | null;
   nextStop?: StopLike | null;
   cityTransportMode?: string;
   destinationContext?: string;
@@ -299,16 +284,11 @@ function StopItem({
   const catIcon  = CATEGORY_ICONS[cat] || 'location-outline';
   const catColor = CATEGORY_COLORS[cat] || colors.textAccent;
 
-  // Always resolvable locally — no Google Places call. Prefers a verified
-  // googlePlaceId/lat-lng when present, otherwise falls back to the stop's
-  // name plus the destination city, which Google Maps geocodes itself when
-  // the link is opened.
+  // Always opens the PLACE itself (a search, never directions) — Maps shows
+  // it by name/card, not as a bare coordinate pin. The separate "trajeto"
+  // link between consecutive stops is openMapsToNext below.
   const openMaps = () => {
-    const travelmode = toDirectionsMode(cityTransportMode);
-    const url = prevStop
-      ? buildDirectionsUrl(prevStop, stop, travelmode, destinationContext)
-      : buildStopMapsUrl(stop, destinationContext);
-    Linking.openURL(url);
+    Linking.openURL(buildStopMapsUrl(stop, destinationContext));
   };
 
   const openMapsToNext = () => {
@@ -882,7 +862,6 @@ function DayView({
         <StopItem
           stop={hotelStop}
           isLast={rawStops.length === 0}
-          prevStop={null}
           nextStop={rawStops[0] ?? null}
           cityTransportMode={cityTransportMode}
           destinationContext={day?.destination}
@@ -894,7 +873,6 @@ function DayView({
       {/* Real stops — simple list (no drag) */}
       {rawStops.map((s, idx) => {
         const i = idx + (hotelStop ? 1 : 0);
-        const prevS = i > 0 ? stops[i - 1] : null;
         const nextS = i < stops.length - 1 ? stops[i + 1] : null;
         const linked = s.placeId ? (places?.find((p) => p.id === s.placeId) ?? null) : null;
         return (
@@ -902,7 +880,6 @@ function DayView({
             key={s.id || `stop-${idx}`}
             stop={s}
             isLast={idx === rawStops.length - 1}
-            prevStop={prevS}
             nextStop={nextS}
             destinationContext={day?.destination}
             cityTransportMode={cityTransportMode}

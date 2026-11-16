@@ -28,9 +28,18 @@ export function locatorFor(stop: MapsLocatable, context?: string): string {
   return context ? `${name}, ${context}` : name;
 }
 
-/** A single stop's "open in Maps" link — a search, not directions. */
+/**
+ * A single stop's "open in Maps" link — a search, not directions. Always
+ * queries by name (+ destination city) when a name is known, never by raw
+ * coordinates, so Maps opens showing the place's name/card rather than a
+ * bare pin — even once lat/lng have been resolved in the background.
+ * `query_place_id` (when a verified googlePlaceId is present) disambiguates
+ * the exact place without changing what's shown as the query text.
+ */
 export function buildStopMapsUrl(stop: MapsLocatable, context?: string): string {
-  const query = locatorFor(stop, context);
+  const query = stop.placeName
+    ? (context ? `${stop.placeName}, ${context}` : stop.placeName)
+    : (stop.address || locatorFor(stop, context));
   const params = new URLSearchParams({ api: '1', query });
   if (stop.googlePlaceId) params.set('query_place_id', stop.googlePlaceId);
   return `https://www.google.com/maps/search/?${params.toString()}`;

@@ -2335,6 +2335,11 @@ Retorne um JSON com 3 opções de roteiro. Cada opção deve ter:
         const tripPurpose = preferences?.tripPurpose;
         const mustSee = resolvedMustSee ? undefined : preferences?.mustSee;
         const hotelBlock = buildHotelPromptBlock(accommodation);
+        // Previously missing here (unlike destinationInfo.generate/
+        // suggestPlaces, which already instruct this): without it the model
+        // defaults to Portuguese regardless of the app's language, since
+        // nothing else in this prompt says otherwise.
+        const languageName = getLanguageName(input.language);
         const mealBlock = buildMealPreferencesBlock(preferences?.mealPreferences, preferences || {});
 
         const prompt = `Crie um roteiro de viagem dia a dia detalhado para ${totalDays} dias.
@@ -2367,11 +2372,13 @@ Regras de horário:
 
 ${buildDurationGuidancePromptBlock(preferences?.pace)}
 
+Escreva todos os textos (title, tips, description de cada parada) em ${languageName}, não em português, a menos que ${languageName} seja português.
+
 Retorne um JSON com o array "days". Cada dia deve ter:
 - date: data no formato YYYY-MM-DD
 - destination: nome do destino
 - title: tema do dia em até ~6 palavras (ex: "Centro histórico e mercados")
-- tips: UMA dica prática de 1 frase, baseada apenas nos lugares e horários daquele dia (sem citar lugares que não estão no roteiro)
+- tips: um resumo curto do dia, em até 3 frases: o que será feito (as principais atividades/paradas do dia, em uma visão geral) e o que o viajante deve prestar atenção especificamente nesse dia (ex: reservar com antecedência, fecha às segundas, levar dinheiro em espécie, chegar cedo por fila) — baseado apenas nos lugares e horários deste dia, nunca citando lugares que não estão no roteiro
 - estimatedCost: custo estimado do dia (número), SEMPRE na moeda local do destino (nunca converta para dólar) — ex: para Paris use EUR, para Londres use GBP, para Tóquio use JPY. É uma estimativa aproximada, não um preço verificado — não finja mais precisão do que você realmente tem.
 - estimatedCostCurrency: o código ISO 4217 de 3 letras da moeda usada acima (ex: "EUR", "GBP", "JPY", "USD" apenas se o destino realmente usar dólar americano)
 - stops: array de paradas do dia, cada parada com:
@@ -2417,7 +2424,7 @@ Importante:
           const llmCallStartedAt = Date.now();
           const response = await invokeLLM({
             messages: [
-              { role: "system", content: "Você é um guia de viagens especialista. Crie roteiros detalhados, práticos e culturalmente ricos. Responda sempre em JSON válido." },
+              { role: "system", content: `Você é um guia de viagens especialista. Crie roteiros detalhados, práticos e culturalmente ricos. Escreva os textos em ${languageName}, não em português, a menos que ${languageName} seja português. Responda sempre em JSON válido.` },
               { role: "user", content: repairBlock ? `${prompt}${repairBlock}` : prompt },
             ],
             outputSchema: { name: "itinerary_days", schema: buildItineraryDaysSchema({ dayTipField: "tips" }), strict: true },
@@ -2691,6 +2698,11 @@ Importante:
         const mustSee = resolvedMustSee ? undefined : profile.mustSee;
         const hotelBlock = buildHotelPromptBlock(accommodation);
         const mealBlock = buildMealPreferencesBlock(profile.mealPreferences, {});
+        // Previously missing here (unlike destinationInfo.generate/
+        // suggestPlaces, which already instruct this): without it the model
+        // defaults to Portuguese regardless of the app's language, since
+        // nothing else in this prompt says otherwise.
+        const languageName = getLanguageName(input.language);
 
         // ─── Single whole-trip planning call (itinerary-engine redesign) ──────────
         // Replaces BOTH earlier approaches: the original single monolithic
@@ -2852,7 +2864,9 @@ Restaurantes (prioridade explícita de qualidade, não só preencher um horário
 
 IMPORTANTE: mesmo vendo o contexto de todos os dias acima, gere ESTA CHAMADA apenas para o(s) dia(s): ${blockDayNumbers.join(", ")}. Não gere os outros dias.
 
-Para cada dia, retorne: dayNumber (o número do dia, igual ao "dayNumber=" indicado acima), title (tema do dia em até ~6 palavras, ex: "Centro histórico e mercados"), tip (UMA dica prática de 1 frase, baseada apenas nos lugares e horários daquele dia — sem citar lugares que não estão no roteiro), estimatedCost (número, estimativa aproximada SEMPRE na moeda local do destino daquele dia — nunca em dólar a menos que o destino realmente use USD), estimatedCostCurrency (código ISO 4217 de 3 letras correspondente), e stops: array de paradas, cada uma com time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other|park|beach|market|neighborhood), description.
+Escreva todos os textos (title, tip, description de cada parada) em ${languageName}, não em português, a menos que ${languageName} seja português.
+
+Para cada dia, retorne: dayNumber (o número do dia, igual ao "dayNumber=" indicado acima), title (tema do dia em até ~6 palavras, ex: "Centro histórico e mercados"), tip (um resumo curto do dia, em até 3 frases: o que será feito — as principais atividades/paradas do dia, em uma visão geral — e o que o viajante deve prestar atenção especificamente nesse dia, ex: reservar com antecedência, fecha às segundas, levar dinheiro em espécie, chegar cedo por fila — baseado apenas nos lugares e horários deste dia, nunca citando lugares que não estão no roteiro), estimatedCost (número, estimativa aproximada SEMPRE na moeda local do destino daquele dia — nunca em dólar a menos que o destino realmente use USD), estimatedCostCurrency (código ISO 4217 de 3 letras correspondente), e stops: array de paradas, cada uma com time (HH:MM), placeName, placeCategory (attraction|restaurant|cafe|museum|hidden_gem|other|park|beach|market|neighborhood), description.
 
 Importante, para cada dia:
 - Inclua ${paceStops} paradas de atrações/passeios (café da manhã, almoço e jantar contam à parte).
@@ -2942,7 +2956,7 @@ Retorne um único JSON com a chave "days": um array com exatamente ${block.lengt
           const startedAt = Date.now();
           const response = await invokeLLM({
             messages: [
-              { role: "system", content: "Você é um guia de viagens especialista. Planeja parte de uma viagem maior, mas com visão do contexto da viagem inteira. Responda sempre em JSON válido." },
+              { role: "system", content: `Você é um guia de viagens especialista. Planeja parte de uma viagem maior, mas com visão do contexto da viagem inteira. Escreva os textos em ${languageName}, não em português, a menos que ${languageName} seja português. Responda sempre em JSON válido.` },
               { role: "user", content: promptText },
             ],
             outputSchema: { name: "itinerary_block", schema: buildMinimalTripSchema(), strict: true },

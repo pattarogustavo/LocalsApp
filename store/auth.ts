@@ -177,7 +177,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: updated });
       AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
     }
-    if (languageChanged) {
+    // Only a signed-in user can have trips to translate or a push token to
+    // re-register — the pre-auth onboarding language switcher (this
+    // function's only caller before login) would otherwise fire a doomed
+    // protected-endpoint call on every tap, flashing the "translating" pill
+    // for work that was never going to happen.
+    if (languageChanged && current) {
       useTripsStore.getState().translateAllTripsToLanguage(lang);
       // Re-register so push content for this device starts going out in
       // the new language.

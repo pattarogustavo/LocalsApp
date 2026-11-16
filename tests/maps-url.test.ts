@@ -37,10 +37,18 @@ describe("buildStopMapsUrl", () => {
     expect(url).toContain("query_place_id=ChIJabc123");
   });
 
-  it("prefers coordinates over name+context when both are present", () => {
+  it("prefers name+context over coordinates — Maps must show the place, never a bare coordinate pin", () => {
     const url = buildStopMapsUrl({ placeName: "Café Central", lat: 48.2, lng: 16.4 }, "Vienna");
-    expect(url).toContain("query=48.2%2C16.4");
-    expect(url).not.toContain("Vienna");
+    expect(url).toContain("Caf%C3%A9+Central%2C+Vienna");
+    expect(url).not.toContain("48.2");
+    expect(url).not.toContain("16.4");
+  });
+
+  it("falls back to address, never lat/lng, when there's no place name", () => {
+    const url = buildStopMapsUrl({ lat: 48.2, lng: 16.4, address: "Herrengasse 14, Vienna" });
+    expect(url).toContain(encodeURIComponent("Herrengasse 14, Vienna").replace(/%20/g, "+"));
+    expect(url).not.toContain("48.2");
+    expect(url).not.toContain("16.4");
   });
 });
 

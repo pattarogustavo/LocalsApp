@@ -27,6 +27,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { reconcileTripReminders } from '@/lib/trip-notifications';
 import { useAuthStore } from '@/store/auth';
 import { getTripName, formatDate, getCurrencySymbol, getTripCurrencies } from '@/utils/trip-helpers';
+import { toDateLocale } from '@/utils/date-locale';
 import { TransportBlock } from '@/components/trip/transport-block';
 import { DocumentsBlock } from '@/components/trip/documents-block';
 import { ExpensesBlock } from '@/components/trip/expenses-block';
@@ -228,6 +229,9 @@ function EditDateModal({
   const colors = useColors();
   const styles = React.useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
+  const dateLocale = toDateLocale(preferredLanguage);
+  const monthFormatter = React.useMemo(() => new Intl.DateTimeFormat(dateLocale, { month: 'long' }), [dateLocale]);
   const today = new Date();
   const [pickerDate, setPickerDate] = useState(new Date(currentDate));
   const [duration, setDuration] = useState(currentDuration);
@@ -269,7 +273,7 @@ function EditDateModal({
             <View style={styles.dateCenter}>
               <Text style={[styles.dateDayNum, { color: colors.foreground }]}>{pickerDate.getDate()}</Text>
               <Text style={[styles.dateMonthText, { color: colors.muted }]}>
-                {pickerDate.toLocaleString('default', { month: 'long' })} {pickerDate.getFullYear()}
+                {monthFormatter.format(pickerDate)} {pickerDate.getFullYear()}
               </Text>
             </View>
             <TouchableOpacity onPress={() => adjustDate(1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
@@ -294,7 +298,7 @@ function EditDateModal({
 
           {/* End date preview */}
           <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', marginBottom: 20 }}>
-            {t.tripEdit.endDate}: {endDate.getDate()} {endDate.toLocaleString('default', { month: 'long' })} {endDate.getFullYear()}
+            {t.tripEdit.endDate}: {endDate.getDate()} {monthFormatter.format(endDate)} {endDate.getFullYear()}
           </Text>
 
           <View style={styles.editCardActions}>
@@ -1218,8 +1222,9 @@ function HistoryTab({ trip, permissions }: { trip: any; permissions: TripPermiss
   const t = useTranslation();
   const colors = useColors();
   const infoStyles = React.useMemo(() => createInfoStyles(colors), [colors]);
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const travelMonth = trip.startDate
-    ? new Date(trip.startDate).toLocaleString('default', { month: 'long' })
+    ? new Intl.DateTimeFormat(toDateLocale(preferredLanguage), { month: 'long' }).format(new Date(trip.startDate))
     : undefined;
 
   return (
