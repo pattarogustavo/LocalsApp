@@ -44,22 +44,25 @@ const AVATAR_COLORS = [
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Add-a-traveler modal: name + optional email invite (with role picker),
- * extracted out of TravelersBlock so other screens (e.g. the expense
- * modal's "add traveler" shortcut) can reuse the exact same flow instead of
- * duplicating it.
+ * Add-a-traveler FORM: name + optional email invite (with role picker) —
+ * just the content, no Modal/overlay chrome of its own, so a caller that
+ * already has its own modal open can embed this directly instead of
+ * stacking a second native Modal on top of it. iOS in particular can fail
+ * to present a Modal rendered on top of another already-open Modal (a
+ * silent failure — the new one just never appears), which is exactly what
+ * happened when the expense modal tried to open this as its own nested
+ * AddTravelerModal.
  */
-export function AddTravelerModal({
+export function AddTravelerForm({
   tripId,
   travelers,
-  visible,
-  onClose,
+  onDone,
   onInviteSent,
 }: {
   tripId: string;
   travelers: Traveler[];
-  visible: boolean;
-  onClose: () => void;
+  /** Called when this sub-flow is finished — either cancelled or after a successful add. The caller decides what that means (close its own modal, or just switch back to its previous content). */
+  onDone: () => void;
   /** Called after a successful email invite (never for a name-only add) — lets a caller that tracks invite status (e.g. TravelersBlock's own pending-badge list) refresh it. */
   onInviteSent?: () => void;
 }) {
@@ -69,7 +72,6 @@ export function AddTravelerModal({
   const addTraveler = useTripsStore((s) => s.addTraveler);
   const getTripById = useTripsStore((s) => s.getTripById);
   const userEmail = useAuthStore((s) => s.user?.email);
-  const insets = useSafeAreaInsets();
 
   const [nameInput, setNameInput] = useState('');
   const [emailInput, setEmailInput] = useState('');
@@ -96,7 +98,7 @@ export function AddTravelerModal({
       await addTraveler(tripId, traveler);
       setNameInput('');
       setEmailInput('');
-      onClose();
+      onDone();
       return;
     }
 
@@ -141,7 +143,7 @@ export function AddTravelerModal({
       setNameInput('');
       setEmailInput('');
       setRoleInput('viewer');
-      onClose();
+      onDone();
 
       Alert.alert(
         t.travelers.inviteSent ?? 'Convite enviado',
@@ -156,6 +158,134 @@ export function AddTravelerModal({
   };
 
   return (
+    <>
+      <View style={styles.modalTitleRow}>
+        <Text style={styles.modalTitle}>{t.travelers.addTraveler}</Text>
+        <TouchableOpacity onPress={onDone}>
+          <Ionicons name="close-circle" size={24} color={colors.muted} />
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.modalSubtitle}>
+        {t.travelers.inviteHint ?? 'Se o viajante tiver uma conta no TheLocals, ele receberá o roteiro completo.'}
+      </Text>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>{(t.travelers.name ?? 'NOME').toUpperCase()}</Text>
+        <TextInput
+          style={styles.input}
+          placeholder={t.travelers.namePlaceholder}
+          placeholderTextColor={colors.muted}
+          value={nameInput}
+          onChangeText={setNameInput}
+          autoCapitalize="words"
+          returnKeyType="next"
+          autoFocus
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>{`${(t.travelers.email ?? 'E-MAIL').toUpperCase()} (${(t.common.optional ?? 'opcional').toUpperCase()})`}</Text>
+        <TextInput
+          style={styles.input}
+          placeholder={t.travelers.emailPlaceholder}
+          placeholderTextColor={colors.muted}
+          value={emailInput}
+          onChangeText={setEmailInput}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          returnKeyType="done"
+          onSubmitEditing={handleAdd}
+        />
+        <Text style={styles.inputHint}>
+          {t.travelers.emailHint ?? 'Se informado, um convite será enviado para acesso ao roteiro.'}
+        </Text>
+      </View>
+
+      {emailInput.trim().length > 0 && (
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>{(t.travelers.role ?? 'PAPEL').toUpperCase()}</Text>
+          <View style={styles.roleRow}>
+            <TouchableOpacity
+              onPress={() => setRoleInput('viewer')}
+              style={[
+                styles.roleBtn,
+                { borderColor: roleInput === 'viewer' ? colors.primary : colors.border },
+                roleInput === 'viewer' && { backgroundColor: withAlpha(colors.primary, 0.1) },
+              ]}
+            >
+              <Ionicons name="eye-outline" size={16} color={roleInput === 'viewer' ? colors.primary : colors.muted} />
+              <Text style={[styles.roleBtnText, { color: roleInput === 'viewer' ? colors.primary : colors.muted }]}>
+                {t.sharing.roleViewer}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setRoleInput('editor')}
+              style={[
+                styles.roleBtn,
+                { borderColor: roleInput === 'editor' ? colors.primary : colors.border },
+                roleInput === 'editor' && { backgroundColor: withAlpha(colors.primary, 0.1) },
+              ]}
+            >
+              <Ionicons name="create-outline" size={16} color={roleInput === 'editor' ? colors.primary : colors.muted} />
+              <Text style={[styles.roleBtnText, { color: roleInput === 'editor' ? colors.primary : colors.muted }]}>
+                {t.sharing.roleEditor}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.inputHint}>
+            {roleInput === 'editor' ? t.sharing.roleEditorDesc : t.sharing.roleViewerDesc}
+          </Text>
+        </View>
+      )}
+
+      <View style={styles.modalActions}>
+        <TouchableOpacity
+          style={styles.cancelBtn}
+          onPress={() => { onDone(); setNameInput(''); setEmailInput(''); setRoleInput('viewer'); }}
+        >
+          <Text style={styles.cancelText}>{t.common.cancel}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.confirmBtn, (!nameInput.trim() || sending) && styles.confirmBtnDisabled]}
+          onPress={handleAdd}
+          disabled={!nameInput.trim() || sending}
+          activeOpacity={0.7}
+        >
+          {sending ? (
+            <ActivityIndicator color={colors.textOnPrimary} size="small" />
+          ) : (
+            <Text style={styles.confirmText}>{t.common.add}</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+}
+
+/**
+ * Thin Modal wrapper around AddTravelerForm — what TravelersBlock (and any
+ * other caller that does NOT already have its own modal open) uses. A
+ * caller that's already inside its own open Modal should embed
+ * AddTravelerForm directly instead (see the note on AddTravelerForm above).
+ */
+export function AddTravelerModal({
+  tripId,
+  travelers,
+  visible,
+  onClose,
+  onInviteSent,
+}: {
+  tripId: string;
+  travelers: Traveler[];
+  visible: boolean;
+  onClose: () => void;
+  onInviteSent?: () => void;
+}) {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
+
+  return (
     <Modal
       visible={visible}
       transparent
@@ -166,105 +296,7 @@ export function AddTravelerModal({
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 24 }]}>
             <View style={styles.modalHandle} />
-            <View style={styles.modalTitleRow}>
-              <Text style={styles.modalTitle}>{t.travelers.addTraveler}</Text>
-              <TouchableOpacity onPress={onClose}>
-                <Ionicons name="close-circle" size={24} color={colors.muted} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.modalSubtitle}>
-              {t.travelers.inviteHint ?? 'Se o viajante tiver uma conta no TheLocals, ele receberá o roteiro completo.'}
-            </Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>{(t.travelers.name ?? 'NOME').toUpperCase()}</Text>
-              <TextInput
-                style={styles.input}
-                placeholder={t.travelers.namePlaceholder}
-                placeholderTextColor={colors.muted}
-                value={nameInput}
-                onChangeText={setNameInput}
-                autoCapitalize="words"
-                returnKeyType="next"
-                autoFocus
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>{`${(t.travelers.email ?? 'E-MAIL').toUpperCase()} (${(t.common.optional ?? 'opcional').toUpperCase()})`}</Text>
-              <TextInput
-                style={styles.input}
-                placeholder={t.travelers.emailPlaceholder}
-                placeholderTextColor={colors.muted}
-                value={emailInput}
-                onChangeText={setEmailInput}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                returnKeyType="done"
-                onSubmitEditing={handleAdd}
-              />
-              <Text style={styles.inputHint}>
-                {t.travelers.emailHint ?? 'Se informado, um convite será enviado para acesso ao roteiro.'}
-              </Text>
-            </View>
-
-            {emailInput.trim().length > 0 && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>{(t.travelers.role ?? 'PAPEL').toUpperCase()}</Text>
-                <View style={styles.roleRow}>
-                  <TouchableOpacity
-                    onPress={() => setRoleInput('viewer')}
-                    style={[
-                      styles.roleBtn,
-                      { borderColor: roleInput === 'viewer' ? colors.primary : colors.border },
-                      roleInput === 'viewer' && { backgroundColor: withAlpha(colors.primary, 0.1) },
-                    ]}
-                  >
-                    <Ionicons name="eye-outline" size={16} color={roleInput === 'viewer' ? colors.primary : colors.muted} />
-                    <Text style={[styles.roleBtnText, { color: roleInput === 'viewer' ? colors.primary : colors.muted }]}>
-                      {t.sharing.roleViewer}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setRoleInput('editor')}
-                    style={[
-                      styles.roleBtn,
-                      { borderColor: roleInput === 'editor' ? colors.primary : colors.border },
-                      roleInput === 'editor' && { backgroundColor: withAlpha(colors.primary, 0.1) },
-                    ]}
-                  >
-                    <Ionicons name="create-outline" size={16} color={roleInput === 'editor' ? colors.primary : colors.muted} />
-                    <Text style={[styles.roleBtnText, { color: roleInput === 'editor' ? colors.primary : colors.muted }]}>
-                      {t.sharing.roleEditor}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.inputHint}>
-                  {roleInput === 'editor' ? t.sharing.roleEditorDesc : t.sharing.roleViewerDesc}
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => { onClose(); setNameInput(''); setEmailInput(''); setRoleInput('viewer'); }}
-              >
-                <Text style={styles.cancelText}>{t.common.cancel}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmBtn, (!nameInput.trim() || sending) && styles.confirmBtnDisabled]}
-                onPress={handleAdd}
-                disabled={!nameInput.trim() || sending}
-                activeOpacity={0.7}
-              >
-                {sending ? (
-                  <ActivityIndicator color={colors.textOnPrimary} size="small" />
-                ) : (
-                  <Text style={styles.confirmText}>{t.common.add}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+            <AddTravelerForm tripId={tripId} travelers={travelers} onDone={onClose} onInviteSent={onInviteSent} />
           </View>
         </KeyboardAvoidingView>
       </View>

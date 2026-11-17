@@ -10,7 +10,7 @@ import type { Translations } from '@/i18n';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 import type { TripPermissions } from '@/hooks/use-trip-permissions';
-import { AddTravelerModal } from '@/components/trip/travelers-block';
+import { AddTravelerForm } from '@/components/trip/travelers-block';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -92,7 +92,13 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
   const addExpense = useTripsStore((s) => s.addExpense);
   const removeExpense = useTripsStore((s) => s.removeExpense);
   const [showModal, setShowModal] = useState(false);
-  const [showAddTravelerModal, setShowAddTravelerModal] = useState(false);
+  // Shows the add-traveler form IN PLACE of the expense form, inside this
+  // SAME modal, instead of opening a second native Modal on top of this
+  // one — stacking two RN Modals silently fails to present the second one
+  // on iOS. Embedding also means description/amount/category typed so far
+  // are never lost (they're untouched component state, and the modal never
+  // actually closes).
+  const [showAddTravelerForm, setShowAddTravelerForm] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -115,6 +121,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
     if (showModal) {
       setPaidBy(selfName);
       setSplitWith([selfName]);
+      setShowAddTravelerForm(false);
     }
   }, [showModal, selfName]);
 
@@ -243,126 +250,135 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
               contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 24 }}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: colors.foreground }}>
-                  {t.expenses.newExpense}
-                </Text>
-                <TouchableOpacity onPress={() => setShowModal(false)}>
-                  <Ionicons name="close-circle" size={26} color={colors.foreground} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Category */}
-              <Text style={styles.formLabel}>{t.expenses.category}</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {CATEGORIES.map((c) => (
-                  <TouchableOpacity
-                    key={c.key}
-                    onPress={() => setCategory(c.key as any)}
-                    style={{
-                      flexDirection: 'row', alignItems: 'center', gap: 6,
-                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-                      backgroundColor: category === c.key ? colors.primary : colors.surface,
-                    }}
-                  >
-                    <Ionicons name={c.icon as any} size={14} color={category === c.key ? colors.textOnPrimary : colors.foreground} />
-                    <Text style={{ fontSize: 12, color: category === c.key ? colors.textOnPrimary : colors.foreground }}>{c.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Description */}
-              <Text style={styles.formLabel}>{t.expenses.description}</Text>
-              <TextInput
-                value={description}
-                onChangeText={setDescription}
-                placeholder={t.expenses.descriptionPlaceholder}
-                placeholderTextColor={colors.muted}
-                style={styles.formInput}
-              />
-
-              {/* Amount */}
-              <Text style={styles.formLabel}>{t.expenses.amount} ({symbol})</Text>
-              <TextInput
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="0,00"
-                placeholderTextColor={colors.muted}
-                keyboardType="decimal-pad"
-                style={styles.formInput}
-              />
-
-              {/* Paid by — always shown, even on a solo trip (self pre-selected) */}
-              <Text style={styles.formLabel}>{t.expenses.paidBy}</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {allParticipants.map((name) => (
-                  <TouchableOpacity
-                    key={name}
-                    onPress={() => setPaidBy(name)}
-                    style={{
-                      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                      backgroundColor: paidBy === name ? colors.primary : colors.surface,
-                    }}
-                  >
-                    <Text style={{ fontSize: 13, color: paidBy === name ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
-                      {name}
+              {showAddTravelerForm ? (
+                // Embedded directly in THIS already-open modal, never as a
+                // second stacked Modal — two RN Modals on top of each other
+                // silently fail to present the second one on iOS. Category/
+                // description/amount/paidBy/splitWith below are untouched
+                // component state, so nothing typed so far is lost while
+                // this sub-flow is shown.
+                <AddTravelerForm
+                  tripId={tripId}
+                  travelers={travelers}
+                  onDone={() => setShowAddTravelerForm(false)}
+                />
+              ) : (
+                <>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: colors.foreground }}>
+                      {t.expenses.newExpense}
                     </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                    <TouchableOpacity onPress={() => setShowModal(false)}>
+                      <Ionicons name="close-circle" size={26} color={colors.foreground} />
+                    </TouchableOpacity>
+                  </View>
 
-              {/* Split with — always shown, even on a solo trip (self pre-selected) */}
-              <Text style={styles.formLabel}>{t.expenses.splitWith} ({t.expenses.emptyMeansAll})</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                {allParticipants.map((name) => (
+                  {/* Category */}
+                  <Text style={styles.formLabel}>{t.expenses.category}</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                    {CATEGORIES.map((c) => (
+                      <TouchableOpacity
+                        key={c.key}
+                        onPress={() => setCategory(c.key as any)}
+                        style={{
+                          flexDirection: 'row', alignItems: 'center', gap: 6,
+                          paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+                          backgroundColor: category === c.key ? colors.primary : colors.surface,
+                        }}
+                      >
+                        <Ionicons name={c.icon as any} size={14} color={category === c.key ? colors.textOnPrimary : colors.foreground} />
+                        <Text style={{ fontSize: 12, color: category === c.key ? colors.textOnPrimary : colors.foreground }}>{c.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Description */}
+                  <Text style={styles.formLabel}>{t.expenses.description}</Text>
+                  <TextInput
+                    value={description}
+                    onChangeText={setDescription}
+                    placeholder={t.expenses.descriptionPlaceholder}
+                    placeholderTextColor={colors.muted}
+                    style={styles.formInput}
+                  />
+
+                  {/* Amount */}
+                  <Text style={styles.formLabel}>{t.expenses.amount} ({symbol})</Text>
+                  <TextInput
+                    value={amount}
+                    onChangeText={setAmount}
+                    placeholder="0,00"
+                    placeholderTextColor={colors.muted}
+                    keyboardType="decimal-pad"
+                    style={styles.formInput}
+                  />
+
+                  {/* Paid by — always shown, even on a solo trip (self pre-selected) */}
+                  <Text style={styles.formLabel}>{t.expenses.paidBy}</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                    {allParticipants.map((name) => (
+                      <TouchableOpacity
+                        key={name}
+                        onPress={() => setPaidBy(name)}
+                        style={{
+                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                          backgroundColor: paidBy === name ? colors.primary : colors.surface,
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, color: paidBy === name ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
+                          {name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Split with — always shown, even on a solo trip (self pre-selected) */}
+                  <Text style={styles.formLabel}>{t.expenses.splitWith} ({t.expenses.emptyMeansAll})</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                    {allParticipants.map((name) => (
+                      <TouchableOpacity
+                        key={name}
+                        onPress={() => toggleParticipant(name)}
+                        style={{
+                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                          backgroundColor: splitWith.includes(name) ? colors.primary : colors.surface,
+                          borderWidth: 1,
+                          borderColor: splitWith.includes(name) ? colors.primary : 'transparent',
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, color: splitWith.includes(name) ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
+                          {name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Add traveler — same flow/component as the Viajantes section at the bottom of the trip page, embedded inline (see showAddTravelerForm above) instead of duplicated */}
+                  {permissions.canManageTravelers && (
+                    <TouchableOpacity
+                      onPress={() => setShowAddTravelerForm(true)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginBottom: 20 }}
+                    >
+                      <Ionicons name="person-add-outline" size={14} color={colors.textAccent} />
+                      <Text style={{ fontSize: 13, color: colors.textAccent, fontWeight: '600' }}>
+                        {t.travelers.addTraveler}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
                   <TouchableOpacity
-                    key={name}
-                    onPress={() => toggleParticipant(name)}
-                    style={{
-                      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                      backgroundColor: splitWith.includes(name) ? colors.primary : colors.surface,
-                      borderWidth: 1,
-                      borderColor: splitWith.includes(name) ? colors.primary : 'transparent',
-                    }}
+                    onPress={handleAdd}
+                    activeOpacity={0.7}
+                    style={{ backgroundColor: colors.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
                   >
-                    <Text style={{ fontSize: 13, color: splitWith.includes(name) ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
-                      {name}
-                    </Text>
+                    <Text style={{ color: colors.textOnPrimary, fontWeight: '600', fontSize: 16 }}>{t.common.add}</Text>
                   </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Add traveler — same flow as the Viajantes section at the bottom of the trip page, reused as-is */}
-              {permissions.canManageTravelers && (
-                <TouchableOpacity
-                  onPress={() => setShowAddTravelerModal(true)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginBottom: 20 }}
-                >
-                  <Ionicons name="person-add-outline" size={14} color={colors.textAccent} />
-                  <Text style={{ fontSize: 13, color: colors.textAccent, fontWeight: '600' }}>
-                    {t.travelers.addTraveler}
-                  </Text>
-                </TouchableOpacity>
+                </>
               )}
-
-              <TouchableOpacity
-                onPress={handleAdd}
-                activeOpacity={0.7}
-                style={{ backgroundColor: colors.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
-              >
-                <Text style={{ color: colors.textOnPrimary, fontWeight: '600', fontSize: 16 }}>{t.common.add}</Text>
-              </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
         </View>
       </Modal>
-
-      <AddTravelerModal
-        tripId={tripId}
-        travelers={travelers}
-        visible={showAddTravelerModal}
-        onClose={() => setShowAddTravelerModal(false)}
-      />
     </View>
   );
 }

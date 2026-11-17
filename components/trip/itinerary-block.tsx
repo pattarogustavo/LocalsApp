@@ -39,6 +39,33 @@ function withAlpha(hex: string, alpha: number): string {
   return `${hex}${a}`;
 }
 
+// ─── Stop timeline layout constants ────────────────────────────────────────────
+// Single source of truth for the left-hand timeline column shared by every
+// stop's icon circle, the continuous connector line, and the transit pill's
+// own icon circle — all three must sit on the exact same vertical axis.
+const TIMELINE_COL_WIDTH = 40;
+const TIMELINE_CIRCLE_SIZE = 30;
+const TIMELINE_LINE_WIDTH = 1.5;
+const TIMELINE_PILL_ICON_SIZE = 28;
+const TIMELINE_PILL_VERTICAL_GAP = 12; // equal space above/below the pill, regardless of card height
+const TIMELINE_PILL_MIN_WIDTH = 92;
+// stopRow's own paddingVertical (6) + gmIconCol's paddingTop (2) + the
+// circle's own height — i.e. exactly where the circle's bottom edge sits,
+// so the connector line starts flush against it, never overlapping into it
+// or leaving a gap below it.
+const TIMELINE_ROW_TOP_PADDING = 6;
+const TIMELINE_COL_TOP_PADDING = 2;
+const TIMELINE_LINE_TOP = TIMELINE_ROW_TOP_PADDING + TIMELINE_COL_TOP_PADDING + TIMELINE_CIRCLE_SIZE;
+// Column's horizontal inset shared by the header row and the transit row
+// (stopRow's paddingHorizontal) — both rows' content starts from this same
+// x, which is what keeps the stop circle and the pill's icon circle (each
+// centered within a TIMELINE_COL_WIDTH-wide box) on the same vertical axis.
+const TIMELINE_ROW_LEFT_PADDING = 4;
+const TIMELINE_LINE_LEFT = TIMELINE_ROW_LEFT_PADDING + TIMELINE_COL_WIDTH / 2 - TIMELINE_LINE_WIDTH / 2;
+// Pill's own internal left padding so its first child (the icon circle) ends
+// up centered at the same local x as the main column's center.
+const TIMELINE_PILL_PADDING_LEFT = TIMELINE_COL_WIDTH / 2 - TIMELINE_PILL_ICON_SIZE / 2;
+
 // ─── Category helpers ─────────────────────────────────────────────────────────
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -327,10 +354,14 @@ function StopItem({
         activeOpacity={0.75}
         style={styles.stopRow}
       >
-        {/* Left: icon circle */}
+        {/* Left: icon circle — opaque backing first, so the continuous
+            connector line never shows through the circle's own semi-
+            transparent category tint. */}
         <View style={styles.gmIconCol}>
-          <View style={[styles.gmIconCircle, { backgroundColor: `${catColor}20`, borderColor: `${catColor}50` }]}>
-            <Ionicons name={catIcon as any} size={15} color={catColor} />
+          <View style={styles.gmIconCircleBacking}>
+            <View style={[styles.gmIconCircle, { backgroundColor: `${catColor}20`, borderColor: `${catColor}50` }]}>
+              <Ionicons name={catIcon as any} size={15} color={catColor} />
+            </View>
           </View>
         </View>
 
@@ -501,18 +532,21 @@ function StopItem({
           <TouchableOpacity
             style={styles.gmTransitPill}
             onPress={openMapsToNext}
-            activeOpacity={0.7}
+            activeOpacity={0.6}
           >
-            <Ionicons
-              name={travelModeIcon(stop.travelModeToNext || cityTransportMode) as any}
-              size={13}
-              color={colors.muted}
-            />
+            <View style={styles.gmTransitIconCircle}>
+              <Ionicons
+                name={travelModeIcon(stop.travelModeToNext || cityTransportMode) as any}
+                size={13}
+                color={colors.muted}
+              />
+            </View>
             {stop.travelTimeToNext ? (
               <Text style={styles.gmTransitText}>{stop.travelTimeToNext}</Text>
             ) : (
               <ActivityIndicator size="small" color={colors.muted} />
             )}
+            <Ionicons name="chevron-forward" size={12} color={colors.muted} style={{ opacity: 0.6 }} />
           </TouchableOpacity>
         </View>
       ) : null}
@@ -2353,7 +2387,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
 
   // Stop item — Google Maps-style
   stopAnimatedBg: { backgroundColor: colors.surface, position: 'relative' }, // opaque so swipe-delete bg doesn't show through; relative so gmContinuousLine can span it
-  stopRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 6, paddingHorizontal: 4 },
+  stopRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: TIMELINE_ROW_TOP_PADDING, paddingHorizontal: TIMELINE_ROW_LEFT_PADDING },
   // Legacy (kept for fallback references)
   timeCol: { width: 44, alignItems: 'flex-end', paddingRight: 10, paddingTop: 6 },
   stopTime: { fontSize: 12, color: colors.muted, fontWeight: '500' },
@@ -2362,28 +2396,41 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   vertLine: { flex: 1, width: 1, backgroundColor: withAlpha(colors.primary, 0.15), marginTop: 4, minHeight: 16 },
   stopContent: { flex: 1, paddingLeft: 10, paddingBottom: 8 },
   // Google Maps-style columns
-  gmIconCol: { width: 32, alignItems: 'center', paddingTop: 2 },
-  gmIconCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
+  gmIconCol: { width: TIMELINE_COL_WIDTH, alignItems: 'center', paddingTop: TIMELINE_COL_TOP_PADDING },
+  // Opaque backing (card color) directly behind the circle — the circle
+  // itself keeps its semi-transparent category tint, but this backing
+  // blocks gmContinuousLine from ever showing through it.
+  gmIconCircleBacking: { width: TIMELINE_CIRCLE_SIZE, height: TIMELINE_CIRCLE_SIZE, borderRadius: TIMELINE_CIRCLE_SIZE / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  gmIconCircle: { width: TIMELINE_CIRCLE_SIZE, height: TIMELINE_CIRCLE_SIZE, borderRadius: TIMELINE_CIRCLE_SIZE / 2, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   // Continuous connector from this stop's circle to the next one's — absolute
   // so its height always spans the FULL wrapper (header + expanded content +
   // the transit pill below), regardless of how tall any of those get, instead
-  // of a flex line confined to just the header row's own height.
-  gmContinuousLine: { position: 'absolute', left: 19, top: 34, bottom: 0, width: 1.5, backgroundColor: withAlpha(colors.primary, 0.25) },
+  // of a flex line confined to just the header row's own height. Sits BEHIND
+  // the opaque circle backing and the opaque pill (both painted after it).
+  gmContinuousLine: { position: 'absolute', left: TIMELINE_LINE_LEFT, top: TIMELINE_LINE_TOP, bottom: 0, width: TIMELINE_LINE_WIDTH, backgroundColor: colors.border },
   gmContent: { flex: 1, paddingLeft: 10, paddingBottom: 10, paddingTop: 3 },
   gmRightCol: { alignItems: 'flex-end', paddingLeft: 6, paddingTop: 3, gap: 6, minWidth: 52 },
   gmTimeBtn: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, backgroundColor: withAlpha(colors.primary, 0.1), borderWidth: 1, borderColor: withAlpha(colors.primary, 0.15) },
   gmTimeText: { fontSize: 12, color: colors.textAccent, fontWeight: '600', letterSpacing: 0.3 },
   gmMoveBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: withAlpha(colors.foreground, 0.06) },
-  // Transit connector (Google Maps style) — a single pill (icon + time),
-  // the pill itself is the tappable "open in Maps" button, rendered on top
-  // of gmContinuousLine so the line appears to pass behind it.
-  gmTransitRow: { paddingVertical: 4, paddingBottom: 6 },
+  // Transit connector — one opaque pill (icon badge + time + chevron), the
+  // pill itself is the tappable "open in Maps" button. paddingVertical here
+  // is the ONLY thing controlling the gap above/below it, so it stays fixed
+  // regardless of the surrounding cards' height.
+  gmTransitRow: { paddingVertical: TIMELINE_PILL_VERTICAL_GAP, paddingHorizontal: TIMELINE_ROW_LEFT_PADDING },
   gmTransitPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    marginLeft: 8, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 14,
-    backgroundColor: withAlpha(colors.foreground, 0.06),
+    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
+    minWidth: TIMELINE_PILL_MIN_WIDTH,
+    paddingLeft: TIMELINE_PILL_PADDING_LEFT, paddingRight: 12, paddingVertical: 5,
+    borderRadius: 18,
+    backgroundColor: colors.cardElevated,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
-  gmTransitText: { fontSize: 11, color: colors.muted, fontWeight: '500' },
+  // The bus/travel-mode icon's own small opaque disc, centered on the same
+  // vertical axis as every stop's icon circle (see TIMELINE_PILL_PADDING_LEFT).
+  gmTransitIconCircle: { width: TIMELINE_PILL_ICON_SIZE, height: TIMELINE_PILL_ICON_SIZE, borderRadius: TIMELINE_PILL_ICON_SIZE / 2, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  gmTransitText: { fontSize: 12, color: colors.foreground, fontWeight: '600' },
   stopName: { fontSize: 15, fontWeight: '700', color: colors.foreground, lineHeight: 20 },
   stopDesc: { fontSize: 13, color: colors.muted, marginTop: 2, lineHeight: 18 },
   stopExpanded: { marginTop: 8, gap: 6 },
