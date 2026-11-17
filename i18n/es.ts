@@ -220,6 +220,7 @@ export const es: Translations = {
     title: 'Itinerario',
     day: 'Día',
     addStop: 'Agregar parada',
+    stopsCount: (n: number) => n === 1 ? '1 parada' : `${n} paradas`,
     addDay: 'Agregar día',
     noStops: 'No hay paradas en este día.',
     editStop: 'Editar parada',

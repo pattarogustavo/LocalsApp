@@ -43,46 +43,41 @@ const AVATAR_COLORS = [
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function TravelersBlock({ tripId, travelers, permissions }: TravelersBlockProps) {
+/**
+ * Add-a-traveler modal: name + optional email invite (with role picker),
+ * extracted out of TravelersBlock so other screens (e.g. the expense
+ * modal's "add traveler" shortcut) can reuse the exact same flow instead of
+ * duplicating it.
+ */
+export function AddTravelerModal({
+  tripId,
+  travelers,
+  visible,
+  onClose,
+  onInviteSent,
+}: {
+  tripId: string;
+  travelers: Traveler[];
+  visible: boolean;
+  onClose: () => void;
+  /** Called after a successful email invite (never for a name-only add) — lets a caller that tracks invite status (e.g. TravelersBlock's own pending-badge list) refresh it. */
+  onInviteSent?: () => void;
+}) {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const addTraveler = useTripsStore((s) => s.addTraveler);
-  const removeTraveler = useTripsStore((s) => s.removeTraveler);
   const getTripById = useTripsStore((s) => s.getTripById);
   const userEmail = useAuthStore((s) => s.user?.email);
   const insets = useSafeAreaInsets();
-  const canManage = permissions.canManageTravelers;
 
-  const [showModal, setShowModal] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [emailInput, setEmailInput] = useState('');
   const [roleInput, setRoleInput] = useState<'viewer' | 'editor'>('viewer');
   const [sending, setSending] = useState(false);
 
   const inviteMutation = trpc.sharing.invite.useMutation();
-  const revokeMutation = trpc.sharing.revoke.useMutation();
   const upsertTripMutation = trpc.cloudTrips.upsert.useMutation();
-  const sharesQuery = trpc.sharing.listSentByMe.useQuery(
-    { tripClientId: tripId },
-    { enabled: !!tripId && canManage }
-  );
-
-  const shareForEmail = useCallback((email?: string) => {
-    if (!email) return undefined;
-    const lower = email.trim().toLowerCase();
-    return sharesQuery.data?.find(
-      (s) => s.inviteeEmail.toLowerCase() === lower && s.status !== 'revoked'
-    );
-  }, [sharesQuery.data]);
-
-  const statusLabel = (status: string) => {
-    if (status === 'accepted') return { label: t.sharing.acceptedStatus, color: colors.textAccent };
-    if (status === 'declined') return { label: t.sharing.declinedStatus, color: colors.error };
-    return { label: t.sharing.pendingStatus, color: colors.warning };
-  };
-
-  const roleLabel = (r: string) => (r === 'editor' ? t.sharing.roleEditor : t.sharing.roleViewer);
 
   const handleAdd = async () => {
     const name = nameInput.trim();
@@ -101,7 +96,7 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
       await addTraveler(tripId, traveler);
       setNameInput('');
       setEmailInput('');
-      setShowModal(false);
+      onClose();
       return;
     }
 
@@ -141,12 +136,12 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
         inviteStatus: 'pending',
       };
       await addTraveler(tripId, traveler);
-      sharesQuery.refetch();
+      onInviteSent?.();
 
       setNameInput('');
       setEmailInput('');
       setRoleInput('viewer');
-      setShowModal(false);
+      onClose();
 
       Alert.alert(
         t.travelers.inviteSent ?? 'Convite enviado',
@@ -159,6 +154,154 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
       setSending(false);
     }
   };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 24 }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalTitleRow}>
+              <Text style={styles.modalTitle}>{t.travelers.addTraveler}</Text>
+              <TouchableOpacity onPress={onClose}>
+                <Ionicons name="close-circle" size={24} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>
+              {t.travelers.inviteHint ?? 'Se o viajante tiver uma conta no TheLocals, ele receberá o roteiro completo.'}
+            </Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{(t.travelers.name ?? 'NOME').toUpperCase()}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={t.travelers.namePlaceholder}
+                placeholderTextColor={colors.muted}
+                value={nameInput}
+                onChangeText={setNameInput}
+                autoCapitalize="words"
+                returnKeyType="next"
+                autoFocus
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{`${(t.travelers.email ?? 'E-MAIL').toUpperCase()} (${(t.common.optional ?? 'opcional').toUpperCase()})`}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={t.travelers.emailPlaceholder}
+                placeholderTextColor={colors.muted}
+                value={emailInput}
+                onChangeText={setEmailInput}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={handleAdd}
+              />
+              <Text style={styles.inputHint}>
+                {t.travelers.emailHint ?? 'Se informado, um convite será enviado para acesso ao roteiro.'}
+              </Text>
+            </View>
+
+            {emailInput.trim().length > 0 && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>{(t.travelers.role ?? 'PAPEL').toUpperCase()}</Text>
+                <View style={styles.roleRow}>
+                  <TouchableOpacity
+                    onPress={() => setRoleInput('viewer')}
+                    style={[
+                      styles.roleBtn,
+                      { borderColor: roleInput === 'viewer' ? colors.primary : colors.border },
+                      roleInput === 'viewer' && { backgroundColor: withAlpha(colors.primary, 0.1) },
+                    ]}
+                  >
+                    <Ionicons name="eye-outline" size={16} color={roleInput === 'viewer' ? colors.primary : colors.muted} />
+                    <Text style={[styles.roleBtnText, { color: roleInput === 'viewer' ? colors.primary : colors.muted }]}>
+                      {t.sharing.roleViewer}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setRoleInput('editor')}
+                    style={[
+                      styles.roleBtn,
+                      { borderColor: roleInput === 'editor' ? colors.primary : colors.border },
+                      roleInput === 'editor' && { backgroundColor: withAlpha(colors.primary, 0.1) },
+                    ]}
+                  >
+                    <Ionicons name="create-outline" size={16} color={roleInput === 'editor' ? colors.primary : colors.muted} />
+                    <Text style={[styles.roleBtnText, { color: roleInput === 'editor' ? colors.primary : colors.muted }]}>
+                      {t.sharing.roleEditor}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.inputHint}>
+                  {roleInput === 'editor' ? t.sharing.roleEditorDesc : t.sharing.roleViewerDesc}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => { onClose(); setNameInput(''); setEmailInput(''); setRoleInput('viewer'); }}
+              >
+                <Text style={styles.cancelText}>{t.common.cancel}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!nameInput.trim() || sending) && styles.confirmBtnDisabled]}
+                onPress={handleAdd}
+                disabled={!nameInput.trim() || sending}
+                activeOpacity={0.7}
+              >
+                {sending ? (
+                  <ActivityIndicator color={colors.textOnPrimary} size="small" />
+                ) : (
+                  <Text style={styles.confirmText}>{t.common.add}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
+export function TravelersBlock({ tripId, travelers, permissions }: TravelersBlockProps) {
+  const t = useTranslation();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const removeTraveler = useTripsStore((s) => s.removeTraveler);
+  const canManage = permissions.canManageTravelers;
+
+  const [showModal, setShowModal] = useState(false);
+
+  const revokeMutation = trpc.sharing.revoke.useMutation();
+  const sharesQuery = trpc.sharing.listSentByMe.useQuery(
+    { tripClientId: tripId },
+    { enabled: !!tripId && canManage }
+  );
+
+  const shareForEmail = useCallback((email?: string) => {
+    if (!email) return undefined;
+    const lower = email.trim().toLowerCase();
+    return sharesQuery.data?.find(
+      (s) => s.inviteeEmail.toLowerCase() === lower && s.status !== 'revoked'
+    );
+  }, [sharesQuery.data]);
+
+  const statusLabel = (status: string) => {
+    if (status === 'accepted') return { label: t.sharing.acceptedStatus, color: colors.textAccent };
+    if (status === 'declined') return { label: t.sharing.declinedStatus, color: colors.error };
+    return { label: t.sharing.pendingStatus, color: colors.warning };
+  };
+
+  const roleLabel = (r: string) => (r === 'editor' ? t.sharing.roleEditor : t.sharing.roleViewer);
 
   const handleRemove = (traveler: Traveler) => {
     const share = shareForEmail(traveler.email);
@@ -292,120 +435,13 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
         </View>
       )}
 
-      {/* Add Traveler Modal */}
-      <Modal
+      <AddTravelerModal
+        tripId={tripId}
+        travelers={travelers}
         visible={showModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 24 }]}>
-              <View style={styles.modalHandle} />
-              <View style={styles.modalTitleRow}>
-                <Text style={styles.modalTitle}>{t.travelers.addTraveler}</Text>
-                <TouchableOpacity onPress={() => setShowModal(false)}>
-                  <Ionicons name="close-circle" size={24} color={colors.muted} />
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.modalSubtitle}>
-                {t.travelers.inviteHint ?? 'Se o viajante tiver uma conta no TheLocals, ele receberá o roteiro completo.'}
-              </Text>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>{(t.travelers.name ?? 'NOME').toUpperCase()}</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={t.travelers.namePlaceholder}
-                  placeholderTextColor={colors.muted}
-                  value={nameInput}
-                  onChangeText={setNameInput}
-                  autoCapitalize="words"
-                  returnKeyType="next"
-                  autoFocus
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>{`${(t.travelers.email ?? 'E-MAIL').toUpperCase()} (${(t.common.optional ?? 'opcional').toUpperCase()})`}</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={t.travelers.emailPlaceholder}
-                  placeholderTextColor={colors.muted}
-                  value={emailInput}
-                  onChangeText={setEmailInput}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  returnKeyType="done"
-                  onSubmitEditing={handleAdd}
-                />
-                <Text style={styles.inputHint}>
-                  {t.travelers.emailHint ?? 'Se informado, um convite será enviado para acesso ao roteiro.'}
-                </Text>
-              </View>
-
-              {emailInput.trim().length > 0 && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>{(t.travelers.role ?? 'PAPEL').toUpperCase()}</Text>
-                  <View style={styles.roleRow}>
-                    <TouchableOpacity
-                      onPress={() => setRoleInput('viewer')}
-                      style={[
-                        styles.roleBtn,
-                        { borderColor: roleInput === 'viewer' ? colors.primary : colors.border },
-                        roleInput === 'viewer' && { backgroundColor: withAlpha(colors.primary, 0.1) },
-                      ]}
-                    >
-                      <Ionicons name="eye-outline" size={16} color={roleInput === 'viewer' ? colors.primary : colors.muted} />
-                      <Text style={[styles.roleBtnText, { color: roleInput === 'viewer' ? colors.primary : colors.muted }]}>
-                        {t.sharing.roleViewer}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setRoleInput('editor')}
-                      style={[
-                        styles.roleBtn,
-                        { borderColor: roleInput === 'editor' ? colors.primary : colors.border },
-                        roleInput === 'editor' && { backgroundColor: withAlpha(colors.primary, 0.1) },
-                      ]}
-                    >
-                      <Ionicons name="create-outline" size={16} color={roleInput === 'editor' ? colors.primary : colors.muted} />
-                      <Text style={[styles.roleBtnText, { color: roleInput === 'editor' ? colors.primary : colors.muted }]}>
-                        {t.sharing.roleEditor}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.inputHint}>
-                    {roleInput === 'editor' ? t.sharing.roleEditorDesc : t.sharing.roleViewerDesc}
-                  </Text>
-                </View>
-              )}
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => { setShowModal(false); setNameInput(''); setEmailInput(''); setRoleInput('viewer'); }}
-                >
-                  <Text style={styles.cancelText}>{t.common.cancel}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.confirmBtn, (!nameInput.trim() || sending) && styles.confirmBtnDisabled]}
-                  onPress={handleAdd}
-                  disabled={!nameInput.trim() || sending}
-                  activeOpacity={0.7}
-                >
-                  {sending ? (
-                    <ActivityIndicator color={colors.textOnPrimary} size="small" />
-                  ) : (
-                    <Text style={styles.confirmText}>{t.common.add}</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+        onClose={() => setShowModal(false)}
+        onInviteSent={() => sharesQuery.refetch()}
+      />
     </View>
   );
 }

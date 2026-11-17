@@ -314,18 +314,24 @@ function StopItem({
 
   const stopContent = (
     <Animated.View style={[styles.stopAnimatedBg, { opacity: fadeAnim, transform: [{ translateX: slideAnim }] }]}>
+      {/* Continuous connector from this stop's icon circle down to the next
+          stop's — spans the WHOLE wrapper (header + expanded content + the
+          transit pill below), not just the header row, so it never looks
+          cut short; the pill is painted after it, on top, as it slides over
+          this same column. */}
+      {!isLast && <View style={styles.gmContinuousLine} />}
+
       {/* ── Main row: icon-col | content-col | time+move-col ── */}
       <TouchableOpacity
         onPress={() => setExpanded(!expanded)}
         activeOpacity={0.75}
         style={styles.stopRow}
       >
-        {/* Left: icon circle + thin vertical line */}
+        {/* Left: icon circle */}
         <View style={styles.gmIconCol}>
           <View style={[styles.gmIconCircle, { backgroundColor: `${catColor}20`, borderColor: `${catColor}50` }]}>
             <Ionicons name={catIcon as any} size={15} color={catColor} />
           </View>
-          {!isLast && <View style={styles.gmVertLine} />}
         </View>
 
         {/* Center: name + description */}
@@ -491,28 +497,24 @@ function StopItem({
           the duration shows a neutral placeholder until route enrichment
           fills it in the background. */}
       {!isLast && nextStop ? (
-        <TouchableOpacity
-          style={styles.gmTransitRow}
-          onPress={openMapsToNext}
-          activeOpacity={0.7}
-        >
-          {/* Align with the vertical line */}
-          <View style={styles.gmTransitIconWrap}>
-            <View style={styles.gmTransitIconBg}>
-              <Ionicons
-                name={travelModeIcon(stop.travelModeToNext || cityTransportMode) as any}
-                size={11}
-                color={colors.muted}
-              />
-            </View>
-          </View>
-          {stop.travelTimeToNext ? (
-            <Text style={styles.gmTransitText}>{stop.travelTimeToNext}</Text>
-          ) : (
-            <ActivityIndicator size="small" color={colors.muted} style={{ marginHorizontal: 2 }} />
-          )}
-          <Ionicons name="open-outline" size={10} color={withAlpha(colors.primary, 0.5)} style={{ marginLeft: 4 }} />
-        </TouchableOpacity>
+        <View style={styles.gmTransitRow}>
+          <TouchableOpacity
+            style={styles.gmTransitPill}
+            onPress={openMapsToNext}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={travelModeIcon(stop.travelModeToNext || cityTransportMode) as any}
+              size={13}
+              color={colors.muted}
+            />
+            {stop.travelTimeToNext ? (
+              <Text style={styles.gmTransitText}>{stop.travelTimeToNext}</Text>
+            ) : (
+              <ActivityIndicator size="small" color={colors.muted} />
+            )}
+          </TouchableOpacity>
+        </View>
       ) : null}
 
       {/* ── Edit Stop Modal ── */}
@@ -818,7 +820,7 @@ function DayView({
         <View style={styles.daySummaryRow}>
           <View style={styles.daySummaryStat}>
             <Ionicons name="location-outline" size={13} color={withAlpha(colors.primary, 0.7)} />
-            <Text style={styles.daySummaryStatText}>{rawStops.length} {rawStops.length !== 1 ? t.itinerary.addStop : t.itinerary.addStop}</Text>
+            <Text style={styles.daySummaryStatText}>{t.itinerary.stopsCount(rawStops.length)}</Text>
           </View>
           {rawStops.some(s => s.travelTimeToNext) && (
             <View style={styles.daySummaryStat}>
@@ -2350,7 +2352,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   dayChipMonthActive: { color: withAlpha(colors.textOnPrimary, 0.5) },
 
   // Stop item — Google Maps-style
-  stopAnimatedBg: { backgroundColor: colors.surface }, // opaque so swipe-delete bg doesn't show through
+  stopAnimatedBg: { backgroundColor: colors.surface, position: 'relative' }, // opaque so swipe-delete bg doesn't show through; relative so gmContinuousLine can span it
   stopRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 6, paddingHorizontal: 4 },
   // Legacy (kept for fallback references)
   timeCol: { width: 44, alignItems: 'flex-end', paddingRight: 10, paddingTop: 6 },
@@ -2362,17 +2364,26 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   // Google Maps-style columns
   gmIconCol: { width: 32, alignItems: 'center', paddingTop: 2 },
   gmIconCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
-  gmVertLine: { width: 1.5, flex: 1, backgroundColor: withAlpha(colors.primary, 0.25), marginTop: 3, minHeight: 20 },
+  // Continuous connector from this stop's circle to the next one's — absolute
+  // so its height always spans the FULL wrapper (header + expanded content +
+  // the transit pill below), regardless of how tall any of those get, instead
+  // of a flex line confined to just the header row's own height.
+  gmContinuousLine: { position: 'absolute', left: 19, top: 34, bottom: 0, width: 1.5, backgroundColor: withAlpha(colors.primary, 0.25) },
   gmContent: { flex: 1, paddingLeft: 10, paddingBottom: 10, paddingTop: 3 },
   gmRightCol: { alignItems: 'flex-end', paddingLeft: 6, paddingTop: 3, gap: 6, minWidth: 52 },
   gmTimeBtn: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8, backgroundColor: withAlpha(colors.primary, 0.1), borderWidth: 1, borderColor: withAlpha(colors.primary, 0.15) },
   gmTimeText: { fontSize: 12, color: colors.textAccent, fontWeight: '600', letterSpacing: 0.3 },
   gmMoveBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: withAlpha(colors.foreground, 0.06) },
-  // Transit connector (Google Maps style)
-  gmTransitRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 4, paddingVertical: 2, paddingBottom: 4 },
-  gmTransitIconWrap: { width: 32, alignItems: 'center' },
-  gmTransitIconBg: { width: 22, height: 22, borderRadius: 11, backgroundColor: withAlpha(colors.foreground, 0.06), alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: withAlpha(colors.primary, 0.12) },
-  gmTransitText: { fontSize: 11, color: colors.muted, paddingLeft: 10, flex: 1 },
+  // Transit connector (Google Maps style) — a single pill (icon + time),
+  // the pill itself is the tappable "open in Maps" button, rendered on top
+  // of gmContinuousLine so the line appears to pass behind it.
+  gmTransitRow: { paddingVertical: 4, paddingBottom: 6 },
+  gmTransitPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    marginLeft: 8, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 14,
+    backgroundColor: withAlpha(colors.foreground, 0.06),
+  },
+  gmTransitText: { fontSize: 11, color: colors.muted, fontWeight: '500' },
   stopName: { fontSize: 15, fontWeight: '700', color: colors.foreground, lineHeight: 20 },
   stopDesc: { fontSize: 13, color: colors.muted, marginTop: 2, lineHeight: 18 },
   stopExpanded: { marginTop: 8, gap: 6 },

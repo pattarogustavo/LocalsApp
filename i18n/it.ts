@@ -225,6 +225,7 @@ export const it: Translations = {
     title: 'Itinerario',
     day: 'Giorno',
     addStop: 'Aggiungi tappa',
+    stopsCount: (n: number) => n === 1 ? '1 tappa' : `${n} tappe`,
     addDay: 'Aggiungi giorno',
     noStops: 'Nessuna tappa in questo giorno.',
     editStop: 'Modifica tappa',

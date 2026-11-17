@@ -1,26 +1,20 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTripsStore } from '@/store/trips';
 import { generateId, getCurrencySymbol } from '@/utils/trip-helpers';
-import type { Expense } from '@/types/voyage';
+import type { Expense, Traveler } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
 import type { Translations } from '@/i18n';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 import type { TripPermissions } from '@/hooks/use-trip-permissions';
+import { AddTravelerModal } from '@/components/trip/travelers-block';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
   return `${hex}${a}`;
-}
-
-interface Traveler {
-  id: string;
-  name: string;
-  initials: string;
-  color: string;
 }
 
 interface ExpensesBlockProps {
@@ -98,11 +92,12 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
   const addExpense = useTripsStore((s) => s.addExpense);
   const removeExpense = useTripsStore((s) => s.removeExpense);
   const [showModal, setShowModal] = useState(false);
+  const [showAddTravelerModal, setShowAddTravelerModal] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<Expense['category']>('other');
-  const [paidBy, setPaidBy] = useState('');  // will be set in useMemo below
+  const [paidBy, setPaidBy] = useState('');
   const [splitWith, setSplitWith] = useState<string[]>([]);
   const insets = useSafeAreaInsets();
 
@@ -111,6 +106,17 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
     const names = [selfName, ...travelers.map((tr) => tr.name)];
     return Array.from(new Set(names));
   }, [travelers, selfName]);
+
+  // Pre-select "self" as both payer and sole participant every time the
+  // modal opens (including the very first time, before any expense was ever
+  // added) — payer/participants must always show a selection, even on a
+  // solo trip with no other travelers.
+  useEffect(() => {
+    if (showModal) {
+      setPaidBy(selfName);
+      setSplitWith([selfName]);
+    }
+  }, [showModal, selfName]);
 
   const total = expenses.reduce((sum, e) => sum + e.amount, 0);
   const symbol = getCurrencySymbol(currency);
@@ -286,48 +292,57 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
                 style={styles.formInput}
               />
 
-              {/* Paid by */}
-              {allParticipants.length > 1 && (
-                <>
-                  <Text style={styles.formLabel}>{t.expenses.paidBy}</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                    {allParticipants.map((name) => (
-                      <TouchableOpacity
-                        key={name}
-                        onPress={() => setPaidBy(name)}
-                        style={{
-                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: paidBy === name ? colors.primary : colors.surface,
-                        }}
-                      >
-                        <Text style={{ fontSize: 13, color: paidBy === name ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
-                          {name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+              {/* Paid by — always shown, even on a solo trip (self pre-selected) */}
+              <Text style={styles.formLabel}>{t.expenses.paidBy}</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {allParticipants.map((name) => (
+                  <TouchableOpacity
+                    key={name}
+                    onPress={() => setPaidBy(name)}
+                    style={{
+                      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                      backgroundColor: paidBy === name ? colors.primary : colors.surface,
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, color: paidBy === name ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
+                      {name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-                  {/* Split with */}
-                  <Text style={styles.formLabel}>{t.expenses.splitWith} ({t.expenses.emptyMeansAll})</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                    {allParticipants.map((name) => (
-                      <TouchableOpacity
-                        key={name}
-                        onPress={() => toggleParticipant(name)}
-                        style={{
-                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: splitWith.includes(name) ? colors.primary : colors.surface,
-                          borderWidth: 1,
-                          borderColor: splitWith.includes(name) ? colors.primary : 'transparent',
-                        }}
-                      >
-                        <Text style={{ fontSize: 13, color: splitWith.includes(name) ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
-                          {name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </>
+              {/* Split with — always shown, even on a solo trip (self pre-selected) */}
+              <Text style={styles.formLabel}>{t.expenses.splitWith} ({t.expenses.emptyMeansAll})</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                {allParticipants.map((name) => (
+                  <TouchableOpacity
+                    key={name}
+                    onPress={() => toggleParticipant(name)}
+                    style={{
+                      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                      backgroundColor: splitWith.includes(name) ? colors.primary : colors.surface,
+                      borderWidth: 1,
+                      borderColor: splitWith.includes(name) ? colors.primary : 'transparent',
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, color: splitWith.includes(name) ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
+                      {name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Add traveler — same flow as the Viajantes section at the bottom of the trip page, reused as-is */}
+              {permissions.canManageTravelers && (
+                <TouchableOpacity
+                  onPress={() => setShowAddTravelerModal(true)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginBottom: 20 }}
+                >
+                  <Ionicons name="person-add-outline" size={14} color={colors.textAccent} />
+                  <Text style={{ fontSize: 13, color: colors.textAccent, fontWeight: '600' }}>
+                    {t.travelers.addTraveler}
+                  </Text>
+                </TouchableOpacity>
               )}
 
               <TouchableOpacity
@@ -341,6 +356,13 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      <AddTravelerModal
+        tripId={tripId}
+        travelers={travelers}
+        visible={showAddTravelerModal}
+        onClose={() => setShowAddTravelerModal(false)}
+      />
     </View>
   );
 }

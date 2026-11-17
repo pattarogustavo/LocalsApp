@@ -229,6 +229,7 @@ export const pt = {
     title: 'Roteiro',
     day: 'Dia',
     addStop: 'Adicionar parada',
+    stopsCount: (n: number) => n === 1 ? '1 parada' : `${n} paradas`,
     addDay: 'Adicionar dia',
     noStops: 'Nenhuma parada neste dia.',
     editStop: 'Editar parada',

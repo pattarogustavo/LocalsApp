@@ -225,6 +225,7 @@ export const de: Translations = {
     title: 'Reiseplan',
     day: 'Tag',
     addStop: 'Halt hinzufügen',
+    stopsCount: (n: number) => n === 1 ? '1 Halt' : `${n} Halte`,
     addDay: 'Tag hinzufügen',
     noStops: 'Keine Halte an diesem Tag.',
     editStop: 'Halt bearbeiten',
