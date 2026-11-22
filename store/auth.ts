@@ -21,6 +21,8 @@ export interface AuthUser {
   email: string | null;
   name: string | null;
   bio?: string | null;
+  /** null = confirmed absent (server has responded and there's no username yet — triggers the choose-username gate); undefined = not yet known (server hasn't answered since login/signup, gate is skipped until it does). */
+  username?: string | null;
   subscriptionStatus: 'active' | 'expired' | 'cancelled' | null;
   subscriptionPlan: 'monthly' | 'annual' | null;
   subscriptionExpiresAt: string | null;
@@ -61,6 +63,7 @@ function supabaseUserToAuthUser(
     email: supabaseUser.email ?? null,
     name: meta.full_name ?? meta.name ?? profile?.name ?? null,
     bio: profile?.bio ?? null,
+    username: profile?.username,
     subscriptionStatus: profile?.subscriptionStatus ?? null,
     subscriptionPlan: profile?.subscriptionPlan ?? null,
     subscriptionExpiresAt: profile?.subscriptionExpiresAt ?? null,
@@ -115,6 +118,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         subscriptionPlan: fresh.subscriptionPlan,
         subscriptionExpiresAt: fresh.subscriptionExpiresAt ? new Date(fresh.subscriptionExpiresAt).toISOString() : null,
         bio: fresh.bio,
+        username: fresh.username,
       });
     }).catch((err) => {
       console.warn('[ProfileSync] Falhou ao buscar perfil real:', err);

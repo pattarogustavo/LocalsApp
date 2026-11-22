@@ -81,6 +81,7 @@ export const pt = {
       subtitle: 'Comece sua jornada',
       name: 'Nome',
       namePlaceholder: 'Seu nome completo',
+      username: 'Nome de usuário',
       email: 'E-mail',
       emailPlaceholder: 'seu@email.com',
       password: 'Senha',
@@ -98,6 +99,7 @@ export const pt = {
       passwordMismatch: 'As senhas não coincidem.',
       passwordTooShort: 'A senha deve ter pelo menos 6 caracteres.',
       nameValidation: 'Nome deve ter pelo menos 2 caracteres.',
+      usernameValidation: 'Escolha um nome de usuário disponível.',
       emailValidation: 'E-mail inválido.',
       confirmEmailTitle: 'Confirme seu e-mail',
       confirmEmailMsg: (email: string) => `Enviamos um link de confirmação para ${email}. Verifique sua caixa de entrada.`,
@@ -759,6 +761,24 @@ export const pt = {
     inviteHint: 'Se o viajante tiver uma conta no TheLocals, ele receberá o roteiro completo e poderá acompanhar em tempo real.',
     emailHint: 'Se informado, um convite será enviado para acesso ao roteiro.',
     role: 'Papel',
+    identifier: 'Usuário ou e-mail',
+    identifierPlaceholder: '@usuario ou email@exemplo.com',
+    identifierHint: 'Convide alguém que já tem conta no TheLocals.',
+    userNotFound: 'Usuário não encontrado',
+  },
+
+  // ── Username ─────────────────────────────────────────────────────────────────
+  username: {
+    placeholder: 'seuusuario',
+    hint: '3 a 20 caracteres: letras, números, ponto e underline.',
+    checking: 'Verificando...',
+    available: 'Disponível',
+    taken: 'Já em uso',
+    invalidFormat: 'Formato inválido',
+    saveError: 'Não foi possível salvar o nome de usuário.',
+    chooseTitle: 'Escolha seu nome de usuário',
+    chooseSubtitle: 'Agora você pode ser encontrado por outros viajantes pelo seu @usuario.',
+    continueBtn: 'Continuar',
   },
 
   // ── Profile ──────────────────────────────────────────────────────────────────
@@ -833,6 +853,7 @@ export const pt = {
     editProfileTitle: 'Editar Perfil',
     name: 'Nome',
     namePlaceholder: 'Seu nome',
+    username: 'Nome de usuário',
     bio: 'Descrição',
     bioPlaceholder: 'Conte um pouco sobre você...',
     saveProfile: 'Salvar perfil',

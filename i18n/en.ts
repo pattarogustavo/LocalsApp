@@ -81,6 +81,7 @@ export const en: Translations = {
       subtitle: 'Start your journey',
       name: 'Name',
       namePlaceholder: 'Your full name',
+      username: 'Username',
       email: 'Email',
       emailPlaceholder: 'your@email.com',
       password: 'Password',
@@ -98,6 +99,7 @@ export const en: Translations = {
       passwordMismatch: 'Passwords do not match.',
       passwordTooShort: 'Password must be at least 6 characters.',
       nameValidation: 'Name must be at least 2 characters.',
+      usernameValidation: 'Choose an available username.',
       emailValidation: 'Invalid email.',
       confirmEmailTitle: 'Confirm your email',
       confirmEmailMsg: (email: string) => `We sent a confirmation link to ${email}. Check your inbox.`,
@@ -742,6 +744,24 @@ export const en: Translations = {
     inviteHint: 'If the traveler has a TheLocals account, they will receive the full itinerary and can follow in real time.',
     emailHint: 'If provided, an invite will be sent for itinerary access.',
     role: 'Role',
+    identifier: 'Username or email',
+    identifierPlaceholder: '@username or email@example.com',
+    identifierHint: 'Invite someone who already has a TheLocals account.',
+    userNotFound: 'User not found',
+  },
+
+  // ── Username ─────────────────────────────────────────────────────────────────
+  username: {
+    placeholder: 'yourusername',
+    hint: '3 to 20 characters: letters, numbers, period and underscore.',
+    checking: 'Checking...',
+    available: 'Available',
+    taken: 'Already taken',
+    invalidFormat: 'Invalid format',
+    saveError: 'Could not save the username.',
+    chooseTitle: 'Choose your username',
+    chooseSubtitle: 'Other travelers can now find you by your @username.',
+    continueBtn: 'Continue',
   },
 
   profile: {
@@ -813,6 +833,7 @@ export const en: Translations = {
     editProfileTitle: 'Edit Profile',
     name: 'Name',
     namePlaceholder: 'Your name',
+    username: 'Username',
     bio: 'Bio',
     bioPlaceholder: 'Tell a bit about yourself...',
     saveProfile: 'Save profile',

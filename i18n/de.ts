@@ -81,6 +81,7 @@ export const de: Translations = {
       subtitle: 'Beginne deine Reise',
       name: 'Name',
       namePlaceholder: 'Dein vollständiger Name',
+      username: 'Benutzername',
       email: 'Email',
       emailPlaceholder: 'deine@email.de',
       password: 'Password',
@@ -98,6 +99,7 @@ export const de: Translations = {
       passwordMismatch: 'Passwörter stimmen nicht überein.',
       passwordTooShort: 'Passwort muss mindestens 6 Zeichen lang sein.',
       nameValidation: 'Name muss mindestens 2 Zeichen lang sein.',
+      usernameValidation: 'Wähle einen verfügbaren Benutzernamen.',
       emailValidation: 'Ungültige E-Mail.',
       confirmEmailTitle: 'Bestätige deine E-Mail',
       confirmEmailMsg: (email: string) => `Wir haben einen Bestätigungslink an ${email} gesendet. Überprüfe deinen Posteingang.`,
@@ -742,6 +744,24 @@ export const de: Translations = {
     inviteHint: 'If the traveler has a TheLocals account, they will receive the full itinerary and can follow in real time.',
     emailHint: 'If provided, an invite will be sent for itinerary access.',
     role: 'Rolle',
+    identifier: 'Benutzername oder E-Mail',
+    identifierPlaceholder: '@benutzername oder email@beispiel.de',
+    identifierHint: 'Lade jemanden ein, der bereits ein TheLocals-Konto hat.',
+    userNotFound: 'Benutzer nicht gefunden',
+  },
+
+  // ── Username ─────────────────────────────────────────────────────────────────
+  username: {
+    placeholder: 'deinbenutzername',
+    hint: '3 bis 20 Zeichen: Buchstaben, Zahlen, Punkt und Unterstrich.',
+    checking: 'Wird überprüft...',
+    available: 'Verfügbar',
+    taken: 'Bereits vergeben',
+    invalidFormat: 'Ungültiges Format',
+    saveError: 'Benutzername konnte nicht gespeichert werden.',
+    chooseTitle: 'Wähle deinen Benutzernamen',
+    chooseSubtitle: 'Andere Reisende können dich jetzt über deinen @benutzername finden.',
+    continueBtn: 'Weiter',
   },
 
   profile: {
@@ -813,6 +833,7 @@ export const de: Translations = {
     editProfileTitle: 'Profil Bearbeiten',
     name: 'Name',
     namePlaceholder: 'Dein Name',
+    username: 'Benutzername',
     bio: 'Beschreibung',
     bioPlaceholder: 'Erzähl uns etwas über dich...',
     saveProfile: 'Profil speichern',

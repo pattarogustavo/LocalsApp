@@ -1,4 +1,5 @@
-import { boolean, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, unique, varchar } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, unique, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
 export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "expired", "cancelled"]);
@@ -39,6 +40,8 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: userRoleEnum("role").default("user").notNull(),
+  /** 3-20 chars, [a-zA-Z0-9._] — format enforced at the application layer (server/routers.ts). Nullable: unset on accounts created before this feature; uniqueness is enforced by the case-insensitive index below, not by `.unique()` here. */
+  username: varchar("username", { length: 20 }),
 
   // ── Subscription ─────────────────────────────────────────────────────────
   subscriptionStatus: subscriptionStatusEnum("subscriptionStatus"),
@@ -49,7 +52,10 @@ export const users = pgTable("users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
-});
+}, (table) => [
+  // Case-insensitive uniqueness — multiple NULLs are still allowed by Postgres.
+  uniqueIndex("users_username_lower_idx").on(sql`lower(${table.username})`),
+]);
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -83,6 +89,8 @@ export const tripShares = pgTable("trip_shares", {
   ownerId: integer("ownerId").notNull(),
   inviteeEmail: varchar("inviteeEmail", { length: 320 }).notNull(),
   inviteeUserId: integer("inviteeUserId"),
+  /** Denormalized copy of the invitee's username at invite time, for display in the sent-invites list. */
+  inviteeUsername: varchar("inviteeUsername", { length: 20 }),
   role: tripShareRoleEnum("role").default("viewer").notNull(),
   status: tripShareStatusEnum("status").default("pending").notNull(),
   /** True when the invitee has "deleted" the trip on their side. Doesn't affect the owner or other invitees. */

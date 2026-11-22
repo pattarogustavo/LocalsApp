@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -41,8 +41,6 @@ const AVATAR_COLORS = [
   '#1ABC9C', '#E67E22', '#3498DB', '#E91E63', '#00BCD4',
 ];
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /**
  * Add-a-traveler FORM: name + optional email invite (with role picker) —
  * just the content, no Modal/overlay chrome of its own, so a caller that
@@ -74,19 +72,59 @@ export function AddTravelerForm({
   const userEmail = useAuthStore((s) => s.user?.email);
 
   const [nameInput, setNameInput] = useState('');
-  const [emailInput, setEmailInput] = useState('');
+  const [identifierInput, setIdentifierInput] = useState('');
+  const [debouncedIdentifier, setDebouncedIdentifier] = useState('');
+  const [selectedUser, setSelectedUser] = useState<{ id: number; username: string | null; name: string | null } | null>(null);
   const [roleInput, setRoleInput] = useState<'viewer' | 'editor'>('viewer');
   const [sending, setSending] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const inviteMutation = trpc.sharing.invite.useMutation();
   const upsertTripMutation = trpc.cloudTrips.upsert.useMutation();
 
+  const trimmedIdentifier = identifierInput.trim();
+  const searchQuery = trpc.user.search.useQuery(
+    { query: debouncedIdentifier },
+    { enabled: debouncedIdentifier.length >= 3 }
+  );
+  const searchResults = useMemo(() => searchQuery.data?.results ?? [], [searchQuery.data]);
+
+  const handleIdentifierChange = (text: string) => {
+    setIdentifierInput(text);
+    setSelectedUser(null);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedIdentifier(text.trim()), 400);
+  };
+
+  // A single result whose identity exactly matches what was typed (the only
+  // case for an email search, and the common case for a fully-typed
+  // username) auto-confirms — no extra tap needed.
+  useEffect(() => {
+    if (selectedUser || searchResults.length !== 1) return;
+    const only = searchResults[0];
+    if (trimmedIdentifier.includes('@') || only.username?.toLowerCase() === trimmedIdentifier.toLowerCase()) {
+      setSelectedUser(only);
+    }
+  }, [searchResults, trimmedIdentifier, selectedUser]);
+
+  const handleSelectResult = (u: { id: number; username: string | null; name: string | null }) => {
+    setSelectedUser(u);
+    setIdentifierInput(u.username ?? identifierInput);
+    setDebouncedIdentifier(u.username ?? debouncedIdentifier);
+  };
+
+  const searched = debouncedIdentifier.length >= 3 && debouncedIdentifier === trimmedIdentifier;
+  const notFound = searched && !searchQuery.isFetching && !selectedUser && searchResults.length === 0;
+  // A picker is only useful for a partial username match against several
+  // accounts — an email search is always 0-or-1, and once one is selected
+  // there's nothing left to pick from.
+  const showPicker = searched && !searchQuery.isFetching && !selectedUser && searchResults.length > 0 && !trimmedIdentifier.includes('@');
+
   const handleAdd = async () => {
     const name = nameInput.trim();
     if (!name) return;
-    const email = emailInput.trim();
 
-    if (!email) {
+    if (!trimmedIdentifier) {
       const color = AVATAR_COLORS[travelers.length % AVATAR_COLORS.length];
       const traveler: Traveler = {
         id: generateId(),
@@ -97,17 +135,13 @@ export function AddTravelerForm({
       };
       await addTraveler(tripId, traveler);
       setNameInput('');
-      setEmailInput('');
+      setIdentifierInput('');
       onDone();
       return;
     }
 
-    if (!EMAIL_RE.test(email)) {
-      Alert.alert(t.common.error, t.sharing.invalidEmail);
-      return;
-    }
-    const lowerEmail = email.toLowerCase();
-    if (userEmail && lowerEmail === userEmail.toLowerCase()) {
+    if (!selectedUser) return; // button is disabled in this state — defensive no-op
+    if (userEmail && trimmedIdentifier.toLowerCase() === userEmail.toLowerCase()) {
       Alert.alert(t.common.error, t.sharing.inviteError);
       return;
     }
@@ -115,7 +149,7 @@ export function AddTravelerForm({
     setSending(true);
     try {
       try {
-        await inviteMutation.mutateAsync({ tripClientId: tripId, email: lowerEmail, role: roleInput });
+        await inviteMutation.mutateAsync({ tripClientId: tripId, identifier: trimmedIdentifier, role: roleInput });
       } catch (err: any) {
         // The server only fails to find the trip when it was never pushed to
         // the cloud yet (e.g. just created offline). Push it once and retry,
@@ -124,7 +158,7 @@ export function AddTravelerForm({
         const trip = getTripById(tripId);
         if (!trip) throw err;
         await upsertTripMutation.mutateAsync({ clientId: trip.id, data: JSON.stringify(trip) });
-        await inviteMutation.mutateAsync({ tripClientId: tripId, email: lowerEmail, role: roleInput });
+        await inviteMutation.mutateAsync({ tripClientId: tripId, identifier: trimmedIdentifier, role: roleInput });
       }
 
       const color = AVATAR_COLORS[travelers.length % AVATAR_COLORS.length];
@@ -133,21 +167,27 @@ export function AddTravelerForm({
         name,
         initials: getInitials(name),
         color,
-        email: lowerEmail,
-        isRegistered: false,
+        // Only kept when the OWNER typed the email themselves — never
+        // looked up server-side for display, so this is never someone
+        // else's address shown back without their own typing it.
+        email: trimmedIdentifier.includes('@') ? trimmedIdentifier.toLowerCase() : undefined,
+        username: selectedUser.username ?? undefined,
+        userId: String(selectedUser.id),
+        isRegistered: true,
         inviteStatus: 'pending',
       };
       await addTraveler(tripId, traveler);
       onInviteSent?.();
 
       setNameInput('');
-      setEmailInput('');
+      setIdentifierInput('');
+      setSelectedUser(null);
       setRoleInput('viewer');
       onDone();
 
       Alert.alert(
         t.travelers.inviteSent ?? 'Convite enviado',
-        `${t.travelers.inviteMsg ?? 'Um convite foi enviado para'} ${lowerEmail}.`,
+        `${t.travelers.inviteMsg ?? 'Um convite foi enviado para'} ${selectedUser.username ? '@' + selectedUser.username : trimmedIdentifier}.`,
         [{ text: t.common.ok }]
       );
     } catch (err: any) {
@@ -184,24 +224,66 @@ export function AddTravelerForm({
       </View>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>{`${(t.travelers.email ?? 'E-MAIL').toUpperCase()} (${(t.common.optional ?? 'opcional').toUpperCase()})`}</Text>
-        <TextInput
-          style={styles.input}
-          placeholder={t.travelers.emailPlaceholder}
-          placeholderTextColor={colors.muted}
-          value={emailInput}
-          onChangeText={setEmailInput}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          returnKeyType="done"
-          onSubmitEditing={handleAdd}
-        />
-        <Text style={styles.inputHint}>
-          {t.travelers.emailHint ?? 'Se informado, um convite será enviado para acesso ao roteiro.'}
-        </Text>
+        <Text style={styles.inputLabel}>{`${t.travelers.identifier.toUpperCase()} (${(t.common.optional ?? 'opcional').toUpperCase()})`}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TextInput
+            style={[styles.input, { flex: 1 }]}
+            placeholder={t.travelers.identifierPlaceholder}
+            placeholderTextColor={colors.muted}
+            value={identifierInput}
+            onChangeText={handleIdentifierChange}
+            keyboardType="default"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={handleAdd}
+          />
+          {trimmedIdentifier.length >= 3 && (
+            <View style={{ marginLeft: -36 }}>
+              {searchQuery.isFetching ? (
+                <ActivityIndicator size="small" color={colors.muted} />
+              ) : selectedUser ? (
+                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+              ) : notFound ? (
+                <Ionicons name="close-circle" size={20} color={colors.error} />
+              ) : null}
+            </View>
+          )}
+        </View>
+
+        {selectedUser ? (
+          <View style={styles.matchRow}>
+            <View style={[styles.matchAvatar, { backgroundColor: colors.primary }]}>
+              <Text style={styles.matchAvatarText}>{getInitials(selectedUser.name || selectedUser.username || '?')}</Text>
+            </View>
+            <Text style={styles.matchText}>
+              {selectedUser.username ? `@${selectedUser.username}` : selectedUser.name}
+            </Text>
+          </View>
+        ) : notFound ? (
+          <Text style={[styles.inputHint, { color: colors.error }]}>{t.travelers.userNotFound}</Text>
+        ) : (
+          <Text style={styles.inputHint}>{t.travelers.identifierHint}</Text>
+        )}
+
+        {showPicker && (
+          <View style={styles.pickerBox}>
+            {searchResults.map((u) => (
+              <TouchableOpacity key={u.id} style={styles.pickerRow} onPress={() => handleSelectResult(u)}>
+                <View style={[styles.matchAvatar, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.matchAvatarText}>{getInitials(u.name || u.username || '?')}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.matchText}>{u.username ? `@${u.username}` : u.name}</Text>
+                  {u.username && u.name ? <Text style={styles.inputHint}>{u.name}</Text> : null}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
-      {emailInput.trim().length > 0 && (
+      {trimmedIdentifier.length > 0 && selectedUser && (
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>{(t.travelers.role ?? 'PAPEL').toUpperCase()}</Text>
           <View style={styles.roleRow}>
@@ -241,14 +323,14 @@ export function AddTravelerForm({
       <View style={styles.modalActions}>
         <TouchableOpacity
           style={styles.cancelBtn}
-          onPress={() => { onDone(); setNameInput(''); setEmailInput(''); setRoleInput('viewer'); }}
+          onPress={() => { onDone(); setNameInput(''); setIdentifierInput(''); setDebouncedIdentifier(''); setSelectedUser(null); setRoleInput('viewer'); }}
         >
           <Text style={styles.cancelText}>{t.common.cancel}</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.confirmBtn, (!nameInput.trim() || sending) && styles.confirmBtnDisabled]}
+          style={[styles.confirmBtn, (!nameInput.trim() || sending || (trimmedIdentifier.length > 0 && !selectedUser)) && styles.confirmBtnDisabled]}
           onPress={handleAdd}
-          disabled={!nameInput.trim() || sending}
+          disabled={!nameInput.trim() || sending || (trimmedIdentifier.length > 0 && !selectedUser)}
           activeOpacity={0.7}
         >
           {sending ? (
@@ -314,17 +396,20 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
   const [showModal, setShowModal] = useState(false);
 
   const revokeMutation = trpc.sharing.revoke.useMutation();
+  const updateRoleMutation = trpc.sharing.updateRole.useMutation();
   const sharesQuery = trpc.sharing.listSentByMe.useQuery(
     { tripClientId: tripId },
     { enabled: !!tripId && canManage }
   );
 
-  const shareForEmail = useCallback((email?: string) => {
-    if (!email) return undefined;
-    const lower = email.trim().toLowerCase();
-    return sharesQuery.data?.find(
-      (s) => s.inviteeEmail.toLowerCase() === lower && s.status !== 'revoked'
-    );
+  const shareForTraveler = useCallback((traveler: Traveler) => {
+    const userId = traveler.userId ? Number(traveler.userId) : undefined;
+    const email = traveler.email?.trim().toLowerCase();
+    return sharesQuery.data?.find((s) => {
+      if (s.status === 'revoked') return false;
+      if (userId != null && s.inviteeUserId === userId) return true;
+      return !!email && s.inviteeEmail.toLowerCase() === email;
+    });
   }, [sharesQuery.data]);
 
   const statusLabel = (status: string) => {
@@ -335,12 +420,36 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
 
   const roleLabel = (r: string) => (r === 'editor' ? t.sharing.roleEditor : t.sharing.roleViewer);
 
+  const handleChangeRole = (share: NonNullable<ReturnType<typeof shareForTraveler>>) => {
+    if (share.status === 'revoked' || share.status === 'declined') return;
+    const nextRole = share.role === 'editor' ? 'viewer' : 'editor';
+    Alert.alert(
+      t.sharing.roleEditor + ' / ' + t.sharing.roleViewer,
+      nextRole === 'editor' ? t.sharing.roleEditorDesc : t.sharing.roleViewerDesc,
+      [
+        { text: t.common.cancel, style: 'cancel' },
+        {
+          text: roleLabel(nextRole),
+          onPress: async () => {
+            try {
+              await updateRoleMutation.mutateAsync({ shareId: share.shareId, role: nextRole });
+              sharesQuery.refetch();
+            } catch (err: any) {
+              Alert.alert(t.common.error, err?.message ?? t.sharing.inviteError);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleRemove = (traveler: Traveler) => {
-    const share = shareForEmail(traveler.email);
+    const share = shareForTraveler(traveler);
+    const identifierLabel = traveler.username ? `@${traveler.username}` : traveler.email;
     if (share && (share.status === 'pending' || share.status === 'accepted')) {
       Alert.alert(
         t.sharing.revokeConfirmTitle,
-        `${t.sharing.revokeConfirmMsg} ${traveler.email}${t.sharing.revokeConfirmMsg2}`,
+        `${t.sharing.revokeConfirmMsg} ${identifierLabel}${t.sharing.revokeConfirmMsg2}`,
         [
           { text: t.common.cancel, style: 'cancel' },
           {
@@ -399,7 +508,7 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
         </View>
 
         {travelers.map((traveler) => {
-          const share = shareForEmail(traveler.email);
+          const share = shareForTraveler(traveler);
           const isPending = share ? share.status === 'pending' : traveler.inviteStatus === 'pending';
           return (
             <TouchableOpacity
@@ -424,7 +533,7 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
       {travelers.length > 0 && (
         <View style={styles.travelerList}>
           {travelers.map((traveler) => {
-            const share = shareForEmail(traveler.email);
+            const share = shareForTraveler(traveler);
             const status = share
               ? statusLabel(share.status)
               : traveler.inviteStatus === 'pending'
@@ -438,13 +547,21 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
                 </View>
                 <View style={styles.travelerInfo}>
                   <Text style={styles.travelerName}>{traveler.name}</Text>
-                  {traveler.email ? (
+                  {traveler.username ? (
+                    <Text style={styles.travelerEmail}>{`@${traveler.username}`}</Text>
+                  ) : traveler.email ? (
                     <Text style={styles.travelerEmail}>{traveler.email}</Text>
                   ) : null}
                 </View>
                 <View style={styles.travelerStatus}>
                   {role && (
-                    <Text style={styles.roleTag}>{roleLabel(role)}</Text>
+                    canManage && share ? (
+                      <TouchableOpacity onPress={() => handleChangeRole(share)}>
+                        <Text style={[styles.roleTag, styles.roleTagEditable]}>{roleLabel(role)}</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.roleTag}>{roleLabel(role)}</Text>
+                    )
                   )}
                   {status ? (
                     <View style={[styles.pendingBadge, { backgroundColor: withAlpha(status.color, 0.15) }]}>
@@ -605,6 +722,9 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
+  roleTagEditable: {
+    textDecorationLine: 'underline',
+  },
   pendingBadge: {
     backgroundColor: withAlpha(colors.warning, 0.15),
     borderRadius: 8,
@@ -692,6 +812,40 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     color: colors.muted,
     fontSize: 11,
     lineHeight: 15,
+  },
+  matchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  matchAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchAvatarText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  matchText: {
+    color: colors.foreground,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  pickerBox: {
+    backgroundColor: withAlpha(colors.foreground, 0.05),
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   roleRow: {
     flexDirection: 'row',

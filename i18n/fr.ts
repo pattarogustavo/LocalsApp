@@ -81,6 +81,7 @@ export const fr: Translations = {
       subtitle: 'Commencez votre aventure',
       name: 'Nom',
       namePlaceholder: 'Votre nom complet',
+      username: "Nom d'utilisateur",
       email: 'E-mail',
       emailPlaceholder: 'votre@email.com',
       password: 'Mot de passe',
@@ -98,6 +99,7 @@ export const fr: Translations = {
       passwordMismatch: 'Les mots de passe ne correspondent pas.',
       passwordTooShort: 'Le mot de passe doit comporter au moins 6 caractères.',
       nameValidation: 'Le nom doit comporter au moins 2 caractères.',
+      usernameValidation: "Choisissez un nom d'utilisateur disponible.",
       emailValidation: 'E-mail invalide.',
       confirmEmailTitle: 'Confirmez votre e-mail',
       confirmEmailMsg: (email: string) => `Nous avons envoyé un lien de confirmation à ${email}. Vérifiez votre boîte de réception.`,
@@ -742,6 +744,24 @@ export const fr: Translations = {
     inviteHint: 'Si le voyageur a un compte TheLocals, il recevra l\'itinéraire complet.',
     emailHint: 'Si fourni, une invitation sera envoyée pour accéder à l\'itinéraire.',
     role: 'Rôle',
+    identifier: "Nom d'utilisateur ou e-mail",
+    identifierPlaceholder: '@utilisateur ou email@exemple.com',
+    identifierHint: 'Invitez quelqu\'un qui a déjà un compte TheLocals.',
+    userNotFound: 'Utilisateur non trouvé',
+  },
+
+  // ── Username ─────────────────────────────────────────────────────────────────
+  username: {
+    placeholder: 'votreutilisateur',
+    hint: "3 à 20 caractères : lettres, chiffres, point et underscore.",
+    checking: 'Vérification...',
+    available: 'Disponible',
+    taken: 'Déjà utilisé',
+    invalidFormat: 'Format invalide',
+    saveError: "Impossible d'enregistrer le nom d'utilisateur.",
+    chooseTitle: "Choisissez votre nom d'utilisateur",
+    chooseSubtitle: "Les autres voyageurs peuvent maintenant vous trouver par votre @utilisateur.",
+    continueBtn: 'Continuer',
   },
 
   profile: {
@@ -813,6 +833,7 @@ export const fr: Translations = {
     editProfileTitle: 'Modifier le Profil',
     name: 'Nom',
     namePlaceholder: 'Votre nom',
+    username: "Nom d'utilisateur",
     bio: 'Description',
     bioPlaceholder: 'Parlez-nous un peu de vous...',
     saveProfile: 'Enregistrer le profil',

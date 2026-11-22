@@ -35,6 +35,8 @@ import { GOOGLE_PLACES_KEY, mapToGoogleLanguage, pickBestGooglePhoto, resolveGoo
 import { fetchUnsplashPhoto } from "./unsplash";
 import * as catalog from "./catalog";
 import { fetchRates } from "./exchange-rates";
+import { checkRateLimit } from "./rate-limit";
+import { isValidUsernameFormat } from "../shared/username";
 
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
 const AERODATABOX_HOST = 'aerodatabox.p.rapidapi.com';
@@ -1350,11 +1352,79 @@ export const appRouter = router({
       return {
         name: ctx.user.name ?? null,
         bio: ctx.user.bio ?? null,
+        username: ctx.user.username ?? null,
         subscriptionStatus: status?.subscriptionStatus ?? null,
         subscriptionPlan: status?.subscriptionPlan ?? null,
         subscriptionExpiresAt: status?.subscriptionExpiresAt ?? null,
       };
     }),
+
+    /**
+     * Live availability check while typing a username — used both at signup
+     * (no session yet, hence public) and in profile settings. Rate-limited
+     * by IP since it's unauthenticated; the real, race-safe guarantee is the
+     * DB's case-insensitive unique index, checked again on `setUsername`.
+     */
+    checkUsername: publicProcedure
+      .input(z.object({ username: z.string().min(1).max(20) }))
+      .query(async ({ ctx, input }) => {
+        const ip = ctx.req.ip || ctx.req.socket?.remoteAddress || "unknown";
+        if (!checkRateLimit(`checkUsername:${ip}`, 30, 60_000)) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde um instante." });
+        }
+        if (!isValidUsernameFormat(input.username)) {
+          return { available: false, reason: "invalid_format" as const };
+        }
+        // Logged in and checking your OWN current username shouldn't show
+        // up as "taken" — this is public (called pre-login at signup too),
+        // so ctx.user is only sometimes present.
+        const taken = await db.isUsernameTaken(input.username, ctx.user?.id);
+        return taken ? { available: false, reason: "taken" as const } : { available: true };
+      }),
+
+    /** Sets/changes the authenticated user's username. */
+    setUsername: protectedProcedure
+      .input(z.object({ username: z.string().min(1).max(20) }))
+      .mutation(async ({ ctx, input }) => {
+        if (!isValidUsernameFormat(input.username)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Formato de nome de usuário inválido." });
+        }
+        if (await db.isUsernameTaken(input.username, ctx.user.id)) {
+          throw new TRPCError({ code: "CONFLICT", message: "Esse nome de usuário já está em uso." });
+        }
+        try {
+          await db.setUsername(ctx.user.openId, input.username);
+        } catch (err) {
+          // Lost a race against another setUsername for the same name —
+          // the unique index is the actual guarantee, the check above is
+          // just to avoid hitting it in the common case.
+          console.error("[user.setUsername] failed:", err);
+          throw new TRPCError({ code: "CONFLICT", message: "Esse nome de usuário já está em uso." });
+        }
+        return { success: true };
+      }),
+
+    /**
+     * Trip-invite autocomplete: resolves a username prefix (up to 5 matches)
+     * or an exact email to the account it belongs to. Never returns another
+     * user's email — only id/username/name, which is all the invite flow
+     * needs to show "✓ @username" or let the owner pick a result.
+     */
+    search: protectedProcedure
+      .input(z.object({ query: z.string().min(3).max(320) }))
+      .query(async ({ ctx, input }) => {
+        if (!checkRateLimit(`userSearch:${ctx.user.id}`, 30, 60_000)) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde um instante." });
+        }
+        const query = input.query.trim();
+        if (query.includes("@")) {
+          const found = await db.getUserByEmail(query);
+          if (!found || found.id === ctx.user.id) return { results: [] };
+          return { results: [{ id: found.id, username: found.username ?? null, name: found.name ?? null }] };
+        }
+        const matches = await db.searchUsersByPrefix(query, 5);
+        return { results: matches.filter((u) => u.id !== ctx.user.id) };
+      }),
 
     /**
      * Update the authenticated user's profile (name and/or bio).
@@ -3692,26 +3762,44 @@ ${SUGGEST_FALLBACK_WEB_SEARCH ? `\n${WEB_SEARCH_INSTRUCTION}` : ''}`;
 
   // ─── Trip Sharing ─────────────────────────────────────────────────────────────────────────────────
   sharing: router({
-    /** Invite a traveler by email to access a trip */
+    /**
+     * Invite a traveler to access a trip, by username OR email. The
+     * identifier must resolve to an EXISTING account for now — inviting
+     * someone with no account yet (by sending them a shareable link
+     * instead) is a later step, not this one.
+     */
     invite: protectedProcedure
       .input(z.object({
         tripClientId: z.string().min(1),
-        email: z.string().email(),
+        identifier: z.string().trim().min(1).max(320),
         role: z.enum(['viewer', 'editor']).default('viewer'),
       }))
       .mutation(async ({ ctx, input }) => {
-        const email = input.email.trim().toLowerCase();
-        if (ctx.user.email && email === ctx.user.email.toLowerCase()) {
-          throw new Error('Você não pode convidar seu próprio e-mail.');
+        const identifier = input.identifier.trim();
+        const invitee = identifier.includes('@')
+          ? await db.getUserByEmail(identifier.toLowerCase())
+          : await db.getUserByUsername(identifier);
+        if (!invitee) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Usuário não encontrado.' });
         }
+        if (invitee.id === ctx.user.id) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Você não pode convidar a si mesmo.' });
+        }
+        if (!invitee.email) {
+          // Every account created through this app's own sign-up/Apple flow
+          // has an email — this guards an edge case we don't expect to hit.
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Esta conta não pode ser convidada.' });
+        }
+        const email = invitee.email.toLowerCase();
+
         // Check the trip belongs to the inviting user
         const trip = await db.getUserTripByClientId(ctx.user.id, input.tripClientId);
         if (!trip) throw new Error('Trip not found or not owned by you');
 
-        // Already has an active invite for this email? Update its role instead of duplicating.
+        // Already has an active invite for this account? Update its role instead of duplicating.
         const existingShares = await db.getTripSharesByTripId(trip.id);
         const existing = existingShares.find(
-          (s) => s.inviteeEmail.toLowerCase() === email && (s.status === 'pending' || s.status === 'accepted')
+          (s) => (s.inviteeUserId === invitee.id || s.inviteeEmail.toLowerCase() === email) && (s.status === 'pending' || s.status === 'accepted')
         );
         if (existing) {
           if (existing.role !== input.role) {
@@ -3720,26 +3808,29 @@ ${SUGGEST_FALLBACK_WEB_SEARCH ? `\n${WEB_SEARCH_INSTRUCTION}` : ''}`;
           return { ok: true, token: existing.token };
         }
 
-        // Create the share record
+        // Create the share record — inviteeUserId/inviteeUsername are known
+        // immediately now (the identifier already resolved to this account),
+        // unlike the email-only flow this replaces, which only learned the
+        // invitee's id once they accepted.
         const token = crypto.randomBytes(24).toString('hex');
         await db.createTripShare({
           tripId: trip.id,
           ownerId: ctx.user.id,
           inviteeEmail: email,
+          inviteeUserId: invitee.id,
+          inviteeUsername: invitee.username ?? null,
           role: input.role,
           token,
         });
 
-        // Best-effort: if the invitee already has an account, let them know
-        // by push. Never awaited — a slow/failed push must never delay or
-        // break the invite response.
-        db.getUserByEmail(email).then((invitee) => {
-          if (!invitee) return;
+        // Best-effort push notification. Never awaited — a slow/failed push
+        // must never delay or break the invite response.
+        (async () => {
           let tripName = '';
           try { tripName = JSON.parse(trip.data)?.name ?? ''; } catch {}
           const ownerName = ctx.user.name || ctx.user.email || '';
-          sendPush([invitee.id], (language) => buildTripInviteMessage(language, ownerName, tripName));
-        }).catch((err) => console.warn('[sharing.invite] push lookup failed:', err));
+          await sendPush([invitee.id], (language) => buildTripInviteMessage(language, ownerName, tripName));
+        })().catch((err) => console.warn('[sharing.invite] push failed:', err));
 
         return { ok: true, token };
       }),
@@ -3862,6 +3953,8 @@ ${SUGGEST_FALLBACK_WEB_SEARCH ? `\n${WEB_SEARCH_INSTRUCTION}` : ''}`;
         return shares.map((s) => ({
           shareId: s.id,
           inviteeEmail: s.inviteeEmail,
+          inviteeUserId: s.inviteeUserId,
+          inviteeUsername: s.inviteeUsername,
           role: s.role,
           status: s.status,
         }));

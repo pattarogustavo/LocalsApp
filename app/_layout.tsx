@@ -78,12 +78,22 @@ function AuthGuard() {
     if (!initialized) return;
 
     const inAuthGroup = segments[0] === 'auth';
+    const onChooseUsername = (segments[0] as string) === 'choose-username';
+    // `username === null` means the server has actually confirmed there
+    // isn't one (pre-existing account, from before this field existed) —
+    // `undefined` means we just don't know yet (fresh login, still
+    // waiting on user.me), which must NOT redirect here.
+    const needsUsername = !!user && user.username === null;
 
     if (!user && !inAuthGroup) {
       // Not logged in, redirect to onboarding
       router.replace('/auth/onboarding' as any);
     } else if (user && inAuthGroup) {
       // Already logged in, redirect to main app
+      router.replace('/(tabs)');
+    } else if (needsUsername && !onChooseUsername) {
+      router.replace('/choose-username' as any);
+    } else if (!needsUsername && onChooseUsername) {
       router.replace('/(tabs)');
     }
   }, [user, initialized, segments]);

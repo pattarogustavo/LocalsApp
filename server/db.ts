@@ -64,6 +64,51 @@ export async function getUserByEmail(email: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+/** Case-insensitive EXACT username lookup — used to resolve an invite identifier and to re-check availability server-side before writing. */
+export async function getUserByUsername(username: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(sql`lower(${users.username}) = lower(${username})`).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+/** True if `username` is already taken by a DIFFERENT account than `excludeUserId` (so a user re-checking their own current username doesn't see it as taken). */
+export async function isUsernameTaken(username: string, excludeUserId?: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const existing = await getUserByUsername(username);
+  if (!existing) return false;
+  return existing.id !== excludeUserId;
+}
+
+/**
+ * Sets a user's username. Re-validated by the caller (format) and by the
+ * `users_username_lower_idx` unique index (the actual race-safe guard) —
+ * a concurrent conflict surfaces as a thrown error for the caller to catch
+ * and turn into a friendly "already taken" message.
+ */
+export async function setUsername(openId: string, username: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set({ username, updatedAt: new Date() }).where(eq(users.openId, openId));
+}
+
+/**
+ * Username prefix search for the trip-invite autocomplete — at most
+ * `limit` accounts whose username starts with `prefix` (case-insensitive),
+ * ordered alphabetically. Never selects `email` — this result set is shown
+ * to OTHER users, and nothing here should leak a third party's address.
+ */
+export async function searchUsersByPrefix(prefix: string, limit: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ id: users.id, username: users.username, name: users.name })
+    .from(users)
+    .where(sql`lower(${users.username}) like lower(${prefix}) || '%'`)
+    .orderBy(users.username)
+    .limit(limit);
+}
+
 export async function updateUserProfile(openId: string, data: { name?: string; bio?: string }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -229,6 +274,9 @@ export async function createTripShare(data: {
   tripId: number;
   ownerId: number;
   inviteeEmail: string;
+  /** Known immediately now that `sharing.invite` always resolves to an existing account first — unlike `inviteeUserId` on old rows, which was only filled in on accept. */
+  inviteeUserId?: number;
+  inviteeUsername?: string | null;
   role: "viewer" | "editor";
   token: string;
 }) {

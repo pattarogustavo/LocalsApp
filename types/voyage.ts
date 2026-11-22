@@ -204,7 +204,8 @@ export interface Traveler {
   name: string;
   initials: string;
   color?: string;
-  email?: string;        // platform user email (if registered)
+  email?: string;        // platform user email (if registered) — only known/stored when the OWNER typed it themselves to invite, never looked up for display
+  username?: string;     // platform @username (if registered and set)
   userId?: string;       // platform user ID (if registered)
   avatarUrl?: string;    // profile picture URL
   isRegistered?: boolean; // has a Voyage account

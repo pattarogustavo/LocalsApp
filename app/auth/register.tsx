@@ -20,6 +20,8 @@ import { useAuthStore } from '@/store/auth';
 import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
+import { UsernameField, type UsernameFieldStatus } from '@/components/ui/username-field';
+import { trpcVanilla } from '@/lib/trpc-vanilla';
 
 // Validation is now done inside the component so it can use translations
 
@@ -35,9 +37,10 @@ export default function RegisterScreen() {
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  function validate(n: string, e: string, p: string, c: string) {
+  function validate(n: string, e: string, p: string, c: string, u: string, uStatus: UsernameFieldStatus) {
     const errors: Record<string, string> = {};
     if (!n.trim()) errors.name = t.auth.register.nameValidation;
+    if (!u.trim() || uStatus !== 'available') errors.username = t.auth.register.usernameValidation;
     if (!e.trim()) errors.email = t.auth.register.emailValidation;
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) errors.email = t.auth.register.emailValidation;
     if (!p) errors.password = t.auth.register.fillFields;
@@ -48,6 +51,8 @@ export default function RegisterScreen() {
   }
 
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [usernameStatus, setUsernameStatus] = useState<UsernameFieldStatus>('idle');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -57,7 +62,7 @@ export default function RegisterScreen() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
 
-  const errors = validate(name, email, password, confirm);
+  const errors = validate(name, email, password, confirm, username, usernameStatus);
   const canSubmit = Object.keys(errors).length === 0 && agreed && !loading;
 
   const goAfterAuth = () => {
@@ -81,6 +86,15 @@ export default function RegisterScreen() {
       }
       if (data.session) {
         await setSession(data.session);
+        try {
+          await trpcVanilla.user.setUsername.mutate({ username });
+        } catch (usernameErr) {
+          // The account is already created at this point — if this fails
+          // (e.g. lost a race on this exact username), the "choose a
+          // username" gate in app/_layout.tsx catches it on next load
+          // instead of blocking the signup that already succeeded.
+          console.error('[register] setUsername failed:', usernameErr);
+        }
         goAfterAuth();
       } else {
         Alert.alert(
@@ -184,6 +198,12 @@ export default function RegisterScreen() {
             {...field('name')}
           />
           {touched.name && errors.name ? <Text style={styles.errorText}>{errors.name}</Text> : null}
+        </View>
+
+        {/* Username */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>{t.auth.register.username}</Text>
+          <UsernameField value={username} onChangeText={setUsername} onStatusChange={setUsernameStatus} />
         </View>
 
         {/* Email */}

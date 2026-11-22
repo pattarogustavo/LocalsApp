@@ -27,6 +27,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 import { privacyUrl, SUPPORT_EMAIL } from '@/constants/links';
+import { UsernameField, type UsernameFieldStatus } from '@/components/ui/username-field';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -278,8 +279,11 @@ function EditProfileModal({
   );
   const [name, setName] = useState(user?.name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
+  const [username, setUsername] = useState(user?.username ?? '');
+  const [usernameStatus, setUsernameStatus] = useState<UsernameFieldStatus>('idle');
   const [loading, setLoading] = useState(false);
   const updateProfileMutation = trpc.user.updateProfile.useMutation();
+  const setUsernameMutation = trpc.user.setUsername.useMutation();
 
   // The modal stays mounted while hidden, so re-sync fields from the store
   // each time it's opened (in case the profile changed since last open).
@@ -287,14 +291,23 @@ function EditProfileModal({
     if (visible) {
       setName(user?.name ?? '');
       setBio(user?.bio ?? '');
+      setUsername(user?.username ?? '');
     }
   }, [visible]);
 
+  const usernameChanged = username !== (user?.username ?? '');
+  const canSubmit = !usernameChanged || usernameStatus === 'available';
+
   const handleSubmit = async () => {
+    if (!canSubmit) return;
     setLoading(true);
     try {
       await updateProfileMutation.mutateAsync({ name: name.trim(), bio: bio.trim() });
       updateProfile({ name: name.trim(), bio: bio.trim() });
+      if (usernameChanged) {
+        await setUsernameMutation.mutateAsync({ username });
+        updateProfile({ username });
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(t.common.success, t.profile.profileUpdated);
       onClose();
@@ -331,6 +344,8 @@ function EditProfileModal({
             placeholder={t.profile.namePlaceholder}
             placeholderTextColor={colors.muted}
           />
+          <Text style={styles.pwLabel}>{t.profile.username}</Text>
+          <UsernameField value={username} onChangeText={setUsername} onStatusChange={setUsernameStatus} />
           <Text style={styles.pwLabel}>{t.profile.bio}</Text>
           <TextInput
             style={[styles.pwInput, styles.bioInput]}
@@ -343,9 +358,9 @@ function EditProfileModal({
             textAlignVertical="top"
           />
           <TouchableOpacity
-            style={[styles.pwSaveBtn, loading && { opacity: 0.6 }]}
+            style={[styles.pwSaveBtn, (loading || !canSubmit) && { opacity: 0.6 }]}
             onPress={handleSubmit}
-            disabled={loading}
+            disabled={loading || !canSubmit}
             activeOpacity={0.7}
           >
             {loading ? (
@@ -613,6 +628,9 @@ export default function ProfileScreen() {
               <Text style={styles.userName}>{user?.name ?? t.profile.traveler}</Text>
               <SubscriptionBadge status={status} t={t} />
             </View>
+            {user?.username ? (
+              <Text style={styles.userEmail}>{`@${user.username}`}</Text>
+            ) : null}
             <Text style={styles.userEmail}>{user?.email ?? '—'}</Text>
             {user?.bio ? (
               <Text style={styles.userBio} numberOfLines={2}>{user.bio}</Text>
