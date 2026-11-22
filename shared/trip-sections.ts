@@ -26,6 +26,7 @@ export const PATCHABLE_TRIP_SECTION_KEYS = [
   'accommodations',
   'itinerary',
   'currency',
+  'lastExpenseCurrency',
   'coverImageUrl',
   'aiGeneratedItinerary',
   'cityTransportMode',

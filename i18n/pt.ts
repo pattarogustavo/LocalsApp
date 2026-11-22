@@ -462,6 +462,24 @@ export const pt = {
     showMore: 'Ver mais',
     paidByLabel: 'Quem pagou?',
     splitWithLabel: 'Quem participou?',
+    currencyCommon: 'Comuns',
+    currencyAll: 'Todas',
+    currencyPickerTitle: 'Escolher moeda',
+    currencyPickerSearchPlaceholder: 'Buscar por código ou símbolo...',
+    exchangeRate: 'Cotação',
+    rateLoading: 'Buscando cotação do dia...',
+    rateUnavailable: 'Cotação automática indisponível — informe manualmente',
+  },
+
+  // ── Trip Settings ─────────────────────────────────────────────────────────────
+  tripSettings: {
+    title: 'Moeda da viagem',
+    baseCurrency: 'Moeda base',
+    baseCurrencyHint: 'Totais, gráficos e acerto de contas sempre usam esta moeda.',
+    confirmTitle: 'Trocar a moeda base?',
+    confirmMessage: '{count} despesa(s) serão recalculadas usando a cotação da data original de cada uma. O total passa de {from} para {to}.',
+    rateLookupFailedTitle: 'Não foi possível recalcular',
+    rateLookupFailedMessage: 'Não conseguimos obter a cotação para uma ou mais datas. Tente novamente mais tarde.',
   },
 
   // ── Transport ────────────────────────────────────────────────────────────────

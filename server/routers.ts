@@ -34,6 +34,7 @@ import {
 import { GOOGLE_PLACES_KEY, mapToGoogleLanguage, pickBestGooglePhoto, resolveGooglePhotoUrl, fetchCuratedPlaceDetails, resolvePlacesLocationBias, resolveLocalLanguageForCountry } from "./google-places";
 import { fetchUnsplashPhoto } from "./unsplash";
 import * as catalog from "./catalog";
+import { fetchRates } from "./exchange-rates";
 
 const AERODATABOX_KEY = process.env.AERODATABOX_RAPIDAPI_KEY || "";
 const AERODATABOX_HOST = 'aerodatabox.p.rapidapi.com';
@@ -4027,6 +4028,30 @@ ${SUGGEST_FALLBACK_WEB_SEARCH ? `\n${WEB_SEARCH_INSTRUCTION}` : ''}`;
           console.error("[tripDocuments.upload] failed:", err);
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao enviar o arquivo." });
         }
+      }),
+  }),
+
+  // ─── Exchange Rates (multi-currency expenses) ──────────────────────────────
+  exchangeRates: router({
+    /**
+     * Daily exchange rate(s) for one or more (date, from, to) pairs — used
+     * both for a single new expense (the "Nova Despesa" form) and, in bulk,
+     * when the trip's base currency changes and every expense needs its
+     * historical rate recomputed. `rate` comes back null when Frankfurter
+     * doesn't track one of the currencies or the lookup fails — the client
+     * falls back to letting the user enter the rate manually.
+     */
+    getRates: protectedProcedure
+      .input(z.object({
+        pairs: z.array(z.object({
+          date: z.string().min(1),
+          from: z.string().length(3),
+          to: z.string().length(3),
+        })).min(1).max(200),
+      }))
+      .query(async ({ input }) => {
+        const rates = await fetchRates(input.pairs);
+        return { rates };
       }),
   }),
 });

@@ -456,6 +456,24 @@ export const de: Translations = {
     showMore: 'Mehr anzeigen',
     paidByLabel: 'Wer hat bezahlt?',
     splitWithLabel: 'Wer hat teilgenommen?',
+    currencyCommon: 'Häufig',
+    currencyAll: 'Alle',
+    currencyPickerTitle: 'Währung wählen',
+    currencyPickerSearchPlaceholder: 'Nach Code oder Symbol suchen...',
+    exchangeRate: 'Wechselkurs',
+    rateLoading: 'Tageskurs wird abgerufen...',
+    rateUnavailable: 'Automatischer Kurs nicht verfügbar — bitte manuell eingeben',
+  },
+
+  // ── Trip Settings ─────────────────────────────────────────────────────────────
+  tripSettings: {
+    title: 'Reisewährung',
+    baseCurrency: 'Basiswährung',
+    baseCurrencyHint: 'Summen, Diagramme und Abrechnung verwenden immer diese Währung.',
+    confirmTitle: 'Basiswährung ändern?',
+    confirmMessage: '{count} Ausgabe(n) werden mit dem Kurs ihres ursprünglichen Datums neu berechnet. Die Summe ändert sich von {from} auf {to}.',
+    rateLookupFailedTitle: 'Neuberechnung nicht möglich',
+    rateLookupFailedMessage: 'Der Wechselkurs für ein oder mehrere Daten konnte nicht abgerufen werden. Bitte versuche es später erneut.',
   },
 
   transport: {

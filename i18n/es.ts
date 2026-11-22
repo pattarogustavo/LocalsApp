@@ -449,6 +449,24 @@ export const es: Translations = {
     showMore: 'Ver más',
     paidByLabel: '¿Quién pagó?',
     splitWithLabel: '¿Quién participó?',
+    currencyCommon: 'Comunes',
+    currencyAll: 'Todas',
+    currencyPickerTitle: 'Elegir moneda',
+    currencyPickerSearchPlaceholder: 'Buscar por código o símbolo...',
+    exchangeRate: 'Cotización',
+    rateLoading: 'Buscando la cotización del día...',
+    rateUnavailable: 'Cotización automática no disponible — ingrésala manualmente',
+  },
+
+  // ── Trip Settings ─────────────────────────────────────────────────────────────
+  tripSettings: {
+    title: 'Moneda del viaje',
+    baseCurrency: 'Moneda base',
+    baseCurrencyHint: 'Los totales, gráficos y liquidación siempre usan esta moneda.',
+    confirmTitle: '¿Cambiar la moneda base?',
+    confirmMessage: 'Se recalcularán {count} gasto(s) usando la cotización de la fecha original de cada uno. El total pasa de {from} a {to}.',
+    rateLookupFailedTitle: 'No se pudo recalcular',
+    rateLookupFailedMessage: 'No pudimos obtener la cotización para una o más fechas. Inténtalo de nuevo más tarde.',
   },
   transport: {
     title: 'Transporte',

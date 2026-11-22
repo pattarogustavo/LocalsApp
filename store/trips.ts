@@ -90,6 +90,12 @@ interface TripsState {
   // Expenses
   addExpense: (tripId: string, expense: Expense) => Promise<void>;
   removeExpense: (tripId: string, expenseId: string) => Promise<void>;
+  /** Sets the trip's base currency and applies pre-computed per-expense conversions in one write — see implementation for the full contract. */
+  recalculateTripCurrency: (
+    tripId: string,
+    newCurrency: string,
+    rates: Record<string, { exchangeRate: number; baseAmount: number; rateSource: 'frankfurter' | 'manual' }>
+  ) => Promise<void>;
   // Travelers (owner-only — never shared/patchable, see shared/trip-sections.ts)
   addTraveler: (tripId: string, traveler: Traveler) => Promise<void>;
   removeTraveler: (tripId: string, travelerId: string) => Promise<void>;
@@ -704,7 +710,12 @@ export const useTripsStore = create<TripsState>((set, get) => {
   // ─── Expenses ──────────────────────────────────────────────────────────────
 
   addExpense: async (tripId: string, expense: Expense) => {
-    await applyTripWrite(tripId, (t) => ({ ...t, expenses: [...t.expenses, expense] }), 'addExpense');
+    await applyTripWrite(tripId, (t) => ({
+      ...t,
+      expenses: [...t.expenses, expense],
+      // Remembered so the next "Nova Despesa" defaults to the same currency.
+      lastExpenseCurrency: expense.currency,
+    }), 'addExpense');
   },
 
   removeExpense: async (tripId: string, expenseId: string) => {
@@ -712,6 +723,31 @@ export const useTripsStore = create<TripsState>((set, get) => {
       ...t,
       expenses: t.expenses.filter((e) => e.id !== expenseId),
     }), 'removeExpense');
+  },
+
+  /**
+   * Changes the trip's base currency and, in the same write, applies the
+   * already-computed (date-of-expense) conversion for every expense —
+   * `rates` must have an entry for every expense.id currently on the trip,
+   * computed by the caller (trip settings screen) via
+   * exchangeRates.getRates BEFORE calling this, so the user can review the
+   * impact and confirm first. An expense missing from `rates` is left
+   * untouched (defensive — should not happen if the caller built the map
+   * from the same `trip.expenses` it read).
+   */
+  recalculateTripCurrency: async (
+    tripId: string,
+    newCurrency: string,
+    rates: Record<string, { exchangeRate: number; baseAmount: number; rateSource: 'frankfurter' | 'manual' }>
+  ) => {
+    await applyTripWrite(tripId, (t) => ({
+      ...t,
+      currency: newCurrency,
+      expenses: t.expenses.map((e) => {
+        const r = rates[e.id];
+        return r ? { ...e, exchangeRate: r.exchangeRate, baseAmount: r.baseAmount, rateSource: r.rateSource } : e;
+      }),
+    }), 'recalculateTripCurrency');
   },
 
   // ─── Travelers ─────────────────────────────────────────────────────────────

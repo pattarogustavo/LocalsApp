@@ -456,6 +456,24 @@ export const it: Translations = {
     showMore: 'Mostra altro',
     paidByLabel: 'Chi ha pagato?',
     splitWithLabel: 'Chi ha partecipato?',
+    currencyCommon: 'Comuni',
+    currencyAll: 'Tutte',
+    currencyPickerTitle: 'Scegli valuta',
+    currencyPickerSearchPlaceholder: 'Cerca per codice o simbolo...',
+    exchangeRate: 'Tasso di cambio',
+    rateLoading: 'Recupero del tasso del giorno...',
+    rateUnavailable: 'Tasso automatico non disponibile — inseriscilo manualmente',
+  },
+
+  // ── Trip Settings ─────────────────────────────────────────────────────────────
+  tripSettings: {
+    title: 'Valuta del viaggio',
+    baseCurrency: 'Valuta base',
+    baseCurrencyHint: 'Totali, grafici e saldo usano sempre questa valuta.',
+    confirmTitle: 'Cambiare la valuta base?',
+    confirmMessage: '{count} spesa/e verranno ricalcolate usando il tasso della data originale di ciascuna. Il totale passa da {from} a {to}.',
+    rateLookupFailedTitle: 'Impossibile ricalcolare',
+    rateLookupFailedMessage: 'Non è stato possibile ottenere il tasso di cambio per una o più date. Riprova più tardi.',
   },
 
   transport: {

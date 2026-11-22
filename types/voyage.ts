@@ -169,11 +169,21 @@ export interface Expense {
   id: string;
   description: string;
   amount: number;
+  /** ISO 4217 code the expense was actually paid in (e.g. "EUR"). */
   currency: string;
   category: 'food' | 'transport' | 'accommodation' | 'activity' | 'shopping' | 'other';
   date: string;
   paidBy: string;
   splitWith?: string[];
+  // ── Currency conversion (absent on expenses saved before multi-currency
+  // support, and on any expense whose `currency` equals the trip's base —
+  // in both cases treat as baseAmount = amount, exchangeRate = 1) ──────────
+  /** `amount` converted to the trip's base currency, at `exchangeRate`. */
+  baseAmount?: number;
+  /** currency → trip.currency rate used for `baseAmount`, as of `date` (or manually overridden by the user). */
+  exchangeRate?: number;
+  /** Where `exchangeRate` came from: an automatic daily-rate lookup, or a manual override. */
+  rateSource?: 'frankfurter' | 'manual';
 }
 
 // ─── Trip Photo ──────────────────────────────────────────────────────────────
@@ -294,7 +304,10 @@ export interface Trip {
   travelers: Traveler[];
   accommodations: Accommodation[];
   itinerary: DayItinerary[];
+  /** The trip's base currency — totals, charts and settlement always use this. */
   currency: string;
+  /** Last currency picked in the "Nova Despesa" form for this trip, so it's remembered as the next default. */
+  lastExpenseCurrency?: string;
   coverImageUrl?: string;
   aiGeneratedItinerary?: boolean;
   cityTransportMode?: CityTransportMode;

@@ -133,8 +133,8 @@ export function getInitials(name: string): string {
 
 // ─── Currency Helpers ─────────────────────────────────────────────────────────
 
-export function getCurrencySymbol(currency: string): string {
-  const symbols: Record<string, string> = {
+/** Every currency code the app recognizes, mapped to its display symbol. */
+export const CURRENCY_SYMBOLS: Record<string, string> = {
     BRL: 'R$',
     USD: '$',
     EUR: '€',
@@ -175,8 +175,39 @@ export function getCurrencySymbol(currency: string): string {
     UYU: '$U',
     BOB: 'Bs',
     PYG: '₲',
-  };
-  return symbols[currency] || currency;
+    CNY: '¥',
+};
+
+export function getCurrencySymbol(currency: string): string {
+  return CURRENCY_SYMBOLS[currency] || currency;
+}
+
+/** All recognized currency codes, alphabetically. */
+export function getAllCurrencyCodes(): string[] {
+  return Object.keys(CURRENCY_SYMBOLS).sort();
+}
+
+/** Pinned at the top of any currency picker, in this order. */
+export const COMMON_CURRENCIES = ['BRL', 'USD', 'EUR', 'GBP', 'ARS', 'JPY', 'CAD', 'AUD'];
+
+const INTL_LOCALE_BY_LANGUAGE: Record<string, string> = {
+  pt: 'pt-BR',
+  en: 'en-US',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  it: 'it-IT',
+};
+
+/** Formats a money amount as a localized currency string (e.g. "R$ 1.234,56" in pt, "$1,234.56" in en). */
+export function formatMoney(amount: number, currency: string, language: string): string {
+  const locale = INTL_LOCALE_BY_LANGUAGE[language] || 'en-US';
+  try {
+    return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(amount);
+  } catch {
+    // Unrecognized/non-ISO currency code — fall back to our own symbol map.
+    return `${getCurrencySymbol(currency)} ${amount.toFixed(2)}`;
+  }
 }
 
 // Map country name → currency code

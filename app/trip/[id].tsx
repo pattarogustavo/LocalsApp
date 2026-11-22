@@ -32,6 +32,7 @@ import { TransportBlock } from '@/components/trip/transport-block';
 import { DocumentsBlock } from '@/components/trip/documents-block';
 import { ExpensesBlock } from '@/components/trip/expenses-block';
 import { TravelersBlock } from '@/components/trip/travelers-block';
+import { TripCurrencySettingsModal } from '@/components/trip/trip-currency-settings-modal';
 import { PlacesScreen } from '@/components/trip/places-screen';
 import { ItineraryBlock } from '@/components/trip/itinerary-block';
 import { AccommodationBlock } from '@/components/trip/accommodation-block';
@@ -614,6 +615,7 @@ export default function TripDetailScreen() {
   ];
   const [showEditDate, setShowEditDate] = useState(false);
   const [showEditDests, setShowEditDests] = useState(false);
+  const [showCurrencySettings, setShowCurrencySettings] = useState(false);
 
   // Copies a freshly picked/captured photo out of the picker's temp location
   // (which iOS may clean up) into the app's own documents directory, so the
@@ -800,8 +802,13 @@ export default function TripDetailScreen() {
               {/* Trip title row with currency badges in column */}
               <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 4 }}>
                 <Text style={[styles.heroTitle, { flex: 1, marginBottom: 0, marginRight: 10 }]}>{tripName}</Text>
-                {/* Currency column — one badge per unique currency, stacked vertically */}
-                <View style={{ flexDirection: 'column', gap: 4, flexShrink: 0, alignItems: 'flex-end', paddingBottom: 2 }}>
+                {/* Currency column — one badge per unique currency, stacked vertically.
+                    Tapping opens the trip's base-currency setting (editors only). */}
+                <TouchableOpacity
+                  disabled={!permissions.canEdit}
+                  onPress={() => setShowCurrencySettings(true)}
+                  style={{ flexDirection: 'column', gap: 4, flexShrink: 0, alignItems: 'flex-end', paddingBottom: 2 }}
+                >
                   {getTripCurrencies(trip.destinations).map((c) => (
                     <View key={c.currency} style={styles.currencyBadge}>
                       <Text style={{ fontSize: 13, lineHeight: 16 }}>{c.flag}</Text>
@@ -809,7 +816,7 @@ export default function TripDetailScreen() {
                       <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: 0.3 }}>{c.currency}</Text>
                     </View>
                   ))}
-                </View>
+                </TouchableOpacity>
               </View>
               <Text style={styles.heroSubtitle}>{countryName}</Text>
             </LinearGradient>
@@ -923,6 +930,15 @@ export default function TripDetailScreen() {
         trip={trip}
         onClose={() => setShowEditDests(false)}
       />
+
+      {/* Trip Currency Settings Modal */}
+      <TripCurrencySettingsModal
+        visible={showCurrencySettings}
+        onClose={() => setShowCurrencySettings(false)}
+        tripId={trip.id}
+        currency={trip.currency}
+        expenses={trip.expenses}
+      />
     </View>
   );
 }
@@ -985,7 +1001,7 @@ function GeralTab({ trip, permissions, onGoToPlaces, onGoToTransport }: { trip: 
       <DocumentsBlock tripId={trip.id} documents={allDocs} permissions={permissions} />
 
       {/* Expenses Block */}
-      <ExpensesBlock tripId={trip.id} expenses={trip.expenses} currency={trip.currency} travelers={trip.travelers || []} permissions={permissions} />
+      <ExpensesBlock tripId={trip.id} expenses={trip.expenses} currency={trip.currency} lastExpenseCurrency={trip.lastExpenseCurrency} travelers={trip.travelers || []} permissions={permissions} />
 
       {/* Travelers Block */}
       <TravelersBlock tripId={trip.id} travelers={trip.travelers} permissions={permissions} />

@@ -456,6 +456,24 @@ export const fr: Translations = {
     showMore: 'Voir plus',
     paidByLabel: 'Qui a payé ?',
     splitWithLabel: 'Qui a participé ?',
+    currencyCommon: 'Courantes',
+    currencyAll: 'Toutes',
+    currencyPickerTitle: 'Choisir une devise',
+    currencyPickerSearchPlaceholder: 'Rechercher par code ou symbole...',
+    exchangeRate: 'Taux de change',
+    rateLoading: 'Récupération du taux du jour...',
+    rateUnavailable: 'Taux automatique indisponible — saisissez-le manuellement',
+  },
+
+  // ── Trip Settings ─────────────────────────────────────────────────────────────
+  tripSettings: {
+    title: 'Devise du voyage',
+    baseCurrency: 'Devise de base',
+    baseCurrencyHint: 'Les totaux, graphiques et règlements utilisent toujours cette devise.',
+    confirmTitle: 'Changer la devise de base ?',
+    confirmMessage: '{count} dépense(s) seront recalculées avec le taux de leur date d\'origine. Le total passe de {from} à {to}.',
+    rateLookupFailedTitle: 'Recalcul impossible',
+    rateLookupFailedMessage: 'Nous n\'avons pas pu obtenir le taux de change pour une ou plusieurs dates. Veuillez réessayer plus tard.',
   },
 
   transport: {

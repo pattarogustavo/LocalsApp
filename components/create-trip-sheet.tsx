@@ -16,7 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
-import { generateId } from '@/utils/trip-helpers';
+import { generateId, getCurrencyForCountry } from '@/utils/trip-helpers';
 import { PlacesAutocompleteInput } from '@/components/ui/places-autocomplete-input';
 import { AIPreferencesModal } from '@/components/ai-preferences-modal';
 import { PaywallModal } from '@/components/paywall-modal';
@@ -180,7 +180,9 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
       travelers: [],
       accommodations: [],
       itinerary: [],
-      currency: 'BRL',
+      // Base currency defaults to the first destination's country — the
+      // user can change it later from the trip's currency settings.
+      currency: getCurrencyForCountry(destinations[0].country),
       contentLanguage: useAuthStore.getState().preferredLanguage,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

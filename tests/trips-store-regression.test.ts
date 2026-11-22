@@ -264,3 +264,66 @@ describe("dedupePlaces", () => {
     expect(after).toBe(before);
   });
 });
+
+// Multi-currency expenses (addExpense remembers the currency, and
+// recalculateTripCurrency applies a base-currency switch atomically).
+describe("addExpense remembers lastExpenseCurrency", () => {
+  it("sets trip.lastExpenseCurrency to the saved expense's currency", async () => {
+    const trip = makeTrip({ currency: "BRL" });
+    useTripsStore.setState({ trips: [trip] });
+
+    await useTripsStore.getState().addExpense(trip.id, {
+      id: "e1", description: "Dinner", amount: 50, currency: "EUR",
+      category: "food", date: "2024-01-01T00:00:00.000Z", paidBy: "You",
+      exchangeRate: 5.4, baseAmount: 270,
+    } as any);
+
+    const after = useTripsStore.getState().trips.find((t) => t.id === trip.id);
+    expect(after?.lastExpenseCurrency).toBe("EUR");
+    expect(after?.expenses).toHaveLength(1);
+  });
+});
+
+describe("recalculateTripCurrency", () => {
+  it("sets the new base currency and applies the given per-expense conversions in one write", async () => {
+    const trip = makeTrip({
+      currency: "BRL",
+      expenses: [
+        { id: "e1", description: "Lunch", amount: 100, currency: "BRL", category: "food", date: "2024-01-01T00:00:00.000Z", paidBy: "You", baseAmount: 100, exchangeRate: 1 },
+        { id: "e2", description: "Taxi", amount: 20, currency: "USD", category: "transport", date: "2024-01-02T00:00:00.000Z", paidBy: "You", baseAmount: 100, exchangeRate: 5 },
+      ] as any,
+    });
+    useTripsStore.setState({ trips: [trip] });
+
+    await useTripsStore.getState().recalculateTripCurrency(trip.id, "USD", {
+      e1: { exchangeRate: 0.2, baseAmount: 20, rateSource: "frankfurter" },
+      e2: { exchangeRate: 1, baseAmount: 20, rateSource: "frankfurter" },
+    });
+
+    const after = useTripsStore.getState().trips.find((t) => t.id === trip.id);
+    expect(after?.currency).toBe("USD");
+    const e1 = after?.expenses.find((e) => e.id === "e1");
+    const e2 = after?.expenses.find((e) => e.id === "e2");
+    expect(e1?.baseAmount).toBe(20);
+    expect(e1?.exchangeRate).toBe(0.2);
+    expect(e1?.amount).toBe(100); // the original amount/currency are never touched
+    expect(e1?.currency).toBe("BRL");
+    expect(e2?.baseAmount).toBe(20);
+  });
+
+  it("leaves an expense untouched if it's missing from the rates map", async () => {
+    const trip = makeTrip({
+      currency: "BRL",
+      expenses: [
+        { id: "e1", description: "Lunch", amount: 100, currency: "BRL", category: "food", date: "2024-01-01T00:00:00.000Z", paidBy: "You", baseAmount: 100, exchangeRate: 1 },
+      ] as any,
+    });
+    useTripsStore.setState({ trips: [trip] });
+
+    await useTripsStore.getState().recalculateTripCurrency(trip.id, "USD", {});
+
+    const after = useTripsStore.getState().trips.find((t) => t.id === trip.id);
+    expect(after?.currency).toBe("USD");
+    expect(after?.expenses[0].baseAmount).toBe(100); // unchanged — no entry was provided for e1
+  });
+});

@@ -456,6 +456,24 @@ export const en: Translations = {
     showMore: 'Show more',
     paidByLabel: 'Who paid?',
     splitWithLabel: 'Who participated?',
+    currencyCommon: 'Common',
+    currencyAll: 'All',
+    currencyPickerTitle: 'Choose currency',
+    currencyPickerSearchPlaceholder: 'Search by code or symbol...',
+    exchangeRate: 'Exchange rate',
+    rateLoading: 'Fetching today\'s rate...',
+    rateUnavailable: 'Automatic rate unavailable — enter it manually',
+  },
+
+  // ── Trip Settings ─────────────────────────────────────────────────────────────
+  tripSettings: {
+    title: 'Trip currency',
+    baseCurrency: 'Base currency',
+    baseCurrencyHint: 'Totals, charts and settlement always use this currency.',
+    confirmTitle: 'Change the base currency?',
+    confirmMessage: '{count} expense(s) will be recalculated using each one\'s original date rate. The total goes from {from} to {to}.',
+    rateLookupFailedTitle: 'Could not recalculate',
+    rateLookupFailedMessage: 'We couldn\'t get the exchange rate for one or more dates. Please try again later.',
   },
 
   transport: {

@@ -3,7 +3,8 @@ import { View, Text, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, P
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTripsStore } from '@/store/trips';
-import { generateId, getCurrencySymbol } from '@/utils/trip-helpers';
+import { useAuthStore } from '@/store/auth';
+import { generateId, formatMoney } from '@/utils/trip-helpers';
 import type { Expense, Traveler } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
 import type { Translations } from '@/i18n';
@@ -11,6 +12,13 @@ import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 import type { TripPermissions } from '@/hooks/use-trip-permissions';
 import { AddTravelerForm } from '@/components/trip/travelers-block';
+import { CurrencyPicker } from '@/components/ui/currency-picker';
+import { trpc } from '@/lib/trpc';
+
+/** `expense.baseAmount` when present (post-multi-currency), else `amount` — every pre-existing expense was always saved in the trip's base currency already, so this is exact for them too, not just a fallback. */
+function baseAmountOf(expense: Expense): number {
+  return expense.baseAmount ?? expense.amount;
+}
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -20,7 +28,10 @@ function withAlpha(hex: string, alpha: number): string {
 interface ExpensesBlockProps {
   tripId: string;
   expenses: Expense[];
+  /** The trip's base currency. */
   currency: string;
+  /** Last currency picked in this trip's "Nova Despesa" form, if any — defaults the picker to it instead of the base currency. */
+  lastExpenseCurrency?: string;
   travelers?: Traveler[];
   permissions: TripPermissions;
 }
@@ -50,10 +61,13 @@ function computeSettlement(expenses: Expense[], travelers: Traveler[], selfLabel
   expenses.forEach((e) => {
     const payer = e.paidBy || selfLabel;
     const participants = e.splitWith && e.splitWith.length > 0 ? e.splitWith : Array.from(allNames);
-    const share = e.amount / participants.length;
+    // Always settle in the trip's base currency — baseAmountOf(e) is e's
+    // amount already converted at the rate recorded when it was saved.
+    const baseAmount = baseAmountOf(e);
+    const share = baseAmount / participants.length;
     // Payer gets credited
     if (!(payer in balance)) balance[payer] = 0;
-    balance[payer] += e.amount;
+    balance[payer] += baseAmount;
     // Each participant gets debited their share
     participants.forEach((p) => {
       if (!(p in balance)) balance[p] = 0;
@@ -83,9 +97,10 @@ function computeSettlement(expenses: Expense[], travelers: Traveler[], selfLabel
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function ExpensesBlock({ tripId, expenses, currency, travelers = [], permissions }: ExpensesBlockProps) {
+export function ExpensesBlock({ tripId, expenses, currency, lastExpenseCurrency, travelers = [], permissions }: ExpensesBlockProps) {
   const canEdit = permissions.canEdit;
   const t = useTranslation();
+  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const CATEGORIES = useMemo(() => getCategories(t), [t]);
@@ -105,7 +120,35 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
   const [category, setCategory] = useState<Expense['category']>('other');
   const [paidBy, setPaidBy] = useState('');
   const [splitWith, setSplitWith] = useState<string[]>([]);
+  const [expenseCurrency, setExpenseCurrency] = useState(currency);
+  const [rateText, setRateText] = useState('1');
+  const [rateEditedManually, setRateEditedManually] = useState(false);
   const insets = useSafeAreaInsets();
+
+  const today = useMemo(() => new Date().toISOString(), []);
+  const needsRate = expenseCurrency !== currency;
+  const rateQuery = trpc.exchangeRates.getRates.useQuery(
+    { pairs: [{ date: today, from: expenseCurrency, to: currency }] },
+    { enabled: needsRate }
+  );
+  useEffect(() => {
+    if (!needsRate) {
+      setRateText('1');
+      setRateEditedManually(false);
+      return;
+    }
+    const fetched = rateQuery.data?.rates?.[0]?.rate;
+    if (fetched != null && !rateEditedManually) setRateText(String(fetched));
+  }, [needsRate, rateQuery.data, rateEditedManually]);
+  const parsedRate = parseFloat(rateText.replace(',', '.'));
+  const rateUnavailable = needsRate && !rateQuery.isFetching && rateQuery.data?.rates?.[0]?.rate == null && !rateEditedManually;
+  const baseAmountPreview = (() => {
+    const amt = parseFloat(amount.replace(',', '.'));
+    if (isNaN(amt)) return null;
+    if (!needsRate) return amt;
+    if (isNaN(parsedRate)) return null;
+    return amt * parsedRate;
+  })();
 
   const selfName = t.expenses.self;
   const allParticipants = useMemo(() => {
@@ -122,11 +165,13 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
       setPaidBy(selfName);
       setSplitWith([selfName]);
       setShowAddTravelerForm(false);
+      setExpenseCurrency(lastExpenseCurrency || currency);
+      setRateEditedManually(false);
     }
-  }, [showModal, selfName]);
+  }, [showModal, selfName, lastExpenseCurrency, currency]);
 
-  const total = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const symbol = getCurrencySymbol(currency);
+  const total = expenses.reduce((sum, e) => sum + baseAmountOf(e), 0);
+  const money = (amt: number, curr: string = currency) => formatMoney(amt, curr, preferredLanguage);
 
   const { balance, transactions } = useMemo(
     () => computeSettlement(expenses, travelers, selfName),
@@ -141,15 +186,22 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
 
   const handleAdd = async () => {
     if (!description.trim() || !amount) return;
+    const parsedAmount = parseFloat(amount.replace(',', '.'));
+    if (isNaN(parsedAmount)) return;
+    const exchangeRate = needsRate ? parsedRate : 1;
+    if (needsRate && isNaN(exchangeRate)) return; // no rate available and user hasn't entered one — can't save yet
     const expense: Expense = {
       id: generateId(),
       description: description.trim(),
-      amount: parseFloat(amount),
-      currency,
+      amount: parsedAmount,
+      currency: expenseCurrency,
       category,
-      date: new Date().toISOString(),
+      date: today,
       paidBy,
       splitWith: splitWith.length > 0 ? splitWith : allParticipants,
+      exchangeRate,
+      baseAmount: parsedAmount * exchangeRate,
+      rateSource: !needsRate || (!rateEditedManually && rateQuery.data?.rates?.[0]?.rate != null) ? 'frankfurter' : 'manual',
     };
     await addExpense(tripId, expense);
     setShowModal(false);
@@ -199,7 +251,12 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
                       : ''}
                   </Text>
                 </View>
-                <Text style={styles.expenseAmount}>{symbol}{expense.amount.toFixed(2)}</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.expenseAmount}>{money(expense.amount, expense.currency)}</Text>
+                  {expense.currency !== currency && (
+                    <Text style={styles.expenseBaseAmount}>≈ {money(baseAmountOf(expense))}</Text>
+                  )}
+                </View>
                 {canEdit && (
                   <TouchableOpacity onPress={() => removeExpense(tripId, expense.id)} style={{ padding: 4 }}>
                     <Ionicons name="trash-outline" size={14} color={colors.muted} />
@@ -218,7 +275,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
           {/* Total */}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>{t.expenses.total}</Text>
-            <Text style={styles.totalValue}>{symbol}{total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{money(total)}</Text>
           </View>
 
           {/* Settlement summary */}
@@ -231,7 +288,7 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
                   <Text style={styles.settlementText}>
                     <Text style={{ fontWeight: '700', color: colors.foreground }}>{tx.from}</Text>
                     {` ${t.expenses.pays} `}
-                    <Text style={{ fontWeight: '700', color: colors.textAccent }}>{symbol}{tx.amount.toFixed(2)}</Text>
+                    <Text style={{ fontWeight: '700', color: colors.textAccent }}>{money(tx.amount)}</Text>
                     {` ${t.expenses.to} `}
                     <Text style={{ fontWeight: '700', color: colors.foreground }}>{tx.to}</Text>
                   </Text>
@@ -302,16 +359,45 @@ export function ExpensesBlock({ tripId, expenses, currency, travelers = [], perm
                     style={styles.formInput}
                   />
 
-                  {/* Amount */}
-                  <Text style={styles.formLabel}>{t.expenses.amount} ({symbol})</Text>
-                  <TextInput
-                    value={amount}
-                    onChangeText={setAmount}
-                    placeholder="0,00"
-                    placeholderTextColor={colors.muted}
-                    keyboardType="decimal-pad"
-                    style={styles.formInput}
-                  />
+                  {/* Amount + currency */}
+                  <Text style={styles.formLabel}>{t.expenses.amount}</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: needsRate ? 10 : 14 }}>
+                    <TextInput
+                      value={amount}
+                      onChangeText={setAmount}
+                      placeholder="0,00"
+                      placeholderTextColor={colors.muted}
+                      keyboardType="decimal-pad"
+                      style={[styles.formInput, { flex: 1, marginBottom: 0 }]}
+                    />
+                    <CurrencyPicker value={expenseCurrency} onChange={setExpenseCurrency} compact />
+                  </View>
+
+                  {/* Exchange rate — only shown when the expense's currency differs
+                      from the trip's base currency. Prefilled from the daily rate,
+                      but always editable (e.g. the traveler's actual card rate). */}
+                  {needsRate && (
+                    <View style={{ marginBottom: 14 }}>
+                      <Text style={styles.formLabel}>
+                        {t.expenses.exchangeRate} (1 {expenseCurrency} = ? {currency})
+                      </Text>
+                      <TextInput
+                        value={rateText}
+                        onChangeText={(v) => { setRateText(v); setRateEditedManually(true); }}
+                        placeholder="0,00"
+                        placeholderTextColor={colors.muted}
+                        keyboardType="decimal-pad"
+                        style={styles.formInput}
+                      />
+                      {rateQuery.isFetching ? (
+                        <Text style={styles.rateHint}>{t.expenses.rateLoading}</Text>
+                      ) : rateUnavailable ? (
+                        <Text style={styles.rateHint}>{t.expenses.rateUnavailable}</Text>
+                      ) : baseAmountPreview != null ? (
+                        <Text style={styles.rateHint}>≈ {money(baseAmountPreview)}</Text>
+                      ) : null}
+                    </View>
+                  )}
 
                   {/* Paid by — always shown, even on a solo trip (self pre-selected) */}
                   <Text style={styles.formLabel}>{t.expenses.paidBy}</Text>
@@ -429,6 +515,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   expenseDesc: { color: colors.foreground, fontSize: 14 },
   expenseMeta: { color: colors.muted, fontSize: 11, marginTop: 1 },
   expenseAmount: { color: colors.textAccent, fontSize: 14, fontWeight: '600' },
+  expenseBaseAmount: { color: colors.muted, fontSize: 11, marginTop: 1 },
+  rateHint: { color: colors.muted, fontSize: 12, marginTop: -8, marginBottom: 2 },
   showMoreBtn: { alignItems: 'center', paddingVertical: 6 },
   showMoreText: { color: withAlpha(colors.primary, 0.7), fontSize: 12 },
   totalRow: {
