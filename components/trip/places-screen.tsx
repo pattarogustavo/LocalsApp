@@ -13,6 +13,7 @@ import { useAuthStore } from '@/store/auth';
 import { useShallow } from 'zustand/react/shallow';
 import { useTranslation } from '@/hooks/use-translation';
 import { handlePaywallError } from '@/hooks/use-paywall-guard';
+import { usePlacePhotoBackfill } from '@/hooks/use-place-photo-backfill';
 import { trpc } from '@/lib/trpc';
 import { trpcVanilla } from '@/lib/trpc-vanilla';
 import type { Place, Destination, PlaceAttachment } from '@/types/voyage';
@@ -760,9 +761,17 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
   const styles = useMemo(() => createStyles(colors), [colors]);
   const t = useTranslation();
   const { canEdit } = permissions;
-  const { removePlace, setItinerary, upsertPlace } = useTripsStore(
-    useShallow((s) => ({ removePlace: s.removePlace, setItinerary: s.setItinerary, upsertPlace: s.upsertPlace })),
+  const { removePlace, setItinerary, upsertPlace, dedupePlaces } = useTripsStore(
+    useShallow((s) => ({ removePlace: s.removePlace, setItinerary: s.setItinerary, upsertPlace: s.upsertPlace, dedupePlaces: s.dedupePlaces })),
   );
+  // Opportunistically clean up places already duplicated under the same
+  // Google place_id (e.g. an itinerary stop and a recommendation for the
+  // same spot) — a pure local merge, no network cost, no-op if there's
+  // nothing to merge, so it's safe on every mount.
+  useEffect(() => {
+    dedupePlaces(tripId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId]);
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeDestFilter, setActiveDestFilter] = useState('all');
   const [availSearch, setAvailSearch] = useState('');
@@ -866,6 +875,11 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
       return acc;
     }, {} as Record<string, { dest: Destination; byCategory: Record<string, Place[]> }>);
   }, [myPlaces, destinations]);
+
+  // Lazily backfill photo/address (same Google Places pipeline as the
+  // recommendations below) for saved places that don't have one yet — this
+  // is what fixes AI-itinerary-added places showing without a photo.
+  usePlacePhotoBackfill(tripId, myPlaces);
 
   const handleGenerateItinerary = async () => {
     if (places.length === 0 || !canEdit) return;

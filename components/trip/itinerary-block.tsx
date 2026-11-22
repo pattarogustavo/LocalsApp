@@ -14,6 +14,7 @@ import { useTripsStore } from '@/store/trips';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/store/auth';
 import { handlePaywallError } from '@/hooks/use-paywall-guard';
+import { usePlacePhotoBackfill } from '@/hooks/use-place-photo-backfill';
 import { trpc } from '@/lib/trpc';
 import { CityTransportSection } from '@/components/trip/transport-block';
 import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
@@ -1158,7 +1159,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
   const RESTAURANTS_BUDGET_OPTIONS = useMemo(() => getRestaurantsBudgetOptions(t), [t]);
   const PROFILE_OPTIONS = useMemo(() => getProfileOptions(t), [t]);
   const PACE_OPTIONS = useMemo(() => getPaceOptions(t), [t]);
-  const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace, addAccommodation, updateTrip, updateItineraryStop, updatePlace } = useTripsStore(
+  const { setItinerary, addItineraryStop, setPlaces, removePlace, upsertPlace, addAccommodation, updateTrip, updateItineraryStop, updatePlace, dedupePlaces } = useTripsStore(
     useShallow((s) => ({
       setItinerary: s.setItinerary,
       addItineraryStop: s.addItineraryStop,
@@ -1169,11 +1170,27 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
       updateTrip: s.updateTrip,
       updateItineraryStop: s.updateItineraryStop,
       updatePlace: s.updatePlace,
+      dedupePlaces: s.dedupePlaces,
     })),
   );
   const [selectedDay, setSelectedDay] = useState(0);
   const [pace, setPace] = useState<TravelPace>('moderado');
   const [generating, setGenerating] = useState(false);
+
+  // Lazily backfill photo/address (same Google Places pipeline the
+  // recommendations tab uses) for this trip's saved places — this is what
+  // gives itinerary stops added by the AI generator a photo, since they're
+  // deliberately saved without one (see ai.generateFromScratch).
+  usePlacePhotoBackfill(trip.id, trip.places);
+
+  // Opportunistically clean up any places that already ended up duplicated
+  // under the same Google place_id (e.g. from a past regeneration) — a
+  // pure local merge, no network cost, and a no-op when there's nothing to
+  // merge, so it's safe to run on every mount.
+  useEffect(() => {
+    dedupePlaces(trip.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.id]);
 
   // Three-mode creation modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1432,6 +1449,12 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
           }
         }
       }
+
+      // Newly-resolved googlePlaceIds can now reveal that a stop upserted
+      // earlier (before it had one) refers to the same real place as
+      // another record (e.g. one already added from recommendations) —
+      // merge those before they linger as visible duplicates.
+      await dedupePlaces(trip.id);
     } catch (err) {
       // Belt-and-suspenders: this function must never throw into a
       // fire-and-forget caller.
@@ -1439,7 +1462,7 @@ export function ItineraryBlock({ trip, onGoToPlaces, cityTransportMode, permissi
     } finally {
       resolvingTokensRef.current.delete(generationToken);
     }
-  }, [resolveItineraryStops, destLat, destLng, preferredLanguage, trip.id, updateItineraryStop, updatePlace]);
+  }, [resolveItineraryStops, destLat, destLng, preferredLanguage, trip.id, updateItineraryStop, updatePlace, dedupePlaces]);
 
   /**
    * Fire-and-forget: computes travel time + a Google Maps directions link

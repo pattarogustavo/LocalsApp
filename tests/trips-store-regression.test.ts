@@ -30,10 +30,14 @@ vi.mock("@/lib/trpc-vanilla", () => ({
   },
 }));
 
-vi.mock("@/utils/trip-helpers", () => ({
-  normalizeCityTransportMode: (m: unknown) => m,
-  generateId: () => "generated-id",
-}));
+vi.mock("@/utils/trip-helpers", async () => {
+  const actual = await vi.importActual<typeof import("../utils/trip-helpers")>("../utils/trip-helpers");
+  return {
+    normalizeCityTransportMode: (m: unknown) => m,
+    generateId: () => "generated-id",
+    haversineDistanceMeters: actual.haversineDistanceMeters,
+  };
+});
 
 vi.mock("@/lib/trip-notifications", () => ({
   reconcileTripReminders: vi.fn(async () => {}),
@@ -121,5 +125,142 @@ describe("TripsStore mutators always produce a new Trip reference", () => {
     const after = useTripsStore.getState().trips.find((t) => t.id === trip.id);
     expect(after).not.toBe(before);
     expect(after?.places.some((p) => p.id === "place-1")).toBe(true);
+  });
+});
+
+// Regression coverage for the duplicated-places bug: the AI itinerary and
+// the recommendations panel can both end up saving the same real-world
+// place, named slightly differently (translation, partial name) and/or
+// resolved to its Google place_id at different times.
+describe("upsertPlace deduplication", () => {
+  it("creates a new place when nothing matches", async () => {
+    const trip = makeTrip({
+      places: [{ id: "p1", name: "Louvre Museum", category: "museum", destinationId: "dest-1" } as any],
+    });
+    useTripsStore.setState({ trips: [trip] });
+
+    const id = await useTripsStore.getState().upsertPlace(trip.id, {
+      name: "Eiffel Tower",
+      category: "attraction" as any,
+      destinationId: "dest-1",
+    });
+
+    const after = useTripsStore.getState().trips.find((t) => t.id === trip.id);
+    expect(after?.places).toHaveLength(2);
+    expect(after?.places.some((p) => p.id === id && p.name === "Eiffel Tower")).toBe(true);
+  });
+
+  it("matches an existing place by googlePlaceId regardless of name", async () => {
+    const trip = makeTrip({
+      places: [{ id: "p1", name: "Eiffel Tower", category: "attraction", destinationId: "dest-1", placeId: "ChIJgoogle" } as any],
+    });
+    useTripsStore.setState({ trips: [trip] });
+
+    const id = await useTripsStore.getState().upsertPlace(trip.id, {
+      name: "Torre Eiffel",
+      category: "attraction" as any,
+      destinationId: "dest-1",
+      googlePlaceId: "ChIJgoogle",
+      imageUrl: "https://example.com/photo.jpg",
+    });
+
+    const after = useTripsStore.getState().trips.find((t) => t.id === trip.id);
+    expect(after?.places).toHaveLength(1);
+    expect(id).toBe("p1");
+    expect(after?.places[0].imageUrl).toBe("https://example.com/photo.jpg");
+  });
+
+  it("fuzzy-matches an unresolved place by name (diacritics, partial name) when coordinates aren't known yet", async () => {
+    const trip = makeTrip({
+      places: [{ id: "p1", name: "Café de Flore", category: "cafe", destinationId: "dest-1" } as any],
+    });
+    useTripsStore.setState({ trips: [trip] });
+
+    const id = await useTripsStore.getState().upsertPlace(trip.id, {
+      name: "Cafe de Flore",
+      category: "cafe" as any,
+      destinationId: "dest-1",
+    });
+
+    const after = useTripsStore.getState().trips.find((t) => t.id === trip.id);
+    expect(after?.places).toHaveLength(1);
+    expect(id).toBe("p1");
+  });
+
+  it("does not merge same-name places that are far apart (e.g. two branches of the same chain)", async () => {
+    const trip = makeTrip({
+      places: [{ id: "p1", name: "Starbucks", category: "cafe", destinationId: "dest-1", lat: 48.8566, lng: 2.3522 } as any],
+    });
+    useTripsStore.setState({ trips: [trip] });
+
+    const id = await useTripsStore.getState().upsertPlace(trip.id, {
+      name: "Starbucks",
+      category: "cafe" as any,
+      destinationId: "dest-1",
+      lat: 48.9, // ~5km away
+      lng: 2.3522,
+    });
+
+    const after = useTripsStore.getState().trips.find((t) => t.id === trip.id);
+    expect(after?.places).toHaveLength(2);
+    expect(id).not.toBe("p1");
+  });
+
+  it("merges same-name places that are within 100m of each other", async () => {
+    const trip = makeTrip({
+      places: [{ id: "p1", name: "Starbucks", category: "cafe", destinationId: "dest-1", lat: 48.8566, lng: 2.3522 } as any],
+    });
+    useTripsStore.setState({ trips: [trip] });
+
+    const id = await useTripsStore.getState().upsertPlace(trip.id, {
+      name: "Starbucks",
+      category: "cafe" as any,
+      destinationId: "dest-1",
+      lat: 48.85665, // a few meters away
+      lng: 2.35225,
+    });
+
+    const after = useTripsStore.getState().trips.find((t) => t.id === trip.id);
+    expect(after?.places).toHaveLength(1);
+    expect(id).toBe("p1");
+  });
+});
+
+describe("dedupePlaces", () => {
+  it("merges places sharing a googlePlaceId, keeps the richer record, and repoints itinerary stops", async () => {
+    const trip = makeTrip({
+      places: [
+        { id: "p1", name: "Eiffel Tower", category: "attraction", destinationId: "dest-1", placeId: "ChIJgoogle" } as any,
+        { id: "p2", name: "Torre Eiffel", category: "attraction", destinationId: "dest-1", placeId: "ChIJgoogle", imageUrl: "https://example.com/photo.jpg", address: "Champ de Mars" } as any,
+      ],
+      itinerary: [
+        { date: "2026-01-01", destination: "Paris", stops: [{ id: "s1", time: "09:00", placeId: "p1", placeName: "Eiffel Tower", placeCategory: "attraction" }] } as any,
+      ],
+    });
+    useTripsStore.setState({ trips: [trip] });
+
+    await useTripsStore.getState().dedupePlaces(trip.id);
+
+    const after = useTripsStore.getState().trips.find((t) => t.id === trip.id);
+    expect(after?.places).toHaveLength(1);
+    const kept = after!.places[0];
+    expect(kept.imageUrl).toBe("https://example.com/photo.jpg");
+    expect(kept.address).toBe("Champ de Mars");
+    // Whichever record survived, the stop that pointed at the removed one
+    // must now point at the one that's left.
+    expect(after?.itinerary[0].stops[0].placeId).toBe(kept.id);
+  });
+
+  it("is a no-op (no new Trip reference) when there's nothing to merge", async () => {
+    const trip = makeTrip({
+      places: [{ id: "p1", name: "Eiffel Tower", category: "attraction", destinationId: "dest-1", placeId: "ChIJgoogle" } as any],
+    });
+    useTripsStore.setState({ trips: [trip] });
+    const before = useTripsStore.getState().trips.find((t) => t.id === trip.id);
+
+    await useTripsStore.getState().dedupePlaces(trip.id);
+
+    const after = useTripsStore.getState().trips.find((t) => t.id === trip.id);
+    expect(after).toBe(before);
   });
 });

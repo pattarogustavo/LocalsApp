@@ -16,9 +16,13 @@ import type {
   UpsertPlaceInput,
 } from '@/types/voyage';
 import { trpcVanilla } from '@/lib/trpc-vanilla';
-import { normalizeCityTransportMode, generateId } from '@/utils/trip-helpers';
+import { normalizeCityTransportMode, generateId, haversineDistanceMeters } from '@/utils/trip-helpers';
 import { PATCHABLE_TRIP_SECTION_KEYS } from '../shared/trip-sections';
 import { reconcileTripReminders } from '@/lib/trip-notifications';
+import { namesReasonablyMatch } from '../scripts/curate/normalize';
+
+/** Dedup distance threshold for places saved without a Google place_id. */
+const DUPLICATE_PLACE_DISTANCE_METERS = 100;
 
 interface TripsState {
   trips: Trip[];
@@ -68,6 +72,18 @@ interface TripsState {
    * the local Place.id — either the existing one, or a freshly created one.
    */
   upsertPlace: (tripId: string, input: UpsertPlaceInput) => Promise<string>;
+  /**
+   * Merges any places that share the same resolved Google place_id (e.g. an
+   * itinerary stop upserted before its placeId was resolved in the
+   * background, next to the catalog/recommendation place for the same real
+   * spot that already had one) into a single record — keeping whichever
+   * side has more data (photo, address, etc.) — and repoints every
+   * itinerary stop that referenced a removed record. No-op (no write, no
+   * cloud sync) when there's nothing to merge. Safe to call opportunistically
+   * since the merge key (placeId) is an unambiguous identity, unlike the
+   * name-based matching upsertPlace falls back to.
+   */
+  dedupePlaces: (tripId: string) => Promise<void>;
   // Documents
   addDocument: (tripId: string, doc: Document) => Promise<void>;
   removeDocument: (tripId: string, docId: string) => Promise<void>;
@@ -550,12 +566,30 @@ export const useTripsStore = create<TripsState>((set, get) => {
       return '';
     }
 
-    const normalizedName = input.name.trim().toLowerCase();
     const existing =
       (input.googlePlaceId && trip.places.find((p) => p.placeId === input.googlePlaceId)) ||
-      trip.places.find(
-        (p) => !p.placeId && p.destinationId === input.destinationId && p.name.trim().toLowerCase() === normalizedName
-      );
+      trip.places.find((p) => {
+        // Only consider merging into a place that hasn't already been
+        // resolved to a *different* real Google place — never silently
+        // merge two distinct confirmed places just because of a name match.
+        if (p.placeId) return false;
+        if (p.destinationId !== input.destinationId) return false;
+        // Fuzzy name match (diacritics/punctuation-insensitive, tolerant of
+        // partial names like "Louvre" vs "Louvre Museum") catches the same
+        // real place named slightly differently — e.g. across a regenerated
+        // itinerary in another language. See scripts/curate/normalize.ts.
+        if (!namesReasonablyMatch(p.name, input.name)) return false;
+        // When both sides already have coordinates, require them to be
+        // close too — otherwise a name match alone could wrongly merge two
+        // different branches of the same chain (e.g. two nearby cafés with
+        // the same name). If coordinates aren't known yet on one/both sides
+        // (common for a freshly-generated itinerary stop, before background
+        // resolution fills them in), the name match alone is enough.
+        if (p.lat != null && p.lng != null && input.lat != null && input.lng != null) {
+          return haversineDistanceMeters(p.lat, p.lng, input.lat, input.lng) < DUPLICATE_PLACE_DISTANCE_METERS;
+        }
+        return true;
+      });
 
     if (existing) {
       // Fill in gaps on the existing record (e.g. a manually-added place that
@@ -595,6 +629,59 @@ export const useTripsStore = create<TripsState>((set, get) => {
     };
     await get().addPlace(tripId, newPlace);
     return newPlace.id;
+  },
+
+  dedupePlaces: async (tripId: string) => {
+    const trip = get().trips.find((t) => t.id === tripId);
+    if (!trip) return;
+
+    const groups = new Map<string, Place[]>();
+    for (const p of trip.places) {
+      if (!p.placeId) continue;
+      const group = groups.get(p.placeId);
+      if (group) group.push(p);
+      else groups.set(p.placeId, [p]);
+    }
+    const duplicateGroups = Array.from(groups.values()).filter((g) => g.length > 1);
+    if (duplicateGroups.length === 0) return; // nothing to merge — skip the write entirely
+
+    await applyTripWrite(tripId, (t) => {
+      const richness = (p: Place) =>
+        [p.address, p.hours, p.phone, p.rating, p.imageUrl, p.description, p.lat, p.lng].filter((v) => v != null).length;
+
+      const idRemap = new Map<string, string>(); // removed place id -> kept place id
+      const mergedById = new Map<string, Place>();
+      for (const group of duplicateGroups) {
+        const primary = group.reduce((best, p) => (richness(p) > richness(best) ? p : best), group[0]);
+        let merged: Place = { ...primary };
+        for (const p of group) {
+          if (p.id === primary.id) continue;
+          merged = {
+            ...merged,
+            address: merged.address ?? p.address,
+            hours: merged.hours ?? p.hours,
+            phone: merged.phone ?? p.phone,
+            rating: merged.rating ?? p.rating,
+            imageUrl: merged.imageUrl ?? p.imageUrl,
+            description: merged.description ?? p.description,
+            lat: merged.lat ?? p.lat,
+            lng: merged.lng ?? p.lng,
+            attachments: merged.attachments?.length ? merged.attachments : p.attachments,
+          };
+          idRemap.set(p.id, primary.id);
+        }
+        mergedById.set(primary.id, merged);
+      }
+
+      const newPlaces = t.places
+        .filter((p) => !idRemap.has(p.id))
+        .map((p) => mergedById.get(p.id) ?? p);
+      const newItinerary = t.itinerary.map((day) => ({
+        ...day,
+        stops: day.stops.map((s) => (s.placeId && idRemap.has(s.placeId) ? { ...s, placeId: idRemap.get(s.placeId) } : s)),
+      }));
+      return { ...t, places: newPlaces, itinerary: newItinerary };
+    }, 'dedupePlaces');
   },
 
   setPlaces: async (tripId: string, places: Place[]) => {
