@@ -21,10 +21,29 @@ import { reconcileTripReminders } from "@/lib/trip-notifications";
 import { registerForPushAsync } from "@/lib/push";
 import { TranslatingIndicator } from "@/components/translating-indicator";
 import { configureRevenueCat, loginRevenueCat } from "@/config/revenuecat";
+import { CrashDebugBoundary } from "@/components/crash-debug-boundary";
 
 // Keep the native splash screen visible until we explicitly hide it below,
 // so the app never flashes to a blank screen while auth initializes.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// TEMPORARY: surface any error that would otherwise crash the app with no
+// JS-level detail (only an opaque native abort in the device crash log) —
+// remove once the real launch crash is found and fixed for good.
+(() => {
+  const g = globalThis as any;
+  const prevHandler = g.ErrorUtils?.getGlobalHandler?.();
+  g.ErrorUtils?.setGlobalHandler?.((error: Error, isFatal?: boolean) => {
+    console.error('[GlobalErrorHandler]', isFatal, error?.message, error?.stack);
+    try {
+      require('react-native').Alert.alert(
+        'Crash capturado',
+        `${error?.name}: ${error?.message}\n\n${error?.stack ?? ''}`.slice(0, 1800),
+      );
+    } catch {}
+    prevHandler?.(error, isFatal);
+  });
+})();
 
 import {
   SafeAreaFrameContext,
@@ -282,6 +301,7 @@ export default function RootLayout() {
   }
 
   const content = (
+    <CrashDebugBoundary>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -320,6 +340,7 @@ export default function RootLayout() {
       </trpc.Provider>
       </KeyboardAvoidingView>
     </GestureHandlerRootView>
+    </CrashDebugBoundary>
   );
 
   const shouldOverrideSafeArea = Platform.OS === "web";
