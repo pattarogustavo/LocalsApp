@@ -4,7 +4,7 @@
  * it as a verified candidate.
  */
 
-const DIACRITICS_PATTERN = /[̀-ͯ]/g;
+const DIACRITICS_PATTERN = /[\u0300-\u036f]/g;
 
 /** Lowercases, strips diacritics/punctuation, collapses whitespace. */
 export function normalizeName(name: string): string {

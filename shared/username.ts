@@ -19,7 +19,7 @@ export function isValidUsernameFormat(username: string): boolean {
 export function suggestUsernameFrom(name?: string | null, email?: string | null): string {
   const base = (name || email?.split('@')[0] || 'usuario')
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // strip diacritics
+    .replace(/[\u0300-\u036f]/g, '') // strip diacritics
     .toLowerCase()
     .replace(/[^a-z0-9._]+/g, '')
     .slice(0, 20);
