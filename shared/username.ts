@@ -17,11 +17,16 @@ export function isValidUsernameFormat(username: string): boolean {
  * first guess the user can edit before it's checked for real.
  */
 export function suggestUsernameFrom(name?: string | null, email?: string | null): string {
-  const base = (name || email?.split('@')[0] || 'usuario')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // strip diacritics
-    .toLowerCase()
-    .replace(/[^a-z0-9._]+/g, '')
-    .slice(0, 20);
+  const raw = name || email?.split('@')[0] || 'usuario';
+  // String.prototype.normalize isn't implemented on every Hermes build \u2014
+  // this is a best-effort suggestion, so fall back to the un-stripped
+  // string rather than let a missing engine API crash the whole screen.
+  let base: string;
+  try {
+    base = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  } catch {
+    base = raw;
+  }
+  base = base.toLowerCase().replace(/[^a-z0-9._]+/g, '').slice(0, 20);
   return base.length >= 3 ? base : `usuario${Math.floor(Math.random() * 10000)}`;
 }

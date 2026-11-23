@@ -8,9 +8,16 @@ const DIACRITICS_PATTERN = /[\u0300-\u036f]/g;
 
 /** Lowercases, strips diacritics/punctuation, collapses whitespace. */
 export function normalizeName(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(DIACRITICS_PATTERN, "")
+  // String.prototype.normalize isn't implemented on every Hermes build —
+  // fall back to the un-stripped string rather than crash the app over a
+  // best-effort dedup/match heuristic.
+  let stripped: string;
+  try {
+    stripped = name.normalize("NFD").replace(DIACRITICS_PATTERN, "");
+  } catch {
+    stripped = name;
+  }
+  return stripped
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
