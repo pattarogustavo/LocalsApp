@@ -7,15 +7,13 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  useAnimatedScrollHandler,
-  withTiming,
-  withSpring,
-  runOnJS,
-} from 'react-native-reanimated';
+import {
+  BottomSheetModal,
+  BottomSheetModalProvider,
+  BottomSheetBackdrop,
+  BottomSheetScrollView,
+  type BottomSheetBackdropProps,
+} from '@gorhom/bottom-sheet';
 import { router } from 'expo-router';
 import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
@@ -149,51 +147,33 @@ function PlaceDetailModal({
     }
   };
 
-  // Drag-to-dismiss: a plain Pan gesture runs simultaneously with the
-  // ScrollView's own native gesture (via Gesture.Native()) instead of
-  // competing with it, so normal scrolling is untouched — the pan only
-  // ever moves the sheet (and only downward) once scrollY is already at
-  // the top, tracked via the scroll handler below.
-  const translateY = useSharedValue(0);
-  const scrollY = useSharedValue(0);
-  const DISMISS_THRESHOLD = 120;
+  // Native-feeling drag-to-dismiss (1:1 tracking both ways, spring back
+  // below ~30% / low velocity, proportional backdrop dimming, and scroll
+  // that takes over cleanly once content isn't at the top) comes from
+  // @gorhom/bottom-sheet itself — no custom gesture code needed here.
+  const sheetRef = useRef<BottomSheetModal>(null);
+  useEffect(() => {
+    sheetRef.current?.present();
+  }, []);
 
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (e) => { scrollY.value = e.contentOffset.y; },
-  });
-
-  const nativeGesture = Gesture.Native();
-  const panGesture = Gesture.Pan()
-    .simultaneousWithExternalGesture(nativeGesture)
-    .onChange((e) => {
-      if (scrollY.value > 0 || e.changeY < 0) return;
-      translateY.value = Math.max(0, translateY.value + e.changeY);
-    })
-    .onEnd((e) => {
-      if (translateY.value > DISMISS_THRESHOLD || e.velocityY > 800) {
-        translateY.value = withTiming(800, { duration: 200 }, () => runOnJS(onClose)());
-      } else {
-        translateY.value = withSpring(0, { damping: 18 });
-      }
-    });
-
-  const sheetAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} pressBehavior="close" />
+    ),
+    []
+  );
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.detailSheet, sheetAnimatedStyle]}>
-            <View style={styles.handle} />
-            <GestureDetector gesture={nativeGesture}>
-              <Animated.ScrollView
-                onScroll={scrollHandler}
-                scrollEventThrottle={16}
-                bounces={false}
-                showsVerticalScrollIndicator={false}
-              >
+    <BottomSheetModal
+      ref={sheetRef}
+      snapPoints={['90%']}
+      enablePanDownToClose
+      onDismiss={onClose}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={{ backgroundColor: colors.background }}
+      handleIndicatorStyle={{ backgroundColor: withAlpha(colors.foreground, 0.2) }}
+    >
+      <BottomSheetScrollView showsVerticalScrollIndicator={false}>
                 {/* Photo */}
                 {place.imageUrl ? (
                   <Image source={{ uri: place.imageUrl }} style={styles.placePhoto} contentFit="cover" cachePolicy="memory-disk" transition={150} />
@@ -307,7 +287,7 @@ function PlaceDetailModal({
 
             {canEdit && (isAdded ? (
               <TouchableOpacity
-                onPress={() => { onRemove(); onClose(); }}
+                onPress={() => { onRemove(); sheetRef.current?.dismiss(); }}
                 style={styles.removeActionBtn}
               >
                 <Ionicons name="trash-outline" size={16} color={colors.error} />
@@ -315,7 +295,7 @@ function PlaceDetailModal({
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                onPress={() => { onAdd(); onClose(); }}
+                onPress={() => { onAdd(); sheetRef.current?.dismiss(); }}
                 style={styles.addActionBtn}
               >
                 <Ionicons name="add" size={18} color={colors.textOnPrimary} />
@@ -323,12 +303,8 @@ function PlaceDetailModal({
               </TouchableOpacity>
             ))}
           </View>
-              </Animated.ScrollView>
-            </GestureDetector>
-          </Animated.View>
-        </GestureDetector>
-      </View>
-    </Modal>
+      </BottomSheetScrollView>
+    </BottomSheetModal>
   );
 }
 
@@ -998,6 +974,7 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
   };
 
   return (
+    <BottomSheetModalProvider>
     <View>
       {/* ── Busca (Google Places) — topo, compartilhada pelas duas seções
           abaixo. Mesma busca/funcionalidade de antes (texto → trpc
@@ -1203,6 +1180,7 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
         />
       )}
     </View>
+    </BottomSheetModalProvider>
   );
 }
 
