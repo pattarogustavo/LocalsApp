@@ -7,6 +7,15 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useAnimatedScrollHandler,
+  withTiming,
+  withSpring,
+  runOnJS,
+} from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
@@ -140,25 +149,61 @@ function PlaceDetailModal({
     }
   };
 
+  // Drag-to-dismiss: a plain Pan gesture runs simultaneously with the
+  // ScrollView's own native gesture (via Gesture.Native()) instead of
+  // competing with it, so normal scrolling is untouched — the pan only
+  // ever moves the sheet (and only downward) once scrollY is already at
+  // the top, tracked via the scroll handler below.
+  const translateY = useSharedValue(0);
+  const scrollY = useSharedValue(0);
+  const DISMISS_THRESHOLD = 120;
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (e) => { scrollY.value = e.contentOffset.y; },
+  });
+
+  const nativeGesture = Gesture.Native();
+  const panGesture = Gesture.Pan()
+    .simultaneousWithExternalGesture(nativeGesture)
+    .onChange((e) => {
+      if (scrollY.value > 0 || e.changeY < 0) return;
+      translateY.value = Math.max(0, translateY.value + e.changeY);
+    })
+    .onEnd((e) => {
+      if (translateY.value > DISMISS_THRESHOLD || e.velocityY > 800) {
+        translateY.value = withTiming(800, { duration: 200 }, () => runOnJS(onClose)());
+      } else {
+        translateY.value = withSpring(0, { damping: 18 });
+      }
+    });
+
+  const sheetAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
-        <View style={styles.detailSheet}>
-          <View style={styles.handle} />
-
-          {/* Photo */}
-          {place.imageUrl ? (
-            <Image source={{ uri: place.imageUrl }} style={styles.placePhoto} contentFit="cover" cachePolicy="memory-disk" transition={150} />
-          ) : (
-            <View style={[styles.placePhotoPlaceholder, { backgroundColor: withAlpha(colors.primary, 0.10) }]}>
-              <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={40} color={withAlpha(ACCENT_TEAL, 0.4)} />
-            </View>
-          )}
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={[styles.detailSheet, sheetAnimatedStyle]}>
+            <View style={styles.handle} />
+            <GestureDetector gesture={nativeGesture}>
+              <Animated.ScrollView
+                onScroll={scrollHandler}
+                scrollEventThrottle={16}
+                bounces={false}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Photo */}
+                {place.imageUrl ? (
+                  <Image source={{ uri: place.imageUrl }} style={styles.placePhoto} contentFit="cover" cachePolicy="memory-disk" transition={150} />
+                ) : (
+                  <View style={[styles.placePhotoPlaceholder, { backgroundColor: withAlpha(colors.primary, 0.10) }]}>
+                    <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={40} color={withAlpha(ACCENT_TEAL, 0.4)} />
+                  </View>
+                )}
 
           <View style={styles.detailContent}>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={16} color={colors.muted} />
-            </TouchableOpacity>
 
             <Text style={styles.detailName}>{place.name}</Text>
             <Text style={styles.detailCategory}>{getCategoryLabel(t, place.category)}</Text>
@@ -278,7 +323,10 @@ function PlaceDetailModal({
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+              </Animated.ScrollView>
+            </GestureDetector>
+          </Animated.View>
+        </GestureDetector>
       </View>
     </Modal>
   );
@@ -774,7 +822,6 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
   }, [tripId]);
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeDestFilter, setActiveDestFilter] = useState('all');
-  const [availSearch, setAvailSearch] = useState('');
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [customPreview, setCustomPreview] = useState<any | null>(null);
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
@@ -952,6 +999,91 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
 
   return (
     <View>
+      {/* ── Busca (Google Places) — topo, compartilhada pelas duas seções
+          abaixo. Mesma busca/funcionalidade de antes (texto → trpc
+          places.textSearch → resultados listados aqui), só reposicionada;
+          escrever aqui não filtra "Minha Viagem"/"Recomendações", que têm
+          seu próprio conteúdo (salvos / sugestões da IA) — isso só busca
+          lugares novos no Google Places para adicionar. Write action, então
+          segue oculta para quem não pode editar. ── */}
+      {canEdit && (
+        <View style={styles.topSearchSection}>
+          {destinations.length > 1 && (
+            <View style={styles.customDestPicker}>
+              {destinations.map((d) => (
+                <TouchableOpacity
+                  key={d.id}
+                  style={[styles.customDestChip, customDestId === d.id && styles.customDestChipActive]}
+                  onPress={() => { setCustomDestId(d.id); setCustomSearchEnabled(false); }}
+                >
+                  <Text style={[styles.customDestChipText, customDestId === d.id && styles.customDestChipTextActive]}>
+                    {d.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          <View style={styles.customSearchRow}>
+            <View style={styles.topSearchInputWrap}>
+              <Ionicons name="search-outline" size={15} color={colors.muted} style={{ marginLeft: 12 }} />
+              <TextInput
+                style={[styles.customSearchInput, styles.topSearchInput]}
+                placeholder={t.places.searchTopPlaceholder(customSearchDest?.name || '')}
+                placeholderTextColor={colors.muted}
+                value={customQuery}
+                onChangeText={(text) => { setCustomQuery(text); setCustomSearchEnabled(false); }}
+                returnKeyType="search"
+                onSubmitEditing={handleCustomSearch}
+              />
+            </View>
+            <TouchableOpacity
+              style={[styles.customSearchBtn, customQuery.trim().length < 2 && { opacity: 0.4 }]}
+              onPress={handleCustomSearch}
+              disabled={customQuery.trim().length < 2}
+            >
+              {customSearchQuery.isFetching ? (
+                <ActivityIndicator size="small" color={colors.textOnPrimary} />
+              ) : (
+                <Text style={styles.customSearchBtnText}>Buscar</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {customSearchEnabled && !customSearchQuery.isFetching && customResults.length === 0 && customQuery.trim().length >= 2 && (
+            <Text style={{ color: colors.muted, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
+              Nenhum resultado encontrado. Tente outros termos.
+            </Text>
+          )}
+          {customResults.map((result: any) => (
+            <CustomSearchResultRow
+              key={result.placeId}
+              result={result}
+              isAdded={places.some((p) => p.placeId === result.placeId || p.name === result.name)}
+              onPress={() => setCustomPreview(result)}
+            />
+          ))}
+        </View>
+      )}
+
+      {/* Category filter — shared by "Minha Viagem" and "Recomendações" */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}
+        contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
+        {getCategories(t).map((cat) => (
+          <TouchableOpacity
+            key={cat.key}
+            onPress={() => setActiveCategory(cat.key)}
+            style={[styles.catChip, activeCategory === cat.key && styles.catChipActive]}
+          >
+            <Ionicons name={cat.icon as any}
+              size={12} color={activeCategory === cat.key ? colors.textAccent : colors.muted} />
+            <Text style={[styles.catChipText, activeCategory === cat.key && styles.catChipTextActive]}>
+              {cat.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       {/* ── MINHA VIAGEM ── */}
       <View style={styles.sectionBlock}>
         {/* Header row: label */}
@@ -984,24 +1116,6 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
             ))}
           </ScrollView>
         )}
-
-        {/* Category filter */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}
-          contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
-          {getCategories(t).map((cat) => (
-            <TouchableOpacity
-              key={cat.key}
-              onPress={() => setActiveCategory(cat.key)}
-              style={[styles.catChip, activeCategory === cat.key && styles.catChipActive]}
-            >
-              <Ionicons name={cat.icon as any}
-                size={12} color={activeCategory === cat.key ? colors.textAccent : colors.muted} />
-              <Text style={[styles.catChipText, activeCategory === cat.key && styles.catChipTextActive]}>
-                {cat.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
 
         {/* Grouped places */}
         {Object.values(grouped).length > 0 ? (
@@ -1043,24 +1157,6 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
           <Text style={styles.availSubtitle}>Sugestões para cada destino</Text>
         </View>
 
-        {/* Search within recommendations */}
-        <View style={[styles.searchRow, { marginBottom: 16 }]}>
-          <Ionicons name="search-outline" size={15} color={colors.muted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar lugares disponíveis..."
-            placeholderTextColor={colors.muted}
-            value={availSearch}
-            onChangeText={setAvailSearch}
-            returnKeyType="search"
-          />
-          {availSearch.length > 0 && (
-            <TouchableOpacity onPress={() => setAvailSearch('')}>
-              <Ionicons name="close-circle" size={15} color={colors.muted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
         {/* AI suggestions per destination — auto-loads */}
         {destinations.map((dest) => (
           <View key={dest.id} style={styles.destAiBlock}>
@@ -1074,78 +1170,11 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
               onAdd={(place) => handleAddPlace({ ...place, destinationId: dest.id })}
               onRemove={handleRemovePlace}
               activeCategory={activeCategory}
-              searchQuery={availSearch}
+              searchQuery=""
               permissions={permissions}
             />
           </View>
         ))}
-
-        {/* ── Pesquisa personalizada via Google Places — adding places is a
-            write action, so this whole block is hidden for non-editors ── */}
-        {canEdit && (
-        <View style={styles.customSearchSection}>
-          <View style={styles.customSearchHeader}>
-            <Text style={styles.customSearchTitle}>{t.places.searchCustom}</Text>
-            <Ionicons name="search" size={14} color={colors.textAccent} />
-          </View>
-
-          {/* Destination selector (if multiple) */}
-          {destinations.length > 1 && (
-            <View style={styles.customDestPicker}>
-              {destinations.map((d) => (
-                <TouchableOpacity
-                  key={d.id}
-                  style={[styles.customDestChip, customDestId === d.id && styles.customDestChipActive]}
-                  onPress={() => { setCustomDestId(d.id); setCustomSearchEnabled(false); }}
-                >
-                  <Text style={[styles.customDestChipText, customDestId === d.id && styles.customDestChipTextActive]}>
-                    {d.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          {/* Search input + button */}
-          <View style={styles.customSearchRow}>
-            <TextInput
-              style={styles.customSearchInput}
-              placeholder="Ex: Museu do Louvre, restaurante italiano..."
-              placeholderTextColor={colors.muted}
-              value={customQuery}
-              onChangeText={(text) => { setCustomQuery(text); setCustomSearchEnabled(false); }}
-              returnKeyType="search"
-              onSubmitEditing={handleCustomSearch}
-            />
-            <TouchableOpacity
-              style={[styles.customSearchBtn, customQuery.trim().length < 2 && { opacity: 0.4 }]}
-              onPress={handleCustomSearch}
-              disabled={customQuery.trim().length < 2}
-            >
-              {customSearchQuery.isFetching ? (
-                <ActivityIndicator size="small" color={colors.textOnPrimary} />
-              ) : (
-                <Text style={styles.customSearchBtnText}>Buscar</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Results */}
-          {customSearchEnabled && !customSearchQuery.isFetching && customResults.length === 0 && customQuery.trim().length >= 2 && (
-            <Text style={{ color: colors.muted, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
-              Nenhum resultado encontrado. Tente outros termos.
-            </Text>
-          )}
-          {customResults.map((result: any) => (
-            <CustomSearchResultRow
-              key={result.placeId}
-              result={result}
-              isAdded={places.some((p) => p.placeId === result.placeId || p.name === result.name)}
-              onPress={() => setCustomPreview(result)}
-            />
-          ))}
-        </View>
-        )}
       </View>
 
       {/* My place detail modal */}
@@ -1222,15 +1251,6 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   catChipActive: { backgroundColor: withAlpha(colors.primary, 0.12), borderColor: colors.primary },
   catChipText: { fontSize: 12, fontWeight: '500', color: colors.muted },
   catChipTextActive: { color: colors.textAccent },
-
-  // Search
-  searchRow: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: withAlpha(colors.foreground, 0.07),
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11,
-    gap: 10, marginBottom: 12,
-  },
-  searchInput: { flex: 1, color: colors.foreground, fontSize: 14 },
 
   // Group labels
   destGroupLabel: {
@@ -1321,7 +1341,8 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   detailSheet: {
     backgroundColor: colors.background,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingBottom: 32,
+    maxHeight: '90%',
+    overflow: 'hidden',
   },
   handle: {
     width: 40, height: 4, borderRadius: 2,
@@ -1333,7 +1354,7 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     height: 180, marginHorizontal: 16, borderRadius: 16, marginTop: 12,
     alignItems: 'center', justifyContent: 'center',
   },
-  detailContent: { paddingHorizontal: 20, paddingTop: 16 },
+  detailContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
   closeBtn: {
     position: 'absolute', right: 0, top: 0,
     width: 32, height: 32, borderRadius: 16,
@@ -1397,6 +1418,13 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
   attachName: { flex: 1, fontSize: 13, color: colors.muted },
   attachRemove: { padding: 4 },
 
+  // Top search (Google Places) — sits above both sections, unboxed, unlike
+  // customSearchSection below (kept for its internal row/input/button
+  // styles, which this reuses as-is).
+  topSearchSection: {
+    marginBottom: 16,
+  },
+
   // Custom search
   // Fixed decorative teal tint for the panel background, matches the
   // placeholder-icon accent used elsewhere in this file — not theme-driven.
@@ -1420,6 +1448,16 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
     color: colors.foreground, fontSize: 14,
     borderWidth: 1, borderColor: withAlpha(colors.foreground, 0.1),
+  },
+  // Top search bar (used only in topSearchSection) — same input look as
+  // customSearchInput, plus a leading icon inside the same bordered field.
+  topSearchInputWrap: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: withAlpha(colors.foreground, 0.08),
+    borderRadius: 10, borderWidth: 1, borderColor: withAlpha(colors.foreground, 0.1),
+  },
+  topSearchInput: {
+    backgroundColor: 'transparent', borderWidth: 0, paddingLeft: 8,
   },
   customSearchBtn: {
     backgroundColor: colors.primary, borderRadius: 10,

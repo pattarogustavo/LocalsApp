@@ -73,3 +73,6 @@ AuthKey_*.p8
 exports/
 .curate-cache/
 curate-*.log
+
+# Reference screenshots dropped into docs/ for UI-tweak tasks — never commit these
+docs/*.png

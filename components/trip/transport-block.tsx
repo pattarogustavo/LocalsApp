@@ -1481,14 +1481,12 @@ export function TransportBlock({
   tripId,
   transports,
   destinations,
-  cityTransportMode,
   accommodations,
   permissions,
 }: {
   tripId: string;
   transports: Transport[];
   destinations: Destination[];
-  cityTransportMode?: CityTransportMode;
   accommodations?: Accommodation[];
   permissions: TripPermissions;
 }) {
@@ -1710,9 +1708,6 @@ export function TransportBlock({
           )}
         </View>
       )}
-
-      {/* ── Dentro da Cidade ── */}
-      <CityTransportSection tripId={tripId} cityMode={cityTransportMode} canEdit={canEdit} />
 
       {/* Modals */}
       <AddTransportModal

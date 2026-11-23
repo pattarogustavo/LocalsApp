@@ -1027,7 +1027,6 @@ function TransportTab({ trip, permissions }: { trip: any; permissions: TripPermi
         tripId={trip.id}
         transports={trip.transport}
         destinations={trip.destinations}
-        cityTransportMode={trip.cityTransportMode}
         accommodations={trip.accommodations}
         permissions={permissions}
       />

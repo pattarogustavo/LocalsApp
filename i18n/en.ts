@@ -364,6 +364,7 @@ export const en: Translations = {
     save: 'Save',
     saved_label: 'Saved',
     searchCustom: 'Search places',
+    searchTopPlaceholder: (dest: string) => dest ? `Search places in ${dest}...` : 'Search places...',
     searchPlaceholder: 'Search restaurant, museum, park...',
     searchBtn: 'Search',
     searching: 'Searching...',

@@ -206,8 +206,14 @@ const createStyles = (colors: ThemeColorPalette) => StyleSheet.create({
     borderColor: withAlpha(colors.foreground, 0.08),
   },
   fieldCompact: {
-    paddingVertical: 10,
-    borderRadius: 10,
+    // Matches the day-stepper and destination-input fields it sits next to
+    // in the "Nova Viagem" sheet (create-trip-sheet.tsx) — same background,
+    // border and height so the row reads as one consistent set of fields.
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 12,
+    height: 52,
+    paddingVertical: 0,
   },
   fieldText: {
     fontSize: 15,

@@ -369,6 +369,7 @@ export const pt = {
     save: 'Salvar',
     saved_label: 'Salvo',
     searchCustom: 'Pesquisar lugares',
+    searchTopPlaceholder: (dest: string) => dest ? `Buscar lugares em ${dest}...` : 'Buscar lugares...',
     searchPlaceholder: 'Buscar restaurante, museu, parque...',
     searchBtn: 'Pesquisar',
     searching: 'Buscando...',

@@ -435,15 +435,6 @@ function StopItem({
                     <Text style={styles.stopActionText}>{t.places.details.website}</Text>
                   </TouchableOpacity>
                 ) : null}
-                {onEdit ? (
-                  <TouchableOpacity
-                    onPress={(e) => { e.stopPropagation?.(); setShowEditModal(true); }}
-                    style={[styles.stopActionBtn, { borderColor: withAlpha(colors.accent, 0.4), backgroundColor: withAlpha(colors.accent, 0.1) }]}
-                  >
-                    <Ionicons name="pencil-outline" size={13} color={colors.accent} />
-                    <Text style={[styles.stopActionText, { color: colors.accent }]}>{t.common.edit}</Text>
-                  </TouchableOpacity>
-                ) : null}
               </View>
             </View>
           )}

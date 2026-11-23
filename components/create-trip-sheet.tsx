@@ -183,6 +183,12 @@ export function CreateTripSheet({ visible, onClose, onCreated }: CreateTripSheet
       // Base currency defaults to the first destination's country — the
       // user can change it later from the trip's currency settings.
       currency: getCurrencyForCountry(destinations[0].country),
+      // The "Dentro da cidade" picker was removed from the Transportes tab,
+      // but this field still drives route/trajectory calculation — default
+      // new trips to public transit explicitly so they never fall through
+      // to toDirectionsMode's driving fallback (which stays as-is for trips
+      // that predate this field and never had a saved value).
+      cityTransportMode: 'public',
       contentLanguage: useAuthStore.getState().preferredLanguage,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
