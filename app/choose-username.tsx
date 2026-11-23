@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingV
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/store/auth';
+import { useShallow } from 'zustand/react/shallow';
 import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { SchemeColors, type ThemeColorPalette } from '@/constants/theme';
@@ -23,7 +24,9 @@ export default function ChooseUsernameScreen() {
   const t = useTranslation();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { user, updateProfile } = useAuthStore((s) => ({ user: s.user, updateProfile: s.updateProfile }));
+  const { user, updateProfile } = useAuthStore(
+    useShallow((s) => ({ user: s.user, updateProfile: s.updateProfile })),
+  );
 
   const [username, setUsername] = useState(() => suggestUsernameFrom(user?.name, user?.email));
   const [status, setStatus] = useState<UsernameFieldStatus>('idle');
