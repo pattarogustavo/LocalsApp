@@ -7,10 +7,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Modal,
   Image,
-  TextInput,
-  KeyboardAvoidingView,
   Platform,
   Linking,
 } from 'react-native';
@@ -27,7 +24,6 @@ import { useTranslation } from '@/hooks/use-translation';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 import { privacyUrl, SUPPORT_EMAIL } from '@/constants/links';
-import { UsernameField, type UsernameFieldStatus } from '@/components/ui/username-field';
 
 function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(alpha * 255).toString(16).padStart(2, '0');
@@ -95,385 +91,6 @@ function SubscriptionBadge({ status, t }: { status: string | null; t: ReturnType
   );
 }
 
-// ─── Language Picker Modal ────────────────────────────────────────────────────
-
-function LanguageModal({
-  visible,
-  current,
-  onSelect,
-  onClose,
-  t,
-}: {
-  visible: boolean;
-  current: string;
-  onSelect: (code: string) => void;
-  onClose: () => void;
-  t: ReturnType<typeof useTranslation>;
-}) {
-  const insets = useSafeAreaInsets();
-  const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
-        <View style={[styles.langSheet, { paddingBottom: insets.bottom + 24 }]}>
-          <View style={styles.langHandle} />
-          <Text style={styles.langTitle}>{t.profile.languageTitle}</Text>
-          <Text style={styles.langSubtitle}>{t.profile.languageSubtitle}</Text>
-          {LANGUAGES.map((lang) => (
-            <TouchableOpacity
-              key={lang.code}
-              style={[styles.langRow, current === lang.code && styles.langRowActive]}
-              onPress={() => { onSelect(lang.code); onClose(); }}
-            >
-              <Text style={styles.langFlag}>{lang.initials}</Text>
-              <Text style={[styles.langLabel, current === lang.code && styles.langLabelActive]}>
-                {lang.label}
-              </Text>
-              {current === lang.code && (
-                <Ionicons name="checkmark-circle" size={18} color={colors.textAccent} />
-              )}
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity style={styles.langCancelBtn} onPress={onClose}>
-            <Text style={styles.langCancelText}>{t.profile.languageCancel}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-// ─── Change Password Modal ────────────────────────────────────────────────────
-
-function ChangePasswordModal({
-  visible,
-  onClose,
-  t,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  t: ReturnType<typeof useTranslation>;
-}) {
-  const insets = useSafeAreaInsets();
-  const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [loading, setLoading] = useState(false);
-  const handleSubmit = async () => {
-    if (!current || !next || !confirm) {
-      Alert.alert(t.common.error, t.profile.fillAllFields);
-      return;
-    }
-    if (next !== confirm) {
-      Alert.alert(t.common.error, t.profile.passwordMismatch);
-      return;
-    }
-    if (next.length < 6) {
-      Alert.alert(t.common.error, t.profile.passwordTooShort);
-      return;
-    }
-    setLoading(true);
-    try {
-      const { supabase } = await import('@/lib/supabase');
-      const { useAuthStore } = await import('@/store/auth');
-      const userEmail = useAuthStore.getState().user?.email;
-      if (!userEmail) throw new Error('No email found');
-      // Verify current password
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email: userEmail, password: current });
-      if (signInError) throw new Error(t.profile.passwordError);
-      // Update to new password
-      const { error: updateError } = await supabase.auth.updateUser({ password: next });
-      if (updateError) throw updateError;
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(t.common.success, t.profile.passwordChanged);
-      setCurrent(''); setNext(''); setConfirm('');
-      onClose();
-    } catch (e: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(t.common.error, e?.message ?? t.profile.passwordError);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="slide">
-      <KeyboardAvoidingView
-        style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlayModal }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          style={[styles.pwSheet, { paddingBottom: insets.bottom + 24 }]}
-          contentContainerStyle={{ padding: 24 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.pwHeader}>
-            <Text style={styles.pwTitle}>{t.profile.changePasswordTitle}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close-circle" size={26} color={withAlpha(colors.foreground, 0.6)} />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.pwLabel}>{t.profile.currentPassword}</Text>
-          <TextInput
-            style={styles.pwInput}
-            value={current}
-            onChangeText={setCurrent}
-            secureTextEntry
-            placeholder="••••••••"
-            placeholderTextColor={colors.muted}
-          />
-          <Text style={styles.pwLabel}>{t.profile.newPassword}</Text>
-          <TextInput
-            style={styles.pwInput}
-            value={next}
-            onChangeText={setNext}
-            secureTextEntry
-            placeholder={t.profile.newPasswordPlaceholder}
-            placeholderTextColor={colors.muted}
-          />
-          <Text style={styles.pwLabel}>{t.profile.confirmPassword}</Text>
-          <TextInput
-            style={styles.pwInput}
-            value={confirm}
-            onChangeText={setConfirm}
-            secureTextEntry
-            placeholder={t.profile.confirmPasswordPlaceholder}
-            placeholderTextColor={colors.muted}
-          />
-          <TouchableOpacity
-            style={[styles.pwSaveBtn, loading && { opacity: 0.6 }]}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={colors.textOnPrimary} />
-            ) : (
-              <Text style={styles.pwSaveBtnText}>{t.profile.savePassword}</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-// ─── Edit Profile Modal (name + bio) ──────────────────────────────────────────
-
-function EditProfileModal({
-  visible,
-  onClose,
-  t,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  t: ReturnType<typeof useTranslation>;
-}) {
-  const insets = useSafeAreaInsets();
-  const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const { user, updateProfile } = useAuthStore(
-    useShallow((s) => ({ user: s.user, updateProfile: s.updateProfile })),
-  );
-  const [name, setName] = useState(user?.name ?? '');
-  const [bio, setBio] = useState(user?.bio ?? '');
-  const [username, setUsername] = useState(user?.username ?? '');
-  const [usernameStatus, setUsernameStatus] = useState<UsernameFieldStatus>('idle');
-  const [loading, setLoading] = useState(false);
-  const updateProfileMutation = trpc.user.updateProfile.useMutation();
-  const setUsernameMutation = trpc.user.setUsername.useMutation();
-
-  // The modal stays mounted while hidden, so re-sync fields from the store
-  // each time it's opened (in case the profile changed since last open).
-  useEffect(() => {
-    if (visible) {
-      setName(user?.name ?? '');
-      setBio(user?.bio ?? '');
-      setUsername(user?.username ?? '');
-    }
-  }, [visible]);
-
-  const usernameChanged = username !== (user?.username ?? '');
-  const canSubmit = !usernameChanged || usernameStatus === 'available';
-
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
-    setLoading(true);
-    try {
-      await updateProfileMutation.mutateAsync({ name: name.trim(), bio: bio.trim() });
-      updateProfile({ name: name.trim(), bio: bio.trim() });
-      if (usernameChanged) {
-        await setUsernameMutation.mutateAsync({ username });
-        updateProfile({ username });
-      }
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(t.common.success, t.profile.profileUpdated);
-      onClose();
-    } catch (e: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(t.common.error, e?.message ?? t.profile.profileUpdateError);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="slide">
-      <KeyboardAvoidingView
-        style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlayModal }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          style={[styles.pwSheet, { paddingBottom: insets.bottom + 24 }]}
-          contentContainerStyle={{ padding: 24 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.pwHeader}>
-            <Text style={styles.pwTitle}>{t.profile.editProfileTitle}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close-circle" size={26} color={withAlpha(colors.foreground, 0.6)} />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.pwLabel}>{t.profile.name}</Text>
-          <TextInput
-            style={styles.pwInput}
-            value={name}
-            onChangeText={setName}
-            placeholder={t.profile.namePlaceholder}
-            placeholderTextColor={colors.muted}
-          />
-          <Text style={styles.pwLabel}>{t.profile.username}</Text>
-          <UsernameField value={username} onChangeText={setUsername} onStatusChange={setUsernameStatus} />
-          <Text style={styles.pwLabel}>{t.profile.bio}</Text>
-          <TextInput
-            style={[styles.pwInput, styles.bioInput]}
-            value={bio}
-            onChangeText={setBio}
-            placeholder={t.profile.bioPlaceholder}
-            placeholderTextColor={colors.muted}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-          <TouchableOpacity
-            style={[styles.pwSaveBtn, (loading || !canSubmit) && { opacity: 0.6 }]}
-            onPress={handleSubmit}
-            disabled={loading || !canSubmit}
-            activeOpacity={0.7}
-          >
-            {loading ? (
-              <ActivityIndicator color={colors.textOnPrimary} />
-            ) : (
-              <Text style={styles.pwSaveBtnText}>{t.profile.saveProfile}</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-// ─── Edit Email Modal ──────────────────────────────────────────────────────────
-
-function EditEmailModal({
-  visible,
-  onClose,
-  currentEmail,
-  t,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  currentEmail: string | null;
-  t: ReturnType<typeof useTranslation>;
-}) {
-  const insets = useSafeAreaInsets();
-  const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const [newEmail, setNewEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleClose = () => {
-    setNewEmail('');
-    onClose();
-  };
-
-  const handleSubmit = async () => {
-    const trimmed = newEmail.trim();
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(trimmed)) {
-      Alert.alert(t.common.error, t.profile.emailInvalid);
-      return;
-    }
-    setLoading(true);
-    try {
-      const { supabase } = await import('@/lib/supabase');
-      const { error } = await supabase.auth.updateUser({ email: trimmed });
-      if (error) throw error;
-      // Do NOT update the displayed email here — Supabase only applies the
-      // change once the user confirms via the link sent to the new address.
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(t.common.success, t.profile.emailChangeSent.replace('{email}', trimmed));
-      setNewEmail('');
-      onClose();
-    } catch (e: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(t.common.error, e?.message ?? t.profile.emailChangeError);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="slide">
-      <KeyboardAvoidingView
-        style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlayModal }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          style={[styles.pwSheet, { paddingBottom: insets.bottom + 24 }]}
-          contentContainerStyle={{ padding: 24 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.pwHeader}>
-            <Text style={styles.pwTitle}>{t.profile.editEmailTitle}</Text>
-            <TouchableOpacity onPress={handleClose}>
-              <Ionicons name="close-circle" size={26} color={withAlpha(colors.foreground, 0.6)} />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.pwLabel}>{t.profile.currentEmail}</Text>
-          <View style={[styles.pwInput, styles.pwInputDisabled]}>
-            <Text style={{ fontSize: 15, color: colors.muted }}>{currentEmail ?? '—'}</Text>
-          </View>
-          <Text style={styles.pwLabel}>{t.profile.newEmail}</Text>
-          <TextInput
-            style={styles.pwInput}
-            value={newEmail}
-            onChangeText={setNewEmail}
-            placeholder={t.profile.newEmailPlaceholder}
-            placeholderTextColor={colors.muted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity
-            style={[styles.pwSaveBtn, loading && { opacity: 0.6 }]}
-            onPress={handleSubmit}
-            disabled={loading}
-            activeOpacity={0.7}
-          >
-            {loading ? (
-              <ActivityIndicator color={colors.textOnPrimary} />
-            ) : (
-              <Text style={styles.pwSaveBtnText}>{t.profile.sendConfirmation}</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -493,10 +110,6 @@ export default function ProfileScreen() {
   );
   const { status, isActive, isExpired, subscriptionExpiresAt, plan } = useSubscription();
   const [loggingOut, setLoggingOut] = useState(false);
-  const [showLangModal, setShowLangModal] = useState(false);
-  const [showPwModal, setShowPwModal] = useState(false);
-  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-  const [showEditEmailModal, setShowEditEmailModal] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const deleteAccountMutation = trpc.user.deleteAccount.useMutation();
@@ -728,7 +341,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.menuRow}
               activeOpacity={0.7}
-              onPress={() => setShowLangModal(true)}
+              onPress={() => router.push('/profile/language')}
             >
               <View style={styles.menuIconBg}>
                 <Ionicons name="language-outline" size={16} color={withAlpha(colors.foreground, 0.6)} />
@@ -770,7 +383,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[styles.menuRow, styles.menuRowBorder]}
               activeOpacity={0.7}
-              onPress={() => setShowEditProfileModal(true)}
+              onPress={() => router.push('/profile/edit-profile')}
             >
               <View style={styles.menuIconBg}>
                 <Ionicons name="person-outline" size={16} color={withAlpha(colors.foreground, 0.6)} />
@@ -782,7 +395,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[styles.menuRow, styles.menuRowBorder]}
               activeOpacity={0.7}
-              onPress={() => setShowEditEmailModal(true)}
+              onPress={() => router.push('/profile/change-email')}
             >
               <View style={styles.menuIconBg}>
                 <Ionicons name="mail-outline" size={16} color={withAlpha(colors.foreground, 0.6)} />
@@ -794,7 +407,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[styles.menuRow, styles.menuRowBorder]}
               activeOpacity={0.7}
-              onPress={() => setShowPwModal(true)}
+              onPress={() => router.push('/profile/change-password')}
             >
               <View style={styles.menuIconBg}>
                 <Ionicons name="lock-closed-outline" size={16} color={withAlpha(colors.foreground, 0.6)} />
@@ -908,30 +521,6 @@ export default function ProfileScreen() {
         <Text style={styles.versionText}>TheLocals v1.0.0</Text>
       </ScrollView>
 
-      {/* ── Modals ── */}
-      <LanguageModal
-        visible={showLangModal}
-        current={currentLang}
-        onSelect={(code) => updateProfile({ preferredLanguage: code })}
-        onClose={() => setShowLangModal(false)}
-        t={t}
-      />
-      <ChangePasswordModal
-        visible={showPwModal}
-        onClose={() => setShowPwModal(false)}
-        t={t}
-      />
-      <EditProfileModal
-        visible={showEditProfileModal}
-        onClose={() => setShowEditProfileModal(false)}
-        t={t}
-      />
-      <EditEmailModal
-        visible={showEditEmailModal}
-        onClose={() => setShowEditEmailModal(false)}
-        currentEmail={user?.email ?? null}
-        t={t}
-      />
     </View>
   );
 }

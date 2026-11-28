@@ -21,7 +21,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { ScalePressable } from '@/components/ui/scale-pressable';
 import { useTripsStore } from '@/store/trips';
 import { useShallow } from 'zustand/react/shallow';
 import { reconcileTripReminders } from '@/lib/trip-notifications';
@@ -32,7 +31,6 @@ import { TransportBlock } from '@/components/trip/transport-block';
 import { DocumentsBlock } from '@/components/trip/documents-block';
 import { ExpensesBlock } from '@/components/trip/expenses-block';
 import { TravelersBlock } from '@/components/trip/travelers-block';
-import { TripCurrencySettingsModal } from '@/components/trip/trip-currency-settings-modal';
 import { PlacesScreen } from '@/components/trip/places-screen';
 import { ItineraryBlock } from '@/components/trip/itinerary-block';
 import { AccommodationBlock } from '@/components/trip/accommodation-block';
@@ -42,14 +40,11 @@ import { useColors } from '@/hooks/use-colors';
 import { useTripPermissions, type TripPermissions, type TripRole } from '@/hooks/use-trip-permissions';
 import { handlePaywallError } from '@/hooks/use-paywall-guard';
 import { type ThemeColorPalette } from '@/constants/theme';
-import { generateId } from '@/utils/trip-helpers';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import type { Destination, Trip } from '@/types/voyage';
-import { PlacesAutocompleteInput } from '@/components/ui/places-autocomplete-input';
 import { useTripsStore as useTripsStoreForDuration } from '@/store/trips';
 import { trpc } from '@/lib/trpc';
-import { getApiBaseUrl } from '@/constants/api';
 import { ActivityIndicator } from 'react-native';
 import { getCountryFlag } from '@/utils/trip-helpers';
 import { useTranslation } from '@/hooks/use-translation';
@@ -212,309 +207,6 @@ function formatDateDisplay(iso: string) {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-// ─── Edit Date Modal ────────────────────────────────────────────────────────
-
-function EditDateModal({
-  visible,
-  currentDate,
-  currentDuration,
-  onClose,
-  onConfirm,
-}: {
-  visible: boolean;
-  currentDate: string;
-  currentDuration: number;
-  onClose: () => void;
-  onConfirm: (newDate: string, newDuration: number) => void;
-}) {
-  const colors = useColors();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
-  const t = useTranslation();
-  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
-  const dateLocale = toDateLocale(preferredLanguage);
-  const monthFormatter = React.useMemo(() => new Intl.DateTimeFormat(dateLocale, { month: 'long' }), [dateLocale]);
-  const today = new Date();
-  const [pickerDate, setPickerDate] = useState(new Date(currentDate));
-  const [duration, setDuration] = useState(currentDuration);
-
-  // Sync when modal opens
-  React.useEffect(() => {
-    if (visible) {
-      setPickerDate(new Date(currentDate));
-      setDuration(currentDuration);
-    }
-  }, [visible, currentDate, currentDuration]);
-
-  const adjustDate = (delta: number) => {
-    const d = new Date(pickerDate);
-    d.setDate(d.getDate() + delta);
-    if (d >= today) setPickerDate(d);
-  };
-
-  const adjustDuration = (delta: number) => {
-    setDuration((prev) => Math.max(1, prev + delta));
-  };
-
-  // Compute end date preview
-  const endDate = new Date(pickerDate);
-  endDate.setDate(endDate.getDate() + duration - 1);
-
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.modalOverlay}>
-        <View style={[styles.editCard, { backgroundColor: colors.background }]}>
-          <Text style={[styles.editCardTitle, { color: colors.foreground }]}>{t.tripEdit.datesTitle}</Text>
-
-          {/* Start date */}
-          <Text style={{ fontSize: 11, color: colors.muted, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{t.tripEdit.startDate}</Text>
-          <View style={styles.datePickerRow}>
-            <TouchableOpacity onPress={() => adjustDate(-1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="chevron-back" size={20} color={colors.foreground} />
-            </TouchableOpacity>
-            <View style={styles.dateCenter}>
-              <Text style={[styles.dateDayNum, { color: colors.foreground }]}>{pickerDate.getDate()}</Text>
-              <Text style={[styles.dateMonthText, { color: colors.muted }]}>
-                {monthFormatter.format(pickerDate)} {pickerDate.getFullYear()}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => adjustDate(1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="chevron-forward" size={20} color={colors.foreground} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Duration */}
-          <Text style={{ fontSize: 11, color: colors.muted, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, marginTop: 16 }}>{t.tripEdit.duration}</Text>
-          <View style={[styles.datePickerRow, { marginBottom: 8 }]}>
-            <TouchableOpacity onPress={() => adjustDuration(-1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="chevron-back" size={20} color={colors.foreground} />
-            </TouchableOpacity>
-            <View style={styles.dateCenter}>
-              <Text style={[styles.dateDayNum, { color: colors.foreground }]}>{duration}</Text>
-              <Text style={[styles.dateMonthText, { color: colors.muted }]}>{t.tripEdit.durationUnit}</Text>
-            </View>
-            <TouchableOpacity onPress={() => adjustDuration(1)} style={[styles.arrowBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="chevron-forward" size={20} color={colors.foreground} />
-            </TouchableOpacity>
-          </View>
-
-          {/* End date preview */}
-          <Text style={{ fontSize: 12, color: colors.muted, textAlign: 'center', marginBottom: 20 }}>
-            {t.tripEdit.endDate}: {endDate.getDate()} {monthFormatter.format(endDate)} {endDate.getFullYear()}
-          </Text>
-
-          <View style={styles.editCardActions}>
-            <TouchableOpacity onPress={onClose} style={[styles.cancelBtn, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.cancelBtnText, { color: colors.foreground }]}>{t.common.cancel}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => { onConfirm(pickerDate.toISOString(), duration); onClose(); }}
-              style={[styles.confirmBtn, { backgroundColor: '#2C2416' }]}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.confirmBtnText}>{t.common.confirm}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-// ─── Edit Destinations Modal ─────────────────────────────────────────────────
-
-function EditDestinationsModal({
-  visible,
-  trip,
-  onClose,
-}: {
-  visible: boolean;
-  trip: any;
-  onClose: () => void;
-}) {
-  const colors = useColors();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
-  const t = useTranslation();
-  const updateDestinations = useTripsStore((s) => s.updateDestinations);
-  const [destinations, setDestinations] = useState<Destination[]>([]);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-
-  // Sync destinations when modal opens
-  React.useEffect(() => {
-    if (visible) setDestinations(trip.destinations);
-  }, [visible, trip.destinations]);
-
-  const totalDays = trip.totalDays;
-  const allocatedDays = destinations.reduce((sum, d) => sum + d.days, 0);
-
-  const handleUpdateDays = (id: string, delta: number) => {
-    setDestinations((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, days: Math.max(1, d.days + delta) } : d))
-    );
-  };
-
-  const handleRemove = (id: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setDestinations((prev) => prev.filter((d) => d.id !== id));
-  };
-
-  const handleMoveUp = (idx: number) => {
-    if (idx === 0) return;
-    setDestinations((prev) => {
-      const next = [...prev];
-      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-      return next;
-    });
-  };
-
-  const handleMoveDown = (idx: number) => {
-    setDestinations((prev) => {
-      if (idx >= prev.length - 1) return prev;
-      const next = [...prev];
-      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
-      return next;
-    });
-  };
-
-  const handleAddDestination = async (prediction: { placeId: string; name: string; fullDescription: string; country: string }) => {
-    if (destinations.find((d) => d.placeId === prediction.placeId)) return;
-    const newDest: Destination = {
-      id: generateId(),
-      name: prediction.name,
-      country: prediction.country,
-      days: 1,
-      placeId: prediction.placeId,
-    };
-    setDestinations((prev) => [...prev, newDest]);
-    // Fetch details in background for lat/lng/imageUrl
-    try {
-      const res = await fetch(
-        `${getApiBaseUrl()}/api/trpc/places.details?input=${encodeURIComponent(JSON.stringify({ json: { placeId: prediction.placeId } }))}`
-      );
-      const json = await res.json();
-      const details = json?.result?.data?.json;
-      if (details?.imageUrl || details?.lat) {
-        setDestinations((prev) =>
-          prev.map((d) =>
-            d.placeId === prediction.placeId
-              ? { ...d, lat: details.lat, lng: details.lng, imageUrl: details.imageUrl, country: details.country || d.country }
-              : d
-          )
-        );
-      }
-    } catch {
-      // Non-critical
-    }
-  };
-
-  const handleSave = async () => {
-    await updateDestinations(trip.id, destinations);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onClose();
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
-        <View style={[styles.editSheet, { backgroundColor: colors.background }]}>
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
-          <View style={styles.editSheetHeader}>
-            <Text style={[styles.editSheetTitle, { color: colors.foreground }]}>{t.tripEdit.destsTitle}</Text>
-            <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="close" size={16} color={colors.foreground} />
-            </Pressable>
-          </View>
-
-          {/* Days summary */}
-          <View style={{ paddingHorizontal: 24, marginBottom: 12 }}>
-            <View style={[styles.daysSummaryRow, { backgroundColor: allocatedDays > totalDays ? withAlpha(colors.error, 0.12) : withAlpha(colors.primary, 0.08) }]}>
-              <Ionicons name="calendar-outline" size={14} color={allocatedDays > totalDays ? colors.error : colors.textAccent} />
-              <Text style={[styles.daysSummaryText, { color: allocatedDays > totalDays ? colors.error : colors.textAccent }]}>
-                {allocatedDays} de {totalDays} {t.tripEdit.daysAllocated}
-              </Text>
-              {allocatedDays > totalDays && (
-                <Text style={{ fontSize: 11, color: colors.error, marginLeft: 4 }}>{t.tripEdit.exceedsItinerary}</Text>
-              )}
-            </View>
-          </View>
-
-          <ScrollView style={styles.editSheetScroll} keyboardShouldPersistTaps="handled">
-            {destinations.map((dest, idx) => (
-              <View key={dest.id}>
-                <View style={styles.destEditRow}>
-                  {/* Reorder arrows */}
-                  <View style={{ gap: 2, marginRight: 8 }}>
-                    <TouchableOpacity
-                      onPress={() => handleMoveUp(idx)}
-                      style={[styles.miniBtn, { backgroundColor: idx === 0 ? 'transparent' : colors.surface }]}
-                      disabled={idx === 0}
-                    >
-                      <Ionicons name="chevron-up" size={12} color={idx === 0 ? 'transparent' : colors.foreground} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleMoveDown(idx)}
-                      style={[styles.miniBtn, { backgroundColor: idx === destinations.length - 1 ? 'transparent' : colors.surface }]}
-                      disabled={idx === destinations.length - 1}
-                    >
-                      <Ionicons name="chevron-down" size={12} color={idx === destinations.length - 1 ? 'transparent' : colors.foreground} />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.destEditInfo}>
-                    <Text style={[styles.destEditName, { color: colors.foreground }]}>{dest.name}</Text>
-                    {dest.country ? (
-                      <Text style={[styles.destEditCountry, { color: colors.muted }]}>{dest.country}</Text>
-                    ) : null}
-                  </View>
-
-                  <View style={styles.destDaysRow}>
-                    <TouchableOpacity
-                      onPress={() => handleUpdateDays(dest.id, -1)}
-                      style={[styles.miniBtn, { backgroundColor: colors.surface }]}
-                    >
-                      <Ionicons name="remove" size={12} color={colors.foreground} />
-                    </TouchableOpacity>
-                    <Text style={[styles.destDaysNum, { color: colors.foreground }]}>{dest.days}</Text>
-                    <Text style={[styles.destDaysLabel, { color: colors.muted }]}>{t.tripEdit.durationUnit}</Text>
-                    <TouchableOpacity
-                      onPress={() => handleUpdateDays(dest.id, 1)}
-                      style={[styles.miniBtn, { backgroundColor: colors.surface }]}
-                    >
-                      <Ionicons name="add" size={12} color={colors.foreground} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleRemove(dest.id)}
-                      style={[styles.miniBtn, { backgroundColor: colors.surface, marginLeft: 4 }]}
-                    >
-                      <Ionicons name="close" size={12} color={colors.error} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                {idx < destinations.length - 1 && (
-                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                )}
-              </View>
-            ))}
-
-            {/* Add new destination */}
-            <View style={{ marginTop: 16, marginBottom: 8 }}>
-              <Text style={[styles.destDaysLabel, { color: colors.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }]}>{t.tripEdit.addDestination}</Text>
-              <PlacesAutocompleteInput onSelect={handleAddDestination} placeholder={t.tripEdit.searchCity} searchTypes="cities" />
-            </View>
-
-            <ScalePressable
-              onPress={handleSave}
-              style={[styles.saveBtn, { backgroundColor: '#2C2416', marginTop: 16 }]}
-            >
-              <Text style={styles.saveBtnText}>{t.tripEdit.saveChanges}</Text>
-            </ScalePressable>
-            <View style={{ height: 40 }} />
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export default function TripDetailScreen() {
@@ -613,9 +305,6 @@ export default function TripDetailScreen() {
     { key: 'lugares', label: t.places.title, icon: 'map' },
     { key: 'fotos', label: t.photos.title, icon: 'images' },
   ];
-  const [showEditDate, setShowEditDate] = useState(false);
-  const [showEditDests, setShowEditDests] = useState(false);
-  const [showCurrencySettings, setShowCurrencySettings] = useState(false);
 
   // Copies a freshly picked/captured photo out of the picker's temp location
   // (which iOS may clean up) into the app's own documents directory, so the
@@ -742,14 +431,6 @@ export default function TripDetailScreen() {
     );
   };
 
-  const handleDateChange = async (newDate: string, newDuration: number) => {
-    await updateStartDate(trip.id, newDate);
-    // Also update totalDays and recalculate endDate
-    const start = new Date(newDate);
-    const end = new Date(start);
-    end.setDate(end.getDate() + newDuration - 1);
-    await updateTrip(trip.id, { totalDays: newDuration, endDate: end.toISOString() });
-  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -806,7 +487,7 @@ export default function TripDetailScreen() {
                     Tapping opens the trip's base-currency setting (editors only). */}
                 <TouchableOpacity
                   disabled={!permissions.canEdit}
-                  onPress={() => setShowCurrencySettings(true)}
+                  onPress={() => router.push({ pathname: '/trip/[id]/currency-settings', params: { id: trip.id, tripId: trip.id } })}
                   style={{ flexDirection: 'column', gap: 4, flexShrink: 0, alignItems: 'flex-end', paddingBottom: 2 }}
                 >
                   {getTripCurrencies(trip.destinations).map((c) => (
@@ -835,7 +516,10 @@ export default function TripDetailScreen() {
         <View style={{ paddingHorizontal: 16, marginTop: 12, marginBottom: 4 }}>
           <View style={styles.actionBtnRow}>
             <TouchableOpacity
-              onPress={() => setShowEditDate(true)}
+              onPress={() => router.push({
+                pathname: '/trip/[id]/edit-dates',
+                params: { id: trip.id, tripId: trip.id, currentDate: trip.startDate, currentDuration: String(trip.totalDays) },
+              })}
               style={styles.actionBtn}
               disabled={!permissions.canEdit}
             >
@@ -847,7 +531,7 @@ export default function TripDetailScreen() {
             <View style={styles.actionBtnDivider} />
 
             <TouchableOpacity
-              onPress={() => setShowEditDests(true)}
+              onPress={() => router.push({ pathname: '/trip/[id]/edit-destinations', params: { id: trip.id, tripId: trip.id } })}
               style={styles.actionBtn}
               disabled={!permissions.canEdit}
             >
@@ -915,30 +599,6 @@ export default function TripDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Edit Date Modal */}
-      <EditDateModal
-        visible={showEditDate}
-        currentDate={trip.startDate}
-        currentDuration={trip.totalDays}
-        onClose={() => setShowEditDate(false)}
-        onConfirm={handleDateChange}
-      />
-
-      {/* Edit Destinations Modal */}
-      <EditDestinationsModal
-        visible={showEditDests}
-        trip={trip}
-        onClose={() => setShowEditDests(false)}
-      />
-
-      {/* Trip Currency Settings Modal */}
-      <TripCurrencySettingsModal
-        visible={showCurrencySettings}
-        onClose={() => setShowCurrencySettings(false)}
-        tripId={trip.id}
-        currency={trip.currency}
-        expenses={trip.expenses}
-      />
     </View>
   );
 }

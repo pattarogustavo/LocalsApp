@@ -1,19 +1,16 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
-import { generateId, formatMoney } from '@/utils/trip-helpers';
+import { formatMoney } from '@/utils/trip-helpers';
 import type { Expense, Traveler } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
 import type { Translations } from '@/i18n';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 import type { TripPermissions } from '@/hooks/use-trip-permissions';
-import { AddTravelerForm } from '@/components/trip/travelers-block';
-import { CurrencyPicker } from '@/components/ui/currency-picker';
-import { trpc } from '@/lib/trpc';
 
 /** `expense.baseAmount` when present (post-multi-currency), else `amount` — every pre-existing expense was always saved in the trip's base currency already, so this is exact for them too, not just a fallback. */
 function baseAmountOf(expense: Expense): number {
@@ -97,122 +94,28 @@ function computeSettlement(expenses: Expense[], travelers: Traveler[], selfLabel
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function ExpensesBlock({ tripId, expenses, currency, lastExpenseCurrency, travelers = [], permissions }: ExpensesBlockProps) {
+export function ExpensesBlock({ tripId, expenses, currency, travelers = [], permissions }: ExpensesBlockProps) {
   const canEdit = permissions.canEdit;
   const t = useTranslation();
   const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const CATEGORIES = useMemo(() => getCategories(t), [t]);
-  const addExpense = useTripsStore((s) => s.addExpense);
   const removeExpense = useTripsStore((s) => s.removeExpense);
-  const [showModal, setShowModal] = useState(false);
-  // Shows the add-traveler form IN PLACE of the expense form, inside this
-  // SAME modal, instead of opening a second native Modal on top of this
-  // one — stacking two RN Modals silently fails to present the second one
-  // on iOS. Embedding also means description/amount/category typed so far
-  // are never lost (they're untouched component state, and the modal never
-  // actually closes).
-  const [showAddTravelerForm, setShowAddTravelerForm] = useState(false);
   const [showAll, setShowAll] = useState(false);
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState<Expense['category']>('other');
-  const [paidBy, setPaidBy] = useState('');
-  const [splitWith, setSplitWith] = useState<string[]>([]);
-  const [expenseCurrency, setExpenseCurrency] = useState(currency);
-  const [rateText, setRateText] = useState('1');
-  const [rateEditedManually, setRateEditedManually] = useState(false);
-  const insets = useSafeAreaInsets();
-
-  const today = useMemo(() => new Date().toISOString(), []);
-  const needsRate = expenseCurrency !== currency;
-  const rateQuery = trpc.exchangeRates.getRates.useQuery(
-    { pairs: [{ date: today, from: expenseCurrency, to: currency }] },
-    { enabled: needsRate }
-  );
-  useEffect(() => {
-    if (!needsRate) {
-      setRateText('1');
-      setRateEditedManually(false);
-      return;
-    }
-    const fetched = rateQuery.data?.rates?.[0]?.rate;
-    if (fetched != null && !rateEditedManually) setRateText(String(fetched));
-  }, [needsRate, rateQuery.data, rateEditedManually]);
-  const parsedRate = parseFloat(rateText.replace(',', '.'));
-  const rateUnavailable = needsRate && !rateQuery.isFetching && rateQuery.data?.rates?.[0]?.rate == null && !rateEditedManually;
-  const baseAmountPreview = (() => {
-    const amt = parseFloat(amount.replace(',', '.'));
-    if (isNaN(amt)) return null;
-    if (!needsRate) return amt;
-    if (isNaN(parsedRate)) return null;
-    return amt * parsedRate;
-  })();
 
   const selfName = t.expenses.self;
-  const allParticipants = useMemo(() => {
-    const names = [selfName, ...travelers.map((tr) => tr.name)];
-    return Array.from(new Set(names));
-  }, [travelers, selfName]);
-
-  // Pre-select "self" as both payer and sole participant every time the
-  // modal opens (including the very first time, before any expense was ever
-  // added) — payer/participants must always show a selection, even on a
-  // solo trip with no other travelers.
-  useEffect(() => {
-    if (showModal) {
-      setPaidBy(selfName);
-      setSplitWith([selfName]);
-      setShowAddTravelerForm(false);
-      setExpenseCurrency(lastExpenseCurrency || currency);
-      setRateEditedManually(false);
-    }
-  }, [showModal, selfName, lastExpenseCurrency, currency]);
 
   const total = expenses.reduce((sum, e) => sum + baseAmountOf(e), 0);
   const money = (amt: number, curr: string = currency) => formatMoney(amt, curr, preferredLanguage);
 
-  const { balance, transactions } = useMemo(
+  const { transactions } = useMemo(
     () => computeSettlement(expenses, travelers, selfName),
     [expenses, travelers, selfName]
   );
 
-  const toggleParticipant = (name: string) => {
-    setSplitWith((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
-    );
-  };
-
-  const handleAdd = async () => {
-    if (!description.trim() || !amount) return;
-    const parsedAmount = parseFloat(amount.replace(',', '.'));
-    if (isNaN(parsedAmount)) return;
-    const exchangeRate = needsRate ? parsedRate : 1;
-    if (needsRate && isNaN(exchangeRate)) return; // no rate available and user hasn't entered one — can't save yet
-    const expense: Expense = {
-      id: generateId(),
-      description: description.trim(),
-      amount: parsedAmount,
-      currency: expenseCurrency,
-      category,
-      date: today,
-      paidBy,
-      splitWith: splitWith.length > 0 ? splitWith : allParticipants,
-      exchangeRate,
-      baseAmount: parsedAmount * exchangeRate,
-      rateSource: !needsRate || (!rateEditedManually && rateQuery.data?.rates?.[0]?.rate != null) ? 'frankfurter' : 'manual',
-    };
-    await addExpense(tripId, expense);
-    setShowModal(false);
-    setDescription('');
-    setAmount('');
-    setCategory('other');
-    setPaidBy(selfName);
-    setSplitWith([]);
-  };
-
   const displayedExpenses = showAll ? expenses : expenses.slice(0, 3);
+  const openNewExpense = () => router.push({ pathname: '/trip/[id]/new-expense', params: { id: tripId, tripId } });
 
   return (
     <View style={styles.card}>
@@ -223,7 +126,7 @@ export function ExpensesBlock({ tripId, expenses, currency, lastExpenseCurrency,
           <Text style={styles.sectionTitle}>{t.expenses.title.toUpperCase()}</Text>
         </View>
         {canEdit && (
-          <TouchableOpacity onPress={() => setShowModal(true)} style={styles.addBtn}>
+          <TouchableOpacity onPress={openNewExpense} style={styles.addBtn}>
             <Ionicons name="add" size={14} color={colors.textAccent} />
             <Text style={styles.addBtnText}>{t.common.add}</Text>
           </TouchableOpacity>
@@ -299,172 +202,6 @@ export function ExpensesBlock({ tripId, expenses, currency, lastExpenseCurrency,
         </>
       )}
 
-      {/* Add Expense Modal */}
-      <Modal visible={showModal} transparent animationType="slide">
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlayModal }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <ScrollView style={{ backgroundColor: colors.background, borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
-              contentContainerStyle={{ padding: 24, paddingBottom: insets.bottom + 24 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              {showAddTravelerForm ? (
-                // Embedded directly in THIS already-open modal, never as a
-                // second stacked Modal — two RN Modals on top of each other
-                // silently fail to present the second one on iOS. Category/
-                // description/amount/paidBy/splitWith below are untouched
-                // component state, so nothing typed so far is lost while
-                // this sub-flow is shown.
-                <AddTravelerForm
-                  tripId={tripId}
-                  travelers={travelers}
-                  onDone={() => setShowAddTravelerForm(false)}
-                />
-              ) : (
-                <>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <Text style={{ fontSize: 22, fontFamily: 'serif', fontStyle: 'italic', color: colors.foreground }}>
-                      {t.expenses.newExpense}
-                    </Text>
-                    <TouchableOpacity onPress={() => setShowModal(false)}>
-                      <Ionicons name="close-circle" size={26} color={colors.foreground} />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Category */}
-                  <Text style={styles.formLabel}>{t.expenses.category}</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                    {CATEGORIES.map((c) => (
-                      <TouchableOpacity
-                        key={c.key}
-                        onPress={() => setCategory(c.key as any)}
-                        style={{
-                          flexDirection: 'row', alignItems: 'center', gap: 6,
-                          paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: category === c.key ? colors.primary : colors.surface,
-                        }}
-                      >
-                        <Ionicons name={c.icon as any} size={14} color={category === c.key ? colors.textOnPrimary : colors.foreground} />
-                        <Text style={{ fontSize: 12, color: category === c.key ? colors.textOnPrimary : colors.foreground }}>{c.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  {/* Description */}
-                  <Text style={styles.formLabel}>{t.expenses.description}</Text>
-                  <TextInput
-                    value={description}
-                    onChangeText={setDescription}
-                    placeholder={t.expenses.descriptionPlaceholder}
-                    placeholderTextColor={colors.muted}
-                    style={styles.formInput}
-                  />
-
-                  {/* Amount + currency */}
-                  <Text style={styles.formLabel}>{t.expenses.amount}</Text>
-                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: needsRate ? 10 : 14 }}>
-                    <TextInput
-                      value={amount}
-                      onChangeText={setAmount}
-                      placeholder="0,00"
-                      placeholderTextColor={colors.muted}
-                      keyboardType="decimal-pad"
-                      style={[styles.formInput, { flex: 1, marginBottom: 0 }]}
-                    />
-                    <CurrencyPicker value={expenseCurrency} onChange={setExpenseCurrency} compact />
-                  </View>
-
-                  {/* Exchange rate — only shown when the expense's currency differs
-                      from the trip's base currency. Prefilled from the daily rate,
-                      but always editable (e.g. the traveler's actual card rate). */}
-                  {needsRate && (
-                    <View style={{ marginBottom: 14 }}>
-                      <Text style={styles.formLabel}>
-                        {t.expenses.exchangeRate} (1 {expenseCurrency} = ? {currency})
-                      </Text>
-                      <TextInput
-                        value={rateText}
-                        onChangeText={(v) => { setRateText(v); setRateEditedManually(true); }}
-                        placeholder="0,00"
-                        placeholderTextColor={colors.muted}
-                        keyboardType="decimal-pad"
-                        style={styles.formInput}
-                      />
-                      {rateQuery.isFetching ? (
-                        <Text style={styles.rateHint}>{t.expenses.rateLoading}</Text>
-                      ) : rateUnavailable ? (
-                        <Text style={styles.rateHint}>{t.expenses.rateUnavailable}</Text>
-                      ) : baseAmountPreview != null ? (
-                        <Text style={styles.rateHint}>≈ {money(baseAmountPreview)}</Text>
-                      ) : null}
-                    </View>
-                  )}
-
-                  {/* Paid by — always shown, even on a solo trip (self pre-selected) */}
-                  <Text style={styles.formLabel}>{t.expenses.paidBy}</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                    {allParticipants.map((name) => (
-                      <TouchableOpacity
-                        key={name}
-                        onPress={() => setPaidBy(name)}
-                        style={{
-                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: paidBy === name ? colors.primary : colors.surface,
-                        }}
-                      >
-                        <Text style={{ fontSize: 13, color: paidBy === name ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
-                          {name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  {/* Split with — always shown, even on a solo trip (self pre-selected) */}
-                  <Text style={styles.formLabel}>{t.expenses.splitWith} ({t.expenses.emptyMeansAll})</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                    {allParticipants.map((name) => (
-                      <TouchableOpacity
-                        key={name}
-                        onPress={() => toggleParticipant(name)}
-                        style={{
-                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                          backgroundColor: splitWith.includes(name) ? colors.primary : colors.surface,
-                          borderWidth: 1,
-                          borderColor: splitWith.includes(name) ? colors.primary : 'transparent',
-                        }}
-                      >
-                        <Text style={{ fontSize: 13, color: splitWith.includes(name) ? colors.textOnPrimary : colors.foreground, fontWeight: '600' }}>
-                          {name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  {/* Add traveler — same flow/component as the Viajantes section at the bottom of the trip page, embedded inline (see showAddTravelerForm above) instead of duplicated */}
-                  {permissions.canManageTravelers && (
-                    <TouchableOpacity
-                      onPress={() => setShowAddTravelerForm(true)}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginBottom: 20 }}
-                    >
-                      <Ionicons name="person-add-outline" size={14} color={colors.textAccent} />
-                      <Text style={{ fontSize: 13, color: colors.textAccent, fontWeight: '600' }}>
-                        {t.travelers.addTraveler}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    onPress={handleAdd}
-                    activeOpacity={0.7}
-                    style={{ backgroundColor: colors.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
-                  >
-                    <Text style={{ color: colors.textOnPrimary, fontWeight: '600', fontSize: 16 }}>{t.common.add}</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
     </View>
   );
 }

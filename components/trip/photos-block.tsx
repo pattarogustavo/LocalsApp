@@ -4,18 +4,14 @@ import {
   Text,
   TouchableOpacity,
   Image,
-  FlatList,
   StyleSheet,
   Alert,
   Modal,
-  TextInput,
-  ScrollView,
   Dimensions,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
 import { useTripsStore } from '@/store/trips';
 import { useShallow } from 'zustand/react/shallow';
 import { generateId } from '@/utils/trip-helpers';
@@ -52,9 +48,6 @@ export function TripPhotosBlock({ tripId, tripName, fullPage, permissions }: Pro
   const photos = trip?.photos || [];
 
   const [selectedPhoto, setSelectedPhoto] = useState<TripPhoto | null>(null);
-  const [captionInput, setCaptionInput] = useState('');
-  const [showCaptionModal, setShowCaptionModal] = useState(false);
-  const [pendingUri, setPendingUri] = useState<string | null>(null);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -70,9 +63,7 @@ export function TripPhotosBlock({ tripId, tripName, fullPage, permissions }: Pro
     if (!result.canceled && result.assets.length > 0) {
       if (result.assets.length === 1) {
         // Single photo — ask for caption
-        setPendingUri(result.assets[0].uri);
-        setCaptionInput('');
-        setShowCaptionModal(true);
+        router.push({ pathname: '/trip/[id]/photo-caption', params: { id: tripId, tripId, pendingUri: result.assets[0].uri } });
       } else {
         // Multiple photos — add all without captions
         for (const asset of result.assets) {
@@ -98,25 +89,8 @@ export function TripPhotosBlock({ tripId, tripName, fullPage, permissions }: Pro
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setPendingUri(result.assets[0].uri);
-      setCaptionInput('');
-      setShowCaptionModal(true);
+      router.push({ pathname: '/trip/[id]/photo-caption', params: { id: tripId, tripId, pendingUri: result.assets[0].uri } });
     }
-  };
-
-  const confirmAddPhoto = async () => {
-    if (!pendingUri) return;
-    const photo: TripPhoto = {
-      id: generateId(),
-      url: pendingUri,
-      caption: captionInput.trim() || undefined,
-      uploadedBy: t.travelers.you ?? 'Eu',
-      uploadedAt: new Date().toISOString(),
-    };
-    await addPhoto(tripId, photo);
-    setPendingUri(null);
-    setCaptionInput('');
-    setShowCaptionModal(false);
   };
 
   const handleDelete = (photo: TripPhoto) => {
@@ -242,48 +216,6 @@ export function TripPhotosBlock({ tripId, tripName, fullPage, permissions }: Pro
         </View>
       </Modal>
 
-      {/* Caption input modal */}
-      <Modal
-        visible={showCaptionModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCaptionModal(false)}
-      >
-        <KeyboardAvoidingView
-          style={{ flex: 1, justifyContent: 'flex-end' }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-        <View style={styles.captionModalOverlay}>
-          <View style={styles.captionModalSheet}>
-            <Text style={styles.captionModalTitle}>{t.photos.addCaption ?? 'Adicionar legenda'}</Text>
-            {pendingUri && (
-              <Image source={{ uri: pendingUri }} style={styles.captionPreview} resizeMode="cover" />
-            )}
-            <TextInput
-              style={styles.captionInput}
-              placeholder={t.photos.captionPlaceholder}
-              placeholderTextColor={colors.muted}
-              value={captionInput}
-              onChangeText={setCaptionInput}
-              maxLength={120}
-              returnKeyType="done"
-              onSubmitEditing={confirmAddPhoto}
-            />
-            <View style={styles.captionModalActions}>
-              <TouchableOpacity
-                style={styles.captionCancelBtn}
-                onPress={() => { setShowCaptionModal(false); setPendingUri(null); }}
-              >
-                <Text style={styles.captionCancelText}>{t.common.cancel}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.captionConfirmBtn} onPress={confirmAddPhoto}>
-                <Text style={styles.captionConfirmText}>{t.common.add}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }

@@ -24,7 +24,6 @@ import { useTripsStore } from '@/store/trips';
 import { useShallow } from 'zustand/react/shallow';
 import { reconcileTripReminders } from '@/lib/trip-notifications';
 import { TripCard, TripCardStacked, getImageForTrip } from '@/components/trip-card';
-import { CreateTripSheet } from '@/components/create-trip-sheet';
 import { isTripUpcoming, isTripPast, isTripOngoing, getTripName } from '@/utils/trip-helpers';
 import { mergeTripsWithShared, type SharedTripRow } from '@/utils/shared-trips';
 import type { Trip } from '@/types/voyage';
@@ -50,7 +49,6 @@ export default function HomeScreen() {
   const { trips, loadTrips, pruneRevokedSharedTrips } = useTripsStore(
     useShallow((s) => ({ trips: s.trips, loadTrips: s.loadTrips, pruneRevokedSharedTrips: s.pruneRevokedSharedTrips })),
   );
-  const [showCreate, setShowCreate] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -127,25 +125,19 @@ export default function HomeScreen() {
     router.push(`/trip/${trip.id}`);
   };
 
-  const handleTripCreated = (trip: Trip) => {
-    router.push(`/trip/${trip.id}`);
-  };
-
-  // Pending invites addressed to me (inbox)
-  const [showInbox, setShowInbox] = useState(false);
+  // Pending invites addressed to me (inbox) — count only; the inbox itself
+  // is its own sheet route (app/invites-inbox.tsx).
   const pendingInvitesQuery = trpc.sharing.listPendingForMe.useQuery(undefined, {
     enabled: !!user,
     staleTime: 30_000,
   });
-  const acceptMutation = trpc.sharing.accept.useMutation();
-  const declineMutation = trpc.sharing.decline.useMutation();
   const hideForMeMutation = trpc.sharing.hideForMe.useMutation();
   const pendingCount = pendingInvitesQuery.data?.length ?? 0;
 
   // Tapping an 'invite' push notification lands here with ?openInbox=1
   // (see app/_layout.tsx's notification response handler).
   useEffect(() => {
-    if (openInbox) setShowInbox(true);
+    if (openInbox) router.push('/invites-inbox');
   }, [openInbox]);
 
   const handleHideSharedTrip = (shareId: number) => {
@@ -177,24 +169,6 @@ export default function HomeScreen() {
     if (shareId != null) handleHideSharedTrip(shareId);
   };
 
-  const handleAcceptInvite = async (token: string) => {
-    try {
-      await acceptMutation.mutateAsync({ token });
-      await Promise.all([pendingInvitesQuery.refetch(), sharedTripsQuery.refetch()]);
-    } catch {
-      // Offline or already handled — ignore
-    }
-  };
-
-  const handleDeclineInvite = async (shareId: number) => {
-    try {
-      await declineMutation.mutateAsync({ shareId });
-      pendingInvitesQuery.refetch();
-    } catch {
-      // Offline or already handled — ignore
-    }
-  };
-
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Status bar background - extends bg color behind iPhone status bar */}
@@ -217,7 +191,7 @@ export default function HomeScreen() {
           </View>
           <View className="flex-row gap-2">
             <TouchableOpacity
-              onPress={() => setShowCreate(true)}
+              onPress={() => router.push('/new-trip')}
               className="w-10 h-10 rounded-full bg-primary items-center justify-center"
             >
               <Ionicons name="add" size={20} color={colors.textOnPrimary} />
@@ -230,7 +204,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
             {!!user && (
               <TouchableOpacity
-                onPress={() => setShowInbox(true)}
+                onPress={() => router.push('/invites-inbox')}
                 className="w-10 h-10 rounded-full bg-primary items-center justify-center"
                 style={{ position: 'relative' }}
               >
@@ -283,7 +257,7 @@ export default function HomeScreen() {
           /* Empty state - Create first trip CTA */
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => setShowCreate(true)}
+            onPress={() => router.push('/new-trip')}
             style={{
               marginHorizontal: 24,
               marginBottom: 24,
@@ -386,13 +360,6 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      {/* Create Trip Sheet */}
-      <CreateTripSheet
-        visible={showCreate}
-        onClose={() => setShowCreate(false)}
-        onCreated={handleTripCreated}
-      />
-
       {/* Search Modal */}
       <Modal
         visible={showSearch}
@@ -459,75 +426,6 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      {/* Invites Inbox Modal */}
-      <Modal
-        visible={showInbox}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowInbox(false)}
-      >
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: colors.foreground, flex: 1 }]}>
-              {t.sharing.inboxTitle}
-            </Text>
-            <TouchableOpacity onPress={() => setShowInbox(false)} style={styles.cancelBtn}>
-              <Text style={styles.cancelText}>{t.common.cancel}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {pendingInvitesQuery.isLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
-          ) : !pendingInvitesQuery.data || pendingInvitesQuery.data.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="mail-open-outline" size={40} color={colors.muted} />
-              <Text style={styles.emptyText}>{t.sharing.inboxEmpty}</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={pendingInvitesQuery.data}
-              keyExtractor={(item) => String(item.shareId)}
-              contentContainerStyle={{ padding: 16, gap: 12 }}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => {
-                let tripData: Trip | null = null;
-                try { tripData = JSON.parse(item.tripData); } catch {}
-                return (
-                  <View style={styles.inviteCard}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: withAlpha(colors.foreground, 0.094), alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name="airplane-outline" size={22} color={colors.foreground} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.resultName} numberOfLines={1}>
-                          {tripData?.destinations?.[0]?.name ?? tripData?.name ?? t.sharing.tripFallback}
-                        </Text>
-                        <Text style={styles.resultDest} numberOfLines={1}>
-                          {item.ownerName ? `${t.sharing.invitedByPrefix} ${item.ownerName}` : ''}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-                      <TouchableOpacity
-                        onPress={() => handleDeclineInvite(item.shareId)}
-                        style={[styles.inviteActionBtn, { borderColor: colors.border }]}
-                      >
-                        <Text style={{ color: colors.foreground, fontWeight: '600' }}>{t.sharing.declineBtn}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleAcceptInvite(item.token)}
-                        style={[styles.inviteActionBtn, { backgroundColor: colors.primary, borderColor: colors.primary }]}
-                      >
-                        <Text style={{ color: colors.textOnPrimary, fontWeight: '600' }}>{t.sharing.acceptBtn}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                );
-              }}
-            />
-          )}
-        </View>
-      </Modal>
     </View>
   );
 }

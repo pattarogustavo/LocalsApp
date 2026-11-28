@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
 import { generateId, getInitials } from '@/utils/trip-helpers';
@@ -393,7 +394,7 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
   const removeTraveler = useTripsStore((s) => s.removeTraveler);
   const canManage = permissions.canManageTravelers;
 
-  const [showModal, setShowModal] = useState(false);
+  const openAddTraveler = () => router.push({ pathname: '/trip/[id]/add-traveler', params: { id: tripId, tripId } });
 
   const revokeMutation = trpc.sharing.revoke.useMutation();
   const updateRoleMutation = trpc.sharing.updateRole.useMutation();
@@ -493,7 +494,7 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
           <Text style={styles.headerTitle}>{(t.travelers.title ?? 'VIAJANTES').toUpperCase()}</Text>
         </View>
         {canManage && (
-          <TouchableOpacity style={styles.addBtn} onPress={() => setShowModal(true)}>
+          <TouchableOpacity style={styles.addBtn} onPress={() => openAddTraveler()}>
             <Ionicons name="person-add-outline" size={14} color={colors.textAccent} />
             <Text style={styles.addBtnText}>{t.common.add}</Text>
           </TouchableOpacity>
@@ -523,7 +524,7 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
         })}
 
         {canManage && (
-          <TouchableOpacity style={styles.addAvatar} onPress={() => setShowModal(true)}>
+          <TouchableOpacity style={styles.addAvatar} onPress={() => openAddTraveler()}>
             <Ionicons name="add" size={18} color={colors.muted} />
           </TouchableOpacity>
         )}
@@ -584,13 +585,6 @@ export function TravelersBlock({ tripId, travelers, permissions }: TravelersBloc
         </View>
       )}
 
-      <AddTravelerModal
-        tripId={tripId}
-        travelers={travelers}
-        visible={showModal}
-        onClose={() => setShowModal(false)}
-        onInviteSent={() => sharesQuery.refetch()}
-      />
     </View>
   );
 }

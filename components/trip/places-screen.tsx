@@ -1,21 +1,12 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  TextInput, Modal, Linking, ActivityIndicator,
+  TextInput, Linking, ActivityIndicator,
   FlatList, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  useAnimatedScrollHandler,
-  withTiming,
-  withSpring,
-  runOnJS,
-} from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { useTripsStore } from '@/store/trips';
 import { useAuthStore } from '@/store/auth';
@@ -25,10 +16,8 @@ import { handlePaywallError } from '@/hooks/use-paywall-guard';
 import { usePlacePhotoBackfill } from '@/hooks/use-place-photo-backfill';
 import { trpc } from '@/lib/trpc';
 import { trpcVanilla } from '@/lib/trpc-vanilla';
-import type { Place, Destination, PlaceAttachment } from '@/types/voyage';
+import type { Place, Destination } from '@/types/voyage';
 import { generateId } from '@/utils/trip-helpers';
-import { DocAttachField } from '@/components/ui/doc-attach-field';
-import { useState as useLocalState } from 'react';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 import type { TripPermissions } from '@/hooks/use-trip-permissions';
@@ -98,239 +87,6 @@ const VISIBLE_PAGE_SIZE = 24;
 // Category keys only (excludes 'all'), for logic that doesn't need the
 // translated label — e.g. grouping places by category.
 const CATEGORY_KEYS = ['attraction', 'restaurant', 'cafe', 'museum', 'park', 'beach', 'market', 'neighborhood', 'hidden_gem', 'other'];
-
-// ─── Place Detail Modal ───────────────────────────────────────────────────────
-
-function PlaceDetailModal({
-  place,
-  tripId,
-  onClose,
-  isAdded,
-  onAdd,
-  onRemove,
-  canEdit,
-}: {
-  place: Place;
-  tripId: string;
-  onClose: () => void;
-  isAdded: boolean;
-  onAdd: () => void;
-  onRemove: () => void;
-  canEdit: boolean;
-}) {
-  const updatePlace = useTripsStore((s) => s.updatePlace);
-  const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const t = useTranslation();
-  const [docPickerIdx, setDocPickerIdx] = useLocalState<number | null>(null);
-
-  const handleAddAttachment = async (uri: string) => {
-    const newAtt: PlaceAttachment = {
-      id: generateId(),
-      name: uri.split('/').pop() || 'Documento',
-      url: uri,
-      type: uri.endsWith('.pdf') ? 'pdf' : 'image',
-    };
-    const current = place.attachments || [];
-    await updatePlace(tripId, place.id, { attachments: [...current, newAtt] });
-    setDocPickerIdx(null);
-  };
-
-  const handleRemoveAttachment = async (attId: string) => {
-    const updated = (place.attachments || []).filter((a) => a.id !== attId);
-    await updatePlace(tripId, place.id, { attachments: updated });
-  };
-
-  const openMaps = () => {
-    if (place.lat && place.lng) {
-      Linking.openURL(`https://maps.google.com/?q=${place.lat},${place.lng}`);
-    } else if (place.address) {
-      Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(place.address)}`);
-    }
-  };
-
-  // Drag-to-dismiss: a plain Pan gesture runs simultaneously with the
-  // ScrollView's own native gesture (via Gesture.Native()) instead of
-  // competing with it, so normal scrolling is untouched — the pan only
-  // ever moves the sheet (and only downward) once scrollY is already at
-  // the top, tracked via the scroll handler below.
-  const translateY = useSharedValue(0);
-  const scrollY = useSharedValue(0);
-  const DISMISS_THRESHOLD = 120;
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (e) => { scrollY.value = e.contentOffset.y; },
-  });
-
-  const nativeGesture = Gesture.Native();
-  const panGesture = Gesture.Pan()
-    .simultaneousWithExternalGesture(nativeGesture)
-    .onChange((e) => {
-      if (scrollY.value > 0 || e.changeY < 0) return;
-      translateY.value = Math.max(0, translateY.value + e.changeY);
-    })
-    .onEnd((e) => {
-      if (translateY.value > DISMISS_THRESHOLD || e.velocityY > 800) {
-        translateY.value = withTiming(800, { duration: 200 }, () => runOnJS(onClose)());
-      } else {
-        translateY.value = withSpring(0, { damping: 18 });
-      }
-    });
-
-  const sheetAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.detailSheet, sheetAnimatedStyle]}>
-            <View style={styles.handle} />
-            <GestureDetector gesture={nativeGesture}>
-              <Animated.ScrollView
-                onScroll={scrollHandler}
-                scrollEventThrottle={16}
-                bounces={false}
-                showsVerticalScrollIndicator={false}
-              >
-                {/* Photo */}
-                {place.imageUrl ? (
-                  <Image source={{ uri: place.imageUrl }} style={styles.placePhoto} contentFit="cover" cachePolicy="memory-disk" transition={150} />
-                ) : (
-                  <View style={[styles.placePhotoPlaceholder, { backgroundColor: withAlpha(colors.primary, 0.10) }]}>
-                    <Ionicons name={CATEGORY_ICONS[place.category] as any || 'location-outline'} size={40} color={withAlpha(ACCENT_TEAL, 0.4)} />
-                  </View>
-                )}
-
-          <View style={styles.detailContent}>
-
-            <Text style={styles.detailName}>{place.name}</Text>
-            <Text style={styles.detailCategory}>{getCategoryLabel(t, place.category)}</Text>
-
-            {place.description ? (
-              <Text style={styles.detailDesc}>{place.description}</Text>
-            ) : null}
-
-            {place.hours ? (
-              <View style={styles.detailRow}>
-                <Ionicons name="time-outline" size={15} color={colors.muted} />
-                <View>
-                  <Text style={styles.detailRowLabel}>HORÁRIO</Text>
-                  <Text style={styles.detailRowValue}>{place.hours}</Text>
-                </View>
-              </View>
-            ) : null}
-
-            {place.address ? (
-              <View style={styles.detailRow}>
-                <Ionicons name="location-outline" size={15} color={colors.muted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.detailRowLabel}>ENDEREÇO</Text>
-                  <Text style={styles.detailRowValue}>{place.address}</Text>
-                </View>
-              </View>
-            ) : null}
-
-            {place.phone ? (
-              <View style={styles.detailRow}>
-                <Ionicons name="call-outline" size={15} color={colors.muted} />
-                <View>
-                  <Text style={styles.detailRowLabel}>TELEFONE</Text>
-                  <Text style={styles.detailRowValue}>{place.phone}</Text>
-                </View>
-              </View>
-            ) : null}
-
-            {(place.website || place.address || (place.lat && place.lng)) ? (
-              <View style={styles.detailActions}>
-                {place.website ? (
-                  <TouchableOpacity onPress={() => Linking.openURL(place.website!)} style={styles.detailActionBtn}>
-                    <Ionicons name="globe-outline" size={16} color={colors.foreground} />
-                    <Text style={styles.detailActionText}>Site</Text>
-                  </TouchableOpacity>
-                ) : null}
-                {(place.address || (place.lat && place.lng)) ? (
-                  <TouchableOpacity onPress={openMaps} style={styles.detailActionBtn}>
-                    <Ionicons name="map-outline" size={16} color={colors.foreground} />
-                    <Text style={styles.detailActionText}>Maps</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ) : null}
-
-            {/* Attachments section */}
-            {isAdded && (place.attachments || []).length > 0 ? (
-              <View style={styles.attachSection}>
-                <Text style={styles.attachSectionLabel}>DOCUMENTOS ANEXADOS</Text>
-                {(place.attachments || []).map((att, idx) => (
-                  <TouchableOpacity
-                    key={att.id}
-                    style={styles.attachRow}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      if (att.url) {
-                        Linking.openURL(att.url).catch(() =>
-                          Alert.alert('Erro', 'Não foi possível abrir o documento.')
-                        );
-                      }
-                    }}
-                  >
-                    <Ionicons
-                      name={att.type === 'pdf' ? 'document-text-outline' : 'image-outline'}
-                      size={16} color={colors.muted}
-                    />
-                    <Text style={styles.attachName} numberOfLines={1}>{att.name}</Text>
-                    {att.url ? (
-                      <Ionicons name="open-outline" size={13} color={withAlpha(ACCENT_TEAL, 0.6)} style={{ marginRight: 4 }} />
-                    ) : null}
-                    {canEdit ? (
-                      <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleRemoveAttachment(att.id); }} style={styles.attachRemove}>
-                        <Ionicons name="trash-outline" size={14} color={colors.error} />
-                      </TouchableOpacity>
-                    ) : null}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : null}
-
-            {isAdded && canEdit ? (
-              <View style={styles.attachSection}>
-                <DocAttachField
-                  label="Adicionar documento"
-                  uri={null}
-                  onPick={handleAddAttachment}
-                  onRemove={() => {}}
-                />
-              </View>
-            ) : null}
-
-            {canEdit && (isAdded ? (
-              <TouchableOpacity
-                onPress={() => { onRemove(); onClose(); }}
-                style={styles.removeActionBtn}
-              >
-                <Ionicons name="trash-outline" size={16} color={colors.error} />
-                <Text style={styles.removeActionText}>Remover da Viagem</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={() => { onAdd(); onClose(); }}
-                style={styles.addActionBtn}
-              >
-                <Ionicons name="add" size={18} color={colors.textOnPrimary} />
-                <Text style={styles.addActionText}>Adicionar à Viagem</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-              </Animated.ScrollView>
-            </GestureDetector>
-          </Animated.View>
-        </GestureDetector>
-      </View>
-    </Modal>
-  );
-}
 
 // ─── My Place Row ─────────────────────────────────────────────────────────────
 
@@ -451,7 +207,6 @@ function AIPanel({
   const [loadingSlow, setLoadingSlow] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   // How many of the filtered suggestions are currently rendered — caps the
   // places.catalogDetails backfill to what's actually on screen, instead of
   // chasing the whole suggestion list. Grows by VISIBLE_PAGE_SIZE only on an
@@ -630,7 +385,10 @@ function AIPanel({
             const added = findAdded(place);
             if (added) onRemove(added.id);
           }}
-          onPress={() => setSelectedPlace(place)}
+          onPress={() => router.push({
+            pathname: '/trip/[id]/place-detail',
+            params: { id: tripId, tripId, destinationId: place.destinationId || '', placeData: JSON.stringify(place), canEdit: canEdit ? '1' : '0' },
+          })}
           canEdit={canEdit}
         />
       ))}
@@ -641,24 +399,6 @@ function AIPanel({
         >
           <Text style={styles.showMoreBtnText}>{t.places.showMore}</Text>
         </TouchableOpacity>
-      )}
-      {selectedPlace && (
-        <PlaceDetailModal
-          place={selectedPlace}
-          tripId=""
-          onClose={() => setSelectedPlace(null)}
-          isAdded={isAdded(selectedPlace)}
-          onAdd={() => {
-            onAdd(selectedPlace);
-            setSelectedPlace(null);
-          }}
-          onRemove={() => {
-            const added = findAdded(selectedPlace);
-            if (added) onRemove(added.id);
-            setSelectedPlace(null);
-          }}
-          canEdit={canEdit}
-        />
       )}
     </View>
   );
@@ -719,89 +459,6 @@ function CustomSearchResultRow({
   );
 }
 
-// ─── Custom Place Preview Modal (Place Details before confirming add) ──────
-
-function CustomPlacePreviewModal({
-  result,
-  language,
-  onClose,
-  onConfirm,
-}: {
-  result: any;
-  language?: string;
-  onClose: () => void;
-  onConfirm: (details: { address?: string; hours?: string; phone?: string }) => void;
-}) {
-  const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const detailsQuery = trpc.places.curatedDetails.useQuery(
-    { placeId: result.placeId, language },
-    { enabled: !!result.placeId, staleTime: 1000 * 60 * 60 * 24 }
-  );
-  const details = detailsQuery.data as { address?: string; hours?: string; phone?: string } | undefined;
-  const address = details?.address || result.address;
-  const hours = details?.hours;
-
-  return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.detailSheet}>
-          <View style={styles.handle} />
-          <View style={styles.detailContent}>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={16} color={colors.muted} />
-            </TouchableOpacity>
-
-            <Text style={styles.detailName}>{result.name}</Text>
-            {result.rating ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2, marginBottom: 12 }}>
-                <Ionicons name="star" size={12} color={colors.accent} />
-                <Text style={{ fontSize: 13, color: colors.accent }}>{result.rating.toFixed(1)}</Text>
-              </View>
-            ) : null}
-
-            {detailsQuery.isFetching ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 }}>
-                <ActivityIndicator size="small" color={colors.textAccent} />
-                <Text style={{ color: colors.muted, fontSize: 13 }}>Carregando detalhes...</Text>
-              </View>
-            ) : (
-              <>
-                {address ? (
-                  <View style={styles.detailRow}>
-                    <Ionicons name="location-outline" size={15} color={colors.muted} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.detailRowLabel}>ENDEREÇO</Text>
-                      <Text style={styles.detailRowValue}>{address}</Text>
-                    </View>
-                  </View>
-                ) : null}
-                {hours ? (
-                  <View style={styles.detailRow}>
-                    <Ionicons name="time-outline" size={15} color={colors.muted} />
-                    <View>
-                      <Text style={styles.detailRowLabel}>HORÁRIO</Text>
-                      <Text style={styles.detailRowValue}>{hours}</Text>
-                    </View>
-                  </View>
-                ) : null}
-              </>
-            )}
-
-            <TouchableOpacity
-              onPress={() => onConfirm({ address, hours, phone: details?.phone })}
-              style={styles.addActionBtn}
-            >
-              <Ionicons name="add" size={18} color={colors.textOnPrimary} />
-              <Text style={styles.addActionText}>Adicionar à Viagem</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function PlacesScreen({ tripId, places, destinations, permissions }: PlacesScreenProps) {
@@ -822,8 +479,6 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
   }, [tripId]);
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeDestFilter, setActiveDestFilter] = useState('all');
-  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
-  const [customPreview, setCustomPreview] = useState<any | null>(null);
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
 
   // Custom place search
@@ -846,29 +501,6 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
   const handleCustomSearch = () => {
     if (customQuery.trim().length < 2) return;
     setCustomSearchEnabled(true);
-  };
-
-  const handleAddCustomPlace = async (
-    result: any,
-    destId: string,
-    details?: { address?: string; hours?: string; phone?: string }
-  ) => {
-    if (!canEdit) return;
-    Haptics.selectionAsync();
-    await upsertPlace(tripId, {
-      name: result.name,
-      category: result.category as any,
-      destinationId: destId,
-      googlePlaceId: result.placeId,
-      address: details?.address || result.address,
-      hours: details?.hours,
-      phone: details?.phone,
-      lat: result.lat,
-      lng: result.lng,
-      imageUrl: result.imageUrl,
-      rating: result.rating,
-      addedByAI: false,
-    });
   };
 
   const generateItinerary = trpc.ai.generateItinerary.useMutation();
@@ -1060,7 +692,10 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
               key={result.placeId}
               result={result}
               isAdded={places.some((p) => p.placeId === result.placeId || p.name === result.name)}
-              onPress={() => setCustomPreview(result)}
+              onPress={() => router.push({
+                pathname: '/trip/[id]/place-preview',
+                params: { id: tripId, tripId, destId: customDestId, resultData: JSON.stringify(result), canEdit: canEdit ? '1' : '0', language: preferredLanguage },
+              })}
             />
           ))}
         </View>
@@ -1131,7 +766,10 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
                     <MyPlaceRow
                       key={place.id}
                       place={place}
-                      onPress={() => setSelectedPlace(place)}
+                      onPress={() => router.push({
+                        pathname: '/trip/[id]/place-detail',
+                        params: { id: tripId, tripId, placeId: place.id, canEdit: canEdit ? '1' : '0' },
+                      })}
                       onRemove={() => handleRemovePlace(place.id)}
                       canEdit={canEdit}
                     />
@@ -1177,31 +815,6 @@ export function PlacesScreen({ tripId, places, destinations, permissions }: Plac
         ))}
       </View>
 
-      {/* My place detail modal */}
-      {selectedPlace && (
-        <PlaceDetailModal
-          place={selectedPlace}
-          tripId={tripId}
-          onClose={() => setSelectedPlace(null)}
-          isAdded={places.some((p) => p.id === selectedPlace.id)}
-          onAdd={() => handleAddPlace(selectedPlace)}
-          onRemove={() => handleRemovePlace(selectedPlace.id)}
-          canEdit={canEdit}
-        />
-      )}
-
-      {/* Custom search result preview (Place Details) before confirming add */}
-      {canEdit && customPreview && (
-        <CustomPlacePreviewModal
-          result={customPreview}
-          language={preferredLanguage}
-          onClose={() => setCustomPreview(null)}
-          onConfirm={(details) => {
-            handleAddCustomPlace(customPreview, customDestId, details);
-            setCustomPreview(null);
-          }}
-        />
-      )}
     </View>
   );
 }

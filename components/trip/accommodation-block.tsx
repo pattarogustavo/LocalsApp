@@ -1,29 +1,19 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
   Pressable,
   StyleSheet,
-  Modal,
-  TextInput,
-  ScrollView,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   Linking,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useColors } from '@/hooks/use-colors';
 import { type ThemeColorPalette } from '@/constants/theme';
 import { useTripsStore } from '@/store/trips';
-import { useAuthStore } from '@/store/auth';
-import { generateId } from '@/utils/trip-helpers';
-import type { Trip, Accommodation, AccommodationType, Destination } from '@/types/voyage';
-import { PlacesAutocompleteInput, type PlaceResult } from '@/components/ui/places-autocomplete-input';
-import { DatePickerField } from '@/components/ui/date-picker-field';
-import { DocAttachField } from '@/components/ui/doc-attach-field';
-import { trpc } from '@/lib/trpc';
+import type { Trip, AccommodationType } from '@/types/voyage';
 import { useTranslation } from '@/hooks/use-translation';
 import type { TripPermissions } from '@/hooks/use-trip-permissions';
 
@@ -55,292 +45,6 @@ function nightsBetween(checkIn: string, checkOut: string) {
   return Math.max(0, Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
-// ─── Modal ────────────────────────────────────────────────────────────────────
-
-interface AddAccommodationModalProps {
-  visible: boolean;
-  onClose: () => void;
-  destination: Destination;
-  tripId: string;
-  tripStartDate: string;
-}
-
-function AddAccommodationModal({
-  visible,
-  onClose,
-  destination,
-  tripId,
-  tripStartDate,
-}: AddAccommodationModalProps) {
-  const t = useTranslation();
-  const colors = useColors();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const addAccommodation = useTripsStore((s) => s.addAccommodation);
-
-  const [type, setType] = useState<AccommodationType>('hotel');
-  const [checkIn, setCheckIn] = useState<Date>(new Date(tripStartDate));
-  const [checkOut, setCheckOut] = useState<Date>(() => {
-    const d = new Date(tripStartDate);
-    // A trip of N days spans N-1 nights of hotel stay (e.g. a 3-day trip is 2 nights).
-    d.setDate(d.getDate() + Math.max(1, destination.days - 1));
-    return d;
-  });
-
-  // Hotel / Other fields
-  const [hotelPlace, setHotelPlace] = useState<PlaceResult | null>(null);
-  const [hotelName, setHotelName] = useState('');
-  const [hotelAddress, setHotelAddress] = useState('');
-  const [hotelPlaceId, setHotelPlaceId] = useState('');
-
-  // House/Apt fields
-  const [houseAddressPlace, setHouseAddressPlace] = useState<PlaceResult | null>(null);
-  const [houseAddress, setHouseAddress] = useState('');
-
-  // Other name (free text)
-  const [otherName, setOtherName] = useState('');
-
-  // Common fields
-  const [confirmationCode, setConfirmationCode] = useState('');
-  const [confirmationDocUri, setConfirmationDocUri] = useState<string | null>(null);
-
-  // Fetch hotel details (address) when a hotel place is selected
-  const preferredLanguage = useAuthStore((s) => s.preferredLanguage);
-  const detailsQuery = trpc.places.details.useQuery(
-    { placeId: hotelPlaceId, language: preferredLanguage },
-    { enabled: hotelPlaceId.length > 0, staleTime: 1000 * 60 * 60 * 24 }
-  );
-
-  React.useEffect(() => {
-    if (detailsQuery.data?.address) {
-      setHotelAddress(detailsQuery.data.address);
-    }
-  }, [detailsQuery.data]);
-
-  const isHouse = type === 'house';
-  const isHotelOrOther = type === 'hotel' || type === 'other';
-
-  const canSave = isHouse
-    ? houseAddress.trim().length > 0
-    : (hotelName.trim().length > 0 || otherName.trim().length > 0);
-
-  const handleSave = async () => {
-    if (!canSave) return;
-
-    const acc: Accommodation = {
-      id: generateId(),
-      destinationId: destination.id,
-      name: isHouse ? houseAddress.trim() : (type === 'other' ? otherName.trim() : hotelName.trim()),
-      type,
-      address: isHouse ? houseAddress.trim() : hotelAddress.trim() || undefined,
-      checkIn: checkIn.toISOString(),
-      checkOut: checkOut.toISOString(),
-      confirmationCode: confirmationCode.trim() || undefined,
-      confirmationDocUri: confirmationDocUri || undefined,
-    };
-    await addAccommodation(tripId, acc);
-    handleClose();
-  };
-
-  const handleClose = () => {
-    setType('hotel');
-    setHotelPlace(null); setHotelName(''); setHotelAddress(''); setHotelPlaceId('');
-    setHouseAddressPlace(null); setHouseAddress('');
-    setOtherName('');
-    setConfirmationCode(''); setConfirmationDocUri(null);
-    onClose();
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <KeyboardAvoidingView
-        style={{ flex: 1, justifyContent: 'flex-end' }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-      <View style={styles.overlay}>
-        <View style={[styles.addSheet, { backgroundColor: colors.background }]}>
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
-
-          <View style={styles.addHeader}>
-            <Text style={[styles.addTitle, { color: colors.foreground }]}>
-              {t.accommodation.addTitle} {destination.name}
-            </Text>
-            <Pressable onPress={handleClose} style={[styles.closeBtn, { backgroundColor: colors.surface }]}>
-              <Ionicons name="close" size={16} color={colors.foreground} />
-            </Pressable>
-          </View>
-
-          <ScrollView
-            style={styles.addScroll}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* 1. Type */}
-            <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.type.toUpperCase()}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeRow} keyboardShouldPersistTaps="handled">
-              {TYPE_OPTIONS.map((t) => (
-                <Pressable
-                  key={t.id}
-                  onPress={() => setType(t.id)}
-                  style={({ pressed }) => [
-                    styles.typeChip,
-                    {
-                      backgroundColor: type === t.id ? colors.primary : colors.surface,
-                      borderColor: type === t.id ? colors.primary : colors.border,
-                      opacity: pressed ? 0.8 : 1,
-                    },
-                  ]}
-                >
-                  <Text style={styles.typeChipEmoji}>{t.icon}</Text>
-                  <Text style={[styles.typeChipLabel, { color: type === t.id ? colors.textOnPrimary : colors.foreground }]}>
-                    {t.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-
-            {/* 2. Check-in / Check-out */}
-            <View style={styles.dateRow}>
-              <View style={{ flex: 1 }}>
-                <DatePickerField
-                  label={t.accommodation.checkIn.toUpperCase()}
-                  value={checkIn}
-                  onChange={(d) => {
-                    setCheckIn(d);
-                    if (d >= checkOut) {
-                      const next = new Date(d);
-                      next.setDate(next.getDate() + 1);
-                      setCheckOut(next);
-                    }
-                  }}
-                />
-              </View>
-              <View style={[styles.nightsBadge, { backgroundColor: colors.primary }]}>
-                <Text style={styles.nightsNum}>
-                  {nightsBetween(checkIn.toISOString(), checkOut.toISOString())}
-                </Text>
-                <Text style={styles.nightsLabel}>{t.accommodation.nights}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <DatePickerField
-                  label={t.accommodation.checkOut.toUpperCase()}
-                  value={checkOut}
-                  onChange={(d) => {
-                    if (d > checkIn) setCheckOut(d);
-                  }}
-                />
-              </View>
-            </View>
-
-            {/* 3a. Hotel / Other: name via Google Places */}
-            {isHotelOrOther && type === 'hotel' && (
-              <View style={{ marginBottom: 14 }}>
-                <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.hotelName.toUpperCase()} *</Text>
-                <PlacesAutocompleteInput
-                  placeholder={t.accommodation.hotelSearchPlaceholder}
-                  value={hotelPlace?.name || ''}
-                  onSelect={(p) => {
-                    setHotelPlace(p);
-                    setHotelName(p.name);
-                    setHotelPlaceId(p.placeId);
-                  }}
-                  searchTypes="establishment"
-                  biasLat={destination.lat}
-                  biasLng={destination.lng}
-                />
-              </View>
-            )}
-
-            {/* 3b. Other type: free text name */}
-            {type === 'other' && (
-              <View style={{ marginBottom: 14 }}>
-                <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.localName.toUpperCase()} *</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, color: colors.foreground }]}
-                  placeholder={t.accommodation.localNamePlaceholder}
-                  placeholderTextColor={colors.muted}
-                  value={otherName}
-                  onChangeText={setOtherName}
-                />
-              </View>
-            )}
-
-            {/* 3c. Hotel: address auto-filled from Google, editable */}
-            {type === 'hotel' && (
-              <View style={{ marginBottom: 14 }}>
-                <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.address.toUpperCase()}</Text>
-                {detailsQuery.isFetching ? (
-                  <View style={[styles.input, { backgroundColor: colors.surface, justifyContent: 'center' }]}>
-                    <Text style={{ color: colors.muted, fontSize: 13 }}>{t.accommodation.fetchingAddress}</Text>
-                  </View>
-                ) : (
-                  <TextInput
-                    style={[styles.input, { backgroundColor: colors.surface, color: colors.foreground }]}
-                    placeholder={t.accommodation.addressAutoFilled}
-                    placeholderTextColor={colors.muted}
-                    value={hotelAddress}
-                    onChangeText={setHotelAddress}
-                  />
-                )}
-              </View>
-            )}
-
-            {/* 3d. House/Apt: only address via Google Places */}
-            {isHouse && (
-              <View style={{ marginBottom: 14 }}>
-                <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.address.toUpperCase()} *</Text>
-                <PlacesAutocompleteInput
-                  placeholder={t.accommodation.addressSearchPlaceholder}
-                  value={houseAddressPlace?.fullDescription || ''}
-                  onSelect={(p) => {
-                    setHouseAddressPlace(p);
-                    setHouseAddress(p.fullDescription);
-                  }}
-                  searchTypes="address"
-                  biasLat={destination.lat}
-                  biasLng={destination.lng}
-                />
-              </View>
-            )}
-
-            {/* 4. Confirmation code */}
-            <Text style={[styles.fieldLabel, { color: colors.muted }]}>{t.accommodation.confirmationCode.toUpperCase()}</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, color: colors.foreground }]}
-              placeholder={t.accommodation.confirmationCodePlaceholder}
-              placeholderTextColor={colors.muted}
-              value={confirmationCode}
-              onChangeText={setConfirmationCode}
-              autoCapitalize="characters"
-            />
-
-            {/* 5. Confirmation document */}
-            <DocAttachField
-              label={`${t.accommodation.confirmationDoc.toUpperCase()} (${t.common.optional.toUpperCase()})`}
-              uri={confirmationDocUri}
-              onPick={setConfirmationDocUri}
-              onRemove={() => setConfirmationDocUri(null)}
-            />
-
-            <TouchableOpacity
-              onPress={handleSave}
-              disabled={!canSave}
-              activeOpacity={0.7}
-              style={[styles.saveBtn, { backgroundColor: canSave ? colors.primary : colors.border }]}
-            >
-              <Text style={[styles.saveBtnText, { color: canSave ? colors.textOnPrimary : colors.muted }]}>
-                {t.accommodation.save}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={{ height: 40 }} />
-          </ScrollView>
-        </View>
-      </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
 // ─── Main Block ───────────────────────────────────────────────────────────────
 
 interface AccommodationBlockProps {
@@ -354,7 +58,8 @@ export function AccommodationBlock({ trip, permissions }: AccommodationBlockProp
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { canEdit } = permissions;
   const removeAccommodation = useTripsStore((s) => s.removeAccommodation);
-  const [addingForDest, setAddingForDest] = useState<Destination | null>(null);
+  const openAddAccommodation = (destinationId: string) =>
+    router.push({ pathname: '/trip/[id]/add-accommodation', params: { id: trip.id, tripId: trip.id, destinationId } });
 
   return (
     <View style={styles.container}>
@@ -427,7 +132,7 @@ export function AccommodationBlock({ trip, permissions }: AccommodationBlockProp
 
             {canEdit ? (
               <Pressable
-                onPress={() => setAddingForDest(dest)}
+                onPress={() => openAddAccommodation(dest.id)}
                 style={({ pressed }) => [styles.addAccBtn, { opacity: pressed ? 0.8 : 1 }]}
               >
                 <Ionicons name="add" size={14} color={colors.textAccent} />
@@ -438,15 +143,6 @@ export function AccommodationBlock({ trip, permissions }: AccommodationBlockProp
         );
       })}
 
-      {addingForDest && (
-        <AddAccommodationModal
-          visible={true}
-          onClose={() => setAddingForDest(null)}
-          destination={addingForDest}
-          tripId={trip.id}
-          tripStartDate={trip.startDate}
-        />
-      )}
     </View>
   );
 }
